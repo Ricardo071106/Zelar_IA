@@ -204,10 +204,11 @@ export async function deleteICalFile(fileName: string): Promise<{
       message: `Arquivo ICS excluído com sucesso!`
     };
   } catch (error) {
-    log(`Erro ao excluir arquivo ICS: ${error}`, 'calendar');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao excluir arquivo ICS: ${errorMessage}`, 'calendar');
     return {
       success: false,
-      message: `Erro ao excluir arquivo ICS: ${error.message}`
+      message: `Erro ao excluir arquivo ICS: ${errorMessage}`
     };
   }
 }
