@@ -95,42 +95,7 @@ bot.help(async (ctx) => {
   );
 });
 
-// Comando para listar eventos
-bot.command('eventos', async (ctx) => {
-  try {
-    const telegramId = ctx.from.id.toString();
-    const user = await findOrCreateUserByTelegramId(telegramId);
-    
-    // Busca eventos futuros
-    const eventos = await getFutureEvents(user.id);
-    
-    if (eventos.length === 0) {
-      await ctx.reply('Você não tem eventos futuros agendados.');
-      return;
-    }
-    
-    let message = '📋 *Seus próximos eventos:*\n\n';
-    
-    for (const evento of eventos) {
-      const data = new Date(evento.startDate);
-      const dataFormatada = format(data, "EEEE, dd 'de' MMMM", { locale: ptBR });
-      const horaFormatada = format(data, "HH:mm", { locale: ptBR });
-      
-      message += `📅 *${evento.title}*\n🕒 ${dataFormatada} às ${horaFormatada}\n`;
-      
-      if (evento.location) {
-        message += `📍 ${evento.location}\n`;
-      }
-      
-      message += '\n';
-    }
-    
-    await ctx.reply(message, { parse_mode: 'Markdown' });
-  } catch (error) {
-    log(`Erro ao listar eventos: ${error}`, 'telegram');
-    await ctx.reply('Ocorreu um erro ao listar seus eventos. Por favor, tente novamente mais tarde.');
-  }
-});
+// REMOVIDO - COMANDO DUPLICADO
 
 // Comando para listar todos os seus compromissos
 bot.command('meuscompromissos', async (ctx) => {
