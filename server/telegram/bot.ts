@@ -84,6 +84,7 @@ bot.help(async (ctx) => {
     `🤖 *Comandos do Zelar*\n\n` +
     `• Envie mensagens de texto ou áudio descrevendo seus compromissos\n` +
     `• /eventos - Lista todos os seus eventos futuros\n` +
+    `• /listar - Mostra todos seus eventos futuros (alternativa)\n` +
     `• /hoje - Mostra seus eventos de hoje\n` +
     `• /amanha - Mostra seus eventos de amanhã\n` +
     `• /semana - Mostra seus eventos da semana atual\n` +
@@ -602,85 +603,60 @@ bot.on(message('voice'), async (ctx) => {
   }
 });
 
-// Comando para listar eventos futuros
-bot.command('eventos', async (ctx) => {
+// Comando simplificado para listar eventos
+bot.command(['eventos', 'listar'], async (ctx) => {
   try {
-    log('Comando /eventos recebido', 'telegram');
+    log(`Comando ${ctx.message.text} recebido`, 'telegram');
     const telegramId = ctx.from.id.toString();
-    log(`Processando comando para telegram_id: ${telegramId}`, 'telegram');
     
-    const user = await findOrCreateUserByTelegramId(telegramId);
+    // Buscar o usuário pelo ID do Telegram
+    const user = await storage.getUserByTelegramId(telegramId);
+    
+    if (!user) {
+      log(`Usuário não encontrado para Telegram ID: ${telegramId}`, 'telegram');
+      await ctx.reply('Usuário não encontrado. Por favor, reinicie o bot com /start');
+      return;
+    }
+    
     log(`Usuário encontrado: ${user.id}`, 'telegram');
     
-    // Busca diretamente do banco de dados em vez de usar a função auxiliar
-    const todosEventos = await storage.getEventsByUserId(user.id);
-    log(`Total de eventos encontrados: ${todosEventos.length}`, 'telegram');
+    // Buscar eventos diretamente do banco de dados
+    const eventos = await storage.getEventsByUserId(user.id);
+    log(`Total de eventos encontrados: ${eventos.length}`, 'telegram');
     
-    if (todosEventos.length === 0) {
+    if (eventos.length === 0) {
       await ctx.reply('Você não tem eventos cadastrados. Para criar um evento, me envie uma mensagem como: "Reunião amanhã às 15h".');
       return;
     }
     
-    // Filtra eventos futuros manualmente
-    const agora = new Date();
-    const eventosFuturos = todosEventos.filter(evento => {
-      const dataEvento = new Date(evento.startDate);
-      return dataEvento >= agora;
-    });
-    log(`Eventos futuros filtrados: ${eventosFuturos.length}`, 'telegram');
+    // Criar a mensagem de resposta
+    let message = '📅 *Seus eventos:*\n\n';
     
-    if (eventosFuturos.length === 0) {
-      await ctx.reply('Você não tem eventos futuros agendados. Para criar um evento, me envie uma mensagem como: "Reunião amanhã às 15h".');
-      return;
-    }
-    
-    // Ordena por data
-    eventosFuturos.sort((a, b) => {
-      const dataA = new Date(a.startDate);
-      const dataB = new Date(b.startDate);
-      return dataA.getTime() - dataB.getTime();
-    });
-    
-    let message = '📅 *Seus próximos eventos:*\n\n';
-    
-    for (const evento of eventosFuturos) {
-      try {
-        const dataInicio = new Date(evento.startDate);
-        const dataFormatada = format(dataInicio, "EEEE, dd 'de' MMMM", { locale: ptBR });
-        const horaFormatada = format(dataInicio, "HH:mm", { locale: ptBR });
-        
-        message += `*${evento.title}*\n`;
-        message += `📆 ${dataFormatada} às ${horaFormatada}\n`;
-        
-        if (evento.location) {
-          message += `📍 ${evento.location}\n`;
-        }
-        
-        // Adiciona indicador de sincronização com calendário
-        if (evento.calendarId) {
-          message += `🔄 Sincronizado com seu calendário\n`;
-        }
-        
-        message += '\n';
-      } catch (formatError) {
-        // Em caso de erro na formatação, usa um formato mais simples
-        log(`Erro ao formatar data: ${formatError}`, 'telegram');
-        message += `*${evento.title}*\n`;
-        message += `📆 Data: ${new Date(evento.startDate).toLocaleString('pt-BR')}\n`;
-        
-        if (evento.location) {
-          message += `📍 ${evento.location}\n`;
-        }
-        
-        message += '\n';
+    // Adicionar cada evento à mensagem
+    for (const evento of eventos) {
+      const data = new Date(evento.startDate);
+      
+      message += `*${evento.title}*\n`;
+      message += `📆 Data: ${data.toLocaleString('pt-BR')}\n`;
+      
+      if (evento.location) {
+        message += `📍 Local: ${evento.location}\n`;
       }
+      
+      if (evento.description) {
+        message += `📝 ${evento.description}\n`;
+      }
+      
+      message += '\n';
     }
     
+    // Enviar a mensagem
     await ctx.reply(message, { parse_mode: 'Markdown' });
-    log('Resposta de eventos enviada com sucesso', 'telegram');
-  } catch (error) {
-    log(`Erro ao processar comando eventos: ${error}`, 'telegram');
-    await ctx.reply(`Ocorreu um erro ao buscar seus eventos: ${error.message}`);
+    log('Lista de eventos enviada com sucesso', 'telegram');
+    
+  } catch (error: any) {
+    log(`Erro ao listar eventos: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao listar seus eventos. Por favor, tente novamente mais tarde.');
   }
 });
 
