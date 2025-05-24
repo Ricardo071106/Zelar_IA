@@ -4,6 +4,9 @@ import { processTextMessage, processVoiceMessage } from './processor';
 import { createUserIfNotExists, findOrCreateUserByTelegramId } from './user';
 import { log } from '../vite';
 import { storage } from '../storage';
+import { getFutureEvents, getEventsForDay } from './event';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -200,8 +203,36 @@ bot.on(message('voice'), async (ctx) => {
 bot.command('eventos', async (ctx) => {
   try {
     const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
-    // Implementação será adicionada
-    await ctx.reply('Funcionalidade em desenvolvimento. Em breve você poderá ver todos os seus eventos aqui!');
+    const events = await getFutureEvents(user.id);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você não tem eventos futuros agendados.');
+      return;
+    }
+    
+    let message = '📅 *Seus próximos eventos:*\n\n';
+    
+    for (const event of events) {
+      const startDate = new Date(event.startDate);
+      const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+      
+      message += `*${event.title}*\n`;
+      message += `📆 ${formattedDate} às ${formattedTime}\n`;
+      
+      if (event.location) {
+        message += `📍 ${event.location}\n`;
+      }
+      
+      // Adiciona indicador de sincronização com calendário
+      if (event.calendarId) {
+        message += `🔄 Sincronizado com seu calendário\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
     log(`Erro ao processar comando eventos: ${error}`, 'telegram');
     await ctx.reply('Ocorreu um erro ao buscar seus eventos. Por favor, tente novamente.');
@@ -212,8 +243,39 @@ bot.command('eventos', async (ctx) => {
 bot.command('hoje', async (ctx) => {
   try {
     const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
-    // Implementação será adicionada
-    await ctx.reply('Funcionalidade em desenvolvimento. Em breve você poderá ver os eventos de hoje aqui!');
+    const today = new Date();
+    const events = await getEventsForDay(user.id, today);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você não tem eventos agendados para hoje.');
+      return;
+    }
+    
+    let message = '📅 *Seus eventos de hoje:*\n\n';
+    
+    for (const event of events) {
+      const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+      
+      message += `*${event.title}*\n`;
+      message += `🕒 ${startTime}\n`;
+      
+      if (event.location) {
+        message += `📍 ${event.location}\n`;
+      }
+      
+      if (event.description) {
+        message += `📝 ${event.description}\n`;
+      }
+      
+      // Adiciona indicador de sincronização com calendário
+      if (event.calendarId) {
+        message += `🔄 Sincronizado com seu calendário\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
     log(`Erro ao processar comando hoje: ${error}`, 'telegram');
     await ctx.reply('Ocorreu um erro ao buscar seus eventos de hoje. Por favor, tente novamente.');
@@ -224,8 +286,44 @@ bot.command('hoje', async (ctx) => {
 bot.command('amanha', async (ctx) => {
   try {
     const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
-    // Implementação será adicionada
-    await ctx.reply('Funcionalidade em desenvolvimento. Em breve você poderá ver os eventos de amanhã aqui!');
+    
+    // Pega a data de amanhã
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    const events = await getEventsForDay(user.id, tomorrow);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você não tem eventos agendados para amanhã.');
+      return;
+    }
+    
+    const tomorrowFormatted = format(tomorrow, "EEEE, dd 'de' MMMM", { locale: ptBR });
+    let message = `📅 *Seus eventos para amanhã (${tomorrowFormatted}):*\n\n`;
+    
+    for (const event of events) {
+      const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+      
+      message += `*${event.title}*\n`;
+      message += `🕒 ${startTime}\n`;
+      
+      if (event.location) {
+        message += `📍 ${event.location}\n`;
+      }
+      
+      if (event.description) {
+        message += `📝 ${event.description}\n`;
+      }
+      
+      // Adiciona indicador de sincronização com calendário
+      if (event.calendarId) {
+        message += `🔄 Sincronizado com seu calendário\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
     log(`Erro ao processar comando amanha: ${error}`, 'telegram');
     await ctx.reply('Ocorreu um erro ao buscar seus eventos de amanhã. Por favor, tente novamente.');
@@ -236,8 +334,47 @@ bot.command('amanha', async (ctx) => {
 bot.command('configuracoes', async (ctx) => {
   try {
     const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
-    // Implementação será adicionada
-    await ctx.reply('Funcionalidade em desenvolvimento. Em breve você poderá configurar suas preferências aqui!');
+    
+    // Busca as configurações do usuário
+    const settings = await storage.getUserSettings(user.id);
+    
+    // Se não existirem configurações, cria configurações padrão
+    if (!settings) {
+      await storage.createUserSettings({
+        userId: user.id,
+        reminderPreferences: { "24h": true, "30min": true },
+        language: "pt-BR",
+        timeZone: "America/Sao_Paulo"
+      });
+    }
+    
+    // Mensagem de configurações
+    let message = '⚙️ *Suas configurações:*\n\n';
+    message += `👤 *Perfil*\n`;
+    message += `Nome: ${user.name || 'Não configurado'}\n`;
+    message += `E-mail: ${user.email || 'Não configurado'}\n\n`;
+    
+    if (user.email) {
+      message += `✅ Seus eventos estão sendo sincronizados com seu calendário através do e-mail ${user.email}.\n\n`;
+    } else {
+      message += `❌ Você ainda não configurou um e-mail para sincronização com calendário.\n`;
+      message += `Envie seu e-mail para configurar esta funcionalidade.\n\n`;
+      
+      // Define o estado para aguardar o e-mail
+      userStates.set(user.telegramId, {
+        awaitingEmail: true,
+        telegramId: user.telegramId,
+        userId: user.id
+      });
+    }
+    
+    message += `💡 *Comandos disponíveis:*\n`;
+    message += `• /eventos - Lista todos os seus eventos futuros\n`;
+    message += `• /hoje - Mostra seus eventos de hoje\n`;
+    message += `• /amanha - Mostra seus eventos de amanhã\n`;
+    message += `• /configuracoes - Acessa este menu\n`;
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
   } catch (error) {
     log(`Erro ao processar comando configuracoes: ${error}`, 'telegram');
     await ctx.reply('Ocorreu um erro ao carregar suas configurações. Por favor, tente novamente.');
