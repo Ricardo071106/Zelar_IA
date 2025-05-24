@@ -1,6 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { initializeTelegramBot } from "./telegram";
 
 const app = express();
 app.use(express.json());
@@ -64,7 +65,19 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+    
+    // Inicializa o bot do Telegram após o servidor estar rodando
+    try {
+      const botInitialized = await initializeTelegramBot();
+      if (botInitialized) {
+        log('Bot do Telegram iniciado com sucesso!', 'telegram');
+      } else {
+        log('Não foi possível iniciar o bot do Telegram.', 'telegram');
+      }
+    } catch (error) {
+      log(`Erro ao iniciar o bot do Telegram: ${error}`, 'telegram');
+    }
   });
 })();
