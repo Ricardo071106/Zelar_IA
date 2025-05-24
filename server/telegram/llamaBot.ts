@@ -287,15 +287,61 @@ async function processTextMessage(text: string, userId: number): Promise<{
       let endDate;
       
       try {
-        // Tenta converter a data de início
-        startDate = new Date(eventData.startDate);
-        // Verifica se a data é válida
-        if (isNaN(startDate.getTime())) {
-          // Se a data fornecida pelo modelo não for válida, usamos a data de amanhã às 10h
-          log(`Data inválida recebida: ${eventData.startDate}, usando fallback`, 'telegram');
-          startDate = new Date();
-          startDate.setDate(startDate.getDate() + 1);
-          startDate.setHours(10, 0, 0, 0);
+        // Verifica se o modelo está retornando o valor padrão sem processamento
+        if (eventData.startDate === "YYYY-MM-DDTHH:MM:SS" || eventData.startDate.includes("YYYY")) {
+          // Tenta extrair informações da mensagem original
+          if (text.toLowerCase().includes("próxima segunda") || text.toLowerCase().includes("proxima segunda")) {
+            // Encontra a próxima segunda-feira
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() + (8 - startDate.getDay()) % 7);
+            
+            // Define a hora mencionada ou padrão
+            if (text.toLowerCase().includes("10h") || text.toLowerCase().includes("10:00") || 
+                text.toLowerCase().includes("às 10")) {
+              startDate.setHours(10, 0, 0, 0);
+            } else if (text.toLowerCase().includes("15h") || text.toLowerCase().includes("15:00") || 
+                      text.toLowerCase().includes("às 15") || text.toLowerCase().includes("3 da tarde")) {
+              startDate.setHours(15, 0, 0, 0);
+            } else {
+              startDate.setHours(10, 0, 0, 0); // Hora padrão
+            }
+            
+            log(`Utilizando próxima segunda-feira às ${startDate.getHours()}h`, 'telegram');
+          } else if (text.toLowerCase().includes("amanhã")) {
+            // Define para amanhã
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() + 1);
+            
+            // Define a hora mencionada ou padrão
+            if (text.toLowerCase().includes("15h") || text.toLowerCase().includes("15:00") || 
+                text.toLowerCase().includes("às 15") || text.toLowerCase().includes("3 da tarde")) {
+              startDate.setHours(15, 0, 0, 0);
+            } else if (text.toLowerCase().includes("10h") || text.toLowerCase().includes("10:00") || 
+                      text.toLowerCase().includes("às 10")) {
+              startDate.setHours(10, 0, 0, 0);
+            } else {
+              startDate.setHours(10, 0, 0, 0); // Hora padrão
+            }
+            
+            log(`Utilizando amanhã às ${startDate.getHours()}h`, 'telegram');
+          } else {
+            // Fallback padrão para amanhã às 10h
+            log(`Data inválida recebida: ${eventData.startDate}, usando fallback padrão`, 'telegram');
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() + 1);
+            startDate.setHours(10, 0, 0, 0);
+          }
+        } else {
+          // Tenta converter a data de início normalmente
+          startDate = new Date(eventData.startDate);
+          // Verifica se a data é válida
+          if (isNaN(startDate.getTime())) {
+            // Se a data fornecida pelo modelo não for válida, usamos a data de amanhã às 10h
+            log(`Data inválida recebida: ${eventData.startDate}, usando fallback`, 'telegram');
+            startDate = new Date();
+            startDate.setDate(startDate.getDate() + 1);
+            startDate.setHours(10, 0, 0, 0);
+          }
         }
         
         // Tenta converter a data de término, se existir
