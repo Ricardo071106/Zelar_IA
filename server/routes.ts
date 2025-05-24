@@ -3,6 +3,8 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertEventSchema, insertReminderSchema, insertUserSchema, insertUserSettingsSchema } from "@shared/schema";
 import { z } from "zod";
+import * as fs from 'fs';
+import * as path from 'path';
 
 // Middleware para validação com Zod
 function validateBody(schema: z.ZodType<any, any>) {
@@ -23,6 +25,26 @@ function validateBody(schema: z.ZodType<any, any>) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Rota para download de arquivos de calendário
+  app.get('/download/calendar_files/:filename', async (req, res) => {
+    try {
+      const { filename } = req.params;
+      const filePath = path.join(process.cwd(), 'calendar_files', filename);
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).send('Arquivo não encontrado');
+      }
+      
+      res.setHeader('Content-Type', 'text/calendar');
+      res.setHeader('Content-Disposition', `attachment; filename=${filename}`);
+      
+      fs.createReadStream(filePath).pipe(res);
+    } catch (error) {
+      console.error('Erro ao fornecer arquivo de calendário:', error);
+      res.status(500).send('Erro ao processar sua solicitação');
+    }
+  });
+  
   // Rotas de usuários
   app.get('/api/users/:id', async (req, res, next) => {
     try {
