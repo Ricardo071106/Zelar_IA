@@ -89,6 +89,27 @@ export async function getFutureEvents(userId: number) {
 }
 
 /**
+ * Busca todos os eventos para um usuário (passados e futuros)
+ */
+export async function getAllEvents(userId: number) {
+  try {
+    const events = await storage.getEventsByUserId(userId);
+    
+    // Ordena por data (do mais recente para o mais antigo)
+    events.sort((a, b) => {
+      const dateA = new Date(a.startDate);
+      const dateB = new Date(b.startDate);
+      return dateB.getTime() - dateA.getTime(); // Ordem inversa para mostrar mais recentes primeiro
+    });
+    
+    return events;
+  } catch (error) {
+    log(`Erro ao buscar todos os eventos: ${error}`, 'telegram');
+    throw new Error(`Falha ao buscar todos os eventos: ${error}`);
+  }
+}
+
+/**
  * Busca eventos para um dia específico
  */
 export async function getEventsForDay(userId: number, date: Date) {

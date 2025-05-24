@@ -4,7 +4,7 @@ import { processTextMessage, processVoiceMessage } from './processor';
 import { createUserIfNotExists, findOrCreateUserByTelegramId } from './user';
 import { log } from '../vite';
 import { storage } from '../storage';
-import { getFutureEvents, getEventsForDay, cancelEvent } from './event';
+import { getFutureEvents, getEventsForDay, cancelEvent, getAllEvents } from './event';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Event } from '@shared/schema';
@@ -379,6 +379,93 @@ bot.command('amanha', async (ctx) => {
   }
 });
 
+// Comando para listar todos os eventos (passados e futuros)
+bot.command('meusEventos', async (ctx) => {
+  try {
+    const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
+    const events = await getAllEvents(user.id);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você ainda não tem eventos cadastrados.');
+      return;
+    }
+    
+    let message = '📋 *Todos os seus eventos:*\n\n';
+    
+    // Separar eventos passados e futuros
+    const now = new Date();
+    const pastEvents = [];
+    const futureEvents = [];
+    
+    for (const event of events) {
+      const eventDate = new Date(event.startDate);
+      if (eventDate < now) {
+        pastEvents.push(event);
+      } else {
+        futureEvents.push(event);
+      }
+    }
+    
+    // Mostrar eventos futuros primeiro
+    if (futureEvents.length > 0) {
+      message += '*📆 Eventos futuros:*\n\n';
+      
+      for (const event of futureEvents) {
+        const startDate = new Date(event.startDate);
+        const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+        const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+        
+        message += `*${event.title}*\n`;
+        message += `📆 ${formattedDate} às ${formattedTime}\n`;
+        
+        if (event.location) {
+          message += `📍 ${event.location}\n`;
+        }
+        
+        if (event.calendarId) {
+          message += `🔄 Sincronizado com seu calendário\n`;
+        }
+        
+        message += '\n';
+      }
+    }
+    
+    // Mostrar eventos passados
+    if (pastEvents.length > 0) {
+      message += '*🕰️ Eventos passados:*\n\n';
+      
+      // Limitar a 5 eventos passados para não sobrecarregar a mensagem
+      const recentPastEvents = pastEvents.slice(0, 5);
+      
+      for (const event of recentPastEvents) {
+        const startDate = new Date(event.startDate);
+        const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+        const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+        
+        message += `*${event.title}*\n`;
+        message += `📆 ${formattedDate} às ${formattedTime}\n`;
+        
+        if (event.location) {
+          message += `📍 ${event.location}\n`;
+        }
+        
+        message += '\n';
+      }
+      
+      // Se houver mais eventos passados, indicar quantos foram omitidos
+      if (pastEvents.length > 5) {
+        const omittedCount = pastEvents.length - 5;
+        message += `_...e mais ${omittedCount} evento${omittedCount > 1 ? 's' : ''} no passado._\n\n`;
+      }
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (error) {
+    log(`Erro ao processar comando meusEventos: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao buscar seus eventos. Por favor, tente novamente.');
+  }
+});
+
 // Comando para cancelar eventos
 bot.command('cancelar', async (ctx) => {
   try {
@@ -469,6 +556,7 @@ bot.command('configuracoes', async (ctx) => {
     
     message += `💡 *Comandos disponíveis:*\n`;
     message += `• /eventos - Lista todos os seus eventos futuros\n`;
+    message += `• /meusEventos - Mostra todos os seus eventos (passados e futuros)\n`;
     message += `• /hoje - Mostra seus eventos de hoje\n`;
     message += `• /amanha - Mostra seus eventos de amanhã\n`;
     message += `• /cancelar - Cancela um evento\n`;
