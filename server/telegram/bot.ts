@@ -4,7 +4,7 @@ import { processTextMessage, processVoiceMessage } from './processor';
 import { createUserIfNotExists, findOrCreateUserByTelegramId } from './user';
 import { log } from '../vite';
 import { storage } from '../storage';
-import { getFutureEvents, getEventsForDay, cancelEvent, getAllEvents } from './event';
+import { getFutureEvents, getEventsForDay, cancelEvent, getAllEvents, getEventsForWeek } from './event';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Event } from '@shared/schema';
@@ -194,6 +194,64 @@ async function updateUserEmail(userId: number, email: string) {
   }
 }
 
+// Função auxiliar para listar eventos da semana
+async function listarEventosDaSemana(ctx: any, userId: number) {
+  try {
+    // Busca eventos da semana
+    const eventos = await getEventsForWeek(userId);
+
+    if (eventos.length === 0) {
+      await ctx.reply('Você não tem eventos agendados para esta semana.');
+      return true; // Indica que foi processado com sucesso
+    }
+
+    // Formata a resposta
+    let message = '📅 *Seus eventos para esta semana:*\n\n';
+    
+    // Agrupa eventos por dia
+    const eventsByDay: Record<string, typeof eventos> = {};
+    
+    for (const evento of eventos) {
+      const data = new Date(evento.startDate);
+      const dataKey = format(data, 'yyyy-MM-dd');
+      
+      if (!eventsByDay[dataKey]) {
+        eventsByDay[dataKey] = [];
+      }
+      
+      eventsByDay[dataKey].push(evento);
+    }
+    
+    // Ordena as datas
+    const datasOrdenadas = Object.keys(eventsByDay).sort();
+    
+    // Gera mensagem por dia
+    for (const dataKey of datasOrdenadas) {
+      const data = new Date(dataKey);
+      const dataFormatada = format(data, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      
+      message += `*${dataFormatada}*\n`;
+      
+      for (const evento of eventsByDay[dataKey]) {
+        const hora = format(new Date(evento.startDate), 'HH:mm', { locale: ptBR });
+        message += `• ${evento.title} às ${hora}\n`;
+        if (evento.location) {
+          message += `  📍 ${evento.location}\n`;
+        }
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+    return true; // Indica que foi processado com sucesso
+  } catch (error) {
+    log(`Erro ao listar eventos da semana: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao listar seus eventos da semana. Por favor, tente novamente mais tarde.');
+    return false; // Indica que houve erro
+  }
+}
+
 // Processamento de mensagens de texto
 bot.on(message('text'), async (ctx) => {
   try {
@@ -206,67 +264,28 @@ bot.on(message('text'), async (ctx) => {
       return; // Deixe os handlers de comando lidarem com isso
     }
     
-    // Verifica se é uma consulta sobre eventos da semana
-    const weekKeywords = [
-      "semana", "esta semana", "essa semana", "proxima semana", "próxima semana", 
-      "na semana", "eventos da semana", "compromissos da semana", "agenda da semana"
+    // Verifica se é uma pergunta sobre eventos da semana
+    const textoLowerCase = ctx.message.text.toLowerCase();
+    if ((textoLowerCase.includes('semana') || textoLowerCase.includes('essa semana') || 
+        textoLowerCase.includes('esta semana') || textoLowerCase.includes('compromissos')) && 
+        (textoLowerCase.includes('eventos') || textoLowerCase.includes('compromissos') || 
+        textoLowerCase.includes('quais') || textoLowerCase.includes('mostrar'))) {
+      
+      // Processa especificamente para eventos da semana
+      await listarEventosDaSemana(ctx, user.id);
+      return; // Encerra o processamento aqui
+    }
+    
+    // Segunda verificação para outros padrões de consulta sobre eventos da semana
+    const outrasExpressoesSemana = [
+      "próximos dias", "agenda semanal", "calendário semanal", "próxima semana",
+      "eventos agendados", "programação da semana", "compromisso semanal"
     ];
     
-    if (weekKeywords.some(keyword => ctx.message.text.toLowerCase().includes(keyword))) {
-      try {
-        const { getEventsForWeek } = await import('./event');
-        const events = await getEventsForWeek(user.id);
-        
-        if (events.length === 0) {
-          await ctx.reply('Você não tem eventos agendados para esta semana.');
-          return;
-        }
-        
-        // Importa o format e ptBR
-        const { format } = await import('date-fns');
-        const { ptBR } = await import('date-fns/locale');
-        
-        let message = `📅 *Seus eventos para esta semana:*\n\n`;
-        
-        // Agrupa eventos por dia da semana
-        const eventsByDay = new Map();
-        
-        for (const event of events) {
-          const eventDate = new Date(event.startDate);
-          const dayKey = format(eventDate, "yyyy-MM-dd");
-          
-          if (!eventsByDay.has(dayKey)) {
-            eventsByDay.set(dayKey, []);
-          }
-          
-          eventsByDay.get(dayKey).push(event);
-        }
-        
-        // Ordena as datas
-        const sortedDays = Array.from(eventsByDay.keys()).sort();
-        
-        // Gera a resposta agrupada por dia
-        for (const day of sortedDays) {
-          const date = new Date(day);
-          const dayFormatted = format(date, "EEEE, dd 'de' MMMM", { locale: ptBR });
-          
-          message += `*${dayFormatted}*\n`;
-          
-          for (const event of eventsByDay.get(day)) {
-            const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
-            message += `• ${event.title} às ${startTime}\n`;
-            if (event.location) message += `  📍 ${event.location}\n`;
-          }
-          
-          message += '\n';
-        }
-        
-        await ctx.reply(message, { parse_mode: 'Markdown' });
-        return;
-      } catch (error) {
-        log(`Erro ao processar consulta de eventos da semana: ${error}`, 'telegram');
-        // Continua o fluxo normal em caso de erro
-      }
+    if (outrasExpressoesSemana.some(expr => textoLowerCase.includes(expr))) {
+      // Usa a mesma função auxiliar
+      await listarEventosDaSemana(ctx, user.id);
+      return;
     }
     
     // Verifica o estado do usuário
