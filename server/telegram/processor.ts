@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { storage } from '../storage';
 import { log } from '../vite';
-import { createEvent, createReminder, getFutureEvents, getEventsForDay, getAllEvents } from './event';
+import { createEvent, createReminder, getFutureEvents, getEventsForDay, getAllEvents, getEventsForWeek } from './event';
 import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -140,8 +140,8 @@ async function detectQueryIntent(text: string, userId: number): Promise<ProcessR
       'Analise a mensagem do usuário e determine se ela é uma pergunta ou consulta sobre eventos existentes, ' +
       'ou se é uma tentativa de criar um novo evento. ' +
       'Se for uma consulta, determine também qual tipo de consulta é: eventos de hoje, eventos de amanhã, ' +
-      'todos os eventos, eventos futuros, ou eventos de uma data específica. ' +
-      'Formate sua resposta em JSON com os campos: isQuery (boolean), queryType (string - "today", "tomorrow", "all", "future", "specific_date"), specificDate (ISO date string, somente se queryType for "specific_date"). ' +
+      'eventos da semana atual, todos os eventos, eventos futuros, ou eventos de uma data específica. ' +
+      'Formate sua resposta em JSON com os campos: isQuery (boolean), queryType (string - "today", "tomorrow", "week", "all", "future", "specific_date"), specificDate (ISO date string, somente se queryType for "specific_date"). ' +
       'Se não for uma consulta e sim uma tentativa de criar um evento, retorne apenas isQuery: false.';
     
     const userMessage = `Analise esta mensagem: "${text}"`;
@@ -218,6 +218,48 @@ async function detectQueryIntent(text: string, userId: number): Promise<ProcessR
               const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
               message += `*${event.title}*\n🕒 ${startTime}\n`;
               if (event.location) message += `📍 ${event.location}\n`;
+              message += '\n';
+            }
+          }
+          break;
+          
+        case 'week':
+          events = await getEventsForWeek(userId);
+          if (events.length === 0) {
+            message = 'Você não tem eventos agendados para esta semana.';
+          } else {
+            message = `📅 *Seus eventos para esta semana:*\n\n`;
+            
+            // Agrupa eventos por dia da semana
+            const eventsByDay = new Map();
+            
+            for (const event of events) {
+              const eventDate = new Date(event.startDate);
+              const dayKey = format(eventDate, "yyyy-MM-dd");
+              
+              if (!eventsByDay.has(dayKey)) {
+                eventsByDay.set(dayKey, []);
+              }
+              
+              eventsByDay.get(dayKey).push(event);
+            }
+            
+            // Ordena as datas
+            const sortedDays = Array.from(eventsByDay.keys()).sort();
+            
+            // Gera a resposta agrupada por dia
+            for (const day of sortedDays) {
+              const date = new Date(day);
+              const dayFormatted = format(date, "EEEE, dd 'de' MMMM", { locale: ptBR });
+              
+              message += `*${dayFormatted}*\n`;
+              
+              for (const event of eventsByDay.get(day)) {
+                const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+                message += `• ${event.title} às ${startTime}\n`;
+                if (event.location) message += `  📍 ${event.location}\n`;
+              }
+              
               message += '\n';
             }
           }
