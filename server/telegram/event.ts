@@ -17,6 +17,36 @@ export async function createEvent(eventData: InsertEvent) {
 }
 
 /**
+ * Cancela um evento e seus lembretes
+ */
+export async function cancelEvent(eventId: number): Promise<boolean> {
+  try {
+    // Primeiro, tenta cancelar o evento no calendário externo
+    try {
+      const { cancelEventFromCalendar } = await import('./calendar');
+      await cancelEventFromCalendar(eventId);
+    } catch (error) {
+      log(`Aviso: Não foi possível cancelar o evento no calendário externo: ${error}`, 'telegram');
+      // Continua mesmo se a sincronização falhar
+    }
+    
+    // Agora, exclui o evento do banco de dados (isso também remove os lembretes)
+    const deleted = await storage.deleteEvent(eventId);
+    
+    if (deleted) {
+      log(`Evento ${eventId} cancelado com sucesso`, 'telegram');
+    } else {
+      log(`Evento ${eventId} não encontrado para cancelamento`, 'telegram');
+    }
+    
+    return deleted;
+  } catch (error) {
+    log(`Erro ao cancelar evento: ${error}`, 'telegram');
+    throw new Error(`Falha ao cancelar evento: ${error}`);
+  }
+}
+
+/**
  * Cria um novo lembrete para um evento
  */
 export async function createReminder(reminderData: InsertReminder) {
