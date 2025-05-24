@@ -605,40 +605,82 @@ bot.on(message('voice'), async (ctx) => {
 // Comando para listar eventos futuros
 bot.command('eventos', async (ctx) => {
   try {
-    const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
-    const events = await getFutureEvents(user.id);
+    log('Comando /eventos recebido', 'telegram');
+    const telegramId = ctx.from.id.toString();
+    log(`Processando comando para telegram_id: ${telegramId}`, 'telegram');
     
-    if (events.length === 0) {
-      await ctx.reply('Você não tem eventos futuros agendados.');
+    const user = await findOrCreateUserByTelegramId(telegramId);
+    log(`Usuário encontrado: ${user.id}`, 'telegram');
+    
+    // Busca diretamente do banco de dados em vez de usar a função auxiliar
+    const todosEventos = await storage.getEventsByUserId(user.id);
+    log(`Total de eventos encontrados: ${todosEventos.length}`, 'telegram');
+    
+    if (todosEventos.length === 0) {
+      await ctx.reply('Você não tem eventos cadastrados. Para criar um evento, me envie uma mensagem como: "Reunião amanhã às 15h".');
       return;
     }
     
+    // Filtra eventos futuros manualmente
+    const agora = new Date();
+    const eventosFuturos = todosEventos.filter(evento => {
+      const dataEvento = new Date(evento.startDate);
+      return dataEvento >= agora;
+    });
+    log(`Eventos futuros filtrados: ${eventosFuturos.length}`, 'telegram');
+    
+    if (eventosFuturos.length === 0) {
+      await ctx.reply('Você não tem eventos futuros agendados. Para criar um evento, me envie uma mensagem como: "Reunião amanhã às 15h".');
+      return;
+    }
+    
+    // Ordena por data
+    eventosFuturos.sort((a, b) => {
+      const dataA = new Date(a.startDate);
+      const dataB = new Date(b.startDate);
+      return dataA.getTime() - dataB.getTime();
+    });
+    
     let message = '📅 *Seus próximos eventos:*\n\n';
     
-    for (const event of events) {
-      const startDate = new Date(event.startDate);
-      const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
-      const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
-      
-      message += `*${event.title}*\n`;
-      message += `📆 ${formattedDate} às ${formattedTime}\n`;
-      
-      if (event.location) {
-        message += `📍 ${event.location}\n`;
+    for (const evento of eventosFuturos) {
+      try {
+        const dataInicio = new Date(evento.startDate);
+        const dataFormatada = format(dataInicio, "EEEE, dd 'de' MMMM", { locale: ptBR });
+        const horaFormatada = format(dataInicio, "HH:mm", { locale: ptBR });
+        
+        message += `*${evento.title}*\n`;
+        message += `📆 ${dataFormatada} às ${horaFormatada}\n`;
+        
+        if (evento.location) {
+          message += `📍 ${evento.location}\n`;
+        }
+        
+        // Adiciona indicador de sincronização com calendário
+        if (evento.calendarId) {
+          message += `🔄 Sincronizado com seu calendário\n`;
+        }
+        
+        message += '\n';
+      } catch (formatError) {
+        // Em caso de erro na formatação, usa um formato mais simples
+        log(`Erro ao formatar data: ${formatError}`, 'telegram');
+        message += `*${evento.title}*\n`;
+        message += `📆 Data: ${new Date(evento.startDate).toLocaleString('pt-BR')}\n`;
+        
+        if (evento.location) {
+          message += `📍 ${evento.location}\n`;
+        }
+        
+        message += '\n';
       }
-      
-      // Adiciona indicador de sincronização com calendário
-      if (event.calendarId) {
-        message += `🔄 Sincronizado com seu calendário\n`;
-      }
-      
-      message += '\n';
     }
     
     await ctx.reply(message, { parse_mode: 'Markdown' });
+    log('Resposta de eventos enviada com sucesso', 'telegram');
   } catch (error) {
     log(`Erro ao processar comando eventos: ${error}`, 'telegram');
-    await ctx.reply('Ocorreu um erro ao buscar seus eventos. Por favor, tente novamente.');
+    await ctx.reply(`Ocorreu um erro ao buscar seus eventos: ${error.message}`);
   }
 });
 
