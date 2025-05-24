@@ -1,0 +1,119 @@
+import { storage } from '../storage';
+import { log } from '../vite';
+import { InsertEvent, InsertReminder } from '@shared/schema';
+
+/**
+ * Cria um novo evento no banco de dados
+ */
+export async function createEvent(eventData: InsertEvent) {
+  try {
+    const event = await storage.createEvent(eventData);
+    log(`Evento criado: ${event.title}`, 'telegram');
+    return event;
+  } catch (error) {
+    log(`Erro ao criar evento: ${error}`, 'telegram');
+    throw new Error(`Falha ao criar evento: ${error}`);
+  }
+}
+
+/**
+ * Cria um novo lembrete para um evento
+ */
+export async function createReminder(reminderData: InsertReminder) {
+  try {
+    const reminder = await storage.createReminder(reminderData);
+    log(`Lembrete criado para o evento ${reminderData.eventId}`, 'telegram');
+    return reminder;
+  } catch (error) {
+    log(`Erro ao criar lembrete: ${error}`, 'telegram');
+    throw new Error(`Falha ao criar lembrete: ${error}`);
+  }
+}
+
+/**
+ * Busca eventos futuros para um usuário
+ */
+export async function getFutureEvents(userId: number) {
+  try {
+    const events = await storage.getEventsByUserId(userId);
+    
+    // Filtra apenas eventos futuros
+    const now = new Date();
+    const futureEvents = events.filter(event => {
+      const eventDate = new Date(event.startDate);
+      return eventDate > now;
+    });
+    
+    // Ordena por data (do mais próximo para o mais distante)
+    futureEvents.sort((a, b) => {
+      const dateA = new Date(a.startDate);
+      const dateB = new Date(b.startDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+    
+    return futureEvents;
+  } catch (error) {
+    log(`Erro ao buscar eventos futuros: ${error}`, 'telegram');
+    throw new Error(`Falha ao buscar eventos futuros: ${error}`);
+  }
+}
+
+/**
+ * Busca eventos para um dia específico
+ */
+export async function getEventsForDay(userId: number, date: Date) {
+  try {
+    const events = await storage.getEventsByUserId(userId);
+    
+    // Filtra eventos para o dia especificado
+    const filteredEvents = events.filter(event => {
+      const eventDate = new Date(event.startDate);
+      return (
+        eventDate.getFullYear() === date.getFullYear() &&
+        eventDate.getMonth() === date.getMonth() &&
+        eventDate.getDate() === date.getDate()
+      );
+    });
+    
+    // Ordena por hora
+    filteredEvents.sort((a, b) => {
+      const timeA = new Date(a.startDate).getTime();
+      const timeB = new Date(b.startDate).getTime();
+      return timeA - timeB;
+    });
+    
+    return filteredEvents;
+  } catch (error) {
+    log(`Erro ao buscar eventos para o dia: ${error}`, 'telegram');
+    throw new Error(`Falha ao buscar eventos para o dia: ${error}`);
+  }
+}
+
+/**
+ * Busca lembretes pendentes para envio
+ */
+export async function getPendingReminders() {
+  try {
+    const now = new Date();
+    const reminders = await storage.getPendingReminders(now);
+    
+    return reminders;
+  } catch (error) {
+    log(`Erro ao buscar lembretes pendentes: ${error}`, 'telegram');
+    throw new Error(`Falha ao buscar lembretes pendentes: ${error}`);
+  }
+}
+
+/**
+ * Marca um lembrete como enviado
+ */
+export async function markReminderAsSent(reminderId: number) {
+  try {
+    await storage.updateReminderStatus(reminderId, 'sent');
+    log(`Lembrete ${reminderId} marcado como enviado`, 'telegram');
+    return true;
+  } catch (error) {
+    log(`Erro ao marcar lembrete como enviado: ${error}`, 'telegram');
+    return false;
+  }
+}
