@@ -5,6 +5,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { log } from '../vite';
 import { storage } from '../storage';
+import FormData from 'form-data';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -55,7 +56,7 @@ bot.start(async (ctx) => {
       // Se o usuário não existir, cria um novo
       let user = existingUser;
       
-      if (!existingUser) {
+      if (!user) {
         const username = `telegram_${telegramId}`;
         const password = Math.random().toString(36).substring(2, 15);
         
@@ -196,7 +197,7 @@ bot.command('email', async (ctx) => {
   }
 });
 
-// Função para processar mensagem de texto
+// Função para processar mensagem de texto usando Llama via OpenRouter
 async function processTextMessage(text: string, userId: number): Promise<{
   success: boolean;
   message: string;
@@ -243,11 +244,11 @@ async function processTextMessage(text: string, userId: number): Promise<{
     
     log(`Processando mensagem de texto: "${text}"`, 'telegram');
     
-    // Faz a chamada para a API do OpenRouter com modelo mais acessível
+    // Fazendo a chamada para a API do OpenRouter usando modelo Llama
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
-        model: 'openai/gpt-3.5-turbo', // Usando modelo mais acessível para evitar erros 402
+        model: "meta-llama/llama-3-8b-instruct", // Usando Llama como solicitado
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: text }
@@ -349,100 +350,6 @@ async function processTextMessage(text: string, userId: number): Promise<{
   }
 }
 
-// Função melhorada para processar mensagem de voz
-async function processVoiceMessage(audioUrl: string, userId: number): Promise<{
-  success: boolean;
-  message: string;
-  eventDetails?: any;
-}> {
-  try {
-    log(`Processando áudio: ${audioUrl}`, 'telegram');
-    
-    // 1. Baixa o arquivo de áudio
-    const audioResponse = await axios.get(audioUrl, { responseType: 'arraybuffer' });
-    const audioBuffer = Buffer.from(audioResponse.data);
-    
-    log(`Áudio baixado: ${audioBuffer.length} bytes`, 'telegram');
-    
-    // 2. Converte áudio para base64
-    const audioBase64 = audioBuffer.toString('base64');
-    
-    // Usa a API da OpenAI diretamente para transcrição
-    log(`Processando áudio com a API da OpenAI...`, 'telegram');
-    
-    try {
-      // Faz a chamada para a API da OpenAI
-      const openaiResponse = await axios.post(
-        'https://api.openai.com/v1/audio/transcriptions',
-        {
-          file: audioBuffer,
-          model: 'whisper-1',
-          language: 'pt',
-          response_format: 'text'
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'multipart/form-data'
-          }
-        }
-      );
-      
-      // Prepara a resposta no formato esperado pelo código
-      const responseText = openaiResponse.data || "Não foi possível transcrever o áudio.";
-      const transcriptionResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: responseText
-              }
-            }
-          ]
-        }
-      };
-    } catch (error) {
-      log(`Erro na transcrição do áudio com OpenAI: ${error}`, 'telegram');
-      
-      // Em caso de erro, prepara uma resposta de fallback
-      const transcriptionResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: "Não foi possível transcrever seu áudio. Por favor, envie sua mensagem como texto."
-              }
-            }
-          ]
-        }
-      };
-    }
-    
-    if (!transcriptionResponse.data || 
-        !transcriptionResponse.data.choices || 
-        !transcriptionResponse.data.choices[0] || 
-        !transcriptionResponse.data.choices[0].message) {
-      return {
-        success: false,
-        message: 'Não consegui transcrever seu áudio. Por favor, tente novamente ou envie sua mensagem em texto.'
-      };
-    }
-    
-    const transcription = transcriptionResponse.data.choices[0].message.content;
-    log(`Transcrição do áudio: "${transcription}"`, 'telegram');
-    
-    // 4. Processa a transcrição como texto para extrair informações do evento
-    return await processTextMessage(transcription, userId);
-    
-  } catch (error) {
-    log(`Erro ao processar mensagem de voz: ${error}`, 'telegram');
-    return {
-      success: false,
-      message: 'Ocorreu um erro ao processar seu áudio. Por favor, tente novamente ou envie sua mensagem em texto.'
-    };
-  }
-}
-
 // Processamento de mensagens de texto
 bot.on(message('text'), async (ctx) => {
   try {
@@ -465,8 +372,11 @@ bot.on(message('text'), async (ctx) => {
       }
     }
     
+    // Obtém o estado atualizado após possível inicialização
+    const currentState = userStates.get(telegramId);
+    
     // Verifica se estamos esperando um e-mail do usuário
-    if (userState && userState.awaitingEmail) {
+    if (currentState && currentState.awaitingEmail) {
       const emailInput = ctx.message.text.trim();
       
       // Valida o e-mail
@@ -475,19 +385,19 @@ bot.on(message('text'), async (ctx) => {
         return;
       }
       
-      if (!userState.userId) {
+      if (!currentState.userId) {
         await ctx.reply('❌ Ocorreu um erro com seu usuário. Por favor, inicie o bot novamente com /start');
         return;
       }
       
       // Atualiza o e-mail do usuário
-      const updated = await updateUserEmail(userState.userId, emailInput);
+      const updated = await updateUserEmail(currentState.userId, emailInput);
       
       if (updated) {
         // Atualiza o estado do usuário
         userStates.set(telegramId, {
           telegramId: telegramId,
-          userId: userState.userId,
+          userId: currentState.userId,
           awaitingEmail: false
         });
         
@@ -505,12 +415,12 @@ bot.on(message('text'), async (ctx) => {
     }
     
     // Se não for um comando e não estiver esperando e-mail, processa como descrição de evento
-    if (!ctx.message.text.startsWith('/') && userState && userState.userId) {
+    if (!ctx.message.text.startsWith('/') && currentState && currentState.userId) {
       // Enviar mensagem de processamento
       const processingMessage = await ctx.reply('🧠 Processando sua mensagem...');
       
       // Processa a mensagem
-      const result = await processTextMessage(ctx.message.text, userState.userId);
+      const result = await processTextMessage(ctx.message.text, currentState.userId);
       
       // Remove a mensagem de processamento
       await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
@@ -525,86 +435,29 @@ bot.on(message('text'), async (ctx) => {
   }
 });
 
-// Processamento de mensagens de voz (melhorado)
+// Processamento simplificado para mensagens de voz
+// Nota: como estamos usando Llama, não temos acesso a processamento de áudio 
+// diretamente pelo modelo, então vamos simplificar e enviar uma mensagem
+// orientando o usuário a enviar texto
 bot.on(message('voice'), async (ctx) => {
   try {
-    const telegramId = ctx.from.id.toString();
-    
-    // Buscar usuário ou criar estado
-    let userState = userStates.get(telegramId);
-    if (!userState) {
-      const user = await storage.getUserByTelegramId(telegramId);
-      if (!user) {
-        await ctx.reply('Por favor, inicie o bot com /start primeiro para configurar seu perfil.');
-        return;
-      }
-      
-      userState = {
-        telegramId: telegramId,
-        userId: user.id,
-        awaitingEmail: false
-      };
-      userStates.set(telegramId, userState);
-    }
-    
-    if (!userState.userId) {
-      await ctx.reply('Seu perfil não está configurado corretamente. Por favor, use /start para reiniciar.');
-      return;
-    }
-    
-    // Enviar mensagem de processamento
-    const processingMessage = await ctx.reply('🎤 Recebendo seu áudio...');
-    
-    try {
-      // Obtém o arquivo de áudio
-      const fileId = ctx.message.voice.file_id;
-      const fileLink = await ctx.telegram.getFileLink(fileId);
-      
-      log(`Áudio recebido. Tamanho: ${ctx.message.voice.duration}s, URL: ${fileLink.href}`, 'telegram');
-      
-      // Atualiza a mensagem de processamento
-      await ctx.telegram.editMessageText(
-        ctx.chat.id, 
-        processingMessage.message_id, 
-        undefined,
-        '🧠 Processando seu áudio...'
-      );
-      
-      // Processa a mensagem de voz com tratamento de erro melhorado
-      const result = await processVoiceMessage(fileLink.href, userState.userId);
-      
-      // Remove a mensagem de processamento
-      await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
-      
-      // Envia a resposta
-      await ctx.reply(result.message, { parse_mode: 'Markdown' });
-      
-      if (result.eventDetails) {
-        log(`Evento criado a partir de áudio: ${result.eventDetails.title}`, 'telegram');
-      }
-    } catch (audioError) {
-      // Remove a mensagem de processamento se existir
-      try {
-        await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
-      } catch (deleteError) {
-        // Ignora erro ao deletar mensagem
-      }
-      
-      log(`Erro ao processar áudio: ${audioError}`, 'telegram');
-      await ctx.reply('❌ Não foi possível processar seu áudio. O formato pode não ser suportado ou o áudio está corrompido. Por favor, tente enviar como mensagem de texto.');
-    }
+    // Envia uma mensagem informando que o processamento de áudio não está disponível
+    await ctx.reply(
+      '🎤 Desculpe, o processamento de áudio não está disponível no momento.\n\n' +
+      'Por favor, envie sua mensagem em texto para que eu possa criar o evento para você.'
+    );
   } catch (error) {
-    log(`Erro geral ao processar mensagem de voz: ${error}`, 'telegram');
-    await ctx.reply('Ocorreu um erro ao processar seu áudio. Por favor, tente novamente ou envie sua mensagem como texto.');
+    log(`Erro ao processar mensagem de voz: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao processar seu áudio. Por favor, tente novamente ou envie sua mensagem em texto.');
   }
 });
 
 // Função para iniciar o bot
-export async function startSimplifiedBot() {
+export async function startLlamaBot() {
   try {
     // Ativa o modo de polling
     await bot.launch();
-    log('Bot simplificado do Telegram iniciado com sucesso!', 'telegram');
+    log('Bot do Telegram com Llama iniciado com sucesso!', 'telegram');
     
     // Encerramento correto do bot
     process.once('SIGINT', () => bot.stop('SIGINT'));
@@ -612,7 +465,7 @@ export async function startSimplifiedBot() {
     
     return true;
   } catch (error) {
-    log(`Erro ao iniciar bot simplificado do Telegram: ${error}`, 'telegram');
+    log(`Erro ao iniciar bot do Telegram com Llama: ${error}`, 'telegram');
     return false;
   }
 }
