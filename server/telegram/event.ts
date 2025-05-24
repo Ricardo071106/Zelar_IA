@@ -141,6 +141,39 @@ export async function getEventsForDay(userId: number, date: Date) {
 }
 
 /**
+ * Busca eventos para a semana atual (a partir de hoje até 7 dias)
+ */
+export async function getEventsForWeek(userId: number) {
+  try {
+    const events = await storage.getEventsByUserId(userId);
+    const now = new Date();
+    
+    // Define o início e fim da semana
+    const startOfWeek = new Date(now);
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() + 7); // 7 dias a partir de hoje
+    
+    // Filtra eventos para a semana
+    const weekEvents = events.filter(event => {
+      const eventDate = new Date(event.startDate);
+      return eventDate >= startOfWeek && eventDate < endOfWeek;
+    });
+    
+    // Ordena por data
+    weekEvents.sort((a, b) => {
+      const dateA = new Date(a.startDate);
+      const dateB = new Date(b.startDate);
+      return dateA.getTime() - dateB.getTime();
+    });
+    
+    return weekEvents;
+  } catch (error) {
+    log(`Erro ao buscar eventos da semana: ${error}`, 'telegram');
+    throw new Error(`Falha ao buscar eventos da semana: ${error}`);
+  }
+}
+
+/**
  * Busca lembretes pendentes para envio
  */
 export async function getPendingReminders() {
