@@ -5,16 +5,23 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { log } from '../vite';
 import { storage } from '../storage';
+import OpenAI from 'openai';
+import FormData from 'form-data';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN não está definido no ambiente');
 }
 
-// Verifica se a chave da API OpenRouter está definida
-if (!process.env.OPENROUTER_API_KEY) {
-  throw new Error('OPENROUTER_API_KEY não está definido no ambiente');
+// Verifica se a chave da API OpenAI está definida
+if (!process.env.OPENAI_API_KEY) {
+  throw new Error('OPENAI_API_KEY não está definido no ambiente');
 }
+
+// Inicializa o cliente OpenAI
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
 
 // Cria uma instância do bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -55,7 +62,7 @@ bot.start(async (ctx) => {
       // Se o usuário não existir, cria um novo
       let user = existingUser;
       
-      if (!existingUser) {
+      if (!user) {
         const username = `telegram_${telegramId}`;
         const password = Math.random().toString(36).substring(2, 15);
         
@@ -196,7 +203,7 @@ bot.command('email', async (ctx) => {
   }
 });
 
-// Função para processar mensagem de texto
+// Função para processar mensagem de texto usando OpenAI
 async function processTextMessage(text: string, userId: number): Promise<{
   success: boolean;
   message: string;
@@ -243,33 +250,24 @@ async function processTextMessage(text: string, userId: number): Promise<{
     
     log(`Processando mensagem de texto: "${text}"`, 'telegram');
     
-    // Faz a chamada para a API do OpenRouter com modelo mais acessível
-    const response = await axios.post(
-      'https://openrouter.ai/api/v1/chat/completions',
-      {
-        model: 'openai/gpt-3.5-turbo', // Usando modelo mais acessível para evitar erros 402
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: text }
-        ],
-        response_format: { type: 'json_object' }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+    // Usando a API da OpenAI diretamente
+    const completion = await openai.chat.completions.create({
+      model: "gpt-3.5-turbo",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: text }
+      ],
+      response_format: { type: "json_object" }
+    });
     
-    if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+    const content = completion.choices[0].message.content;
+    
+    if (!content) {
       return {
         success: false,
         message: 'Não consegui processar a resposta da API.'
       };
     }
-    
-    const content = response.data.choices[0].message.content;
     
     try {
       const eventData = JSON.parse(content);
@@ -349,7 +347,7 @@ async function processTextMessage(text: string, userId: number): Promise<{
   }
 }
 
-// Função melhorada para processar mensagem de voz
+// Função para processar mensagem de voz
 async function processVoiceMessage(audioUrl: string, userId: number): Promise<{
   success: boolean;
   message: string;
@@ -364,74 +362,40 @@ async function processVoiceMessage(audioUrl: string, userId: number): Promise<{
     
     log(`Áudio baixado: ${audioBuffer.length} bytes`, 'telegram');
     
-    // 2. Converte áudio para base64
-    const audioBase64 = audioBuffer.toString('base64');
+    // 2. Transcreve o áudio usando a API da OpenAI
+    const formData = new FormData();
+    formData.append('file', audioBuffer, {
+      filename: 'audio.ogg',
+      contentType: 'audio/ogg'
+    });
+    formData.append('model', 'whisper-1');
+    formData.append('language', 'pt');
     
-    // Usa a API da OpenAI diretamente para transcrição
-    log(`Processando áudio com a API da OpenAI...`, 'telegram');
+    log('Enviando áudio para a API de transcrição da OpenAI...', 'telegram');
     
-    try {
-      // Faz a chamada para a API da OpenAI
-      const openaiResponse = await axios.post(
-        'https://api.openai.com/v1/audio/transcriptions',
-        {
-          file: audioBuffer,
-          model: 'whisper-1',
-          language: 'pt',
-          response_format: 'text'
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-            'Content-Type': 'multipart/form-data'
-          }
+    const transcriptionResponse = await axios.post(
+      'https://api.openai.com/v1/audio/transcriptions',
+      formData,
+      {
+        headers: {
+          ...formData.getHeaders(),
+          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
         }
-      );
-      
-      // Prepara a resposta no formato esperado pelo código
-      const responseText = openaiResponse.data || "Não foi possível transcrever o áudio.";
-      const transcriptionResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: responseText
-              }
-            }
-          ]
-        }
-      };
-    } catch (error) {
-      log(`Erro na transcrição do áudio com OpenAI: ${error}`, 'telegram');
-      
-      // Em caso de erro, prepara uma resposta de fallback
-      const transcriptionResponse = {
-        data: {
-          choices: [
-            {
-              message: {
-                content: "Não foi possível transcrever seu áudio. Por favor, envie sua mensagem como texto."
-              }
-            }
-          ]
-        }
-      };
-    }
+      }
+    );
     
-    if (!transcriptionResponse.data || 
-        !transcriptionResponse.data.choices || 
-        !transcriptionResponse.data.choices[0] || 
-        !transcriptionResponse.data.choices[0].message) {
+    if (!transcriptionResponse.data || !transcriptionResponse.data.text) {
+      log('A API de transcrição não retornou texto', 'telegram');
       return {
         success: false,
         message: 'Não consegui transcrever seu áudio. Por favor, tente novamente ou envie sua mensagem em texto.'
       };
     }
     
-    const transcription = transcriptionResponse.data.choices[0].message.content;
+    const transcription = transcriptionResponse.data.text;
     log(`Transcrição do áudio: "${transcription}"`, 'telegram');
     
-    // 4. Processa a transcrição como texto para extrair informações do evento
+    // 3. Processa a transcrição como texto para extrair informações do evento
     return await processTextMessage(transcription, userId);
     
   } catch (error) {
@@ -465,8 +429,11 @@ bot.on(message('text'), async (ctx) => {
       }
     }
     
+    // Obtém o estado atualizado após possível inicialização
+    const currentState = userStates.get(telegramId);
+    
     // Verifica se estamos esperando um e-mail do usuário
-    if (userState && userState.awaitingEmail) {
+    if (currentState && currentState.awaitingEmail) {
       const emailInput = ctx.message.text.trim();
       
       // Valida o e-mail
@@ -475,19 +442,19 @@ bot.on(message('text'), async (ctx) => {
         return;
       }
       
-      if (!userState.userId) {
+      if (!currentState.userId) {
         await ctx.reply('❌ Ocorreu um erro com seu usuário. Por favor, inicie o bot novamente com /start');
         return;
       }
       
       // Atualiza o e-mail do usuário
-      const updated = await updateUserEmail(userState.userId, emailInput);
+      const updated = await updateUserEmail(currentState.userId, emailInput);
       
       if (updated) {
         // Atualiza o estado do usuário
         userStates.set(telegramId, {
           telegramId: telegramId,
-          userId: userState.userId,
+          userId: currentState.userId,
           awaitingEmail: false
         });
         
@@ -505,12 +472,12 @@ bot.on(message('text'), async (ctx) => {
     }
     
     // Se não for um comando e não estiver esperando e-mail, processa como descrição de evento
-    if (!ctx.message.text.startsWith('/') && userState && userState.userId) {
+    if (!ctx.message.text.startsWith('/') && currentState && currentState.userId) {
       // Enviar mensagem de processamento
       const processingMessage = await ctx.reply('🧠 Processando sua mensagem...');
       
       // Processa a mensagem
-      const result = await processTextMessage(ctx.message.text, userState.userId);
+      const result = await processTextMessage(ctx.message.text, currentState.userId);
       
       // Remove a mensagem de processamento
       await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
@@ -525,7 +492,7 @@ bot.on(message('text'), async (ctx) => {
   }
 });
 
-// Processamento de mensagens de voz (melhorado)
+// Processamento de mensagens de voz
 bot.on(message('voice'), async (ctx) => {
   try {
     const telegramId = ctx.from.id.toString();
@@ -570,7 +537,7 @@ bot.on(message('voice'), async (ctx) => {
         '🧠 Processando seu áudio...'
       );
       
-      // Processa a mensagem de voz com tratamento de erro melhorado
+      // Processa a mensagem de voz
       const result = await processVoiceMessage(fileLink.href, userState.userId);
       
       // Remove a mensagem de processamento
@@ -600,11 +567,11 @@ bot.on(message('voice'), async (ctx) => {
 });
 
 // Função para iniciar o bot
-export async function startSimplifiedBot() {
+export async function startOpenAIBot() {
   try {
     // Ativa o modo de polling
     await bot.launch();
-    log('Bot simplificado do Telegram iniciado com sucesso!', 'telegram');
+    log('Bot do Telegram com OpenAI iniciado com sucesso!', 'telegram');
     
     // Encerramento correto do bot
     process.once('SIGINT', () => bot.stop('SIGINT'));
@@ -612,7 +579,7 @@ export async function startSimplifiedBot() {
     
     return true;
   } catch (error) {
-    log(`Erro ao iniciar bot simplificado do Telegram: ${error}`, 'telegram');
+    log(`Erro ao iniciar bot do Telegram com OpenAI: ${error}`, 'telegram');
     return false;
   }
 }
