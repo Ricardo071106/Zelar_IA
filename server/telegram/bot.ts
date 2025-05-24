@@ -42,18 +42,36 @@ bot.start(async (ctx) => {
       userId: user.id
     });
     
-    // Mensagem de boas-vindas mais clara
-    await ctx.reply(
-      `👋 Olá ${ctx.from.first_name}! Bem-vindo ao Zelar, seu assistente de agenda inteligente!\n\n` +
-      `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda e calendário.`
-    );
-    
-    // Mensagem específica para solicitar o e-mail (separada para ser mais clara)
-    await ctx.reply(
-      `📧 Para começar, por favor, *digite seu e-mail* para que possamos integrar seus eventos ao seu calendário.\n\n` +
-      `Exemplo: seunome@exemplo.com.br`,
-      { parse_mode: 'Markdown' }
-    );
+    // Verifica se o usuário já tem e-mail configurado
+    const existingUser = await storage.getUser(user.id);
+    if (existingUser && existingUser.email) {
+      // Se já tem e-mail, apenas dá boas-vindas
+      await ctx.reply(
+        `👋 Olá novamente, ${ctx.from.first_name}! Bem-vindo de volta ao Zelar!\n\n` +
+        `Você já tem seu e-mail ${existingUser.email} configurado para integração com calendário.\n\n` +
+        `Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, ou perguntar sobre seus eventos existentes.`
+      );
+      
+      // Não define o estado de espera por e-mail
+      userStates.set(telegramId, {
+        telegramId,
+        userId: user.id,
+        awaitingEmail: false
+      });
+    } else {
+      // Se não tem e-mail, solicita
+      await ctx.reply(
+        `👋 Olá ${ctx.from.first_name}! Bem-vindo ao Zelar, seu assistente de agenda inteligente!\n\n` +
+        `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda e calendário.`
+      );
+      
+      // Mensagem específica para solicitar o e-mail (separada para ser mais clara)
+      await ctx.reply(
+        `📧 Para começar, por favor, *digite seu e-mail* para que possamos integrar seus eventos ao seu calendário.\n\n` +
+        `Exemplo: seunome@exemplo.com.br`,
+        { parse_mode: 'Markdown' }
+      );
+    }
   } catch (error) {
     log(`Erro ao processar comando start: ${error}`, 'telegram');
     await ctx.reply('Ocorreu um erro ao iniciar o bot. Por favor, tente novamente mais tarde.');
@@ -77,7 +95,7 @@ bot.help(async (ctx) => {
 // Função para validar e-mail
 function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  return emailRegex.test(email.trim());
 }
 
 // Função para atualizar o e-mail do usuário
@@ -109,35 +127,47 @@ bot.on(message('text'), async (ctx) => {
     
     // Verifica se estamos esperando um e-mail do usuário
     if (userState && userState.awaitingEmail) {
-      const email = ctx.message.text.trim();
+      const emailInput = ctx.message.text.trim();
       
       // Valida o e-mail
-      if (!isValidEmail(email)) {
-        await ctx.reply('❌ Por favor, forneça um endereço de e-mail válido.');
+      if (!isValidEmail(emailInput)) {
+        await ctx.reply('❌ Por favor, forneça um endereço de e-mail válido no formato usuario@dominio.com');
         return;
       }
       
-      // Atualiza o e-mail do usuário
-      const updated = await updateUserEmail(user.id, email);
-      
-      if (updated) {
-        // Atualiza o estado do usuário
-        userStates.set(telegramId, {
-          ...userState,
-          awaitingEmail: false
-        });
+      try {
+        // Atualiza o e-mail do usuário
+        const updated = await updateUserEmail(user.id, emailInput);
         
-        await ctx.reply(
-          `✅ Obrigado! Seu e-mail ${email} foi registrado com sucesso.\n\n` +
-          `Agora você pode começar a usar o Zelar! Experimente enviar uma mensagem como:\n` +
-          `"Agendar reunião com João na próxima segunda às 10h" ou\n` +
-          `"Lembrar de buscar as crianças na escola amanhã às 17h"`
-        );
-        return;
-      } else {
-        await ctx.reply('❌ Ocorreu um erro ao registrar seu e-mail. Por favor, tente novamente.');
+        if (updated) {
+          // Atualiza o estado do usuário
+          userStates.set(telegramId, {
+            ...userState,
+            awaitingEmail: false
+          });
+          
+          await ctx.reply(
+            `✅ Obrigado! Seu e-mail ${emailInput} foi registrado com sucesso.\n\n` +
+            `Agora você pode começar a usar o Zelar! Experimente enviar uma mensagem como:\n` +
+            `"Agendar reunião com João na próxima segunda às 10h" ou\n` +
+            `"Lembrar de buscar as crianças na escola amanhã às 17h"`
+          );
+          return;
+        } else {
+          await ctx.reply('❌ Ocorreu um erro ao registrar seu e-mail. Por favor, tente novamente.');
+          return;
+        }
+      } catch (error) {
+        log(`Erro ao processar e-mail ${emailInput}: ${error}`, 'telegram');
+        await ctx.reply('❌ Ocorreu um erro ao processar seu e-mail. Por favor, tente novamente.');
         return;
       }
+    }
+    
+    // Verificação extra: se o texto parece um e-mail mas não estamos esperando um
+    if (isValidEmail(ctx.message.text.trim()) && (!userState || !userState.awaitingEmail)) {
+      await ctx.reply('Parece que você enviou um e-mail, mas não estou esperando um no momento. Você pode continuar usando o bot normalmente para agendar eventos.');
+      return;
     }
     
     // Verifica se estamos esperando a confirmação de cancelamento de evento
