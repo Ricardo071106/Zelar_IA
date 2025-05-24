@@ -31,6 +31,16 @@ export async function processTextMessage(text: string, userId: number): Promise<
   try {
     log(`Processando mensagem de texto: "${text}"`, 'telegram');
     
+    // Evita a análise de e-mails - verificação simples
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(text.trim())) {
+      return {
+        success: false,
+        message: '',
+        isQuery: false
+      };
+    }
+    
     // Primeiro, verifica se é uma consulta sobre eventos
     const queryIntent = await detectQueryIntent(text, userId);
     
