@@ -87,11 +87,55 @@ bot.help(async (ctx) => {
     `• /hoje - Mostra seus eventos de hoje\n` +
     `• /amanha - Mostra seus eventos de amanhã\n` +
     `• /semana - Mostra seus eventos da semana atual\n` +
+    `• /meuscompromissos - Mostra todos seus compromissos futuros\n` +
     `• /configuracoes - Configura suas preferências\n` +
     `• /email - Registra seu e-mail para integração com calendário\n\n` +
     `Para adicionar um evento, simplesmente me diga o que você quer agendar, quando e onde.`,
     { parse_mode: 'Markdown' }
   );
+});
+
+// Comando para listar todos os seus compromissos
+bot.command('meuscompromissos', async (ctx) => {
+  try {
+    const telegramId = ctx.from.id.toString();
+    const user = await findOrCreateUserByTelegramId(telegramId);
+    
+    // Busca todos os eventos futuros diretamente
+    const eventos = await getFutureEvents(user.id);
+    
+    if (eventos.length === 0) {
+      await ctx.reply('Você não tem eventos futuros agendados.');
+      return;
+    }
+    
+    let message = '📅 *Seus compromissos futuros:*\n\n';
+    
+    // Organiza por data
+    for (const evento of eventos) {
+      const data = new Date(evento.startDate);
+      const dataFormatada = format(data, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      const horaFormatada = format(data, "HH:mm", { locale: ptBR });
+      
+      message += `*${evento.title}*\n`;
+      message += `📆 ${dataFormatada} às ${horaFormatada}\n`;
+      
+      if (evento.location) {
+        message += `📍 ${evento.location}\n`;
+      }
+      
+      if (evento.description) {
+        message += `📝 ${evento.description}\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (error) {
+    log(`Erro ao listar compromissos: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao listar seus compromissos. Por favor, tente novamente mais tarde.');
+  }
 });
 
 // Comando para mostrar eventos da semana
