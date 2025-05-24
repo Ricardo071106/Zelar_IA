@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { storage } from '../storage';
 import { log } from '../vite';
-import { createEvent, createReminder } from './event';
-import { format } from 'date-fns';
+import { createEvent, createReminder, getFutureEvents, getEventsForDay, getAllEvents } from './event';
+import { format, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Verifica se a chave da API OpenRouter está definida
@@ -13,6 +13,7 @@ if (!process.env.OPENROUTER_API_KEY) {
 interface ProcessResult {
   success: boolean;
   message: string;
+  isQuery?: boolean;
   event?: {
     title: string;
     description?: string;
@@ -30,6 +31,15 @@ export async function processTextMessage(text: string, userId: number): Promise<
   try {
     log(`Processando mensagem de texto: "${text}"`, 'telegram');
     
+    // Primeiro, verifica se é uma consulta sobre eventos
+    const queryIntent = await detectQueryIntent(text, userId);
+    
+    // Se for uma consulta e não um evento para agendar
+    if (queryIntent.isQuery) {
+      return queryIntent;
+    }
+    
+    // Se não for uma consulta, tenta extrair informações de evento
     const eventInfo = await extractEventInfo(text);
     
     if (!eventInfo.success) {
@@ -106,6 +116,192 @@ export async function processTextMessage(text: string, userId: number): Promise<
     return {
       success: false,
       message: 'Ocorreu um erro ao processar sua mensagem. Por favor, tente novamente.'
+    };
+  }
+}
+
+/**
+ * Detecta se a mensagem do usuário é uma consulta sobre eventos
+ */
+async function detectQueryIntent(text: string, userId: number): Promise<ProcessResult> {
+  try {
+    const systemPrompt = 
+      'Você é um assistente especializado em interpretar consultas sobre eventos e calendários. ' + 
+      'Analise a mensagem do usuário e determine se ela é uma pergunta ou consulta sobre eventos existentes, ' +
+      'ou se é uma tentativa de criar um novo evento. ' +
+      'Se for uma consulta, determine também qual tipo de consulta é: eventos de hoje, eventos de amanhã, ' +
+      'todos os eventos, eventos futuros, ou eventos de uma data específica. ' +
+      'Formate sua resposta em JSON com os campos: isQuery (boolean), queryType (string - "today", "tomorrow", "all", "future", "specific_date"), specificDate (ISO date string, somente se queryType for "specific_date"). ' +
+      'Se não for uma consulta e sim uma tentativa de criar um evento, retorne apenas isQuery: false.';
+    
+    const userMessage = `Analise esta mensagem: "${text}"`;
+    
+    const response = await axios.post(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        model: 'openai/gpt-3.5-turbo',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ],
+        response_format: { type: 'json_object' }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    
+    if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+      return {
+        success: false,
+        message: 'Não consegui processar a resposta da API.',
+        isQuery: false
+      };
+    }
+    
+    const content = response.data.choices[0].message.content;
+    
+    try {
+      const intentData = JSON.parse(content);
+      
+      // Se não for uma consulta, retorna false para seguir com a criação de evento
+      if (!intentData.isQuery) {
+        return {
+          success: false,
+          message: '',
+          isQuery: false
+        };
+      }
+      
+      // Se for uma consulta, processa de acordo com o tipo
+      let events = [];
+      let message = '';
+      
+      switch (intentData.queryType) {
+        case 'today':
+          events = await getEventsForDay(userId, new Date());
+          if (events.length === 0) {
+            message = 'Você não tem eventos agendados para hoje.';
+          } else {
+            message = '📅 *Seus eventos de hoje:*\n\n';
+            for (const event of events) {
+              const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+              message += `*${event.title}*\n🕒 ${startTime}\n`;
+              if (event.location) message += `📍 ${event.location}\n`;
+              message += '\n';
+            }
+          }
+          break;
+          
+        case 'tomorrow':
+          const tomorrow = addDays(new Date(), 1);
+          events = await getEventsForDay(userId, tomorrow);
+          if (events.length === 0) {
+            message = 'Você não tem eventos agendados para amanhã.';
+          } else {
+            const tomorrowFormatted = format(tomorrow, "EEEE, dd 'de' MMMM", { locale: ptBR });
+            message = `📅 *Seus eventos para amanhã (${tomorrowFormatted}):*\n\n`;
+            for (const event of events) {
+              const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+              message += `*${event.title}*\n🕒 ${startTime}\n`;
+              if (event.location) message += `📍 ${event.location}\n`;
+              message += '\n';
+            }
+          }
+          break;
+          
+        case 'future':
+          events = await getFutureEvents(userId);
+          if (events.length === 0) {
+            message = 'Você não tem eventos futuros agendados.';
+          } else {
+            message = '📅 *Seus próximos eventos:*\n\n';
+            for (const event of events) {
+              const startDate = new Date(event.startDate);
+              const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+              const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+              message += `*${event.title}*\n📆 ${formattedDate} às ${formattedTime}\n`;
+              if (event.location) message += `📍 ${event.location}\n`;
+              message += '\n';
+            }
+          }
+          break;
+          
+        case 'all':
+          events = await getAllEvents(userId);
+          if (events.length === 0) {
+            message = 'Você ainda não tem eventos cadastrados.';
+          } else {
+            message = '📋 *Todos os seus eventos:*\n\n';
+            // Mostrar apenas os próximos eventos para manter a resposta concisa
+            const futureEvents = events.filter(e => new Date(e.startDate) > new Date());
+            if (futureEvents.length > 0) {
+              message += '*Próximos eventos:*\n\n';
+              for (let i = 0; i < Math.min(futureEvents.length, 5); i++) {
+                const event = futureEvents[i];
+                const startDate = new Date(event.startDate);
+                const formattedDate = format(startDate, "dd/MM", { locale: ptBR });
+                const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+                message += `*${event.title}*\n📆 ${formattedDate} às ${formattedTime}\n\n`;
+              }
+            }
+          }
+          break;
+          
+        case 'specific_date':
+          if (intentData.specificDate) {
+            const specificDate = new Date(intentData.specificDate);
+            events = await getEventsForDay(userId, specificDate);
+            
+            const dateFormatted = format(specificDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+            if (events.length === 0) {
+              message = `Você não tem eventos agendados para ${dateFormatted}.`;
+            } else {
+              message = `📅 *Seus eventos para ${dateFormatted}:*\n\n`;
+              for (const event of events) {
+                const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+                message += `*${event.title}*\n🕒 ${startTime}\n`;
+                if (event.location) message += `📍 ${event.location}\n`;
+                message += '\n';
+              }
+            }
+          } else {
+            message = 'Não consegui identificar a data específica na sua consulta.';
+          }
+          break;
+          
+        default:
+          return {
+            success: false,
+            message: '',
+            isQuery: false
+          };
+      }
+      
+      return {
+        success: true,
+        message,
+        isQuery: true
+      };
+      
+    } catch (error) {
+      log(`Erro ao analisar JSON da resposta de intenção: ${error}`, 'telegram');
+      
+      return {
+        success: false,
+        message: '',
+        isQuery: false
+      };
+    }
+  } catch (error) {
+    log(`Erro ao detectar intenção da mensagem: ${error}`, 'telegram');
+    return {
+      success: false,
+      message: '',
+      isQuery: false
     };
   }
 }
