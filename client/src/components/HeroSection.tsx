@@ -27,7 +27,7 @@ export default function HeroSection() {
                 className="bg-white text-primary hover:bg-gray-100 font-semibold rounded-full"
               >
                 <a 
-                  href="https://t.me/zelar_bot" 
+                  href="https://t.me/zelar_assistente_bot" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="flex items-center justify-center"
