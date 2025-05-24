@@ -86,11 +86,71 @@ bot.help(async (ctx) => {
     `• /eventos - Lista todos os seus eventos futuros\n` +
     `• /hoje - Mostra seus eventos de hoje\n` +
     `• /amanha - Mostra seus eventos de amanhã\n` +
+    `• /semana - Mostra seus eventos da semana atual\n` +
     `• /configuracoes - Configura suas preferências\n` +
     `• /email - Registra seu e-mail para integração com calendário\n\n` +
     `Para adicionar um evento, simplesmente me diga o que você quer agendar, quando e onde.`,
     { parse_mode: 'Markdown' }
   );
+});
+
+// Comando para mostrar eventos da semana
+bot.command('semana', async (ctx) => {
+  try {
+    const telegramId = ctx.from.id.toString();
+    const user = await findOrCreateUserByTelegramId(telegramId);
+    
+    const { getEventsForWeek } = await import('./event');
+    const events = await getEventsForWeek(user.id);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você não tem eventos agendados para esta semana.');
+      return;
+    }
+    
+    const { format } = await import('date-fns');
+    const { ptBR } = await import('date-fns/locale');
+    
+    let message = '📅 *Seus eventos para esta semana:*\n\n';
+    
+    // Agrupa eventos por dia da semana
+    const eventsByDay = new Map();
+    
+    for (const event of events) {
+      const eventDate = new Date(event.startDate);
+      const dayKey = format(eventDate, "yyyy-MM-dd");
+      
+      if (!eventsByDay.has(dayKey)) {
+        eventsByDay.set(dayKey, []);
+      }
+      
+      eventsByDay.get(dayKey).push(event);
+    }
+    
+    // Ordena as datas
+    const sortedDays = Array.from(eventsByDay.keys()).sort();
+    
+    // Gera a resposta agrupada por dia
+    for (const day of sortedDays) {
+      const date = new Date(day);
+      const dayFormatted = format(date, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      
+      message += `*${dayFormatted}*\n`;
+      
+      for (const event of eventsByDay.get(day)) {
+        const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+        message += `• ${event.title} às ${startTime}\n`;
+        if (event.location) message += `  📍 ${event.location}\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (error) {
+    log(`Erro ao listar eventos da semana: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao listar seus eventos da semana. Por favor, tente novamente mais tarde.');
+  }
 });
 
 // Comando para registrar e-mail
