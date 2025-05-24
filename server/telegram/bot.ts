@@ -42,10 +42,17 @@ bot.start(async (ctx) => {
       userId: user.id
     });
     
+    // Mensagem de boas-vindas mais clara
     await ctx.reply(
       `👋 Olá ${ctx.from.first_name}! Bem-vindo ao Zelar, seu assistente de agenda inteligente!\n\n` +
-      `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda e calendário.\n\n` +
-      `Para começar, por favor, compartilhe seu e-mail para que possamos integrar seus eventos ao seu calendário.`
+      `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda e calendário.`
+    );
+    
+    // Mensagem específica para solicitar o e-mail (separada para ser mais clara)
+    await ctx.reply(
+      `📧 Para começar, por favor, *digite seu e-mail* para que possamos integrar seus eventos ao seu calendário.\n\n` +
+      `Exemplo: seunome@exemplo.com.br`,
+      { parse_mode: 'Markdown' }
     );
   } catch (error) {
     log(`Erro ao processar comando start: ${error}`, 'telegram');
