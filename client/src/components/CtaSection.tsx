@@ -28,7 +28,7 @@ export default function CtaSection() {
               className="bg-white text-primary hover:bg-gray-100 font-semibold rounded-full px-8 py-4 text-lg"
             >
               <a 
-                href="https://t.me/zelar_bot" 
+                href="https://t.me/zelar_assistente_bot" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="inline-flex items-center"
