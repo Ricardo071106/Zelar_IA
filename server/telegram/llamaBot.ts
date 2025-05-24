@@ -6,6 +6,7 @@ import { ptBR } from 'date-fns/locale';
 import { log } from '../vite';
 import { storage } from '../storage';
 import FormData from 'form-data';
+import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
