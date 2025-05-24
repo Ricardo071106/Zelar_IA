@@ -3,6 +3,7 @@ import { message } from 'telegraf/filters';
 import { processTextMessage, processVoiceMessage } from './processor';
 import { createUserIfNotExists, findOrCreateUserByTelegramId } from './user';
 import { log } from '../vite';
+import { storage } from '../storage';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -12,16 +13,33 @@ if (!process.env.TELEGRAM_BOT_TOKEN) {
 // Cria uma instância do bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
+// Estados de usuário para rastrear conversas
+interface UserState {
+  awaitingEmail?: boolean;
+  telegramId: string;
+  userId?: number;
+}
+
+const userStates = new Map<string, UserState>();
+
 // Mensagem de boas-vindas
 bot.start(async (ctx) => {
   try {
+    const telegramId = ctx.from.id.toString();
     const user = await createUserIfNotExists(ctx.from);
     log(`Usuário iniciou o bot: ${user.username || user.telegramId}`, 'telegram');
     
+    // Atualiza o estado do usuário
+    userStates.set(telegramId, {
+      awaitingEmail: true,
+      telegramId,
+      userId: user.id
+    });
+    
     await ctx.reply(
       `👋 Olá ${ctx.from.first_name}! Bem-vindo ao Zelar, seu assistente de agenda inteligente!\n\n` +
-      `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda.\n\n` +
-      `Por exemplo, experimente dizer: "Agendar reunião com João na próxima segunda às 10h" ou "Lembrar de buscar as crianças na escola amanhã às 17h".`
+      `Estou aqui para ajudar você a gerenciar seus compromissos. Você pode me enviar mensagens de texto ou áudio descrevendo seus eventos, e eu os adicionarei automaticamente à sua agenda e calendário.\n\n` +
+      `Para começar, por favor, compartilhe seu e-mail para que possamos integrar seus eventos ao seu calendário.`
     );
   } catch (error) {
     log(`Erro ao processar comando start: ${error}`, 'telegram');
@@ -43,15 +61,68 @@ bot.help(async (ctx) => {
   );
 });
 
+// Função para validar e-mail
+function isValidEmail(email: string): boolean {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
+
+// Função para atualizar o e-mail do usuário
+async function updateUserEmail(userId: number, email: string) {
+  try {
+    await storage.updateUser(userId, { email });
+    log(`E-mail atualizado para o usuário ${userId}: ${email}`, 'telegram');
+    return true;
+  } catch (error) {
+    log(`Erro ao atualizar e-mail do usuário ${userId}: ${error}`, 'telegram');
+    return false;
+  }
+}
+
 // Processamento de mensagens de texto
 bot.on(message('text'), async (ctx) => {
   try {
-    const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
+    const telegramId = ctx.from.id.toString();
+    const user = await findOrCreateUserByTelegramId(telegramId);
     log(`Mensagem recebida de ${user.username || user.telegramId}: ${ctx.message.text}`, 'telegram');
     
     // Verifica se a mensagem é um comando
     if (ctx.message.text.startsWith('/')) {
       return; // Deixe os handlers de comando lidarem com isso
+    }
+    
+    // Verifica se estamos esperando um e-mail do usuário
+    const userState = userStates.get(telegramId);
+    if (userState && userState.awaitingEmail) {
+      const email = ctx.message.text.trim();
+      
+      // Valida o e-mail
+      if (!isValidEmail(email)) {
+        await ctx.reply('❌ Por favor, forneça um endereço de e-mail válido.');
+        return;
+      }
+      
+      // Atualiza o e-mail do usuário
+      const updated = await updateUserEmail(user.id, email);
+      
+      if (updated) {
+        // Atualiza o estado do usuário
+        userStates.set(telegramId, {
+          ...userState,
+          awaitingEmail: false
+        });
+        
+        await ctx.reply(
+          `✅ Obrigado! Seu e-mail ${email} foi registrado com sucesso.\n\n` +
+          `Agora você pode começar a usar o Zelar! Experimente enviar uma mensagem como:\n` +
+          `"Agendar reunião com João na próxima segunda às 10h" ou\n` +
+          `"Lembrar de buscar as crianças na escola amanhã às 17h"`
+        );
+        return;
+      } else {
+        await ctx.reply('❌ Ocorreu um erro ao registrar seu e-mail. Por favor, tente novamente.');
+        return;
+      }
     }
     
     // Informa ao usuário que estamos processando a mensagem
@@ -78,8 +149,19 @@ bot.on(message('text'), async (ctx) => {
 // Processamento de mensagens de voz
 bot.on(message('voice'), async (ctx) => {
   try {
-    const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
+    const telegramId = ctx.from.id.toString();
+    const user = await findOrCreateUserByTelegramId(telegramId);
     log(`Mensagem de voz recebida de ${user.username || user.telegramId}`, 'telegram');
+    
+    // Verifica se estamos esperando um e-mail do usuário
+    const userState = userStates.get(telegramId);
+    if (userState && userState.awaitingEmail) {
+      await ctx.reply(
+        '❌ Estamos esperando por seu e-mail para configurar sua conta.\n\n' +
+        'Por favor, digite seu endereço de e-mail como texto para continuar.'
+      );
+      return;
+    }
     
     // Informa ao usuário que estamos processando a mensagem
     const processingMessage = await ctx.reply('🎤 Recebendo seu áudio...');
