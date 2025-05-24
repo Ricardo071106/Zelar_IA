@@ -6,7 +6,7 @@ interface ZelarIconProps {
 export default function ZelarIcon({ className = "", color = "primary" }: ZelarIconProps) {
   return (
     <img 
-      src="/assets/image.png" 
+      src="/image.png" 
       alt="Zelar Logo" 
       className={className} 
       style={{ width: '100%', height: '100%', objectFit: 'contain' }}
