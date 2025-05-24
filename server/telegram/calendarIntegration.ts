@@ -1,4 +1,4 @@
-import * as ical from 'ical-generator';
+import ical from 'ical-generator';
 import * as fs from 'fs';
 import * as path from 'path';
 import { log } from '../vite';
@@ -28,7 +28,7 @@ export async function createICalEvent(event: Event, userEmail: string): Promise<
 }> {
   try {
     // Cria um novo calendário
-    const calendar = ical.default({
+    const calendar = ical({
       name: 'Zelar Assistant Calendar',
       timezone: 'America/Sao_Paulo',
       prodId: { company: 'zelar', product: 'calendar-assistant' },
@@ -84,9 +84,7 @@ export async function createICalEvent(event: Event, userEmail: string): Promise<
         {
           name: userEmail.split('@')[0],
           email: userEmail,
-          rsvp: true,
-          role: 'REQ-PARTICIPANT',
-          status: 'ACCEPTED'
+          rsvp: true
         }
       ]
     });
@@ -107,10 +105,11 @@ export async function createICalEvent(event: Event, userEmail: string): Promise<
       message: `Evento criado com sucesso! Arquivo ICS disponível para download.`
     };
   } catch (error) {
-    log(`Erro ao criar arquivo ICS: ${error}`, 'calendar');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao criar arquivo ICS: ${errorMessage}`, 'calendar');
     return {
       success: false,
-      message: `Erro ao criar arquivo ICS: ${error.message}`
+      message: `Erro ao criar arquivo ICS: ${errorMessage}`
     };
   }
 }
@@ -140,6 +139,13 @@ export async function generateCalendarLink(event: Event, userEmail: string): Pro
     }
     
     // Gera um link de download relativo (que precisa ser transformado em URL completa)
+    if (!icsResult.filePath) {
+      return {
+        success: false,
+        message: "Falha ao gerar o arquivo ICS: caminho do arquivo não disponível"
+      };
+    }
+    
     const downloadPath = icsResult.filePath.replace(process.cwd(), '');
     const downloadLink = `/download${downloadPath}`;
     
@@ -150,10 +156,11 @@ export async function generateCalendarLink(event: Event, userEmail: string): Pro
       message: `Link de calendário gerado com sucesso! Use este link para adicionar ao seu Apple Calendar.`
     };
   } catch (error) {
-    log(`Erro ao gerar link de calendário: ${error}`, 'calendar');
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao gerar link de calendário: ${errorMessage}`, 'calendar');
     return {
       success: false,
-      message: `Erro ao gerar link de calendário: ${error.message}`
+      message: `Erro ao gerar link de calendário: ${errorMessage}`
     };
   }
 }
