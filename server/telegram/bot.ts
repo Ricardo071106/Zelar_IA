@@ -146,6 +146,69 @@ bot.on(message('text'), async (ctx) => {
       return; // Deixe os handlers de comando lidarem com isso
     }
     
+    // Verifica se é uma consulta sobre eventos da semana
+    const weekKeywords = [
+      "semana", "esta semana", "essa semana", "proxima semana", "próxima semana", 
+      "na semana", "eventos da semana", "compromissos da semana", "agenda da semana"
+    ];
+    
+    if (weekKeywords.some(keyword => ctx.message.text.toLowerCase().includes(keyword))) {
+      try {
+        const { getEventsForWeek } = await import('./event');
+        const events = await getEventsForWeek(user.id);
+        
+        if (events.length === 0) {
+          await ctx.reply('Você não tem eventos agendados para esta semana.');
+          return;
+        }
+        
+        // Importa o format e ptBR
+        const { format } = await import('date-fns');
+        const { ptBR } = await import('date-fns/locale');
+        
+        let message = `📅 *Seus eventos para esta semana:*\n\n`;
+        
+        // Agrupa eventos por dia da semana
+        const eventsByDay = new Map();
+        
+        for (const event of events) {
+          const eventDate = new Date(event.startDate);
+          const dayKey = format(eventDate, "yyyy-MM-dd");
+          
+          if (!eventsByDay.has(dayKey)) {
+            eventsByDay.set(dayKey, []);
+          }
+          
+          eventsByDay.get(dayKey).push(event);
+        }
+        
+        // Ordena as datas
+        const sortedDays = Array.from(eventsByDay.keys()).sort();
+        
+        // Gera a resposta agrupada por dia
+        for (const day of sortedDays) {
+          const date = new Date(day);
+          const dayFormatted = format(date, "EEEE, dd 'de' MMMM", { locale: ptBR });
+          
+          message += `*${dayFormatted}*\n`;
+          
+          for (const event of eventsByDay.get(day)) {
+            const startTime = format(new Date(event.startDate), "HH:mm", { locale: ptBR });
+            message += `• ${event.title} às ${startTime}\n`;
+            if (event.location) message += `  📍 ${event.location}\n`;
+          }
+          
+          message += '\n';
+        }
+        
+        await ctx.reply(message, { parse_mode: 'Markdown' });
+        return;
+      } catch (error) {
+        log(`Erro ao processar consulta de eventos da semana: ${error}`, 'telegram');
+        // Continua o fluxo normal em caso de erro
+      }
+    }
+    
     // Verifica o estado do usuário
     const userState = userStates.get(telegramId);
     
