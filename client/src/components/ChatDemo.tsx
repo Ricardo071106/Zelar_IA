@@ -1,5 +1,7 @@
 import { useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { motion } from "framer-motion";
 
 interface ChatMessage {
   type: string;
@@ -15,168 +17,168 @@ interface ChatDemoProps {
 }
 
 export default function ChatDemo({ step }: ChatDemoProps) {
-  const chatContainerRef = useRef<HTMLDivElement>(null);
-
-  const chatMessages: Record<number, ChatMessage[]> = {
-    1: [
-      { type: 'user', text: '🎤 Voice message (0:12)' },
-      { type: 'user-transcript', text: 'I need to schedule a team meeting next Tuesday at 2pm to discuss the Q4 marketing strategy.' }
-    ],
-    2: [
-      { type: 'bot', text: '🧠 Processing your schedule...' },
-      { type: 'bot', text: 'I detected the following event details:' },
-      { type: 'bot-data', title: 'Team Meeting', day: 'Tuesday, October 17', time: '2:00 PM', description: 'Discuss Q4 marketing strategy' }
-    ],
-    3: [
-      { type: 'bot', text: '✅ I\'ve created this event in your calendar:' },
-      { type: 'bot-calendar', title: 'Team Meeting', day: 'Tuesday, October 17', time: '2:00 PM', description: 'Discuss Q4 marketing strategy' },
-      { type: 'bot', text: 'This event has been added to your Google Calendar.' }
-    ],
-    4: [
-      { type: 'bot-reminder', title: 'Reminder: Team Meeting Tomorrow', text: 'You have a team meeting tomorrow at 2:00 PM to discuss Q4 marketing strategy.' },
-      { type: 'bot-reminder', title: 'Reminder: Team Meeting in 30 minutes', text: 'Your team meeting starts in 30 minutes. Topic: Q4 marketing strategy.' }
-    ]
-  };
-
+  const chatRef = useRef<HTMLDivElement>(null);
+  
+  // Rola para o final do chat quando novas mensagens são adicionadas
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [step]);
 
+  // Demonstração de conversa com o bot
+  const chatDemo: ChatMessage[][] = [
+    // Etapa 0: Início
+    [
+      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" }
+    ],
+    
+    // Etapa 1: Usuário cria um evento
+    [
+      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
+      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
+      { type: "thinking", text: "Processando..." }
+    ],
+    
+    // Etapa 2: Bot confirma o evento
+    [
+      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
+      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
+      { 
+        type: "bot", 
+        text: "✅ Evento criado com sucesso!\n\nAdicionei o seguinte evento à sua agenda:",
+        title: "Reunião com o cliente",
+        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
+        time: "14:00",
+        description: "Local: Sala de conferências"
+      }
+    ],
+    
+    // Etapa 3: Usuário consulta agenda e bot responde
+    [
+      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
+      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
+      { 
+        type: "bot", 
+        text: "✅ Evento criado com sucesso!\n\nAdicionei o seguinte evento à sua agenda:",
+        title: "Reunião com o cliente",
+        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
+        time: "14:00",
+        description: "Local: Sala de conferências"
+      },
+      { type: "user", text: "Quais são meus eventos para amanhã?" },
+      { 
+        type: "bot", 
+        text: "📅 *Seus eventos para amanhã:*\n\n*Reunião com o cliente*\n🕒 14:00\n📍 Sala de conferências\n\nVocê quer receber um lembrete adicional para este evento?"
+      }
+    ]
+  ];
+
+  // Pega a conversa atual com base no passo
+  const currentChat = chatDemo[Math.min(step, chatDemo.length - 1)];
+
   return (
-    <div className="h-full bg-[#f6f6f6] p-4 overflow-y-auto" ref={chatContainerRef}>
-      {/* Initial welcome message */}
-      <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-        <p className="text-sm">Hi! I'm Zelar, your personal scheduling assistant. How can I help you today?</p>
+    <div className="flex flex-col h-[500px] overflow-hidden">
+      {/* Cabeçalho do chat */}
+      <div className="flex items-center p-3 border-b">
+        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
+          <span className="text-primary-600 text-lg font-semibold">Z</span>
+        </div>
+        <div className="ml-3">
+          <h3 className="font-medium">Zelar Assistente</h3>
+          <p className="text-xs text-gray-500">Online</p>
+        </div>
       </div>
-
-      {/* Step-specific messages */}
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={step}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          {chatMessages[step].map((message, index) => {
-            // Add a delay for each message
-            const delay = index * 0.5;
-
-            if (message.type === 'user') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-gray-100 rounded-lg p-3 shadow-sm mb-3 ml-auto max-w-[80%]"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <p className="text-sm">{message.text}</p>
-                </motion.div>
-              );
-            } 
-            else if (message.type === 'user-transcript') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-gray-100 rounded-lg p-3 shadow-sm mb-3 ml-auto max-w-[80%] border-l-4 border-primary"
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <p className="text-sm italic">"{message.text}"</p>
-                </motion.div>
-              );
-            }
-            else if (message.type === 'bot') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <p className="text-sm">{message.text}</p>
-                </motion.div>
-              );
-            }
-            else if (message.type === 'bot-data') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <p className="text-sm">Event details:</p>
-                  <div className="mt-2 bg-gray-100 rounded-md p-2">
-                    <p className="text-xs font-medium">{message.title}</p>
-                    <p className="text-xs text-gray-600">{message.day} • {message.time}</p>
-                    <p className="text-xs text-gray-600">Description: {message.description}</p>
+      
+      {/* Área de mensagens */}
+      <div 
+        ref={chatRef}
+        className="flex-1 p-4 overflow-y-auto space-y-4"
+        style={{ scrollBehavior: 'smooth' }}
+      >
+        {currentChat.map((message, index) => {
+          // Animação para mensagens que aparecem em etapas
+          const delay = index * 0.2;
+          
+          if (message.type === "thinking") {
+            return (
+              <motion.div
+                key={index}
+                className="flex items-start"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay }}
+              >
+                <div className="flex-1 max-w-[80%] bg-gray-100 rounded-lg p-3 ml-2">
+                  <div className="flex space-x-1">
+                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce"></div>
+                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
+                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
                   </div>
-                </motion.div>
-              );
-            }
-            else if (message.type === 'bot-calendar') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <div className="bg-primary/10 rounded-md p-3 border-l-4 border-primary">
-                    <div className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-primary mr-2 mt-1">
-                        <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-                        <line x1="16" x2="16" y1="2" y2="6" />
-                        <line x1="8" x2="8" y1="2" y2="6" />
-                        <line x1="3" x2="21" y1="10" y2="10" />
-                        <path d="m9 16 2 2 4-4" />
-                      </svg>
-                      <div>
-                        <p className="text-xs font-semibold">{message.title}</p>
-                        <p className="text-xs text-gray-600">{message.day} • {message.time}</p>
-                        <p className="text-xs text-gray-600">{message.description}</p>
-                      </div>
-                    </div>
+                </div>
+              </motion.div>
+            );
+          }
+          
+          return (
+            <motion.div
+              key={index}
+              className={`flex items-start ${message.type === "user" ? "justify-end" : ""}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay }}
+            >
+              {message.type === "bot" && (
+                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
+                  <span className="text-primary-600 text-sm font-semibold">Z</span>
+                </div>
+              )}
+              
+              <div 
+                className={`flex-1 max-w-[80%] ${
+                  message.type === "user" 
+                    ? "bg-primary-600 text-white rounded-lg rounded-tr-none" 
+                    : "bg-gray-100 text-gray-800 rounded-lg rounded-tl-none"
+                } p-3 mx-2`}
+              >
+                <div className="whitespace-pre-wrap">{message.text}</div>
+                
+                {message.title && (
+                  <div className="mt-2 p-3 bg-white rounded-md shadow-sm">
+                    <p className="font-semibold">{message.title}</p>
+                    {message.day && <p className="text-sm mt-1">📅 {message.day}</p>}
+                    {message.time && <p className="text-sm">🕒 {message.time}</p>}
+                    {message.description && <p className="text-sm mt-1">{message.description}</p>}
                   </div>
-                </motion.div>
-              );
-            }
-            else if (message.type === 'bot-reminder') {
-              return (
-                <motion.div 
-                  key={`${step}-${index}`}
-                  className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.3, delay }}
-                >
-                  <div className="bg-accent/10 rounded-md p-3 border-l-4 border-accent">
-                    <div className="flex items-start">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-accent mr-2 mt-1">
-                        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
-                        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
-                      </svg>
-                      <div>
-                        <p className="text-xs font-semibold">{message.title}</p>
-                        <p className="text-xs text-gray-600">{message.text}</p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            }
-            return null;
-          })}
-        </motion.div>
-      </AnimatePresence>
+                )}
+              </div>
+              
+              {message.type === "user" && (
+                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                  <span className="text-gray-600 text-sm">EU</span>
+                </div>
+              )}
+            </motion.div>
+          );
+        })}
+      </div>
+      
+      {/* Área de entrada de mensagem */}
+      <div className="p-3 border-t">
+        <div className="flex items-center bg-gray-100 rounded-full px-4 py-2">
+          <input
+            type="text"
+            placeholder="Digite uma mensagem..."
+            className="flex-1 bg-transparent outline-none text-sm"
+            disabled
+          />
+          <button className="ml-2 text-primary-600" disabled>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-5 w-5">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
