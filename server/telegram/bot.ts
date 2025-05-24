@@ -86,10 +86,34 @@ bot.help(async (ctx) => {
     `• /eventos - Lista todos os seus eventos futuros\n` +
     `• /hoje - Mostra seus eventos de hoje\n` +
     `• /amanha - Mostra seus eventos de amanhã\n` +
-    `• /configuracoes - Configura suas preferências\n\n` +
+    `• /configuracoes - Configura suas preferências\n` +
+    `• /email - Registra seu e-mail para integração com calendário\n\n` +
     `Para adicionar um evento, simplesmente me diga o que você quer agendar, quando e onde.`,
     { parse_mode: 'Markdown' }
   );
+});
+
+// Comando para registrar e-mail
+bot.command('email', async (ctx) => {
+  try {
+    const telegramId = ctx.from.id.toString();
+    const user = await findOrCreateUserByTelegramId(telegramId);
+    
+    // Atualiza o estado do usuário para aguardar o e-mail
+    userStates.set(telegramId, {
+      ...(userStates.get(telegramId) || { telegramId }),
+      userId: user.id,
+      awaitingEmail: true
+    });
+    
+    await ctx.reply(
+      `📧 Por favor, digite seu e-mail para que possamos integrar seus eventos ao seu calendário.\n\n` +
+      `Exemplo: seunome@exemplo.com.br`
+    );
+  } catch (error) {
+    log(`Erro ao processar comando email: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao processar seu pedido. Por favor, tente novamente mais tarde.');
+  }
 });
 
 // Função para validar e-mail
@@ -166,8 +190,83 @@ bot.on(message('text'), async (ctx) => {
     
     // Verificação extra: se o texto parece um e-mail mas não estamos esperando um
     if (isValidEmail(ctx.message.text.trim()) && (!userState || !userState.awaitingEmail)) {
-      await ctx.reply('Parece que você enviou um e-mail, mas não estou esperando um no momento. Você pode continuar usando o bot normalmente para agendar eventos.');
+      // Atualiza o estado do usuário para configurar o e-mail
+      userStates.set(telegramId, {
+        ...(userState || { telegramId }),
+        userId: user.id,
+        awaitingEmail: true
+      });
+      
+      // Solicita confirmação do e-mail
+      await ctx.reply(`Você gostaria de usar "${ctx.message.text.trim()}" como seu e-mail para integração com calendário? Responda "sim" para confirmar.`);
       return;
+    }
+    
+    // Verifica se a mensagem é sobre registrar e-mail
+    const emailKeywords = [
+      "registrar email", "cadastrar email", "meu email", "definir email", 
+      "configurar email", "registrar e-mail", "cadastrar e-mail", "meu e-mail", 
+      "definir e-mail", "configurar e-mail", "email para calendário", "e-mail para calendário"
+    ];
+    
+    if (emailKeywords.some(keyword => ctx.message.text.toLowerCase().includes(keyword))) {
+      // Atualiza o estado do usuário para aguardar o e-mail
+      userStates.set(telegramId, {
+        ...(userState || { telegramId }),
+        userId: user.id,
+        awaitingEmail: true
+      });
+      
+      await ctx.reply(
+        `📧 Por favor, digite seu e-mail para que possamos integrar seus eventos ao seu calendário.\n\n` +
+        `Exemplo: seunome@exemplo.com.br`
+      );
+      return;
+    }
+    
+    // Verifica se a resposta é "sim" para confirmar o e-mail
+    if (userState && userState.awaitingEmail && 
+        (ctx.message.text.toLowerCase() === "sim" || ctx.message.text.toLowerCase() === "s")) {
+      // Busca a última mensagem do usuário que parecia um e-mail
+      const messages = await ctx.telegram.getUpdates(0, 10, 100, ["message"]);
+      let lastEmail = "";
+      
+      for (const update of messages.reverse()) {
+        if (update.message && 
+            update.message.from.id === ctx.from.id && 
+            update.message.text && 
+            isValidEmail(update.message.text.trim())) {
+          lastEmail = update.message.text.trim();
+          break;
+        }
+      }
+      
+      if (lastEmail) {
+        // Atualiza o e-mail do usuário
+        const updated = await updateUserEmail(user.id, lastEmail);
+        
+        if (updated) {
+          // Atualiza o estado do usuário
+          userStates.set(telegramId, {
+            ...userState,
+            awaitingEmail: false
+          });
+          
+          await ctx.reply(
+            `✅ Obrigado! Seu e-mail ${lastEmail} foi registrado com sucesso.\n\n` +
+            `Agora você pode começar a usar o Zelar! Experimente enviar uma mensagem como:\n` +
+            `"Agendar reunião com João na próxima segunda às 10h" ou\n` +
+            `"Lembrar de buscar as crianças na escola amanhã às 17h"`
+          );
+          return;
+        } else {
+          await ctx.reply('❌ Ocorreu um erro ao registrar seu e-mail. Por favor, tente novamente com o comando /email.');
+          return;
+        }
+      } else {
+        await ctx.reply('Não consegui encontrar seu e-mail. Por favor, use o comando /email para registrar.');
+        return;
+      }
     }
     
     // Verifica se estamos esperando a confirmação de cancelamento de evento
