@@ -397,13 +397,33 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       log(`Evento criado: ${eventData.title}`, 'telegram');
       
-      // Simula a sincronização com o calendário
+      // Integração real com calendário através de arquivos ICS
       const calendarProvider = user.email.includes('gmail') || user.email.includes('google') ? 'Google Calendar' : 'Apple Calendar';
-      log(`Simulando sincronização com ${calendarProvider} para ${user.email}`, 'calendar');
+      log(`Gerando arquivo ICS para ${calendarProvider} para ${user.email}`, 'calendar');
+      
+      // Gera o arquivo ICS e o link de download
+      const calendarResult = await generateCalendarLink(newEvent, user.email);
+      
+      if (!calendarResult.success) {
+        log(`Erro ao gerar arquivo ICS: ${calendarResult.message}`, 'calendar');
+        return {
+          success: false,
+          message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n⚠️ Não foi possível gerar o arquivo de calendário: ${calendarResult.message}`,
+          eventDetails: {
+            title: eventData.title,
+            startDate,
+            endDate,
+          }
+        };
+      }
+      
+      // Constrói o URL completo para download
+      const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
+      const downloadUrl = baseUrl + calendarResult.downloadLink;
       
       return {
         success: true,
-        message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n🔄 Sincronizado com seu ${calendarProvider}`,
+        message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n🔄 [Clique aqui para adicionar ao seu ${calendarProvider}](${downloadUrl})`,
         eventDetails: {
           title: eventData.title,
           startDate,
