@@ -282,15 +282,48 @@ async function processTextMessage(text: string, userId: number): Promise<{
         };
       }
       
-      // Se for um evento, extrai as informações
-      const startDate = new Date(eventData.startDate);
-      let endDate = eventData.endDate ? new Date(eventData.endDate) : undefined;
+      // Se for um evento, extrai as informações com tratamento de erros
+      let startDate;
+      let endDate;
       
-      // Se não tiver data de término, assume 1 hora após o início
-      if (!endDate && startDate) {
+      try {
+        // Tenta converter a data de início
+        startDate = new Date(eventData.startDate);
+        // Verifica se a data é válida
+        if (isNaN(startDate.getTime())) {
+          // Se a data fornecida pelo modelo não for válida, usamos a data de amanhã às 10h
+          log(`Data inválida recebida: ${eventData.startDate}, usando fallback`, 'telegram');
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() + 1);
+          startDate.setHours(10, 0, 0, 0);
+        }
+        
+        // Tenta converter a data de término, se existir
+        if (eventData.endDate) {
+          endDate = new Date(eventData.endDate);
+          // Verifica se a data é válida
+          if (isNaN(endDate.getTime())) {
+            // Se a data de término não for válida, define como 1 hora após o início
+            endDate = new Date(startDate);
+            endDate.setHours(endDate.getHours() + 1);
+          }
+        } else {
+          // Se não tiver data de término, assume 1 hora após o início
+          endDate = new Date(startDate);
+          endDate.setHours(endDate.getHours() + 1);
+        }
+      } catch (dateError) {
+        log(`Erro ao processar datas: ${dateError}`, 'telegram');
+        // Em caso de erro, usa valores padrão
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() + 1);
+        startDate.setHours(10, 0, 0, 0);
+        
         endDate = new Date(startDate);
         endDate.setHours(endDate.getHours() + 1);
       }
+      
+      // O código acima já trata todos os casos de data de término
       
       // Adiciona diretamente ao calendário
       const user = await storage.getUser(userId);
