@@ -4,9 +4,10 @@ import { processTextMessage, processVoiceMessage } from './processor';
 import { createUserIfNotExists, findOrCreateUserByTelegramId } from './user';
 import { log } from '../vite';
 import { storage } from '../storage';
-import { getFutureEvents, getEventsForDay } from './event';
+import { getFutureEvents, getEventsForDay, cancelEvent } from './event';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { Event } from '@shared/schema';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -19,8 +20,10 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 // Estados de usuário para rastrear conversas
 interface UserState {
   awaitingEmail?: boolean;
+  awaitingCancellation?: boolean;
   telegramId: string;
   userId?: number;
+  events?: Event[];
 }
 
 const userStates = new Map<string, UserState>();
@@ -94,8 +97,10 @@ bot.on(message('text'), async (ctx) => {
       return; // Deixe os handlers de comando lidarem com isso
     }
     
-    // Verifica se estamos esperando um e-mail do usuário
+    // Verifica o estado do usuário
     const userState = userStates.get(telegramId);
+    
+    // Verifica se estamos esperando um e-mail do usuário
     if (userState && userState.awaitingEmail) {
       const email = ctx.message.text.trim();
       
@@ -126,6 +131,50 @@ bot.on(message('text'), async (ctx) => {
         await ctx.reply('❌ Ocorreu um erro ao registrar seu e-mail. Por favor, tente novamente.');
         return;
       }
+    }
+    
+    // Verifica se estamos esperando a confirmação de cancelamento de evento
+    if (userState && userState.awaitingCancellation && userState.events && userState.events.length > 0) {
+      // Tenta converter a entrada do usuário em um número
+      const selection = parseInt(ctx.message.text.trim());
+      
+      // Verifica se a entrada é um número válido e está dentro do intervalo de eventos
+      if (isNaN(selection) || selection < 1 || selection > userState.events.length) {
+        await ctx.reply(
+          '❌ Por favor, envie um número válido correspondente ao evento que deseja cancelar.\n' +
+          'Ou use /cancelar para ver a lista novamente.'
+        );
+        return;
+      }
+      
+      // Obtém o evento selecionado (índice ajustado para base 0)
+      const selectedEvent = userState.events[selection - 1];
+      
+      try {
+        // Tenta cancelar o evento
+        const cancelled = await cancelEvent(selectedEvent.id);
+        
+        if (cancelled) {
+          await ctx.reply(
+            `✅ Evento cancelado com sucesso:\n*${selectedEvent.title}*`,
+            { parse_mode: 'Markdown' }
+          );
+          
+          // Limpa o estado de cancelamento
+          userStates.set(telegramId, {
+            ...userState,
+            awaitingCancellation: false,
+            events: undefined
+          });
+        } else {
+          await ctx.reply('❌ Não foi possível encontrar o evento para cancelamento. Ele pode já ter sido removido.');
+        }
+      } catch (error) {
+        log(`Erro ao cancelar evento: ${error}`, 'telegram');
+        await ctx.reply('❌ Ocorreu um erro ao tentar cancelar o evento. Por favor, tente novamente.');
+      }
+      
+      return;
     }
     
     // Informa ao usuário que estamos processando a mensagem
@@ -330,6 +379,56 @@ bot.command('amanha', async (ctx) => {
   }
 });
 
+// Comando para cancelar eventos
+bot.command('cancelar', async (ctx) => {
+  try {
+    const user = await findOrCreateUserByTelegramId(ctx.from.id.toString());
+    
+    // Busca os eventos futuros do usuário
+    const events = await getFutureEvents(user.id);
+    
+    if (events.length === 0) {
+      await ctx.reply('Você não tem eventos futuros para cancelar.');
+      return;
+    }
+    
+    // Cria uma mensagem com a lista de eventos para o usuário escolher
+    let message = '🗑️ *Selecione um evento para cancelar:*\n\n';
+    
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i];
+      const startDate = new Date(event.startDate);
+      const formattedDate = format(startDate, "EEEE, dd 'de' MMMM", { locale: ptBR });
+      const formattedTime = format(startDate, "HH:mm", { locale: ptBR });
+      
+      message += `*${i + 1}. ${event.title}*\n`;
+      message += `📆 ${formattedDate} às ${formattedTime}\n`;
+      
+      if (event.location) {
+        message += `📍 ${event.location}\n`;
+      }
+      
+      message += '\n';
+    }
+    
+    message += 'Para cancelar um evento, envie o número correspondente (ex: 1, 2, 3...).';
+    
+    // Armazena os eventos no estado do usuário para referência
+    const telegramId = ctx.from.id.toString();
+    userStates.set(telegramId, {
+      telegramId,
+      userId: user.id,
+      awaitingCancellation: true,
+      events
+    });
+    
+    await ctx.reply(message, { parse_mode: 'Markdown' });
+  } catch (error) {
+    log(`Erro ao processar comando cancelar: ${error}`, 'telegram');
+    await ctx.reply('Ocorreu um erro ao listar seus eventos. Por favor, tente novamente.');
+  }
+});
+
 // Comando para configurações
 bot.command('configuracoes', async (ctx) => {
   try {
@@ -372,6 +471,7 @@ bot.command('configuracoes', async (ctx) => {
     message += `• /eventos - Lista todos os seus eventos futuros\n`;
     message += `• /hoje - Mostra seus eventos de hoje\n`;
     message += `• /amanha - Mostra seus eventos de amanhã\n`;
+    message += `• /cancelar - Cancela um evento\n`;
     message += `• /configuracoes - Acessa este menu\n`;
     
     await ctx.reply(message, { parse_mode: 'Markdown' });
