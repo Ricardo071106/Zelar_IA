@@ -55,6 +55,15 @@ export async function processTextMessage(text: string, userId: number): Promise<
     // Cria lembretes para o evento (24h e 30min antes)
     const reminderResults = await createDefaultReminders(createdEvent.id);
     
+    // Sincroniza o evento com o calendário do usuário
+    try {
+      const { syncEventWithCalendar } = await import('./calendar');
+      await syncEventWithCalendar(createdEvent.id);
+    } catch (error) {
+      log(`Não foi possível sincronizar com o calendário: ${error}`, 'telegram');
+      // Não interrompe o fluxo se a sincronização falhar
+    }
+    
     // Formata a resposta
     const startDateFormatted = format(
       new Date(createdEvent.startDate), 
