@@ -12,7 +12,9 @@ export default function Logo({ color = "primary", size = "md" }: LogoProps) {
 
   return (
     <div className="flex items-center">
-      <ZelarIcon className={`${iconSizeClass} mr-2`} color={color} />
+      <div className={`${iconSizeClass} mr-2 rounded-full overflow-hidden`}>
+        <ZelarIcon color={color} />
+      </div>
       <span className={`${textColorClass} font-bold ${textSizeClass}`}>Zelar</span>
     </div>
   );
