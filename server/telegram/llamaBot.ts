@@ -277,15 +277,18 @@ async function processTextMessage(text: string, userId: number): Promise<{
       {
         model: "meta-llama/llama-3-8b-instruct", // Usando Llama como solicitado
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: 'system', content: systemPrompt + "\n\nIMPORTANTE: Sua resposta DEVE ser um objeto JSON válido e nada mais." },
           { role: 'user', content: text }
         ],
-        response_format: { type: 'json_object' }
+        response_format: { type: 'json_object' },
+        temperature: 0.2 // Temperatura mais baixa para respostas mais previsíveis
       },
       {
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://zelar-assistente.replit.app', // Identificação para OpenRouter
+          'X-Title': 'Zelar Assistente de Agenda' // Nome do projeto
         }
       }
     );
@@ -297,9 +300,24 @@ async function processTextMessage(text: string, userId: number): Promise<{
       };
     }
     
-    const content = response.data.choices[0].message.content;
+    let content = response.data.choices[0].message.content;
+    log(`Resposta da API: ${content}`, 'telegram');
     
     try {
+      // Tenta limpar a resposta para garantir que seja um JSON válido
+      if (content.includes('```json')) {
+        // Extrai apenas o JSON de blocos de código
+        content = content.split('```json')[1].split('```')[0].trim();
+        log(`JSON extraído de bloco de código: ${content}`, 'telegram');
+      } else if (content.includes('{') && content.includes('}')) {
+        // Tenta extrair apenas o objeto JSON
+        const startIndex = content.indexOf('{');
+        const endIndex = content.lastIndexOf('}') + 1;
+        content = content.substring(startIndex, endIndex);
+        log(`JSON extraído de texto: ${content}`, 'telegram');
+      }
+      
+      // Agora tenta analisar o JSON
       const eventData = JSON.parse(content);
       
       if (!eventData.isEvent) {
