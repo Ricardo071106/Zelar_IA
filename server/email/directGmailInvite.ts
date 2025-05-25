@@ -143,6 +143,20 @@ export async function sendGmailCalendarInvite(
             ${event.location ? `<p style="color: #666;"><strong>Local:</strong> ${event.location}</p>` : ''}
             ${event.description ? `<p style="color: #666;"><strong>Descrição:</strong> ${event.description}</p>` : ''}
             <p style="margin-top: 30px; color: #888;">Este ${isCancellation ? 'cancelamento' : 'convite'} foi enviado pelo Assistente de Agenda.</p>
+            
+            <!-- Adicionar um botão claro para "Adicionar ao calendário" -->
+            <div style="margin-top: 20px;">
+              <table cellspacing="0" cellpadding="0" border="0" align="center">
+                <tr>
+                  <td style="border-radius: 4px; background-color: #4CAF50;">
+                    <a href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${new Date(event.startDate).toISOString().replace(/-|:|\.\d\d\d/g,'').slice(0,15)}/${new Date(event.endDate || new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000)).toISOString().replace(/-|:|\.\d\d\d/g,'').slice(0,15)}&details=${encodeURIComponent(event.description || '')}&location=${encodeURIComponent(event.location || '')}"
+                       target="_blank" style="padding: 12px 24px; border-radius: 4px; color: #ffffff; text-decoration: none; display: inline-block; font-weight: bold;">
+                      Adicionar ao Google Calendar
+                    </a>
+                  </td>
+                </tr>
+              </table>
+            </div>
           </div>
         </div>
       `,
