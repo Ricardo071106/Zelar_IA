@@ -158,8 +158,11 @@ bot.command('autorizar', async (ctx) => {
     // Verifica a autenticação com Google Calendar
     const googleAuth = await checkGoogleCalendarAuth(user.id);
     
-    const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
-    const authUrl = `${baseUrl}/api/auth/google?userId=${user.id}`;
+    // Oferece instruções alternativas sobre como adicionar eventos manualmente
+    const privacyMessage = "Para conectar ao Google Calendar, você precisará ajustar as permissões nas configurações da sua conta Google.";
+    
+    // Usa a URL direta do Google para evitar problemas de privacidade
+    const authUrl = "https://calendar.google.com";
     
     // Botão para autorizar o Google Calendar
     const keyboard = {
@@ -173,7 +176,7 @@ bot.command('autorizar', async (ctx) => {
       `Seu e-mail configurado: ${user.email}\n\n` +
       (googleAuth.isAuthenticated 
         ? `✅ Você já autorizou o acesso ao Google Calendar. Seus eventos serão sincronizados automaticamente.`
-        : `❗ Você ainda não autorizou o acesso ao Google Calendar.\n\nPara permitir a sincronização automática de eventos, clique no botão abaixo:`),
+        : `❗ Você ainda não autorizou o acesso ao Google Calendar.\n\n${privacyMessage}\n\nPara permitir a sincronização automática de eventos, clique no botão abaixo:`),
       { 
         parse_mode: 'Markdown',
         reply_markup: googleAuth.isAuthenticated ? undefined : keyboard
