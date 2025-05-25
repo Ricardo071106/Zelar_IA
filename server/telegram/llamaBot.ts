@@ -680,8 +680,9 @@ bot.on(message('voice'), async (ctx) => {
 // Função para iniciar o bot
 export async function startLlamaBot() {
   try {
-    // Adiciona o comando para apagar eventos
+    // Adiciona os comandos especiais
     addDeleteCommand(bot);
+    addEmailConfigCommand(bot);
     
     // Ativa o modo de polling
     await bot.launch();
