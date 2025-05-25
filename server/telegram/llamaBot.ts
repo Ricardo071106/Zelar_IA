@@ -9,6 +9,7 @@ import FormData from 'form-data';
 import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
 import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
+import { addDeleteCommand } from './commands';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -639,6 +640,9 @@ bot.on(message('voice'), async (ctx) => {
 // Função para iniciar o bot
 export async function startLlamaBot() {
   try {
+    // Adiciona o comando para apagar eventos
+    addDeleteCommand(bot);
+    
     // Ativa o modo de polling
     await bot.launch();
     log('Bot do Telegram com Llama iniciado com sucesso!', 'telegram');
