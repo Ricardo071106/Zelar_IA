@@ -146,22 +146,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).send('Evento não encontrado');
       }
       
-      // Gerar conteúdo ICS
+      // Gerar conteúdo ICS com fuso horário brasileiro explícito
       const formatDateForICS = (date: Date): string => {
-        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        // Formatar como horário local brasileiro sem UTC
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        return `${year}${month}${day}T${hours}${minutes}${seconds}`;
       };
 
       const startDate = formatDateForICS(event.startDate);
       const endDate = formatDateForICS(event.endDate || new Date(event.startDate.getTime() + 60 * 60 * 1000));
-      const now = formatDateForICS(new Date());
+      const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
       
       const icsContent = `BEGIN:VCALENDAR
 VERSION:2.0
 PRODID:-//Zelar//Zelar Bot//PT
+BEGIN:VTIMEZONE
+TZID:America/Sao_Paulo
+BEGIN:STANDARD
+DTSTART:20070401T000000
+RRULE:FREQ=YEARLY;BYMONTH=4;BYDAY=1SU
+TZOFFSETFROM:-0200
+TZOFFSETTO:-0300
+TZNAME:BRT
+END:STANDARD
+BEGIN:DAYLIGHT
+DTSTART:20071021T000000
+RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=3SU
+TZOFFSETFROM:-0300
+TZOFFSETTO:-0200
+TZNAME:BRST
+END:DAYLIGHT
+END:VTIMEZONE
 BEGIN:VEVENT
 UID:${event.id}@zelar.bot
-DTSTART:${startDate}
-DTEND:${endDate}
+DTSTART;TZID=America/Sao_Paulo:${startDate}
+DTEND;TZID=America/Sao_Paulo:${endDate}
 DTSTAMP:${now}
 SUMMARY:${event.title}
 DESCRIPTION:${event.description || ''}
