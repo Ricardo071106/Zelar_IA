@@ -28,7 +28,53 @@ function validateBody(schema: z.ZodType<any, any>) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rota de autenticação do Google Calendar
   app.use('/api/auth', googleAuthRoutes);
-  // Rota para download de arquivos de calendário
+  // Rota para gerar arquivo ICS para Apple Calendar
+  app.get('/calendar/:eventId.ics', async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      
+      // Buscar evento no banco de dados
+      const event = await storage.getEvent(parseInt(eventId));
+      
+      if (!event) {
+        return res.status(404).send('Evento não encontrado');
+      }
+      
+      // Gerar conteúdo ICS
+      const formatDateForICS = (date: Date): string => {
+        return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      };
+
+      const startDate = formatDateForICS(event.startDate);
+      const endDate = formatDateForICS(event.endDate || new Date(event.startDate.getTime() + 60 * 60 * 1000));
+      const now = formatDateForICS(new Date());
+      
+      const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Zelar//Zelar Bot//PT
+BEGIN:VEVENT
+UID:${event.id}@zelar.bot
+DTSTART:${startDate}
+DTEND:${endDate}
+DTSTAMP:${now}
+SUMMARY:${event.title}
+DESCRIPTION:${event.description || ''}
+LOCATION:${event.location || ''}
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR`;
+      
+      res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${event.title.replace(/[^a-zA-Z0-9]/g, '_')}.ics"`);
+      res.send(icsContent);
+    } catch (error) {
+      console.error('Erro ao gerar arquivo ICS:', error);
+      res.status(500).send('Erro ao processar sua solicitação');
+    }
+  });
+
+  // Rota para download de arquivos de calendário (mantida para compatibilidade)
   app.get('/download/calendar_files/:filename', async (req, res) => {
     try {
       const { filename } = req.params;
