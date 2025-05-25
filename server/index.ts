@@ -69,16 +69,16 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot do Telegram com IA para processar linguagem natural
+    // Inicializa o bot do Telegram com capacidade de processamento de linguagem natural
     try {
-      // Importar e iniciar o bot com IA
-      const { startLlamaBot } = await import('./telegram/llamaBot');
-      const llamaBotInitialized = await startLlamaBot();
+      // Iniciar bot com processador de linguagem natural e integração automática com calendários
+      const { startAutoBot } = await import('./telegram/autoBot');
+      const autoBotInitialized = await startAutoBot();
       
-      if (llamaBotInitialized) {
-        log('Bot com IA para processamento de linguagem natural iniciado com sucesso!', 'telegram');
+      if (autoBotInitialized) {
+        log('Bot com processamento de linguagem natural e integração com calendários iniciado com sucesso!', 'telegram');
       } else {
-        log('Erro ao iniciar bot com IA, tentando solução alternativa...', 'telegram');
+        log('Erro ao iniciar bot principal, tentando solução alternativa...', 'telegram');
         
         // Fallback 1: Bot com solução universal para calendário
         const calendarSolutionInitialized = await startCalendarSolution();
