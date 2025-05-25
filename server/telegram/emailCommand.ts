@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { log } from '../vite';
-import { setupEmailCredentials } from '../email/directCalendarInvite';
+import { configureEmail } from '../email/simpleInvite';
 
 /**
  * Adiciona o comando para configurar o email remetente que enviará convites
@@ -40,7 +40,7 @@ export function addEmailConfigCommand(bot: Telegraf) {
       const senha = parts.slice(2).join(' '); // Caso a senha tenha espaços
       
       // Configurar as credenciais
-      const result = await setupEmailCredentials(email, senha);
+      const result = await configureEmail(email, senha);
       
       if (result.success) {
         await ctx.reply(

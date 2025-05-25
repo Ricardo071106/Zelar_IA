@@ -1,7 +1,7 @@
 import { log } from '../vite';
 import { cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 import { storage } from '../storage';
-import { sendCalendarInviteDirectly } from '../email/directCalendarInvite';
+import { sendInvite } from '../email/simpleInvite';
 
 /**
  * Apaga um evento do Google Calendar
@@ -73,7 +73,7 @@ export async function deleteCalendarEvent(eventId: number, userId: number): Prom
         };
         
         // Envia convite de cancelamento
-        await sendEventInvite(canceledEvent, user.email);
+        await sendInvite(canceledEvent, user.email, true);
         log(`Email de cancelamento enviado para ${user.email} para o evento: ${event.title}`, 'email');
       } catch (emailError) {
         log(`Erro ao enviar email de cancelamento: ${emailError}`, 'email');

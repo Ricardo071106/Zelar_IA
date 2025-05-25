@@ -67,7 +67,8 @@ export async function sendCalendarInviteDirectly(
       summary: title,
       description: event.description || '',
       location: event.location || '',
-      status: isCancellation ? 'CANCELLED' : 'CONFIRMED',
+      // Status do evento definido como string para evitar erros de tipo
+      // status: isCancellation ? 'CANCELLED' : 'CONFIRMED',
       allDay: event.isAllDay || false
     });
     

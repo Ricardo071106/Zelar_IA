@@ -12,7 +12,7 @@ import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCa
 import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 import { addDeleteCommand } from './commands';
 import { addEmailConfigCommand } from './emailCommand';
-import { sendCalendarInviteDirectly } from '../email/directCalendarInvite';
+import { sendInvite } from '../email/simpleInvite';
 import { cleanupPastEvents } from '../autoCleanup';
 
 // Verifica se o token do bot do Telegram está definido
@@ -444,7 +444,7 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       // Enviar convite de calendário por email
       log(`Enviando convite de calendário por email para ${user.email}`, 'email');
-      const emailResult = await sendCalendarInviteDirectly(newEvent, user.email);
+      const emailResult = await sendInvite(newEvent, user.email);
       
       // Armazena se o convite de email foi enviado com sucesso
       const emailSuccess = emailResult.success;
