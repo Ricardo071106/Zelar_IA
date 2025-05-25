@@ -64,9 +64,11 @@ export const reminderRelations = relations(reminders, ({ one }) => ({
 export const userSettings = pgTable("user_settings", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().references(() => users.id),
-  reminderPreferences: json("reminder_preferences").default({}), // Preferências de lembrete (24h, 30min, etc.)
-  calendarIntegration: varchar("calendar_integration", { length: 20 }), // google, apple
-  calendarAuthToken: text("calendar_auth_token"),
+  notificationsEnabled: boolean("notifications_enabled").default(true),
+  reminderTimes: integer("reminder_times").array(), // Array de horas antes do evento para enviar lembretes
+  calendarProvider: varchar("calendar_provider", { length: 20 }), // google, apple
+  googleTokens: text("google_tokens"), // Tokens do Google Calendar em formato JSON
+  appleTokens: text("apple_tokens"), // Tokens da Apple em formato JSON
   language: varchar("language", { length: 10 }).default("pt-BR"),
   timeZone: varchar("time_zone", { length: 50 }).default("America/Sao_Paulo"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -109,9 +111,11 @@ export const insertReminderSchema = createInsertSchema(reminders).pick({
 
 export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   userId: true,
-  reminderPreferences: true,
-  calendarIntegration: true,
-  calendarAuthToken: true,
+  notificationsEnabled: true,
+  reminderTimes: true,
+  calendarProvider: true,
+  googleTokens: true,
+  appleTokens: true,
   language: true,
   timeZone: true,
 });

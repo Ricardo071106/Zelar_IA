@@ -5,6 +5,11 @@ import { insertEventSchema, insertReminderSchema, insertUserSchema, insertUserSe
 import { z } from "zod";
 import * as fs from 'fs';
 import * as path from 'path';
+import { 
+  generateAuthUrl, 
+  handleAuthCode, 
+  setTokens 
+} from './telegram/googleCalendarIntegration';
 
 // Middleware para validação com Zod
 function validateBody(schema: z.ZodType<any, any>) {
@@ -42,6 +47,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Erro ao fornecer arquivo de calendário:', error);
       res.status(500).send('Erro ao processar sua solicitação');
+    }
+  });
+  
+  // Rotas de autenticação com Google Calendar
+  app.get('/api/auth/google', async (req, res) => {
+    try {
+      const userId = parseInt(req.query.userId as string);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'ID de usuário inválido' });
+      }
+      
+      // Verifica se o usuário existe
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: 'Usuário não encontrado' });
+      }
+      
+      // Gera a URL de autorização
+      const authUrl = generateAuthUrl(userId);
+      
+      res.redirect(authUrl);
+    } catch (error) {
+      console.error('Erro ao iniciar autenticação com Google:', error);
+      res.status(500).json({ error: 'Erro ao iniciar autenticação com Google Calendar' });
+    }
+  });
+  
+  app.get('/api/auth/google/callback', async (req, res) => {
+    try {
+      const { code, state } = req.query;
+      
+      if (!code || !state) {
+        return res.status(400).json({ error: 'Parâmetros inválidos' });
+      }
+      
+      const userId = parseInt(state as string);
+      
+      if (isNaN(userId)) {
+        return res.status(400).json({ error: 'ID de usuário inválido' });
+      }
+      
+      // Processa o código de autorização
+      const authResult = await handleAuthCode(code as string, userId);
+      
+      if (!authResult.success) {
+        return res.status(500).json({ error: authResult.message });
+      }
+      
+      // Salva os tokens no banco de dados
+      if (authResult.tokens) {
+        // Atualiza as configurações do usuário com os tokens do Google
+        const userSettings = await storage.getUserSettings(userId);
+        
+        if (userSettings) {
+          // Atualiza as configurações existentes
+          await storage.updateUserSettings(userId, {
+            googleTokens: JSON.stringify(authResult.tokens)
+          });
+        } else {
+          // Cria novas configurações
+          await storage.createUserSettings({
+            userId,
+            notificationsEnabled: true,
+            reminderTimes: [24, 1], // Lembretes 24h e 1h antes
+            calendarProvider: 'google',
+            googleTokens: JSON.stringify(authResult.tokens)
+          });
+        }
+      }
+      
+      // Redireciona para uma página de sucesso
+      res.send(`
+        <html>
+          <head>
+            <title>Autenticação concluída</title>
+            <style>
+              body {
+                font-family: Arial, sans-serif;
+                text-align: center;
+                margin-top: 50px;
+              }
+              .success {
+                color: green;
+                font-size: 24px;
+                margin-bottom: 20px;
+              }
+              .message {
+                font-size: 18px;
+                margin-bottom: 30px;
+              }
+              .close {
+                background-color: #4CAF50;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 16px;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="success">✓ Autenticação concluída com sucesso!</div>
+            <div class="message">Você pode agora fechar esta janela e voltar ao bot do Telegram.</div>
+            <button class="close" onclick="window.close()">Fechar</button>
+          </body>
+        </html>
+      `);
+    } catch (error) {
+      console.error('Erro no callback de autenticação:', error);
+      res.status(500).json({ error: 'Erro no processo de autenticação' });
     }
   });
   
