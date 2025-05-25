@@ -40,7 +40,7 @@ async function sendUniversalCalendarInvite(event: any, email: string, isCancella
     const eventId = event.id || Date.now().toString();
     
     // Criar o evento no calendário
-    const calEvent = calendar.createEvent({
+    calendar.createEvent({
       uid: `${eventId}@assistente-agenda.com`,
       sequence: isCancellation ? 1 : 0,
       start: new Date(event.startDate),

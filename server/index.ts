@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { initializeTelegramBot } from "./telegram";
+import { startCalendarSolution } from "./calendar_solution";
 
 const app = express();
 app.use(express.json());
@@ -70,11 +71,19 @@ app.use((req, res, next) => {
     
     // Inicializa o bot do Telegram após o servidor estar rodando
     try {
-      const botInitialized = await initializeTelegramBot();
-      if (botInitialized) {
-        log('Bot do Telegram iniciado com sucesso!', 'telegram');
+      // Iniciar o bot com solução universal para calendário
+      const calendarSolutionInitialized = await startCalendarSolution();
+      if (calendarSolutionInitialized) {
+        log('Bot com solução universal para calendário iniciado com sucesso!', 'telegram');
       } else {
-        log('Não foi possível iniciar o bot do Telegram.', 'telegram');
+        log('Tentativa alternativa: iniciando bot tradicional...', 'telegram');
+        // Fallback para o bot tradicional se o bot com solução universal falhar
+        const botInitialized = await initializeTelegramBot();
+        if (botInitialized) {
+          log('Bot do Telegram iniciado com sucesso!', 'telegram');
+        } else {
+          log('Não foi possível iniciar o bot do Telegram.', 'telegram');
+        }
       }
     } catch (error) {
       log(`Erro ao iniciar o bot do Telegram: ${error}`, 'telegram');
