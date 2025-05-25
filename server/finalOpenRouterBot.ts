@@ -228,9 +228,9 @@ function generateCalendarLinks(event: any, saveToDb = false) {
   // Link direto para o Outlook
   const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${event.startDate.toISOString()}&enddt=${event.endDate.toISOString()}${event.description ? `&body=${encodeURIComponent(event.description)}` : ''}${event.location ? `&location=${encodeURIComponent(event.location)}` : ''}`;
   
-  // Link para Apple Calendar - usando nosso endpoint do servidor
+  // Link para Apple Calendar - usando nossa página de download
   const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:3000';
-  const appleUrl = `${baseUrl}/calendar/${event.id}.ics`;
+  const appleUrl = `${baseUrl}/apple/${event.id}`;
   
   return {
     google: googleUrl,
@@ -284,85 +284,13 @@ bot.command(['ajuda', 'help'], async (ctx) => {
     `• "Apagar o evento da consulta"\n\n` +
     `📌 Comandos disponíveis:\n` +
     `/start - Iniciar o bot\n` +
-    `/eventos - Listar seus eventos\n` +
-    `/criar - Criar evento de teste\n` +
     `/ajuda - Mostrar esta ajuda`
   );
 });
 
-// Comando /eventos - lista eventos
-bot.command('eventos', async (ctx) => {
-  if (!ctx.from) return;
-  
-  const userId = ctx.from.id.toString();
-  const userState = users.get(userId);
-  
-  if (!userState) {
-    await ctx.reply('Por favor, use /start para começar a usar o bot.');
-    return;
-  }
-  
-  if (userState.events.length === 0) {
-    await ctx.reply('Você não tem eventos agendados.');
-    return;
-  }
-  
-  let message = '📅 Seus eventos:\n\n';
-  
-  userState.events.forEach((event, index) => {
-    const formattedDate = formatDate(event.startDate);
-    
-    message += `${index + 1}. ${event.title}\n📆 ${formattedDate}\n${event.location ? `📍 ${event.location}\n` : ''}${event.description ? `📝 ${event.description}\n` : ''}\n`;
-  });
-  
-  await ctx.reply(message);
-});
 
-// Comando /criar - cria evento de teste
-bot.command('criar', async (ctx) => {
-  if (!ctx.from) return;
-  
-  const userId = ctx.from.id.toString();
-  const userState = users.get(userId) || { id: userId, name: ctx.from.first_name || 'usuário', events: [] };
-  
-  // Criar evento de teste para amanhã
-  const tomorrow = addDays(new Date(), 1);
-  tomorrow.setHours(15, 0, 0, 0);
-  
-  const event = {
-    id: Date.now().toString(),
-    title: 'Reunião de Teste',
-    startDate: tomorrow,
-    endDate: new Date(tomorrow.getTime() + 60 * 60 * 1000),
-    location: 'Local de Teste',
-    description: 'Este é um evento de teste criado pelo bot'
-  };
-  
-  // Adicionar evento à lista do usuário
-  userState.events.push(event);
-  users.set(userId, userState);
-  
-  // Gerar links para calendários
-  const links = generateCalendarLinks(event);
-  
-  await ctx.reply(
-    `✅ Evento criado com sucesso!\n\n` +
-    `📅 ${event.title}\n` +
-    `📆 ${formatDate(event.startDate)}\n` +
-    `📍 ${event.location}\n` +
-    `📝 ${event.description}\n\n` +
-    `Adicione ao seu calendário com um clique:`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'Adicionar ao Google Calendar', url: links.google }],
-          [{ text: 'Adicionar ao Outlook', url: links.outlook }],
-          [{ text: 'Adicionar ao Apple Calendar', url: links.apple }]
-        ]
-      }
-    }
-  );
-});
+
+
 
 // Processar mensagens de texto
 bot.on('text', async (ctx) => {
@@ -387,6 +315,7 @@ bot.on('text', async (ctx) => {
           // Criar usuário se não existir
           dbUser = await storage.createUser({
             username: ctx.from.username || ctx.from.first_name || `user_${userId}`,
+            password: 'telegram_user', // Password obrigatório mas não usado para usuários do Telegram
             telegramId: userId
           });
         }
