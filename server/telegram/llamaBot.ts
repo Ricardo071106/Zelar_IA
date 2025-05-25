@@ -247,13 +247,26 @@ async function processTextMessage(text: string, userId: number): Promise<{
       - data e hora de término (se mencionado)
       - local (se mencionado)
       - descrição ou detalhes adicionais (se mencionado)
+
+      Hoje é ${new Date().toISOString().split('T')[0]}.
       
-      Se a mensagem contiver informações sobre um evento, forneça os detalhes no formato JSON:
+      Se a mensagem contiver informações sobre um evento, forneça os detalhes no formato JSON.
+      
+      IMPORTANTE: Para datas, você DEVE usar o formato ISO com datas reais:
+      - Se a mensagem mencionar "próxima segunda", calcule a data real da próxima segunda-feira.
+      - Se mencionar "próxima terça", calcule a data real da próxima terça-feira.
+      - Se mencionar "próxima quarta", calcule a data real da próxima quarta-feira.
+      - Se mencionar "próxima quinta", calcule a data real da próxima quinta-feira.
+      - Se mencionar "próxima sexta", calcule a data real da próxima sexta-feira.
+      - Se mencionar "próximo sábado", calcule a data real do próximo sábado.
+      - Se mencionar "próximo domingo", calcule a data real do próximo domingo.
+      
+      Exemplo de resposta para um evento na próxima sexta às 10h:
       {
         "isEvent": true,
         "title": "Título do evento",
-        "startDate": "YYYY-MM-DDTHH:MM:SS",
-        "endDate": "YYYY-MM-DDTHH:MM:SS",
+        "startDate": "2025-05-31T10:00:00", 
+        "endDate": "2025-05-31T11:00:00",
         "location": "Local do evento",
         "description": "Descrição ou detalhes adicionais"
       }
@@ -268,6 +281,8 @@ async function processTextMessage(text: string, userId: number): Promise<{
       Se o usuário não especificar um horário, assuma um horário padrão, como 9:00 para manhã, 15:00 para tarde, e 19:00 para noite.
       Se o usuário não especificar uma data, assuma que é para o dia seguinte.
       Se for mencionado "hoje", use a data atual; se for "amanhã", use o dia seguinte à data atual.
+      
+      NUNCA USE PLACEHOLDER como "YYYY-MM-DD" na resposta. Sempre calcule a data real.
     `;
     
     log(`Processando mensagem de texto: "${text}"`, 'telegram');
@@ -335,28 +350,59 @@ async function processTextMessage(text: string, userId: number): Promise<{
       try {
         // Verifica se o modelo está retornando o valor padrão sem processamento
         if (eventData.startDate === "YYYY-MM-DDTHH:MM:SS" || eventData.startDate.includes("YYYY")) {
-          // Tenta extrair informações da mensagem original
-          if (text.toLowerCase().includes("próxima segunda") || text.toLowerCase().includes("proxima segunda")) {
+          // Log para identificar que a data está sendo processada manualmente
+          log(`Data inválida recebida: ${eventData.startDate}, usando fallback padrão`, 'telegram');
+          
+          // Cria uma data padrão para hoje
+          startDate = new Date();
+          
+          // Analisa o texto para ver qual dia da semana foi mencionado
+          const textoLower = text.toLowerCase();
+          
+          // Define o dia da semana conforme mencionado na mensagem
+          if (textoLower.includes("próxima segunda") || textoLower.includes("proxima segunda")) {
             // Encontra a próxima segunda-feira
-            startDate = new Date();
             startDate.setDate(startDate.getDate() + (8 - startDate.getDay()) % 7);
-            
-            // Define a hora mencionada ou padrão
-            if (text.toLowerCase().includes("10h") || text.toLowerCase().includes("10:00") || 
-                text.toLowerCase().includes("às 10")) {
-              startDate.setHours(10, 0, 0, 0);
-            } else if (text.toLowerCase().includes("15h") || text.toLowerCase().includes("15:00") || 
-                      text.toLowerCase().includes("às 15") || text.toLowerCase().includes("3 da tarde")) {
-              startDate.setHours(15, 0, 0, 0);
-            } else {
-              startDate.setHours(10, 0, 0, 0); // Hora padrão
-            }
-            
-            log(`Utilizando próxima segunda-feira às ${startDate.getHours()}h`, 'telegram');
-          } else if (text.toLowerCase().includes("amanhã")) {
+          } else if (textoLower.includes("próxima terça") || textoLower.includes("proxima terca")) {
+            // Encontra a próxima terça-feira
+            startDate.setDate(startDate.getDate() + (9 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("próxima quarta") || textoLower.includes("proxima quarta")) {
+            // Encontra a próxima quarta-feira
+            startDate.setDate(startDate.getDate() + (10 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("próxima quinta") || textoLower.includes("proxima quinta")) {
+            // Encontra a próxima quinta-feira
+            startDate.setDate(startDate.getDate() + (11 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("próxima sexta") || textoLower.includes("proxima sexta")) {
+            // Encontra a próxima sexta-feira
+            startDate.setDate(startDate.getDate() + (12 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("próximo sábado") || textoLower.includes("proximo sabado")) {
+            // Encontra o próximo sábado
+            startDate.setDate(startDate.getDate() + (13 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("próximo domingo") || textoLower.includes("proximo domingo")) {
+            // Encontra o próximo domingo
+            startDate.setDate(startDate.getDate() + (14 - startDate.getDay()) % 7);
+          } else if (textoLower.includes("amanhã") || textoLower.includes("amanha")) {
             // Define para amanhã
-            startDate = new Date();
             startDate.setDate(startDate.getDate() + 1);
+          }
+          
+          // Define a hora mencionada ou padrão
+          if (textoLower.includes("10h") || textoLower.includes("10:00") || 
+              textoLower.includes("às 10") || textoLower.includes("as 10")) {
+            startDate.setHours(10, 0, 0, 0);
+          } else if (textoLower.includes("15h") || textoLower.includes("15:00") || 
+                    textoLower.includes("às 15") || textoLower.includes("as 15") || 
+                    textoLower.includes("3 da tarde")) {
+            startDate.setHours(15, 0, 0, 0);
+          } else {
+            startDate.setHours(10, 0, 0, 0); // Hora padrão
+          }
+          
+          log(`Data calculada manualmente: ${startDate.toISOString()}`, 'telegram');
+        } else if (text.toLowerCase().includes("amanhã")) {
+          // Define para amanhã
+          startDate = new Date();
+          startDate.setDate(startDate.getDate() + 1);
             
             // Define a hora mencionada ou padrão
             if (text.toLowerCase().includes("15h") || text.toLowerCase().includes("15:00") || 
