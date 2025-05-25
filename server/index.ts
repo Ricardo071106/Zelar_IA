@@ -69,30 +69,40 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot simplificado garantido - 100% funcional e gratuito
+    // Inicializa o bot com adição direta ao calendário
     try {
-      // Iniciar bot simplificado com polling para garantir funcionamento
-      const { startSimpleBot } = await import('./simplebot');
-      const simpleBotInitialized = await startSimpleBot();
+      // Iniciar bot que adiciona eventos diretamente ao calendário
+      const { startDirectCalendarBot } = await import('./directCalendarBot');
+      const directBotInitialized = await startDirectCalendarBot();
       
-      if (simpleBotInitialized) {
-        log('Bot simplificado iniciado com sucesso! Garantia de funcionamento ativada.', 'telegram');
+      if (directBotInitialized) {
+        log('Bot com adição direta ao calendário iniciado com sucesso!', 'telegram');
       } else {
-        log('Erro ao iniciar bot simplificado, tentando soluções alternativas...', 'telegram');
+        log('Erro ao iniciar bot principal, tentando alternativas...', 'telegram');
         
-        // Tentativa alternativa 1: Bot com solução universal para calendário
-        const calendarSolutionInitialized = await startCalendarSolution();
-        if (calendarSolutionInitialized) {
-          log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
+        // Alternativa 1: Bot simplificado
+        const { startSimpleBot } = await import('./simplebot');
+        const simpleBotInitialized = await startSimpleBot();
+        
+        if (simpleBotInitialized) {
+          log('Bot simplificado iniciado como alternativa!', 'telegram');
         } else {
-          log('Tentando bot tradicional como último recurso...', 'telegram');
+          log('Erro ao iniciar bot simplificado, tentando outras soluções...', 'telegram');
           
-          // Tentativa alternativa 2: Bot tradicional
-          const botInitialized = await initializeTelegramBot();
-          if (botInitialized) {
-            log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
+          // Alternativa 2: Bot com solução universal para calendário
+          const calendarSolutionInitialized = await startCalendarSolution();
+          if (calendarSolutionInitialized) {
+            log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
           } else {
-            log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
+            log('Tentando bot tradicional como último recurso...', 'telegram');
+            
+            // Alternativa 3: Bot tradicional
+            const botInitialized = await initializeTelegramBot();
+            if (botInitialized) {
+              log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
+            } else {
+              log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
+            }
           }
         }
       }
