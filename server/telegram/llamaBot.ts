@@ -10,6 +10,7 @@ import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
 import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 import { addDeleteCommand } from './commands';
+import { addEmailConfigCommand } from './emailCommand';
 import { sendEventInvite } from '../email/emailService';
 
 // Verifica se o token do bot do Telegram está definido
@@ -230,7 +231,9 @@ async function processTextMessage(text: string, userId: number): Promise<{
     endDate?: Date;
     location?: string;
     description?: string;
+    keyboard?: any; // Para compatibilidade com o teclado inline
   };
+  event?: any; // Para retornar o evento criado
 }> {
   try {
     // Prompt do sistema para extrair informações de evento
@@ -419,7 +422,14 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       log(`Evento criado: ${eventData.title}`, 'telegram');
       
-      // Tenta primeiro sincronizar com o Google Calendar
+      // Enviar convite de calendário por email
+      log(`Enviando convite de calendário por email para ${user.email}`, 'email');
+      const emailResult = await sendEventInvite(newEvent, user.email);
+      
+      // Armazena se o convite de email foi enviado com sucesso
+      const emailSuccess = emailResult.success;
+      
+      // Tenta também sincronizar com o Google Calendar para usuários com Gmail
       const isGmail = user.email.includes('gmail') || user.email.includes('google');
       
       if (isGmail) {
@@ -431,14 +441,15 @@ async function processTextMessage(text: string, userId: number): Promise<{
           // Sincronização com Google Calendar bem-sucedida
           return {
             success: true,
-            message: `✅ Evento adicionado automaticamente ao seu Google Calendar!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n🔄 Sincronizado com sucesso!`,
+            message: `✅ Evento adicionado automaticamente ao seu Google Calendar!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n🔄 Sincronizado com sucesso!${emailSuccess ? '\n\n✉️ Convite de calendário também enviado por email!' : ''}`,
             eventDetails: {
               title: eventData.title,
               startDate,
               endDate,
               location: eventData.location,
               description: eventData.description
-            }
+            },
+            event: newEvent
           };
         } else if (googleResult.requiresAuth && googleResult.authUrl) {
           // Usuário precisa autorizar o acesso ao Google Calendar
@@ -483,6 +494,23 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       if (!calendarResult.success) {
         log(`Erro ao gerar arquivo ICS: ${calendarResult.message}`, 'calendar');
+        
+        // Se pelo menos o convite por email foi enviado, consideramos como sucesso
+        if (emailSuccess) {
+          return {
+            success: true,
+            message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n✉️ Um convite de calendário foi enviado para seu email ${user.email}!\n\nO evento aparecerá automaticamente no seu calendário.`,
+            eventDetails: {
+              title: eventData.title,
+              startDate,
+              endDate,
+              location: eventData.location,
+              description: eventData.description
+            },
+            event: newEvent
+          };
+        }
+        
         return {
           success: false,
           message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n⚠️ Não foi possível gerar o arquivo de calendário: ${calendarResult.message}`,
@@ -492,7 +520,8 @@ async function processTextMessage(text: string, userId: number): Promise<{
             endDate,
             location: eventData.location,
             description: eventData.description
-          }
+          },
+          event: newEvent
         };
       }
       
@@ -500,16 +529,26 @@ async function processTextMessage(text: string, userId: number): Promise<{
       const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
       const downloadUrl = baseUrl + calendarResult.downloadLink;
       
+      // Mensagem de sucesso combinando resultado do email e do arquivo ICS
+      let successMessage = `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}`;
+      
+      if (emailSuccess) {
+        successMessage += `\n\n✉️ Um convite de calendário foi enviado para seu email ${user.email}!`;
+      }
+      
+      successMessage += `\n\n🔄 [Clique aqui para adicionar ao seu ${calendarProvider}](${downloadUrl})`;
+      
       return {
         success: true,
-        message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n🔄 [Clique aqui para adicionar ao seu ${calendarProvider}](${downloadUrl})`,
+        message: successMessage,
         eventDetails: {
           title: eventData.title,
           startDate,
           endDate,
           location: eventData.location,
           description: eventData.description
-        }
+        },
+        event: newEvent
       };
       
     } catch (error) {
