@@ -28,6 +28,112 @@ function validateBody(schema: z.ZodType<any, any>) {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rota de autenticação do Google Calendar
   app.use('/api/auth', googleAuthRoutes);
+  // Rota para página de download do Apple Calendar
+  app.get('/apple/:eventId', async (req, res) => {
+    try {
+      const { eventId } = req.params;
+      
+      // Buscar evento no banco de dados
+      const event = await storage.getEvent(parseInt(eventId));
+      
+      if (!event) {
+        return res.status(404).send('Evento não encontrado');
+      }
+      
+      // Página HTML que força o download
+      const html = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Adicionar ao Apple Calendar</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; 
+            text-align: center; 
+            padding: 40px 20px; 
+            background: #f5f5f7;
+            margin: 0;
+        }
+        .container { 
+            max-width: 400px; 
+            margin: 0 auto; 
+            background: white; 
+            padding: 30px; 
+            border-radius: 12px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .icon { font-size: 48px; margin-bottom: 20px; }
+        h1 { color: #1d1d1f; margin-bottom: 10px; font-size: 24px; }
+        p { color: #6e6e73; margin-bottom: 20px; }
+        .btn { 
+            background: #007aff; 
+            color: white; 
+            padding: 12px 24px; 
+            border: none; 
+            border-radius: 8px; 
+            font-size: 16px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            display: inline-block;
+            margin: 10px;
+        }
+        .btn:hover { background: #0056cc; }
+        .event-info { 
+            background: #f2f2f7; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0; 
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📅</div>
+        <h1>Adicionar ao Apple Calendar</h1>
+        <div class="event-info">
+            <strong>${event.title}</strong><br>
+            📅 ${new Date(event.startDate).toLocaleDateString('pt-BR', { 
+                weekday: 'long', 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })}<br>
+            ${event.location ? `📍 ${event.location}<br>` : ''}
+            ${event.description ? `📝 ${event.description}` : ''}
+        </div>
+        <p>Clique no botão abaixo para baixar o arquivo de calendário:</p>
+        <a href="/calendar/${eventId}.ics" class="btn" download="${event.title.replace(/[^a-zA-Z0-9]/g, '_')}.ics">
+            📥 Baixar Arquivo ICS
+        </a>
+        <br>
+        <p style="font-size: 14px; color: #86868b; margin-top: 20px;">
+            Após baixar, abra o arquivo em seu dispositivo para adicionar ao Apple Calendar.
+        </p>
+    </div>
+    <script>
+        // Auto download no mobile
+        if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+            setTimeout(() => {
+                const link = document.querySelector('a[download]');
+                if (link) link.click();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>`;
+      
+      res.send(html);
+    } catch (error) {
+      console.error('Erro ao gerar página do Apple Calendar:', error);
+      res.status(500).send('Erro ao processar sua solicitação');
+    }
+  });
+
   // Rota para gerar arquivo ICS para Apple Calendar
   app.get('/calendar/:eventId.ics', async (req, res) => {
     try {
