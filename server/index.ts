@@ -69,30 +69,36 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot simplificado que funcionava bem
+    // Inicializa o bot completo com OpenRouter e Google Calendar
     try {
-      // Iniciar bot simplificado que apenas fornece links
-      const { startSimpleBot } = await import('./simplebot');
-      const simpleBotInitialized = await startSimpleBot();
+      // Iniciar bot com OpenRouter para processamento de linguagem natural
+      const { startOpenRouterBot } = await import('./openRouterBot');
+      const openRouterBotInitialized = await startOpenRouterBot();
       
-      if (simpleBotInitialized) {
-        log('Bot simplificado iniciado com sucesso!', 'telegram');
+      if (openRouterBotInitialized) {
+        log('Bot com OpenRouter e Google Calendar iniciado com sucesso!', 'telegram');
       } else {
-        log('Erro ao iniciar bot simplificado, tentando alternativas...', 'telegram');
+        log('Erro ao iniciar bot principal, tentando alternativas...', 'telegram');
         
-        // Alternativa: Bot com solução universal para calendário
-        const calendarSolutionInitialized = await startCalendarSolution();
-        if (calendarSolutionInitialized) {
-          log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
+        // Alternativa 1: Bot simplificado que apenas fornece links
+        const { startSimpleBot } = await import('./simplebot');
+        const simpleBotInitialized = await startSimpleBot();
+        
+        if (simpleBotInitialized) {
+          log('Bot simplificado iniciado como alternativa!', 'telegram');
         } else {
-          log('Tentando bot tradicional como último recurso...', 'telegram');
-          
-          // Última alternativa: Bot tradicional
-          const botInitialized = await initializeTelegramBot();
-          if (botInitialized) {
-            log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
+          // Alternativa 2: Bot com solução universal para calendário
+          const calendarSolutionInitialized = await startCalendarSolution();
+          if (calendarSolutionInitialized) {
+            log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
           } else {
-            log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
+            // Última alternativa: Bot tradicional
+            const botInitialized = await initializeTelegramBot();
+            if (botInitialized) {
+              log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
+            } else {
+              log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
+            }
           }
         }
       }
