@@ -6,12 +6,13 @@ import { ptBR } from 'date-fns/locale';
 import { log } from '../vite';
 import { storage } from '../storage';
 import FormData from 'form-data';
-import { createICalEvent, generateCalendarLink } from './calendarIntegration';
+// Não precisamos mais das funções de ICS, pois usaremos apenas email
+// import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
 import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 import { addDeleteCommand } from './commands';
 import { addEmailConfigCommand } from './emailCommand';
-import { sendEventInvite } from '../email/emailService';
+import { sendCalendarInviteDirectly } from '../email/directCalendarInvite';
 import { cleanupPastEvents } from '../autoCleanup';
 
 // Verifica se o token do bot do Telegram está definido
@@ -443,7 +444,7 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       // Enviar convite de calendário por email
       log(`Enviando convite de calendário por email para ${user.email}`, 'email');
-      const emailResult = await sendEventInvite(newEvent, user.email);
+      const emailResult = await sendCalendarInviteDirectly(newEvent, user.email);
       
       // Armazena se o convite de email foi enviado com sucesso
       const emailSuccess = emailResult.success;

@@ -1,6 +1,6 @@
 import { Telegraf } from 'telegraf';
 import { log } from '../vite';
-import { setupEmailCredentials } from '../email/emailService';
+import { setupEmailCredentials } from '../email/directCalendarInvite';
 
 /**
  * Adiciona o comando para configurar o email remetente que enviará convites
