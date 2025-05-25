@@ -8,8 +8,68 @@ import { ptBR } from 'date-fns/locale';
 // Configuração do email
 let emailConfig = {
   user: '',
-  pass: ''
+  pass: '',
+  service: 'gmail' // Pode ser 'outlook', 'yahoo', etc.
 };
+
+// Função para criar um transportador de email temporário
+async function createTransporter() {
+  // Se temos configurações existentes, use-as
+  if (emailConfig.user && emailConfig.pass) {
+    // Transportadores para serviços comuns
+    if (emailConfig.service === 'gmail') {
+      return nodemailer.createTransport({
+        host: 'smtp.gmail.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailConfig.user,
+          pass: emailConfig.pass
+        }
+      });
+    } else if (emailConfig.service === 'outlook') {
+      return nodemailer.createTransport({
+        host: 'smtp-mail.outlook.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailConfig.user,
+          pass: emailConfig.pass
+        }
+      });
+    } else if (emailConfig.service === 'yahoo') {
+      return nodemailer.createTransport({
+        host: 'smtp.mail.yahoo.com',
+        port: 587,
+        secure: false,
+        auth: {
+          user: emailConfig.user,
+          pass: emailConfig.pass
+        }
+      });
+    }
+  }
+  
+  // Se não temos configurações existentes, cria uma conta temporária
+  // usando Ethereal Email (serviço de testes do Nodemailer)
+  try {
+    const testAccount = await nodemailer.createTestAccount();
+    log(`Conta de email temporária criada: ${testAccount.user}`, 'email');
+    
+    return nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass
+      }
+    });
+  } catch (error) {
+    log(`Erro ao criar conta temporária: ${error}`, 'email');
+    throw error;
+  }
+}
 
 // Função simplificada para enviar convites de calendário
 export async function sendInvite(
@@ -19,26 +79,11 @@ export async function sendInvite(
 ): Promise<{
   success: boolean;
   message: string;
+  previewUrl?: string; // URL para visualizar o email (só para contas temporárias)
 }> {
   try {
-    // Verifica se as credenciais foram configuradas
-    if (!emailConfig.user || !emailConfig.pass) {
-      return {
-        success: false,
-        message: 'Email não configurado. Peça ao administrador para configurar com /configurar_email'
-      };
-    }
-    
-    // Cria um transportador
-    const transporter = nodemailer.createTransport({
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth: {
-        user: emailConfig.user,
-        pass: emailConfig.pass
-      }
-    });
+    // Cria um transportador (usando conta configurada ou temporária)
+    const transporter = await createTransporter();
     
     // Cria um calendário
     const calendar = ical({
@@ -61,9 +106,14 @@ export async function sendInvite(
       { locale: ptBR }
     );
     
+    // Determina o remetente do email
+    const sender = emailConfig.user 
+      ? `"Zelar Assistente" <${emailConfig.user}>`
+      : `"Zelar Assistente" <no-reply@zelarassistente.com>`;
+    
     // Configura o email
     const mailOptions = {
-      from: `"Zelar Assistente" <${emailConfig.user}>`,
+      from: sender,
       to: email,
       subject: isCancelled 
         ? `Cancelado: ${event.title} - ${formattedDate}`
@@ -100,14 +150,25 @@ export async function sendInvite(
     };
     
     // Envia o email
-    await transporter.sendMail(mailOptions);
+    const info = await transporter.sendMail(mailOptions);
     
     const actionType = isCancelled ? 'Cancelamento' : 'Convite';
     log(`${actionType} de calendário enviado para ${email}`, 'email');
     
+    // Se estamos usando uma conta temporária, inclui a URL de visualização
+    let previewUrl;
+    if (info.messageId && !emailConfig.user) {
+      const testMessageUrl = nodemailer.getTestMessageUrl(info);
+      previewUrl = typeof testMessageUrl === 'string' ? testMessageUrl : undefined;
+      if (previewUrl) {
+        log(`Prévia do email: ${previewUrl}`, 'email');
+      }
+    }
+    
     return {
       success: true,
-      message: `${actionType} de calendário enviado para ${email}`
+      message: `${actionType} de calendário enviado para ${email}`,
+      previewUrl
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -121,7 +182,7 @@ export async function sendInvite(
 }
 
 // Configura as credenciais de email
-export function configureEmail(user: string, pass: string): {
+export function configureEmail(user: string, pass: string, service = 'gmail'): {
   success: boolean;
   message: string;
 } {
@@ -133,9 +194,9 @@ export function configureEmail(user: string, pass: string): {
       };
     }
     
-    emailConfig = { user, pass };
+    emailConfig = { user, pass, service };
     
-    log(`Credenciais de email configuradas para ${user}`, 'email');
+    log(`Credenciais de email configuradas para ${user} (${service})`, 'email');
     
     return {
       success: true,
