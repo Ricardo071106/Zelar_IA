@@ -478,15 +478,8 @@ async function processTextMessage(text: string, userId: number): Promise<{
             ]
           };
           
-          // Gera um arquivo ICS como fallback
-          const calendarResult = await generateCalendarLink(newEvent, user.email);
-          const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
-          const downloadUrl = calendarResult.success ? baseUrl + calendarResult.downloadLink : '';
-          
-          // Adiciona um botão para baixar o arquivo ICS como alternativa
-          if (calendarResult.success) {
-            keyboard.inline_keyboard.push([{ text: '📅 Baixar arquivo de calendário', url: downloadUrl }]);
-          }
+          // Não precisamos mais gerar arquivo ICS já que o convite por email é mais confiável
+          // e funciona automaticamente na maioria dos aplicativos de calendário
           
           return {
             success: true,
@@ -504,35 +497,16 @@ async function processTextMessage(text: string, userId: number): Promise<{
         // Se falhou por outro motivo, continua para o método de fallback (ICS)
       }
       
-      // Método de fallback: gera arquivo ICS para download
-      const calendarProvider = isGmail ? 'Google Calendar' : 'Apple Calendar';
-      log(`Gerando arquivo ICS para ${calendarProvider} para ${user.email}`, 'calendar');
+      // Usamos apenas o email como método principal de integração com calendário
+      // Não precisamos mais gerar arquivos ICS para download
       
-      // Gera o arquivo ICS e o link de download
-      const calendarResult = await generateCalendarLink(newEvent, user.email);
-      
-      if (!calendarResult.success) {
-        log(`Erro ao gerar arquivo ICS: ${calendarResult.message}`, 'calendar');
-        
-        // Se pelo menos o convite por email foi enviado, consideramos como sucesso
-        if (emailSuccess) {
-          return {
-            success: true,
-            message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n✉️ Um convite de calendário foi enviado para seu email ${user.email}!\n\nO evento aparecerá automaticamente no seu calendário.`,
-            eventDetails: {
-              title: eventData.title,
-              startDate,
-              endDate,
-              location: eventData.location,
-              description: eventData.description
-            },
-            event: newEvent
-          };
-        }
+      // Se o convite de email foi enviado com sucesso, isso é tudo o que precisamos
+      if (emailSuccess) {
+        const calendarProvider = isGmail ? 'Gmail' : 'seu aplicativo de calendário';
         
         return {
-          success: false,
-          message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n⚠️ Não foi possível gerar o arquivo de calendário: ${calendarResult.message}`,
+          success: true,
+          message: `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n✉️ Um convite oficial de calendário foi enviado para ${user.email}!\n\nO evento já deve aparecer automaticamente no ${calendarProvider}.`,
           eventDetails: {
             title: eventData.title,
             startDate,
@@ -544,22 +518,10 @@ async function processTextMessage(text: string, userId: number): Promise<{
         };
       }
       
-      // Constrói o URL completo para download
-      const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
-      const downloadUrl = baseUrl + calendarResult.downloadLink;
-      
-      // Mensagem de sucesso combinando resultado do email e do arquivo ICS
-      let successMessage = `✅ Evento adicionado ao seu calendário!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}`;
-      
-      if (emailSuccess) {
-        successMessage += `\n\n✉️ Um convite de calendário foi enviado para seu email ${user.email}!`;
-      }
-      
-      successMessage += `\n\n🔄 [Clique aqui para adicionar ao seu ${calendarProvider}](${downloadUrl})`;
-      
+      // Se o email falhar, ainda assim criamos o evento no banco de dados
       return {
         success: true,
-        message: successMessage,
+        message: `✅ Evento criado com sucesso!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n⚠️ Não foi possível enviar o convite de calendário para seu email. Verifique se seu email está configurado corretamente com /email`,
         eventDetails: {
           title: eventData.title,
           startDate,
