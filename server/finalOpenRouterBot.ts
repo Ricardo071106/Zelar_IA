@@ -12,6 +12,7 @@ import { format, addDays, isToday } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { log } from './vite';
 import axios from 'axios';
+import { storage } from './storage';
 
 // Verificar token do Telegram
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -378,15 +379,36 @@ bot.on('text', async (ctx) => {
     const result = await processNaturalLanguage(text);
     
     if (result.intent === 'create' && result.event) {
-      // Primeiro salvar o evento no banco de dados
+      // Primeiro precisamos encontrar ou criar o usuário no banco
+      let dbUser;
+      try {
+        dbUser = await storage.getUserByTelegramId(userId);
+        if (!dbUser) {
+          // Criar usuário se não existir
+          dbUser = await storage.createUser({
+            username: ctx.from.username || ctx.from.first_name || `user_${userId}`,
+            telegramId: userId
+          });
+        }
+      } catch (userError) {
+        console.error('Erro ao buscar/criar usuário:', userError);
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          loadingMsg.message_id,
+          undefined,
+          `❌ Erro ao processar usuário. Tente novamente.`
+        );
+        return;
+      }
+
+      // Agora salvar o evento no banco de dados
       const eventData = {
         title: result.event.title,
         startDate: result.event.startDate,
         endDate: result.event.endDate,
         location: result.event.location,
         description: result.event.description,
-        userId: parseInt(userId), // Vai dar erro se userId não for numérico, mas por enquanto vamos assim
-        telegramUserId: userId
+        userId: dbUser.id
       };
       
       try {
