@@ -415,8 +415,63 @@ async function processTextMessage(text: string, userId: number): Promise<{
       
       log(`Evento criado: ${eventData.title}`, 'telegram');
       
-      // Integração real com calendário através de arquivos ICS
-      const calendarProvider = user.email.includes('gmail') || user.email.includes('google') ? 'Google Calendar' : 'Apple Calendar';
+      // Tenta primeiro sincronizar com o Google Calendar
+      const isGmail = user.email.includes('gmail') || user.email.includes('google');
+      
+      if (isGmail) {
+        // Tenta sincronizar com o Google Calendar
+        log(`Tentando sincronizar com Google Calendar para ${user.email}`, 'google');
+        const googleResult = await syncEventWithGoogleCalendar(newEvent, user.id);
+        
+        if (googleResult.success) {
+          // Sincronização com Google Calendar bem-sucedida
+          return {
+            success: true,
+            message: `✅ Evento adicionado automaticamente ao seu Google Calendar!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n🔄 Sincronizado com sucesso!`,
+            eventDetails: {
+              title: eventData.title,
+              startDate,
+              endDate,
+              location: eventData.location,
+              description: eventData.description
+            }
+          };
+        } else if (googleResult.requiresAuth && googleResult.authUrl) {
+          // Usuário precisa autorizar o acesso ao Google Calendar
+          const keyboard = {
+            inline_keyboard: [
+              [{ text: '🔐 Autorizar Google Calendar', url: googleResult.authUrl }]
+            ]
+          };
+          
+          // Gera um arquivo ICS como fallback
+          const calendarResult = await generateCalendarLink(newEvent, user.email);
+          const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
+          const downloadUrl = calendarResult.success ? baseUrl + calendarResult.downloadLink : '';
+          
+          // Adiciona um botão para baixar o arquivo ICS como alternativa
+          if (calendarResult.success) {
+            keyboard.inline_keyboard.push([{ text: '📅 Baixar arquivo de calendário', url: downloadUrl }]);
+          }
+          
+          return {
+            success: true,
+            message: `✅ Evento criado com sucesso!\n\n*${eventData.title}*\n📅 ${formattedDate}\n${eventData.location ? `📍 ${eventData.location}\n` : ''}${eventData.description ? `📝 ${eventData.description}\n` : ''}\n\n❗ Para sincronizar automaticamente com seu Google Calendar, autorize o acesso:`,
+            eventDetails: {
+              title: eventData.title,
+              startDate,
+              endDate,
+              location: eventData.location,
+              description: eventData.description,
+              keyboard: keyboard
+            }
+          };
+        }
+        // Se falhou por outro motivo, continua para o método de fallback (ICS)
+      }
+      
+      // Método de fallback: gera arquivo ICS para download
+      const calendarProvider = isGmail ? 'Google Calendar' : 'Apple Calendar';
       log(`Gerando arquivo ICS para ${calendarProvider} para ${user.email}`, 'calendar');
       
       // Gera o arquivo ICS e o link de download
@@ -431,6 +486,8 @@ async function processTextMessage(text: string, userId: number): Promise<{
             title: eventData.title,
             startDate,
             endDate,
+            location: eventData.location,
+            description: eventData.description
           }
         };
       }
@@ -543,8 +600,15 @@ bot.on(message('text'), async (ctx) => {
       // Remove a mensagem de processamento
       await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
       
-      // Envia o resultado
-      await ctx.reply(result.message, { parse_mode: 'Markdown' });
+      // Envia o resultado com botões se disponíveis
+      if (result.eventDetails && 'keyboard' in result.eventDetails) {
+        await ctx.reply(result.message, { 
+          parse_mode: 'Markdown',
+          reply_markup: result.eventDetails.keyboard 
+        });
+      } else {
+        await ctx.reply(result.message, { parse_mode: 'Markdown' });
+      }
     }
     
   } catch (error) {
