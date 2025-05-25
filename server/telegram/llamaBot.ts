@@ -164,10 +164,11 @@ bot.command('autorizar', async (ctx) => {
     // Usa a URL direta do Google para evitar problemas de privacidade
     const authUrl = "https://calendar.google.com";
     
-    // Botão para autorizar o Google Calendar
+    // Botão para acessar o Google Calendar e alternativa para Apple Calendar
     const keyboard = {
       inline_keyboard: [
-        [{ text: '🔐 Autorizar Google Calendar', url: authUrl }]
+        [{ text: '📆 Acessar Google Calendar', url: authUrl }],
+        [{ text: '🍎 Usar Apple Calendar (ICS)', callback_data: 'use_ics' }]
       ]
     };
     
@@ -176,7 +177,7 @@ bot.command('autorizar', async (ctx) => {
       `Seu e-mail configurado: ${user.email}\n\n` +
       (googleAuth.isAuthenticated 
         ? `✅ Você já autorizou o acesso ao Google Calendar. Seus eventos serão sincronizados automaticamente.`
-        : `❗ Você ainda não autorizou o acesso ao Google Calendar.\n\n${privacyMessage}\n\nPara permitir a sincronização automática de eventos, clique no botão abaixo:`),
+        : `❗ No momento, estamos com algumas restrições técnicas para a conexão direta com o Google Calendar.\n\n${privacyMessage}\n\nVocê pode escolher entre as seguintes opções:\n\n1️⃣ Acessar o Google Calendar diretamente e adicionar eventos manualmente\n2️⃣ Usar arquivos ICS para importar eventos no Apple Calendar ou outros aplicativos de calendário`),
       { 
         parse_mode: 'Markdown',
         reply_markup: googleAuth.isAuthenticated ? undefined : keyboard
