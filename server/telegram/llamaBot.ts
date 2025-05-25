@@ -130,7 +130,7 @@ async function updateUserEmail(userId: number, email: string) {
   }
 }
 
-// Comando para autorizar Google Calendar
+// Comando para explicar as opções de calendário
 bot.command('autorizar', async (ctx) => {
   try {
     const telegramId = ctx.from.id.toString();
@@ -155,32 +155,22 @@ bot.command('autorizar', async (ctx) => {
       return;
     }
     
-    // Verifica a autenticação com Google Calendar
-    const googleAuth = await checkGoogleCalendarAuth(user.id);
-    
-    // Oferece instruções alternativas para não depender da autenticação do Google
-    const privacyMessage = "Por enquanto, oferecemos opções alternativas para integração com calendários.";
-    
-    // URL da página de solução alternativa
-    const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:5000';
-    const authUrl = `${baseUrl}/auth-solution.html`;
-    
-    // Botão para acessar as alternativas de integração com calendário
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: '📆 Ver opções de calendário', url: authUrl }]
-      ]
-    };
-    
+    // Opções de calendário diretamente no Telegram
     await ctx.reply(
       `📅 *Integração com Calendário*\n\n` +
       `Seu e-mail configurado: ${user.email}\n\n` +
-      (googleAuth.isAuthenticated 
-        ? `✅ Você já autorizou o acesso ao Google Calendar. Seus eventos serão sincronizados automaticamente.`
-        : `📱 Oferecemos métodos alternativos para integração com seu calendário.\n\n${privacyMessage}\n\nClique no botão abaixo para ver as opções disponíveis e continuar usando o Zelar para gerenciar seus eventos.`),
+      `Para cada evento que você criar, o Zelar irá:\n\n` +
+      `1️⃣ *Enviar um arquivo ICS* - Você pode clicar neste arquivo para importá-lo em qualquer aplicativo de calendário (Google Calendar, Apple Calendar, Outlook)\n\n` +
+      `2️⃣ *Fornecer todos os detalhes* - Se preferir, você pode copiar as informações e adicionar manualmente ao seu calendário\n\n` +
+      `📝 *Como usar:* Simplesmente me envie mensagens descrevendo seus compromissos, e eu criarei os eventos automaticamente.`,
       { 
         parse_mode: 'Markdown',
-        reply_markup: googleAuth.isAuthenticated ? undefined : keyboard
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '📲 Abrir Google Calendar', url: 'https://calendar.google.com' }],
+            [{ text: '📲 Abrir Apple Calendar', url: 'https://www.icloud.com/calendar' }]
+          ]
+        }
       }
     );
   } catch (error) {
