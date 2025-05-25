@@ -7,6 +7,7 @@ import { log } from '../vite';
 import { storage } from '../storage';
 import FormData from 'form-data';
 import { createICalEvent, generateCalendarLink } from './calendarIntegration';
+import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -151,12 +152,29 @@ bot.command('calendario', async (ctx) => {
       return;
     }
     
+    // Verifica a autenticação com Google Calendar
+    const googleAuth = await checkGoogleCalendarAuth(user.id);
+    
+    const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:3000';
+    const authUrl = `${baseUrl}/api/auth/google?userId=${user.id}`;
+    
+    // Botão para autorizar o Google Calendar
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: '🔐 Autorizar Google Calendar', url: authUrl }]
+      ]
+    };
+    
     await ctx.reply(
       `📅 *Integração com Calendário*\n\n` +
       `Seu e-mail configurado: ${user.email}\n\n` +
-      `Quando você me envia um evento, eu adiciono automaticamente ao seu calendário.\n\n` +
-      `Por enquanto, suportamos Google Calendar e Apple Calendar. Seus eventos serão sincronizados diretamente com seu calendário associado a este e-mail.`,
-      { parse_mode: 'Markdown' }
+      (googleAuth.isAuthenticated 
+        ? `✅ Você já autorizou o acesso ao Google Calendar. Seus eventos serão sincronizados automaticamente.`
+        : `❗ Você ainda não autorizou o acesso ao Google Calendar.\n\nPara permitir a sincronização automática de eventos, clique no botão abaixo:`),
+      { 
+        parse_mode: 'Markdown',
+        reply_markup: googleAuth.isAuthenticated ? undefined : keyboard
+      }
     );
   } catch (error) {
     log(`Erro ao processar comando calendario: ${error}`, 'telegram');
