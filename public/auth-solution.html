@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conectar Calendário - Zelar</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f7f9fc;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .container {
+      background-color: white;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+      padding: 30px;
+      max-width: 600px;
+      width: 100%;
+    }
+    
+    h1 {
+      color: #4285F4;
+      margin-bottom: 20px;
+    }
+    
+    .method {
+      margin-bottom: 30px;
+      padding: 20px;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      background-color: #fafafa;
+    }
+    
+    .method h2 {
+      color: #0088cc;
+      margin-top: 0;
+    }
+    
+    .method-icon {
+      font-size: 48px;
+      margin-bottom: 15px;
+    }
+    
+    .steps {
+      text-align: left;
+      margin-top: 20px;
+    }
+    
+    .steps ol {
+      padding-left: 20px;
+    }
+    
+    .steps li {
+      margin-bottom: 10px;
+      line-height: 1.5;
+    }
+    
+    .btn {
+      background-color: #0088cc;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 4px;
+      text-decoration: none;
+      font-weight: bold;
+      display: inline-block;
+      border: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    
+    .btn:hover {
+      background-color: #006699;
+    }
+    
+    .logo {
+      margin-bottom: 20px;
+      font-size: 22px;
+      font-weight: bold;
+    }
+    
+    .logo span {
+      color: #4285F4;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">Zelar<span>.</span></div>
+    <h1>Conecte seus Calendários</h1>
+    <p>Devido a limitações técnicas, oferecemos duas maneiras alternativas para gerenciar seus eventos:</p>
+    
+    <div class="method">
+      <div class="method-icon">📱</div>
+      <h2>Opção 1: Arquivos ICS</h2>
+      <p>Receba arquivos ICS que podem ser importados em qualquer aplicativo de calendário (Google Calendar, Apple Calendar, Outlook, etc).</p>
+      <div class="steps">
+        <strong>Como funciona:</strong>
+        <ol>
+          <li>Envie mensagens para o bot Zelar para criar um evento</li>
+          <li>O bot enviará um arquivo ICS para você</li>
+          <li>Clique no arquivo para importá-lo em seu aplicativo de calendário preferido</li>
+          <li>Pronto! O evento estará em seu calendário</li>
+        </ol>
+      </div>
+      <a href="https://t.me/zelar_assistente_bot" class="btn">Voltar ao Telegram</a>
+    </div>
+    
+    <div class="method">
+      <div class="method-icon">📝</div>
+      <h2>Opção 2: Acesso Manual</h2>
+      <p>Crie seus eventos manualmente usando os detalhes fornecidos pelo bot.</p>
+      <div class="steps">
+        <strong>Como funciona:</strong>
+        <ol>
+          <li>Envie mensagens para o bot Zelar para criar um evento</li>
+          <li>O bot enviará um resumo com todos os detalhes do evento</li>
+          <li>Abra seu aplicativo de calendário e crie o evento manualmente</li>
+          <li>Copie e cole os detalhes fornecidos pelo bot</li>
+        </ol>
+      </div>
+      <a href="https://calendar.google.com" class="btn" target="_blank">Abrir Google Calendar</a>
+    </div>
+  </div>
+</body>
+</html>
