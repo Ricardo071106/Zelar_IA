@@ -362,15 +362,14 @@ bot.on(message('text'), async (ctx) => {
         startDate: eventInfo.startDate,
         endDate: eventInfo.endDate,
         location: eventInfo.location || '',
-        description: eventInfo.description || '',
-        status: 'CONFIRMED'
+        description: eventInfo.description || ''
       });
       
       // Remover mensagem de processamento
       await ctx.telegram.deleteMessage(ctx.chat.id, processingMessage.message_id);
       
       // Enviar convite de calendário
-      let emailResult = { success: false, message: '', previewUrl: undefined };
+      let emailResult: { success: boolean; message: string; previewUrl?: string } = { success: false, message: '' };
       if (user.email) {
         emailResult = await sendCalendarInvite(event, user.email);
       }
@@ -700,9 +699,10 @@ async function findOrCreateUser(telegramUser: any) {
       // Se não existir, cria um novo usuário
       user = await storage.createUser({
         username: telegramUser.username || `user_${telegramId}`,
+        password: `telegram_${telegramId}`, // Senha temporária para satisfazer o schema
         telegramId,
         email: null,
-        fullName: `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() || null
+        name: `${telegramUser.first_name || ''} ${telegramUser.last_name || ''}`.trim() || null
       });
       
       log(`Novo usuário criado: ${user.username}`, 'telegram');
