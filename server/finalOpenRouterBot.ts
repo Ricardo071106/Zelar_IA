@@ -284,6 +284,7 @@ bot.command(['ajuda', 'help'], async (ctx) => {
     `• "Apagar o evento da consulta"\n\n` +
     `📌 Comandos disponíveis:\n` +
     `/start - Iniciar o bot\n` +
+    `/eventos - Listar seus eventos futuros\n` +
     `/ajuda - Mostrar esta ajuda`
   );
 });
