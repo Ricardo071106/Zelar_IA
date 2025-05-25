@@ -69,16 +69,16 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot completo com OpenRouter e Google Calendar
+    // Inicializa o bot final com OpenRouter sem exigir verificação do Google
     try {
-      // Iniciar bot com OpenRouter para processamento de linguagem natural
-      const { startOpenRouterBot } = await import('./openRouterBot');
-      const openRouterBotInitialized = await startOpenRouterBot();
+      // Iniciar bot final que usa OpenRouter mas não tenta acessar API do Google
+      const { startFinalOpenRouterBot } = await import('./finalOpenRouterBot');
+      const finalBotInitialized = await startFinalOpenRouterBot();
       
-      if (openRouterBotInitialized) {
-        log('Bot com OpenRouter e Google Calendar iniciado com sucesso!', 'telegram');
+      if (finalBotInitialized) {
+        log('Bot com OpenRouter sem verificação do Google iniciado com sucesso!', 'telegram');
       } else {
-        log('Erro ao iniciar bot principal, tentando alternativas...', 'telegram');
+        log('Erro ao iniciar bot final, tentando alternativas...', 'telegram');
         
         // Alternativa 1: Bot simplificado que apenas fornece links
         const { startSimpleBot } = await import('./simplebot');
