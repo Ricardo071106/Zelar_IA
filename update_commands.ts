@@ -13,8 +13,9 @@ async function updateBotCommands() {
     const commands = [
       { command: 'start', description: 'Iniciar o bot' },
       { command: 'help', description: 'Mostrar ajuda' },
-      { command: 'calendario', description: 'Configurar integração com Google Calendar' },
-      { command: 'email', description: 'Atualizar seu e-mail' }
+      { command: 'autorizar', description: 'Autorizar acesso ao Google Calendar' },
+      { command: 'email', description: 'Configurar seu e-mail' },
+      { command: 'apagar', description: 'Apagar um evento do calendário' }
     ];
     
     // Registra os comandos no Telegram
