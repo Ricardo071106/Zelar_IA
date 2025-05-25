@@ -1,6 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { log } from '../vite';
 import { listEventsForDeletion, deleteCalendarEvent } from './deleteEvent';
+import { storage } from '../storage';
 
 /**
  * Adiciona o comando /apagar ao bot
@@ -12,7 +13,7 @@ export function addDeleteCommand(bot: Telegraf) {
   bot.command('apagar', async (ctx) => {
     try {
       const telegramId = ctx.from.id.toString();
-      const user = await ctx.telegram.getChat(telegramId);
+      const user = await storage.getUserByTelegramId(telegramId);
       
       if (!user) {
         await ctx.reply('Usuário não encontrado. Por favor, inicie o bot com /start');
