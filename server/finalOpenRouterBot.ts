@@ -188,8 +188,35 @@ async function processNaturalLanguage(text: string): Promise<{
   }
 }
 
+// Gerar arquivo ICS para Apple Calendar
+function generateICSContent(event: any): string {
+  const formatDateForICS = (date: Date): string => {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  };
+
+  const startDate = formatDateForICS(event.startDate);
+  const endDate = formatDateForICS(event.endDate);
+  const now = formatDateForICS(new Date());
+  
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Zelar//Zelar Bot//PT
+BEGIN:VEVENT
+UID:${event.id || Math.random().toString(36).substr(2, 9)}@zelar.bot
+DTSTART:${startDate}
+DTEND:${endDate}
+DTSTAMP:${now}
+SUMMARY:${event.title}
+DESCRIPTION:${event.description || ''}
+LOCATION:${event.location || ''}
+STATUS:CONFIRMED
+SEQUENCE:0
+END:VEVENT
+END:VCALENDAR`;
+}
+
 // Gerar links diretos para calendários
-function generateCalendarLinks(event: any) {
+function generateCalendarLinks(event: any, saveToDb = false) {
   // Formatar datas para URL do Google Calendar
   const startDateFormatted = event.startDate.toISOString().replace(/-|:|\.\d\d\d/g,'').slice(0,15);
   const endDateFormatted = event.endDate.toISOString().replace(/-|:|\.\d\d\d/g,'').slice(0,15);
@@ -200,14 +227,9 @@ function generateCalendarLinks(event: any) {
   // Link direto para o Outlook
   const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${event.startDate.toISOString()}&enddt=${event.endDate.toISOString()}${event.description ? `&body=${encodeURIComponent(event.description)}` : ''}${event.location ? `&location=${encodeURIComponent(event.location)}` : ''}`;
   
-  // Link para Apple Calendar (arquivo ICS)
-  const appleUrl = `https://ics.ecal.com/event?data=${encodeURIComponent(JSON.stringify({
-    summary: event.title,
-    description: event.description || '',
-    location: event.location || '',
-    start: event.startDate.toISOString(),
-    end: event.endDate.toISOString()
-  }))}`;
+  // Link para Apple Calendar - usando nosso endpoint do servidor
+  const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:3000';
+  const appleUrl = `${baseUrl}/calendar/${event.id}.ics`;
   
   return {
     google: googleUrl,
@@ -356,39 +378,60 @@ bot.on('text', async (ctx) => {
     const result = await processNaturalLanguage(text);
     
     if (result.intent === 'create' && result.event) {
-      // Criar evento
-      const event = {
-        id: Date.now().toString(),
-        ...result.event
+      // Primeiro salvar o evento no banco de dados
+      const eventData = {
+        title: result.event.title,
+        startDate: result.event.startDate,
+        endDate: result.event.endDate,
+        location: result.event.location,
+        description: result.event.description,
+        userId: parseInt(userId), // Vai dar erro se userId não for numérico, mas por enquanto vamos assim
+        telegramUserId: userId
       };
       
-      // Adicionar evento à lista do usuário
-      userState.events.push(event);
-      users.set(userId, userState);
+      try {
+        const savedEvent = await storage.createEvent(eventData);
+        
+        // Adicionar evento à lista do usuário em memória também
+        const event = {
+          id: savedEvent.id.toString(),
+          ...result.event
+        };
+        userState.events.push(event);
+        users.set(userId, userState);
+        
+        // Gerar links para calendários
+        const links = generateCalendarLinks(savedEvent);
       
-      // Gerar links para calendários
-      const links = generateCalendarLinks(event);
-      
-      await ctx.telegram.editMessageText(
-        ctx.chat.id,
-        loadingMsg.message_id,
-        undefined,
-        `✅ Evento criado com sucesso!\n\n` +
-        `📅 ${event.title}\n` +
-        `📆 ${formatDate(event.startDate)}\n` +
-        `${event.location ? `📍 ${event.location}\n` : ''}` +
-        `${event.description ? `📝 ${event.description}\n` : ''}\n` +
-        `Adicione ao seu calendário com um clique:`,
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: 'Adicionar ao Google Calendar', url: links.google }],
-              [{ text: 'Adicionar ao Outlook', url: links.outlook }],
-              [{ text: 'Adicionar ao Apple Calendar', url: links.apple }]
-            ]
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          loadingMsg.message_id,
+          undefined,
+          `✅ Evento criado com sucesso!\n\n` +
+          `📅 ${savedEvent.title}\n` +
+          `📆 ${formatDate(savedEvent.startDate)}\n` +
+          `${savedEvent.location ? `📍 ${savedEvent.location}\n` : ''}` +
+          `${savedEvent.description ? `📝 ${savedEvent.description}\n` : ''}\n` +
+          `Adicione ao seu calendário com um clique:`,
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: 'Adicionar ao Google Calendar', url: links.google }],
+                [{ text: 'Adicionar ao Outlook', url: links.outlook }],
+                [{ text: 'Adicionar ao Apple Calendar', url: links.apple }]
+              ]
+            }
           }
-        }
-      );
+        );
+      } catch (dbError) {
+        console.error('Erro ao salvar evento:', dbError);
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          loadingMsg.message_id,
+          undefined,
+          `❌ Erro ao salvar o evento no banco de dados. Tente novamente.`
+        );
+      }
     } else if (result.intent === 'list') {
       // Listar eventos
       if (userState.events.length === 0) {
