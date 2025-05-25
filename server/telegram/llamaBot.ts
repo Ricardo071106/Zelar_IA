@@ -8,6 +8,7 @@ import { storage } from '../storage';
 import FormData from 'form-data';
 import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
+import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -101,9 +102,10 @@ bot.start(async (ctx) => {
 bot.help(async (ctx) => {
   await ctx.reply(
     `🤖 *Comandos do Zelar*\n\n` +
-    `• Envie mensagens de texto ou áudio descrevendo seus compromissos\n` +
-    `• /calendario - Configurar integração com seu calendário\n` +
-    `• /email - Atualizar seu e-mail para integração com calendário\n\n` +
+    `• Envie mensagens de texto descrevendo seus compromissos\n` +
+    `• /autorizar - Autorizar acesso ao Google Calendar\n` +
+    `• /email - Configurar seu e-mail\n` +
+    `• /apagar - Apagar um evento do calendário\n\n` +
     `Para adicionar um evento ao seu calendário, simplesmente me diga o que você quer agendar, quando e onde.`,
     { parse_mode: 'Markdown' }
   );
@@ -127,8 +129,8 @@ async function updateUserEmail(userId: number, email: string) {
   }
 }
 
-// Comando para configurar calendário
-bot.command('calendario', async (ctx) => {
+// Comando para autorizar Google Calendar
+bot.command('autorizar', async (ctx) => {
   try {
     const telegramId = ctx.from.id.toString();
     const user = await storage.getUserByTelegramId(telegramId);
