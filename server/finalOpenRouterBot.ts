@@ -515,8 +515,7 @@ export async function startFinalOpenRouterBot() {
   try {
     await bot.telegram.setMyCommands([
       { command: 'start', description: 'Iniciar o bot' },
-      { command: 'eventos', description: 'Listar seus eventos' },
-      { command: 'criar', description: 'Criar evento de teste' },
+      { command: 'eventos', description: 'Listar seus eventos futuros' },
       { command: 'ajuda', description: 'Mostrar ajuda' }
     ]);
     
