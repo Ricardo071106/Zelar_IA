@@ -81,9 +81,10 @@ export async function sendGmailCalendarInvite(
     // Criar o UID completo para o evento
     const eventUid = `${eventId}@assistente-agenda.com`;
     
-    // Criar o evento no calendário
+    // Criar o evento no calendário com atributos específicos para Google Calendar
     const calEvent = calendar.createEvent({
       uid: eventUid,
+      sequence: isCancellation ? 1 : 0,
       start: new Date(event.startDate),
       end: event.endDate ? new Date(event.endDate) : new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000),
       summary: isCancellation ? `CANCELADO: ${event.title}` : event.title,
@@ -145,6 +146,13 @@ export async function sendGmailCalendarInvite(
           </div>
         </div>
       `,
+      headers: {
+        'Content-Class': 'urn:content-classes:calendarmessage',
+        'Content-ID': `<calendar_message_${eventId}@assistente-agenda.com>`,
+        'Content-Type': 'text/calendar; charset=UTF-8; method=' + (isCancellation ? 'CANCEL' : 'REQUEST'),
+        'X-Mailer': 'Microsoft Office Outlook 12.0',  // Ajuda em algumas compatibilidades
+        'X-MS-OLK-FORCEINSPECTOROPEN': 'TRUE'         // Força abrir como convite no Outlook
+      },
       alternatives: [
         {
           contentType: 'text/calendar; charset=UTF-8; method=' + (isCancellation ? 'CANCEL' : 'REQUEST'),
