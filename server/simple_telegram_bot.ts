@@ -490,13 +490,29 @@ async function sendCalendarInvite(
       name: 'Assistente de Agenda'
     });
     
-    // Adiciona o evento ao calendário
+    // Adiciona o evento ao calendário com configurações aprimoradas
     const calEvent = calendar.createEvent({
       start: new Date(event.startDate),
       end: event.endDate ? new Date(event.endDate) : new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000),
       summary: isCancelled ? `CANCELADO: ${event.title}` : event.title,
       description: event.description || '',
-      location: event.location || ''
+      location: event.location || '',
+      method: isCancelled ? 'CANCEL' : 'REQUEST',
+      status: isCancelled ? 'CANCELLED' : 'CONFIRMED',
+      organizer: {
+        name: 'Assistente de Agenda',
+        email: emailConfig.user || 'noreply@assistenteagenda.com'
+      },
+      attendees: [
+        {
+          name: 'Você',
+          email: email,
+          rsvp: true,
+          role: 'REQ-PARTICIPANT',
+          status: 'NEEDS-ACTION',
+          type: 'INDIVIDUAL'
+        }
+      ]
     });
     
     // Formata a data para exibição
