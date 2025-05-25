@@ -50,7 +50,7 @@ export default function Header() {
             variant="default"
             className="hidden md:inline-flex bg-primary hover:bg-secondary text-white font-medium rounded-full"
           >
-            <a href="https://t.me/zelar_bot" target="_blank" rel="noopener noreferrer">
+            <a href="https://t.me/zelar_assistente_bot" target="_blank" rel="noopener noreferrer">
               Start Using Zelar
             </a>
           </Button>
@@ -85,7 +85,7 @@ export default function Header() {
             className="bg-primary hover:bg-secondary text-white font-medium rounded-full mt-2 w-full"
           >
             <a 
-              href="https://t.me/zelar_bot" 
+              href="https://t.me/zelar_assistente_bot" 
               target="_blank" 
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
