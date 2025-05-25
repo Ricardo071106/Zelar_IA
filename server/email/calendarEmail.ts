@@ -6,14 +6,18 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 // Configuração do transportador de e-mail gratuito
-// Usando um transportador SMTP temporário gratuito para testes
+// Variáveis para armazenar as credenciais
+let emailUser = '';
+let emailPass = '';
+
+// Criamos o transportador inicial vazio
 let transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 587,
   secure: false,
   auth: {
-    user: '',
-    pass: ''
+    user: emailUser,
+    pass: emailPass
   }
 });
 
@@ -30,7 +34,7 @@ export async function sendCalendarInvite(event: Event, email: string): Promise<{
 }> {
   try {
     // Verifica se as credenciais foram configuradas
-    if (!transporter.options.auth.user || !transporter.options.auth.pass) {
+    if (!emailUser || !emailPass) {
       return {
         success: false,
         message: 'Credenciais de e-mail não configuradas. Utilize o comando /email para configurar.'
@@ -45,9 +49,9 @@ export async function sendCalendarInvite(event: Event, email: string): Promise<{
       start: event.startDate,
       end: event.endDate || new Date(event.startDate.getTime() + 60 * 60 * 1000), // 1 hora padrão se não tiver data de término
       summary: event.title,
-      description: event.description,
-      location: event.location,
-      allDay: event.isAllDay
+      description: event.description || '',
+      location: event.location || '',
+      allDay: event.isAllDay || false
     });
     
     // Formatar data para o assunto do email
@@ -59,7 +63,7 @@ export async function sendCalendarInvite(event: Event, email: string): Promise<{
     
     // Configurar email
     const mailOptions = {
-      from: `"Zelar Assistente" <${transporter.options.auth.user}>`,
+      from: `"Zelar Assistente" <${emailUser}>`,
       to: email,
       subject: `Convite: ${event.title} - ${formattedDate}`,
       text: `
@@ -114,21 +118,25 @@ export async function sendCalendarInvite(event: Event, email: string): Promise<{
 /**
  * Configura as credenciais do email do remetente
  * 
- * @param emailUser Email do remetente
- * @param emailPass Senha do email ou senha de aplicativo
+ * @param userEmail Email do remetente
+ * @param userPass Senha do email ou senha de aplicativo
  * @returns Resultado da configuração
  */
-export function configureEmailCredentials(emailUser: string, emailPass: string): {
+export function configureEmailCredentials(userEmail: string, userPass: string): {
   success: boolean;
   message: string;
 } {
   try {
-    if (!emailUser || !emailPass) {
+    if (!userEmail || !userPass) {
       return {
         success: false,
         message: 'Email e senha são obrigatórios'
       };
     }
+    
+    // Atualiza as variáveis globais
+    emailUser = userEmail;
+    emailPass = userPass;
     
     // Recria o transportador com as novas credenciais
     transporter = nodemailer.createTransport({

@@ -10,6 +10,7 @@ import { createICalEvent, generateCalendarLink } from './calendarIntegration';
 import { syncEventWithGoogleCalendar, checkGoogleCalendarAuth } from './googleCalendarService';
 import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 import { addDeleteCommand } from './commands';
+import { sendEventInvite } from '../email/emailService';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
