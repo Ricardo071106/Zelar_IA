@@ -1,5 +1,5 @@
 import express, { Express } from 'express';
-import { startSimpleBot } from './simple_telegram_bot';
+import { startSimpleBot } from './simple_telegram_bot_fixed';
 import { log } from './vite';
 
 // Função para iniciar o servidor e o bot
