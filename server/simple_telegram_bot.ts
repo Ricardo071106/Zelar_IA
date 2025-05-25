@@ -7,6 +7,7 @@ import ical from 'ical-generator';
 import { storage } from './storage';
 import { log } from './vite';
 import { sendGmailCalendarInvite, setupEmailCredentials, emailConfig } from './email/directGmailInvite';
+import { sendUniversalCalendarInvite } from './email/universalCalendarInvite';
 
 // Verificar token do bot
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -451,163 +452,13 @@ async function sendCalendarInvite(
   previewUrl?: string;
 }> {
   try {
-    // Tentar primeiro o método direto do Gmail se tivermos credenciais configuradas
-    if (emailConfig.user && emailConfig.pass) {
-      try {
-        log(`Tentando enviar convite via método direto do Gmail para ${email}`, 'email');
-        const result = await sendGmailCalendarInvite(event, email, isCancelled);
-        if (result.success) {
-          return {
-            success: true,
-            message: result.message
-          };
-        }
-        log(`Método Gmail falhou, tentando método alternativo`, 'email');
-      } catch (gmailError) {
-        log(`Erro no método Gmail: ${gmailError}`, 'email');
-        // Continua para o método alternativo se o Gmail falhar
-      }
-    }
+    // Usar a nova abordagem universal que não depende de credenciais de email
+    log(`Enviando convite universal para ${email}`, 'email');
+    const result = await sendUniversalCalendarInvite(event, email, isCancelled);
     
-    // Verificar se temos credenciais configuradas para o método alternativo
-    let transporter;
-    let previewUrl;
+    // Retornar o resultado direto da abordagem universal
+    return result;
     
-    if (emailConfig.user && emailConfig.pass) {
-      // Usa credenciais configuradas
-      transporter = nodemailer.createTransport({
-        service: 'gmail',
-        auth: {
-          user: emailConfig.user,
-          pass: emailConfig.pass
-        }
-      });
-    } else {
-      // Cria conta temporária para testes
-      const testAccount = await nodemailer.createTestAccount();
-      log(`Conta de email temporária criada: ${testAccount.user}`, 'email');
-      
-      transporter = nodemailer.createTransport({
-        host: 'smtp.ethereal.email',
-        port: 587,
-        secure: false,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass
-        }
-      });
-    }
-    
-    // Cria um calendário
-    const calendar = ical({
-      name: 'Assistente de Agenda'
-    });
-    
-    // Adiciona o evento ao calendário com configurações aprimoradas
-    const calEvent = calendar.createEvent({
-      start: new Date(event.startDate),
-      end: event.endDate ? new Date(event.endDate) : new Date(new Date(event.startDate).getTime() + 60 * 60 * 1000),
-      summary: isCancelled ? `CANCELADO: ${event.title}` : event.title,
-      description: event.description || '',
-      location: event.location || '',
-      organizer: {
-        name: 'Assistente de Agenda',
-        email: emailConfig.user || 'noreply@assistenteagenda.com'
-      },
-      attendees: [
-        {
-          name: 'Você',
-          email: email,
-          rsvp: true
-        }
-      ]
-    });
-    
-    // Define o método correto para o calendário
-    calendar.method(isCancelled ? 'CANCEL' : 'REQUEST');
-    
-    // Formata a data para exibição
-    const formattedDate = format(
-      new Date(event.startDate),
-      "dd/MM/yyyy 'às' HH:mm",
-      { locale: ptBR }
-    );
-    
-    // Determina o remetente
-    const sender = emailConfig.user 
-      ? `"Assistente de Agenda" <${emailConfig.user}>`
-      : `"Assistente de Agenda" <no-reply@assistente-agenda.com>`;
-    
-    // Configura o email com melhor compatibilidade para calendários
-    const mailOptions = {
-      from: sender,
-      to: email,
-      subject: isCancelled 
-        ? `Cancelado: ${event.title} - ${formattedDate}`
-        : `Convite: ${event.title} - ${formattedDate}`,
-      text: `
-        ${isCancelled ? 'Evento Cancelado' : 'Novo Evento'}
-        
-        Evento: ${event.title}
-        Data: ${formattedDate}
-        ${event.location ? `Local: ${event.location}` : ''}
-        ${event.description ? `Descrição: ${event.description}` : ''}
-        
-        Este ${isCancelled ? 'cancelamento' : 'convite'} foi enviado pelo Assistente de Agenda.
-      `,
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 5px;">
-          <div style="background-color: ${isCancelled ? '#ff6b6b' : '#0088cc'}; color: white; padding: 10px; border-radius: 5px 5px 0 0;">
-            <h2 style="margin: 0;">${isCancelled ? 'Evento Cancelado' : 'Convite para Evento'}</h2>
-          </div>
-          <div style="padding: 20px;">
-            <h3 style="color: #333;">${isCancelled ? `CANCELADO: ${event.title}` : event.title}</h3>
-            <p style="color: #666;"><strong>Data:</strong> ${formattedDate}</p>
-            ${event.location ? `<p style="color: #666;"><strong>Local:</strong> ${event.location}</p>` : ''}
-            ${event.description ? `<p style="color: #666;"><strong>Descrição:</strong> ${event.description}</p>` : ''}
-            <p style="margin-top: 30px; color: #888;">Este ${isCancelled ? 'cancelamento' : 'convite'} foi enviado pelo Assistente de Agenda.</p>
-            <p style="margin-top: 10px; color: #888;">Veja o anexo .ics para adicionar ao seu calendário ou clique no botão "Adicionar ao calendário" no seu aplicativo de email.</p>
-          </div>
-        </div>
-      `,
-      icalEvent: {
-        filename: isCancelled ? 'cancelamento.ics' : 'convite.ics',
-        method: isCancelled ? 'CANCEL' : 'REQUEST',
-        content: calendar.toString()
-      },
-      headers: {
-        'Content-Type': 'text/calendar; charset=UTF-8; method=' + (isCancelled ? 'CANCEL' : 'REQUEST'),
-        'Content-Transfer-Encoding': '7bit',
-        'X-Mailer': 'Assistente de Agenda'
-      },
-      alternatives: [
-        {
-          contentType: 'text/calendar; charset=UTF-8; method=' + (isCancelled ? 'CANCEL' : 'REQUEST'),
-          content: calendar.toString()
-        }
-      ]
-    };
-    
-    // Envia o email
-    const info = await transporter.sendMail(mailOptions);
-    
-    const actionType = isCancelled ? 'Cancelamento' : 'Convite';
-    log(`${actionType} de calendário enviado para ${email}`, 'email');
-    
-    // Se for uma conta de teste, obtém a URL de visualização
-    if (info.messageId && !emailConfig.user) {
-      const testMessageUrl = nodemailer.getTestMessageUrl(info);
-      if (typeof testMessageUrl === 'string') {
-        previewUrl = testMessageUrl;
-        log(`Prévia do email: ${previewUrl}`, 'email');
-      }
-    }
-    
-    return {
-      success: true,
-      message: `${actionType} de calendário enviado para ${email}`,
-      previewUrl
-    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao enviar convite de calendário: ${errorMessage}`, 'email');
@@ -617,6 +468,7 @@ async function sendCalendarInvite(
       message: `Erro ao enviar email: ${errorMessage}`
     };
   }
+}
 }
 
 // Verifica se uma mensagem parece descrever um evento
