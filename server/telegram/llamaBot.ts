@@ -198,13 +198,19 @@ bot.command('email', async (ctx) => {
     
     if (user.email) {
       await ctx.reply(
-        `📧 Seu e-mail atual é: ${user.email}\n\n` +
-        `Para atualizar, digite seu novo e-mail no formato usuario@dominio.com`
+        `📧 *Configuração de E-mail*\n\n` +
+        `Seu e-mail atual é: ${user.email}\n\n` +
+        `Para atualizar, digite seu novo e-mail no formato usuario@dominio.com\n\n` +
+        `Este e-mail será utilizado para receber convites de calendário que aparecerão automaticamente em seu aplicativo de calendário.`,
+        { parse_mode: 'Markdown' }
       );
     } else {
       await ctx.reply(
-        `📧 Por favor, digite seu e-mail para que possamos integrar seus eventos ao seu calendário.\n\n` +
-        `Exemplo: seunome@exemplo.com.br`
+        `📧 *Configuração de E-mail*\n\n` +
+        `Por favor, digite seu e-mail para que possamos enviar convites de calendário diretamente para sua caixa de entrada.\n\n` +
+        `Quando você criar um evento, enviaremos um convite oficial que aparecerá automaticamente no seu calendário.\n\n` +
+        `Exemplo: seunome@exemplo.com.br`,
+        { parse_mode: 'Markdown' }
       );
     }
   } catch (error) {
