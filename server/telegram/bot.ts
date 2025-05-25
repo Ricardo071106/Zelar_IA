@@ -949,6 +949,11 @@ bot.catch((err, ctx) => {
 
 export async function startBot() {
   try {
+    // Adiciona comandos e outras funcionalidades ao bot
+    const { addBotCommands } = await import('./botCommands');
+    addBotCommands(bot);
+    
+    // Inicializa o bot
     await bot.launch();
     log('Bot do Telegram iniciado com sucesso!', 'telegram');
     
