@@ -9,23 +9,23 @@ export default function HowItWorksSection() {
   const steps = [
     {
       number: 1,
-      title: "Send Your Schedule",
-      description: "Record a voice message or send a text describing your upcoming commitments to Zelar on Telegram.",
+      title: "Envie sua Mensagem",
+      description: "Digite uma mensagem natural em português sobre o que você quer agendar, como 'reunião amanhã às 15h'.",
     },
     {
       number: 2,
-      title: "AI Processing",
-      description: "Zelar's AI technology analyzes your message, extracting event details like date, time, and purpose.",
+      title: "Processamento com IA",
+      description: "O Zelar usa tecnologia OpenRouter para entender sua mensagem e extrair detalhes do evento automaticamente.",
     },
     {
       number: 3,
-      title: "Confirmation & Calendar Integration",
-      description: "Zelar confirms the details and adds the event to your preferred calendar (Google or Apple).",
+      title: "Links para Calendário",
+      description: "Receba links diretos para adicionar o evento ao Google Calendar, Outlook ou Apple Calendar com um clique.",
     },
     {
       number: 4,
-      title: "Get Reminders",
-      description: "Receive timely notifications 24 hours and 30 minutes before each event directly on Telegram.",
+      title: "Gerencie Eventos",
+      description: "Visualize seus eventos dizendo 'mostrar eventos' ou cancele dizendo 'cancelar reunião de amanhã'.",
     },
   ];
 
@@ -39,9 +39,9 @@ export default function HowItWorksSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">How Zelar Works</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Como o Zelar Funciona</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Scheduling has never been this simple - just talk to Zelar like you would to a personal assistant.
+            Agendar nunca foi tão simples - apenas converse com o Zelar como você faria com um assistente pessoal.
           </p>
         </motion.div>
         
@@ -106,10 +106,10 @@ export default function HowItWorksSection() {
                         : "bg-gray-200 text-dark"
                     }`}
                   >
-                    {step === 1 && "Voice Message"}
-                    {step === 2 && "AI Processing"}
-                    {step === 3 && "Calendar Add"}
-                    {step === 4 && "Reminder"}
+                    {step === 1 && "Mensagem"}
+                    {step === 2 && "Processamento IA"}
+                    {step === 3 && "Links Calendário"}
+                    {step === 4 && "Gerenciar"}
                   </Button>
                 ))}
               </div>
