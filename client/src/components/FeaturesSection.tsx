@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { Mic, Bell, Calendar, Bot, Database, Twitter } from "lucide-react";
+import { MessageSquare, Calendar, Bot, Trash2, Eye, Twitter } from "lucide-react";
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -29,34 +29,34 @@ function FeatureCard({ icon, title, description, delay }: FeatureCardProps) {
 export default function FeaturesSection() {
   const features = [
     {
-      icon: <Mic className="text-primary text-2xl" />,
-      title: "Voice & Text Recognition",
-      description: "Send voice messages or text about your commitments, and Zelar will understand and process them automatically."
-    },
-    {
-      icon: <Bell className="text-primary text-2xl" />,
-      title: "Smart Reminders",
-      description: "Get notifications 24 hours and 30 minutes before your scheduled events, so you're always prepared."
+      icon: <MessageSquare className="text-primary text-2xl" />,
+      title: "Natural Language Processing",
+      description: "Simplesmente diga 'agendar reunião amanhã às 15h' e o Zelar entenderá automaticamente usando inteligência artificial."
     },
     {
       icon: <Calendar className="text-primary text-2xl" />,
-      title: "Calendar Integration",
-      description: "Seamlessly sync your events with Google Calendar or Apple Calendar for a centralized scheduling experience."
+      title: "Links Diretos para Calendários",
+      description: "Receba links prontos para adicionar eventos ao Google Calendar, Outlook ou Apple Calendar com apenas um clique."
+    },
+    {
+      icon: <Eye className="text-primary text-2xl" />,
+      title: "Visualizar Eventos",
+      description: "Diga 'mostrar meus eventos' ou use o comando /eventos para ver todos os seus compromissos agendados."
     },
     {
       icon: <Bot className="text-primary text-2xl" />,
-      title: "AI-Powered Understanding",
-      description: "Leveraging OpenRouter AI technology to accurately understand your scheduling needs, even from casual conversation."
+      title: "IA Avançada com OpenRouter",
+      description: "Tecnologia de ponta para entender suas mensagens em português de forma natural e precisa."
     },
     {
-      icon: <Database className="text-primary text-2xl" />,
-      title: "Secure Storage",
-      description: "All your events are safely stored in our dedicated database, ensuring you never lose important appointments."
+      icon: <Trash2 className="text-primary text-2xl" />,
+      title: "Cancelar Eventos",
+      description: "Cancele compromissos facilmente dizendo 'cancelar reunião de amanhã' - o bot entenderá qual evento você quer remover."
     },
     {
       icon: <Twitter className="text-primary text-2xl" />,
-      title: "Telegram Native",
-      description: "No new apps to download - Zelar operates entirely within Telegram, the messaging app you already use daily."
+      title: "100% no Telegram",
+      description: "Nenhum app para baixar - o Zelar funciona completamente dentro do Telegram que você já usa todos os dias."
     }
   ];
 

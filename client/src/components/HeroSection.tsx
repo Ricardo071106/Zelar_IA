@@ -14,10 +14,10 @@ export default function HeroSection() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-              Your Smart AI Scheduling Assistant on Telegram
+              Seu Assistente de Agenda Inteligente no Telegram
             </h1>
             <p className="text-lg md:text-xl mb-8 text-white/90">
-              Schedule appointments, manage events, and get timely reminders through natural voice or text messages on Telegram.
+              Agende compromissos e gerencie eventos através de mensagens naturais em português. O Zelar entende o que você diz e cria eventos automaticamente.
             </p>
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <Button 
@@ -33,7 +33,7 @@ export default function HeroSection() {
                   className="flex items-center justify-center"
                 >
                   <FaTelegram className="mr-2 text-xl" />
-                  Start Using Zelar
+                  Começar a Usar o Zelar
                 </a>
               </Button>
               <Button 
@@ -43,7 +43,7 @@ export default function HeroSection() {
                 className="bg-transparent hover:bg-white/10 border-2 border-white font-semibold rounded-full"
               >
                 <a href="#how-it-works">
-                  Learn More
+                  Saiba Mais
                 </a>
               </Button>
             </div>
@@ -74,24 +74,29 @@ export default function HeroSection() {
                   {/* Chat area */}
                   <div className="flex-1 p-3 overflow-y-auto">
                     <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm">👋 Welcome to Zelar! I'm your personal scheduling assistant. Send me a voice message or text about your upcoming events.</p>
+                      <p className="text-sm">👋 Olá! Sou o Zelar, seu assistente de agenda. Você pode me dizer o que precisa agendar usando linguagem natural.</p>
                     </div>
                     
                     <div className="bg-primary rounded-lg p-3 shadow-sm mb-3 ml-auto max-w-[80%]">
-                      <p className="text-sm text-white">I need to schedule a meeting with John on Friday at 3pm about the project proposal.</p>
+                      <p className="text-sm text-white">Agendar reunião com João amanhã às 15h na sala de conferências</p>
                     </div>
                     
                     <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm">✅ I've scheduled your meeting with John on Friday, October 13th at 3:00 PM with the topic "Project Proposal".</p>
+                      <p className="text-sm">✅ Evento criado com sucesso!</p>
                       <div className="mt-2 bg-gray-100 rounded-md p-2">
-                        <p className="text-xs font-medium">Meeting with John</p>
-                        <p className="text-xs text-gray-600">Friday, Oct 13 • 3:00 PM</p>
-                        <p className="text-xs text-gray-600">Topic: Project Proposal</p>
+                        <p className="text-xs font-medium">Reunião com João</p>
+                        <p className="text-xs text-gray-600">Amanhã • 15:00</p>
+                        <p className="text-xs text-gray-600">📍 Sala de conferências</p>
                       </div>
                     </div>
                     
                     <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm">I've added this event to your calendar and will remind you 24 hours and 30 minutes before the meeting. Is there anything else you'd like to schedule?</p>
+                      <p className="text-sm">📅 Adicione ao seu calendário:</p>
+                      <div className="mt-2 flex gap-1">
+                        <div className="bg-green-500 text-white text-xs px-2 py-1 rounded">Google</div>
+                        <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded">Outlook</div>
+                        <div className="bg-gray-500 text-white text-xs px-2 py-1 rounded">Apple</div>
+                      </div>
                     </div>
                   </div>
                   
@@ -103,7 +108,7 @@ export default function HeroSection() {
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                         <line x1="12" x2="12" y1="19" y2="22" />
                       </svg>
-                      <span className="text-gray-400 text-sm">Message or voice note</span>
+                      <span className="text-gray-400 text-sm">Digite sua mensagem</span>
                     </div>
                     <button className="ml-2 bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center">
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
