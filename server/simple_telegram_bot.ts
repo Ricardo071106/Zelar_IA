@@ -22,6 +22,15 @@ let emailConfig = {
 // Cria uma instância do bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
+// Log de inicialização do bot
+bot.use((ctx, next) => {
+  log(`Recebida atualização do tipo: ${ctx.updateType}`, 'telegram');
+  if (ctx.updateType === 'message' && ctx.message.text) {
+    log(`Mensagem recebida: "${ctx.message.text}" de ${ctx.from.id}`, 'telegram');
+  }
+  return next();
+});
+
 // Estados de usuário para rastrear conversas
 interface UserState {
   awaitingEmail?: boolean;
@@ -98,10 +107,12 @@ bot.command('ajuda', async (ctx) => {
 // Comando para registrar e-mail
 bot.command('email', async (ctx) => {
   try {
+    log(`Comando /email recebido de ${ctx.from.id}`, 'telegram');
     const message = ctx.message.text.trim();
     const parts = message.split(' ');
     
     if (parts.length < 2) {
+      log('Comando /email sem parâmetros - enviando instruções', 'telegram');
       await ctx.reply(
         '📧 Configuração de Email\n\n' +
         'Para alterar seu email, envie o comando:\n' +
@@ -112,21 +123,26 @@ bot.command('email', async (ctx) => {
     }
     
     const email = parts[1].trim();
+    log(`Email recebido para configuração: ${email}`, 'telegram');
     
     // Validação simples de email
     if (!isValidEmail(email)) {
+      log(`Email inválido: ${email}`, 'telegram');
       await ctx.reply('❌ Email inválido. Por favor, forneça um email válido.');
       return;
     }
     
     // Obter o ID do usuário no Telegram
     const telegramId = ctx.from.id.toString();
+    log(`Processando atualização de email para telegramId: ${telegramId}`, 'telegram');
     
     // Atualizar o email do usuário no banco de dados
     const user = await findOrCreateUser(ctx.from);
+    log(`Usuário encontrado: ${user.id} (${user.username})`, 'telegram');
     
     // Atualizar o email do usuário
     await storage.updateUser(user.id, { email });
+    log(`Email atualizado para usuário ${user.id}`, 'telegram');
     
     await ctx.reply(
       `✅ Email atualizado com sucesso!\n\n` +
@@ -143,11 +159,16 @@ bot.command('email', async (ctx) => {
 // Comando para configurar email remetente
 bot.command('configurar_email', async (ctx) => {
   try {
+    log(`Comando /configurar_email recebido de ${ctx.from.id}`, 'telegram');
+    
     // Verificar se é o admin do bot (você pode definir o ID do administrador)
     const adminId = process.env.ADMIN_TELEGRAM_ID || ctx.from.id.toString(); // Para testes, considerar admin quem chamou
     const fromId = ctx.from.id.toString();
     
+    log(`Verificação de admin: fromId=${fromId}, adminId=${adminId}`, 'telegram');
+    
     if (fromId !== adminId) {
+      log(`Acesso negado: usuário ${fromId} não é admin`, 'telegram');
       await ctx.reply('⚠️ Este comando é restrito ao administrador do bot.');
       return;
     }
@@ -155,8 +176,10 @@ bot.command('configurar_email', async (ctx) => {
     // Extrair credenciais do comando
     // Formato esperado: /configurar_email email@exemplo.com senha
     const parts = ctx.message.text.split(' ');
+    log(`Comando recebido com ${parts.length} partes`, 'telegram');
     
     if (parts.length < 3) {
+      log('Comando com formato inválido - enviando instruções', 'telegram');
       await ctx.reply(
         '❌ Formato inválido\n\n' +
         'Use: /configurar_email email@exemplo.com senha\n\n' +
@@ -168,10 +191,12 @@ bot.command('configurar_email', async (ctx) => {
     
     const email = parts[1];
     const senha = parts.slice(2).join(' '); // Caso a senha tenha espaços
+    log(`Configurando email remetente: ${email}`, 'telegram');
     
     // Configurar as credenciais
     emailConfig.user = email;
     emailConfig.pass = senha;
+    log('Credenciais de email configuradas com sucesso', 'telegram');
     
     await ctx.reply(
       '✅ Configuração concluída\n\n' +
@@ -181,8 +206,11 @@ bot.command('configurar_email', async (ctx) => {
     
     // Apagar a mensagem que contém a senha para segurança
     try {
+      log('Tentando apagar mensagem com senha por segurança', 'telegram');
       await ctx.deleteMessage();
+      log('Mensagem com senha apagada com sucesso', 'telegram');
     } catch (deleteError) {
+      log(`Não foi possível apagar a mensagem: ${deleteError}`, 'telegram');
       // Ignora erro se não conseguir deletar a mensagem
     }
   } catch (error) {
