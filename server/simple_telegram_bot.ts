@@ -497,8 +497,6 @@ async function sendCalendarInvite(
       summary: isCancelled ? `CANCELADO: ${event.title}` : event.title,
       description: event.description || '',
       location: event.location || '',
-      method: isCancelled ? 'CANCEL' : 'REQUEST',
-      status: isCancelled ? 'CANCELLED' : 'CONFIRMED',
       organizer: {
         name: 'Assistente de Agenda',
         email: emailConfig.user || 'noreply@assistenteagenda.com'
@@ -507,13 +505,13 @@ async function sendCalendarInvite(
         {
           name: 'Você',
           email: email,
-          rsvp: true,
-          role: 'REQ-PARTICIPANT',
-          status: 'NEEDS-ACTION',
-          type: 'INDIVIDUAL'
+          rsvp: true
         }
       ]
     });
+    
+    // Define o método correto para o calendário
+    calendar.method(isCancelled ? 'CANCEL' : 'REQUEST');
     
     // Formata a data para exibição
     const formattedDate = format(
@@ -527,7 +525,7 @@ async function sendCalendarInvite(
       ? `"Assistente de Agenda" <${emailConfig.user}>`
       : `"Assistente de Agenda" <no-reply@assistente-agenda.com>`;
     
-    // Configura o email
+    // Configura o email com melhor compatibilidade para calendários
     const mailOptions = {
       from: sender,
       to: email,
@@ -555,6 +553,7 @@ async function sendCalendarInvite(
             ${event.location ? `<p style="color: #666;"><strong>Local:</strong> ${event.location}</p>` : ''}
             ${event.description ? `<p style="color: #666;"><strong>Descrição:</strong> ${event.description}</p>` : ''}
             <p style="margin-top: 30px; color: #888;">Este ${isCancelled ? 'cancelamento' : 'convite'} foi enviado pelo Assistente de Agenda.</p>
+            <p style="margin-top: 10px; color: #888;">Veja o anexo .ics para adicionar ao seu calendário ou clique no botão "Adicionar ao calendário" no seu aplicativo de email.</p>
           </div>
         </div>
       `,
@@ -562,7 +561,18 @@ async function sendCalendarInvite(
         filename: isCancelled ? 'cancelamento.ics' : 'convite.ics',
         method: isCancelled ? 'CANCEL' : 'REQUEST',
         content: calendar.toString()
-      }
+      },
+      headers: {
+        'Content-Type': 'text/calendar; charset=UTF-8; method=' + (isCancelled ? 'CANCEL' : 'REQUEST'),
+        'Content-Transfer-Encoding': '7bit',
+        'X-Mailer': 'Assistente de Agenda'
+      },
+      alternatives: [
+        {
+          contentType: 'text/calendar; charset=UTF-8; method=' + (isCancelled ? 'CANCEL' : 'REQUEST'),
+          content: calendar.toString()
+        }
+      ]
     };
     
     // Envia o email
