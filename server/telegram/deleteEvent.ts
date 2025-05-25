@@ -1,7 +1,7 @@
 import { log } from '../vite';
 import { cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 import { storage } from '../storage';
-import { sendEventInvite } from '../email/emailService';
+import { sendCalendarInviteDirectly } from '../email/directCalendarInvite';
 
 /**
  * Apaga um evento do Google Calendar
