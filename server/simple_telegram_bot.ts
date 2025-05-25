@@ -6,18 +6,12 @@ import nodemailer from 'nodemailer';
 import ical from 'ical-generator';
 import { storage } from './storage';
 import { log } from './vite';
+import { sendGmailCalendarInvite, setupEmailCredentials, emailConfig } from './email/directGmailInvite';
 
 // Verificar token do bot
 if (!process.env.TELEGRAM_BOT_TOKEN) {
   throw new Error('TELEGRAM_BOT_TOKEN não está definido no ambiente');
 }
-
-// Configuração do email para envio de convites
-let emailConfig = {
-  user: '',
-  pass: '',
-  service: 'gmail' // Pode ser 'outlook', 'yahoo', etc.
-};
 
 // Cria uma instância do bot
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
@@ -193,10 +187,15 @@ bot.command('configurar_email', async (ctx) => {
     const senha = parts.slice(2).join(' '); // Caso a senha tenha espaços
     log(`Configurando email remetente: ${email}`, 'telegram');
     
-    // Configurar as credenciais
-    emailConfig.user = email;
-    emailConfig.pass = senha;
-    log('Credenciais de email configuradas com sucesso', 'telegram');
+    // Configurar as credenciais para o método direto do Gmail
+    if (setupEmailCredentials(email, senha)) {
+      log('Credenciais de email configuradas com sucesso via método Gmail', 'telegram');
+    } else {
+      // Configurar as credenciais do método original como backup
+      emailConfig.user = email;
+      emailConfig.pass = senha;
+      log('Credenciais de email configuradas com sucesso via método padrão', 'telegram');
+    }
     
     await ctx.reply(
       '✅ Configuração concluída\n\n' +
@@ -452,18 +451,32 @@ async function sendCalendarInvite(
   previewUrl?: string;
 }> {
   try {
-    // Verificar se temos credenciais configuradas
+    // Tentar primeiro o método direto do Gmail se tivermos credenciais configuradas
+    if (emailConfig.user && emailConfig.pass) {
+      try {
+        log(`Tentando enviar convite via método direto do Gmail para ${email}`, 'email');
+        const result = await sendGmailCalendarInvite(event, email, isCancelled);
+        if (result.success) {
+          return {
+            success: true,
+            message: result.message
+          };
+        }
+        log(`Método Gmail falhou, tentando método alternativo`, 'email');
+      } catch (gmailError) {
+        log(`Erro no método Gmail: ${gmailError}`, 'email');
+        // Continua para o método alternativo se o Gmail falhar
+      }
+    }
+    
+    // Verificar se temos credenciais configuradas para o método alternativo
     let transporter;
     let previewUrl;
     
     if (emailConfig.user && emailConfig.pass) {
       // Usa credenciais configuradas
       transporter = nodemailer.createTransport({
-        host: emailConfig.service === 'gmail' ? 'smtp.gmail.com' : 
-              emailConfig.service === 'outlook' ? 'smtp-mail.outlook.com' : 
-              'smtp.mail.yahoo.com',
-        port: 587,
-        secure: false,
+        service: 'gmail',
         auth: {
           user: emailConfig.user,
           pass: emailConfig.pass
