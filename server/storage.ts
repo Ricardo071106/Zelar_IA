@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { and, eq, lte } from "drizzle-orm";
+import { and, eq, lte, lt, gt } from "drizzle-orm";
 import { 
   users, type User, type InsertUser, 
   events, type Event, type InsertEvent,
@@ -18,6 +18,8 @@ export interface IStorage {
   // Eventos
   getEvent(id: number): Promise<Event | undefined>;
   getEventsByUserId(userId: number): Promise<Event[]>;
+  getPastEvents(before: Date): Promise<Event[]>; // Nova função para buscar eventos passados
+  getFutureEvents(userId: number): Promise<Event[]>; // Nova função para buscar eventos futuros
   createEvent(event: InsertEvent): Promise<Event>;
   updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event | undefined>;
   deleteEvent(id: number): Promise<boolean>;
@@ -34,6 +36,8 @@ export interface IStorage {
   createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
   updateUserSettings(userId: number, data: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
 }
+
+// Importações já feitas acima
 
 export class DatabaseStorage implements IStorage {
   // Usuários
@@ -77,6 +81,20 @@ export class DatabaseStorage implements IStorage {
   
   async getEventsByUserId(userId: number): Promise<Event[]> {
     return await db.select().from(events).where(eq(events.userId, userId));
+  }
+  
+  async getPastEvents(before: Date): Promise<Event[]> {
+    return await db.select().from(events).where(lt(events.startDate, before));
+  }
+  
+  async getFutureEvents(userId: number): Promise<Event[]> {
+    const now = new Date();
+    return await db.select().from(events).where(
+      and(
+        eq(events.userId, userId),
+        gt(events.startDate, now)
+      )
+    );
   }
   
   async createEvent(event: InsertEvent): Promise<Event> {
