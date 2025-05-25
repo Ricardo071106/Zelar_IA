@@ -276,7 +276,7 @@ bot.start(async (ctx) => {
     userStates.set(telegramId, { telegramId, userId: user.id });
     
     await ctx.reply(
-      `Olá, ${user.fullName || user.username}! Sou seu assistente de agenda. 😊\n\n` +
+      `Olá, ${user.name || user.username}! Sou seu assistente de agenda. 😊\n\n` +
       `Você pode me enviar mensagens para agendar eventos, como:\n` +
       `"Agendar reunião com João amanhã às 15h"\n\n` +
       `Para ver seus eventos, use /eventos\n` +
@@ -606,7 +606,6 @@ bot.on('text', async (ctx) => {
           endDate: eventInfo.endDate,
           location: eventInfo.location,
           description: eventInfo.description,
-          createdAt: new Date(),
           calendarId: null
         });
         
