@@ -69,16 +69,16 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot final do Telegram - 100% gratuito sem dependências externas
+    // Inicializa o bot simplificado garantido - 100% funcional e gratuito
     try {
-      // Iniciar bot final
-      const { startFinalBot } = await import('./telegram/finalBot');
-      const finalBotInitialized = await startFinalBot();
+      // Iniciar bot simplificado com polling para garantir funcionamento
+      const { startSimpleBot } = await import('./simplebot');
+      const simpleBotInitialized = await startSimpleBot();
       
-      if (finalBotInitialized) {
-        log('Bot final iniciado com sucesso! 100% gratuito e sem dependências externas.', 'telegram');
+      if (simpleBotInitialized) {
+        log('Bot simplificado iniciado com sucesso! Garantia de funcionamento ativada.', 'telegram');
       } else {
-        log('Erro ao iniciar bot final, tentando soluções alternativas...', 'telegram');
+        log('Erro ao iniciar bot simplificado, tentando soluções alternativas...', 'telegram');
         
         // Tentativa alternativa 1: Bot com solução universal para calendário
         const calendarSolutionInitialized = await startCalendarSolution();
