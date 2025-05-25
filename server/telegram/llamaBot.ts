@@ -158,17 +158,17 @@ bot.command('autorizar', async (ctx) => {
     // Verifica a autenticação com Google Calendar
     const googleAuth = await checkGoogleCalendarAuth(user.id);
     
-    // Oferece instruções alternativas sobre como adicionar eventos manualmente
-    const privacyMessage = "Para conectar ao Google Calendar, você precisará ajustar as permissões nas configurações da sua conta Google.";
+    // Oferece instruções alternativas para não depender da autenticação do Google
+    const privacyMessage = "Por enquanto, oferecemos opções alternativas para integração com calendários.";
     
-    // Usa a URL direta do Google para evitar problemas de privacidade
-    const authUrl = "https://calendar.google.com";
+    // URL da página de solução alternativa
+    const baseUrl = process.env.REPLIT_DOMAINS ? `https://${process.env.REPL_SLUG}.${process.env.REPLIT_DOMAINS}` : 'http://localhost:5000';
+    const authUrl = `${baseUrl}/auth-solution.html`;
     
-    // Botão para acessar o Google Calendar e alternativa para Apple Calendar
+    // Botão para acessar as alternativas de integração com calendário
     const keyboard = {
       inline_keyboard: [
-        [{ text: '📆 Acessar Google Calendar', url: authUrl }],
-        [{ text: '🍎 Usar Apple Calendar (ICS)', callback_data: 'use_ics' }]
+        [{ text: '📆 Ver opções de calendário', url: authUrl }]
       ]
     };
     
@@ -177,7 +177,7 @@ bot.command('autorizar', async (ctx) => {
       `Seu e-mail configurado: ${user.email}\n\n` +
       (googleAuth.isAuthenticated 
         ? `✅ Você já autorizou o acesso ao Google Calendar. Seus eventos serão sincronizados automaticamente.`
-        : `❗ No momento, estamos com algumas restrições técnicas para a conexão direta com o Google Calendar.\n\n${privacyMessage}\n\nVocê pode escolher entre as seguintes opções:\n\n1️⃣ Acessar o Google Calendar diretamente e adicionar eventos manualmente\n2️⃣ Usar arquivos ICS para importar eventos no Apple Calendar ou outros aplicativos de calendário`),
+        : `📱 Oferecemos métodos alternativos para integração com seu calendário.\n\n${privacyMessage}\n\nClique no botão abaixo para ver as opções disponíveis e continuar usando o Zelar para gerenciar seus eventos.`),
       { 
         parse_mode: 'Markdown',
         reply_markup: googleAuth.isAuthenticated ? undefined : keyboard
