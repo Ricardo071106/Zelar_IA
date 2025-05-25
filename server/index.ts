@@ -69,25 +69,25 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot do Telegram com capacidade de processamento de linguagem natural
+    // Inicializa o bot final do Telegram - 100% gratuito sem dependências externas
     try {
-      // Iniciar bot com processador de linguagem natural e integração automática com calendários
-      const { startAutoBot } = await import('./telegram/autoBot');
-      const autoBotInitialized = await startAutoBot();
+      // Iniciar bot final
+      const { startFinalBot } = await import('./telegram/finalBot');
+      const finalBotInitialized = await startFinalBot();
       
-      if (autoBotInitialized) {
-        log('Bot com processamento de linguagem natural e integração com calendários iniciado com sucesso!', 'telegram');
+      if (finalBotInitialized) {
+        log('Bot final iniciado com sucesso! 100% gratuito e sem dependências externas.', 'telegram');
       } else {
-        log('Erro ao iniciar bot principal, tentando solução alternativa...', 'telegram');
+        log('Erro ao iniciar bot final, tentando soluções alternativas...', 'telegram');
         
-        // Fallback 1: Bot com solução universal para calendário
+        // Tentativa alternativa 1: Bot com solução universal para calendário
         const calendarSolutionInitialized = await startCalendarSolution();
         if (calendarSolutionInitialized) {
-          log('Bot com solução universal para calendário iniciado como fallback!', 'telegram');
+          log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
         } else {
-          log('Tentativa alternativa: iniciando bot tradicional...', 'telegram');
+          log('Tentando bot tradicional como último recurso...', 'telegram');
           
-          // Fallback 2: Bot tradicional
+          // Tentativa alternativa 2: Bot tradicional
           const botInitialized = await initializeTelegramBot();
           if (botInitialized) {
             log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
