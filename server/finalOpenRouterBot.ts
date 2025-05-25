@@ -412,29 +412,81 @@ bot.on('text', async (ctx) => {
       );
     } else if (result.intent === 'delete' && result.eventId) {
       // Deletar evento
-      const searchTerm = result.eventId.toLowerCase();
-      const eventIndex = userState.events.findIndex(event => 
-        event.title.toLowerCase().includes(searchTerm) ||
-        (event.description && event.description.toLowerCase().includes(searchTerm))
-      );
-      
-      if (eventIndex !== -1) {
-        const event = userState.events[eventIndex];
-        userState.events.splice(eventIndex, 1);
-        users.set(userId, userState);
+      try {
+        // Buscar usuário no banco
+        const dbUser = await storage.getUserByTelegramId(userId);
+        if (!dbUser) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            'Erro: usuário não encontrado. Use /start para começar.'
+          );
+          return;
+        }
+
+        // Buscar eventos futuros do usuário
+        const futureEvents = await storage.getFutureEvents(dbUser.id);
         
-        await ctx.telegram.editMessageText(
-          ctx.chat.id,
-          loadingMsg.message_id,
-          undefined,
-          `✅ Evento "${event.title}" foi cancelado com sucesso!`
+        if (futureEvents.length === 0) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            'Você não tem eventos futuros para cancelar.'
+          );
+          return;
+        }
+
+        // Procurar evento para deletar
+        const searchTerm = result.eventId.toLowerCase();
+        const eventToDelete = futureEvents.find(event => 
+          event.title.toLowerCase().includes(searchTerm) ||
+          (event.description && event.description.toLowerCase().includes(searchTerm))
         );
-      } else {
+
+        if (!eventToDelete) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            `❌ Não encontrei nenhum evento com "${result.eventId}".\n\nUse /eventos para ver seus eventos ou seja mais específico.`
+          );
+          return;
+        }
+
+        // Deletar do banco de dados
+        const deleted = await storage.deleteEvent(eventToDelete.id);
+        
+        if (deleted) {
+          // Remover também da memória
+          const eventIndex = userState.events.findIndex(e => e.id === eventToDelete.id.toString());
+          if (eventIndex > -1) {
+            userState.events.splice(eventIndex, 1);
+            users.set(userId, userState);
+          }
+
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            `✅ Evento "${eventToDelete.title}" cancelado com sucesso!\n\n📆 ${formatDate(eventToDelete.startDate)}`
+          );
+        } else {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            `❌ Erro ao cancelar o evento. Tente novamente.`
+          );
+        }
+      } catch (error) {
+        console.error('Erro ao deletar evento:', error);
         await ctx.telegram.editMessageText(
           ctx.chat.id,
           loadingMsg.message_id,
           undefined,
-          `❌ Não encontrei nenhum evento com "${result.eventId}". Por favor, seja mais específico.`
+          `❌ Erro ao cancelar evento. Tente novamente.`
         );
       }
     } else {
