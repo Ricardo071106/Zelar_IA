@@ -69,20 +69,31 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot do Telegram após o servidor estar rodando
+    // Inicializa o bot do Telegram com IA para processar linguagem natural
     try {
-      // Iniciar o bot com solução universal para calendário
-      const calendarSolutionInitialized = await startCalendarSolution();
-      if (calendarSolutionInitialized) {
-        log('Bot com solução universal para calendário iniciado com sucesso!', 'telegram');
+      // Importar e iniciar o bot com IA
+      const { startLlamaBot } = await import('./telegram/llamaBot');
+      const llamaBotInitialized = await startLlamaBot();
+      
+      if (llamaBotInitialized) {
+        log('Bot com IA para processamento de linguagem natural iniciado com sucesso!', 'telegram');
       } else {
-        log('Tentativa alternativa: iniciando bot tradicional...', 'telegram');
-        // Fallback para o bot tradicional se o bot com solução universal falhar
-        const botInitialized = await initializeTelegramBot();
-        if (botInitialized) {
-          log('Bot do Telegram iniciado com sucesso!', 'telegram');
+        log('Erro ao iniciar bot com IA, tentando solução alternativa...', 'telegram');
+        
+        // Fallback 1: Bot com solução universal para calendário
+        const calendarSolutionInitialized = await startCalendarSolution();
+        if (calendarSolutionInitialized) {
+          log('Bot com solução universal para calendário iniciado como fallback!', 'telegram');
         } else {
-          log('Não foi possível iniciar o bot do Telegram.', 'telegram');
+          log('Tentativa alternativa: iniciando bot tradicional...', 'telegram');
+          
+          // Fallback 2: Bot tradicional
+          const botInitialized = await initializeTelegramBot();
+          if (botInitialized) {
+            log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
+          } else {
+            log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
+          }
         }
       }
     } catch (error) {
