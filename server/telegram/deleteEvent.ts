@@ -1,6 +1,7 @@
 import { log } from '../vite';
 import { cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 import { storage } from '../storage';
+import { sendEventInvite } from '../email/emailService';
 
 /**
  * Apaga um evento do Google Calendar
@@ -59,6 +60,27 @@ export async function deleteCalendarEvent(eventId: number, userId: number): Prom
       }
     }
     
+    // Obtem o usuário para saber o email
+    const user = await storage.getUser(userId);
+    if (user && user.email) {
+      // Tenta enviar um email de cancelamento para atualizar o calendário
+      try {
+        // Adiciona "CANCELLED: " ao título do evento para marcar como cancelado
+        const canceledEvent = {
+          ...event,
+          title: `CANCELLED: ${event.title}`,
+          status: 'CANCELLED' // Status para identificar o evento como cancelado
+        };
+        
+        // Envia convite de cancelamento
+        await sendEventInvite(canceledEvent, user.email);
+        log(`Email de cancelamento enviado para ${user.email} para o evento: ${event.title}`, 'email');
+      } catch (emailError) {
+        log(`Erro ao enviar email de cancelamento: ${emailError}`, 'email');
+        // Continua mesmo se o email falhar, pois ainda queremos excluir o evento
+      }
+    }
+    
     // Apaga o evento do banco de dados
     const deleted = await storage.deleteEvent(eventId);
     
@@ -96,8 +118,8 @@ export async function listEventsForDeletion(userId: number): Promise<{
   keyboard?: any;
 }> {
   try {
-    // Busca eventos do usuário
-    const events = await storage.getEventsByUserId(userId);
+    // Busca apenas eventos futuros do usuário
+    const events = await storage.getFutureEvents(userId);
     
     if (!events || events.length === 0) {
       return {

@@ -12,6 +12,7 @@ import { deleteCalendarEvent, listEventsForDeletion } from './deleteEvent';
 import { addDeleteCommand } from './commands';
 import { addEmailConfigCommand } from './emailCommand';
 import { sendEventInvite } from '../email/emailService';
+import { cleanupPastEvents } from '../autoCleanup';
 
 // Verifica se o token do bot do Telegram está definido
 if (!process.env.TELEGRAM_BOT_TOKEN) {
@@ -687,6 +688,22 @@ export async function startLlamaBot() {
     // Ativa o modo de polling
     await bot.launch();
     log('Bot do Telegram com Llama iniciado com sucesso!', 'telegram');
+    
+    // Executa a limpeza inicial de eventos passados
+    await cleanupPastEvents();
+    log('Limpeza inicial de eventos passados concluída', 'telegram');
+    
+    // Configura limpeza automática de eventos passados a cada 4 horas
+    setInterval(async () => {
+      try {
+        const result = await cleanupPastEvents();
+        if (result.count && result.count > 0) {
+          log(`Limpeza automática: ${result.count} eventos passados removidos`, 'telegram');
+        }
+      } catch (error) {
+        log(`Erro na limpeza automática: ${error}`, 'telegram');
+      }
+    }, 4 * 60 * 60 * 1000); // 4 horas em milissegundos
     
     // Encerramento correto do bot
     process.once('SIGINT', () => bot.stop('SIGINT'));
