@@ -72,24 +72,24 @@ export default function TestimonialsSection() {
   const testimonials = [
     {
       stars: 5,
-      text: "\"Zelar has completely transformed how I manage my schedule. I just send a quick voice note about my appointments, and everything is organized automatically. The reminders are a lifesaver!\"",
+      text: "\"O Zelar transformou completamente como gerencio minha agenda. Basta eu enviar uma mensagem rápida sobre meus compromissos e tudo é organizado automaticamente. Os lembretes salvam minha vida!\"",
       initials: "MR",
-      name: "Maria Rodriguez",
-      role: "Marketing Director"
+      name: "Maria Rodrigues",
+      role: "Diretora de Marketing"
     },
     {
       stars: 5,
-      text: "\"As a busy entrepreneur, keeping track of meetings was always a challenge. Zelar makes it effortless. I speak to it like I would to an assistant, and it understands context perfectly. The calendar integration is flawless.\"",
+      text: "\"Como empresário ocupado, acompanhar reuniões sempre foi um desafio. O Zelar torna isso sem esforço. Falo com ele como falaria com um assistente, e entende o contexto perfeitamente. A integração com calendário é impecável.\"",
       initials: "JL",
-      name: "James Lee",
-      role: "Tech Entrepreneur"
+      name: "João Silva",
+      role: "Empreendedor de Tecnologia"
     },
     {
       stars: 4.5,
-      text: "\"I love that I don't need another app - Zelar works right in Telegram where I already chat with friends and colleagues. The AI is impressive at understanding even my complicated schedule requests. The reminders ensure I never miss appointments.\"",
+      text: "\"Adoro não precisar de outro app - o Zelar funciona direto no Telegram onde já converso com amigos e colegas. A IA é impressionante ao entender até meus pedidos de agenda mais complicados. Os lembretes garantem que nunca perca compromissos.\"",
       initials: "SK",
-      name: "Sarah Kim",
-      role: "Project Manager"
+      name: "Sarah Costa",
+      role: "Gerente de Projetos"
     }
   ];
 
@@ -103,9 +103,9 @@ export default function TestimonialsSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">What Our Users Say</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">O Que Nossos Usuários Dizem</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Join thousands of satisfied users who have simplified their scheduling with Zelar.
+            Junte-se a milhares de usuários satisfeitos que simplificaram seus agendamentos com o Zelar.
           </p>
         </motion.div>
         
