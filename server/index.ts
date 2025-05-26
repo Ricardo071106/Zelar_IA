@@ -69,13 +69,13 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot único e simples
+    // Inicializar bot limpo sem conflitos
     try {
-      const { startSingleBot } = await import('./singleBot');
-      const botInitialized = await startSingleBot();
+      const { startCleanBot } = await import('./cleanBot');
+      const botInitialized = await startCleanBot();
       
       if (botInitialized) {
-        log('Bot iniciado! Datas e cancelamentos funcionando.', 'telegram');
+        log('Bot funcionando! Cálculo de datas correto e cancelamentos funcionando.', 'telegram');
       } else {
         log('Erro ao iniciar bot.', 'telegram');
       }
