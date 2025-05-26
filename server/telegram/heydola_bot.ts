@@ -167,10 +167,11 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
         if (hour === 12) hour = 0;
         console.log(`🕰️ AM detectado: ${match[1]}am → ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
       } else {
-        console.log(`🕰️ 24h detectado: ${hour}:${minute.toString().padStart(2, '0')}`);
+        console.log(`🕰️ 24h detectado: ${match[0]} → ${hour}:${minute.toString().padStart(2, '0')}`);
       }
       
       time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      console.log(`✅ Horário final definido: ${time}`);
       break;
     }
   }
