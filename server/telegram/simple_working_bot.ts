@@ -26,12 +26,37 @@ function parseMessage(text: string) {
   let title = text;
   let time = '09:00';
 
-  // Extrair horário
-  const timeMatch = text.match(/(\d{1,2}):?(\d{0,2})\s*h?/);
-  if (timeMatch) {
-    const hour = timeMatch[1];
-    const minute = timeMatch[2] || '00';
-    time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+  // Melhor detecção de horários (incluindo PM/AM)
+  const timePatterns = [
+    /(\d{1,2}):(\d{2})\s*h?/i,  // 15:30h ou 15:30
+    /(\d{1,2})h(\d{2})/i,       // 15h30
+    /(\d{1,2})\s*h/i,           // 15h
+    /(\d{1,2})\s*pm/i,          // 8pm
+    /(\d{1,2})\s*am/i           // 8am
+  ];
+
+  for (const pattern of timePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      let hour = parseInt(match[1]);
+      let minute = 0;
+      
+      if (match[2]) {
+        minute = parseInt(match[2]);
+      }
+      
+      // Converter PM para 24h
+      if (text.toLowerCase().includes('pm') && hour < 12) {
+        hour += 12;
+      }
+      // Converter AM
+      else if (text.toLowerCase().includes('am') && hour === 12) {
+        hour = 0;
+      }
+      
+      time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      break;
+    }
   }
 
   // Processar datas relativas
@@ -59,12 +84,23 @@ function parseMessage(text: string) {
   const [hour, minute] = time.split(':');
   eventDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
 
-  // Limpar título
+  // Melhor processamento do título
   title = text
-    .replace(/(\d{1,2}):?(\d{0,2})\s*h?/, '')
-    .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/(\d{1,2}):?(\d{2})?\s*(h|pm|am)?/gi, '') // Remove horários
+    .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/gi, '') // Remove dias
+    .replace(/\b(às?|para|com|uma?|marque?|ola)\b/gi, '') // Remove palavras conectivas
+    .replace(/\s+/g, ' ') // Remove espaços múltiplos
     .trim();
+
+  // Se o título ficou vazio, tentar extrair melhor
+  if (!title || title.length < 3) {
+    const eventMatch = text.match(/\b(reunião|jantar|almoço|consulta|dentista|médico|encontro|apresentação|compromisso|evento|visita)\b/i);
+    if (eventMatch) {
+      title = eventMatch[0];
+    } else {
+      title = 'Evento';
+    }
+  }
 
   return {
     title: title || 'Evento',
