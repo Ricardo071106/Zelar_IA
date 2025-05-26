@@ -12,9 +12,9 @@ export default function CtaSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Simplify Your Scheduling?</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">Pronto para Simplificar seu Agendamento?</h2>
           <p className="text-xl text-white/90 mb-10 max-w-2xl mx-auto">
-            Join thousands of users who are saving time and staying organized with Zelar's AI-powered scheduling assistant.
+            Junte-se a milhares de usuários que estão economizando tempo e se organizando com o assistente de agenda IA do Zelar.
           </p>
           
           <motion.div
@@ -34,7 +34,7 @@ export default function CtaSection() {
                 className="inline-flex items-center"
               >
                 <FaTelegram className="mr-3 text-xl" />
-                Start Using Zelar Now
+                Começar a Usar o Zelar Agora
               </a>
             </Button>
           </motion.div>
