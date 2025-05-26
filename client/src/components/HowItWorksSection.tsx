@@ -86,7 +86,7 @@ export default function HowItWorksSection() {
                       </div>
                       <div className="ml-3">
                         <p className="text-white font-medium">Zelar Bot</p>
-                        <p className="text-white text-xs opacity-80">Your AI Scheduler</p>
+                        <p className="text-white text-xs opacity-80">Seu Assistente IA</p>
                       </div>
                     </div>
                   </div>

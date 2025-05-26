@@ -30,7 +30,7 @@ export default function FeaturesSection() {
   const features = [
     {
       icon: <MessageSquare className="text-primary text-2xl" />,
-      title: "Natural Language Processing",
+      title: "Processamento de Linguagem Natural",
       description: "Simplesmente diga 'agendar reunião amanhã às 15h' e o Zelar entenderá automaticamente usando inteligência artificial."
     },
     {
@@ -70,9 +70,9 @@ export default function FeaturesSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Why Choose Zelar</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Por Que Escolher o Zelar</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Zelar combines the power of AI with the convenience of Telegram to make scheduling effortless.
+            O Zelar combina o poder da IA com a conveniência do Telegram para tornar o agendamento sem esforço.
           </p>
         </motion.div>
         
