@@ -69,41 +69,18 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializa o bot final com OpenRouter sem exigir verificação do Google
+    // Inicializar bot corrigido (sem conflitos)
     try {
-      // Iniciar bot final que usa OpenRouter mas não tenta acessar API do Google
-      const { startFinalOpenRouterBot } = await import('./finalOpenRouterBot');
-      const finalBotInitialized = await startFinalOpenRouterBot();
+      const { startFixedBot } = await import('./botFixed');
+      const botInitialized = await startFixedBot();
       
-      if (finalBotInitialized) {
-        log('Bot com OpenRouter sem verificação do Google iniciado com sucesso!', 'telegram');
+      if (botInitialized) {
+        log('Bot corrigido iniciado com sucesso! Problemas de data e cancelamento resolvidos.', 'telegram');
       } else {
-        log('Erro ao iniciar bot final, tentando alternativas...', 'telegram');
-        
-        // Alternativa 1: Bot simplificado que apenas fornece links
-        const { startSimpleBot } = await import('./simplebot');
-        const simpleBotInitialized = await startSimpleBot();
-        
-        if (simpleBotInitialized) {
-          log('Bot simplificado iniciado como alternativa!', 'telegram');
-        } else {
-          // Alternativa 2: Bot com solução universal para calendário
-          const calendarSolutionInitialized = await startCalendarSolution();
-          if (calendarSolutionInitialized) {
-            log('Bot com solução universal para calendário iniciado como alternativa!', 'telegram');
-          } else {
-            // Última alternativa: Bot tradicional
-            const botInitialized = await initializeTelegramBot();
-            if (botInitialized) {
-              log('Bot do Telegram tradicional iniciado como último recurso!', 'telegram');
-            } else {
-              log('Não foi possível iniciar nenhuma versão do bot.', 'telegram');
-            }
-          }
-        }
+        log('Erro ao iniciar bot corrigido.', 'telegram');
       }
     } catch (error) {
-      log(`Erro ao iniciar o bot do Telegram: ${error}`, 'telegram');
+      log(`Erro ao iniciar o bot: ${error}`, 'telegram');
     }
   });
 })();
