@@ -26,13 +26,14 @@ function parseMessage(text: string) {
   let title = text;
   let time = '09:00';
 
-  // Melhor detecção de horários (incluindo PM/AM)
+  // Melhor detecção de horários (incluindo PM/AM e números soltos)
   const timePatterns = [
     /(\d{1,2}):(\d{2})\s*h?/i,  // 15:30h ou 15:30
     /(\d{1,2})h(\d{2})/i,       // 15h30
     /(\d{1,2})\s*h/i,           // 15h
     /(\d{1,2})\s*pm/i,          // 8pm
-    /(\d{1,2})\s*am/i           // 8am
+    /(\d{1,2})\s*am/i,          // 8am
+    /\b(\d{1,2})\b(?!\d)/i      // 15 (número solto sem h/pm/am)
   ];
 
   for (const pattern of timePatterns) {
@@ -108,9 +109,10 @@ function parseMessage(text: string) {
   } else {
     // Se não encontrou tipo específico, extrair da frase
     title = text
-      .replace(/(\d{1,2}):?(\d{2})?\s*(h|pm|am)?/gi, '') // Remove horários
+      .replace(/\b(\d{1,2}):?(\d{2})?\s*(h|pm|am)?\b/gi, '') // Remove horários completos
+      .replace(/\b\d{1,2}\b(?!\d)/gi, '') // Remove números soltos (horários)
       .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/gi, '') // Remove dias
-      .replace(/\b(ola|olá|oi|marque?|marcar|agendar|às?|para|com|uma?|mim|me|favor|por)\b/gi, '') // Remove palavras desnecessárias
+      .replace(/\b(ola|olá|oi|marque?|marcar|agendar|às?|para|com|uma?|de|a|o|mim|me|favor|por)\b/gi, '') // Remove palavras conectivas
       .replace(/\s+/g, ' ') // Remove espaços múltiplos
       .trim();
       
