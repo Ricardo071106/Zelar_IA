@@ -385,31 +385,56 @@ bot.on('text', async (ctx) => {
         );
       }
     } else if (result.intent === 'list') {
-      // Listar eventos
-      if (userState.events.length === 0) {
+      // Listar eventos futuros do banco de dados
+      try {
+        const dbUser = await storage.getUserByTelegramId(userId);
+        if (!dbUser) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            'Por favor, use /start para começar a usar o bot.'
+          );
+          return;
+        }
+
+        const futureEvents = await storage.getFutureEvents(dbUser.id);
+        
+        if (futureEvents.length === 0) {
+          await ctx.telegram.editMessageText(
+            ctx.chat.id,
+            loadingMsg.message_id,
+            undefined,
+            'Você não tem eventos futuros agendados. 📅\n\nDiga algo como "reunião amanhã às 15h" para criar um evento!'
+          );
+          return;
+        }
+        
+        let message = '📅 Seus próximos eventos:\n\n';
+        
+        futureEvents.forEach((event, index) => {
+          const formattedDate = formatDate(event.startDate);
+          
+          message += `${index + 1}. **${event.title}**\n📆 ${formattedDate}\n${event.location ? `📍 ${event.location}\n` : ''}${event.description ? `📝 ${event.description}\n` : ''}\n`;
+        });
+        
+        message += '\n💡 Para cancelar um evento, diga "cancelar [nome do evento]"';
+        
         await ctx.telegram.editMessageText(
           ctx.chat.id,
           loadingMsg.message_id,
           undefined,
-          'Você não tem eventos agendados.'
+          message
         );
-        return;
+      } catch (error) {
+        console.error('Erro ao buscar eventos:', error);
+        await ctx.telegram.editMessageText(
+          ctx.chat.id,
+          loadingMsg.message_id,
+          undefined,
+          'Erro ao buscar seus eventos. Tente novamente.'
+        );
       }
-      
-      let message = '📅 Seus eventos:\n\n';
-      
-      userState.events.forEach((event, index) => {
-        const formattedDate = formatDate(event.startDate);
-        
-        message += `${index + 1}. ${event.title}\n📆 ${formattedDate}\n${event.location ? `📍 ${event.location}\n` : ''}${event.description ? `📝 ${event.description}\n` : ''}\n`;
-      });
-      
-      await ctx.telegram.editMessageText(
-        ctx.chat.id,
-        loadingMsg.message_id,
-        undefined,
-        message
-      );
     } else if (result.intent === 'delete' && result.eventId) {
       // Deletar evento
       try {
