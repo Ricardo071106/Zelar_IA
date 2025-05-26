@@ -142,6 +142,7 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
   // 1. PROCESSAR HORÁRIOS PRIMEIRO - CORRIGIDO PARA PM/AM E 24H
   const timePatterns = [
     /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "às 19h"
+    /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?![a-zA-Z])/i,     // "às 19" (sem h)
     /(?:começando|comecando)\s+(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,
     /(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "19h"
     /(\d{1,2})\s*pm/i,  // "7pm"
@@ -229,11 +230,14 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
     }
   }
   
-  // Padrões de data simples
+  // Padrões de data simples - CORRIGIDO para preservar horário
   if (textLower.includes('amanha') || textLower.includes('amanhã')) {
+    eventDate = new Date(now);
     eventDate.setDate(now.getDate() + 1);
+    console.log(`📅 Processando amanhã: ${eventDate.toLocaleDateString('pt-BR')}`);
   } else if (textLower.includes('hoje')) {
     eventDate = new Date(now);
+    console.log(`📅 Processando hoje: ${eventDate.toLocaleDateString('pt-BR')}`);
   } else if (textLower.includes('domingo')) {
     eventDate = getNextWeekday(now, 0);
   } else if (textLower.includes('segunda')) {
