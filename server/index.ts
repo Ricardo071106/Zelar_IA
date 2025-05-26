@@ -69,18 +69,7 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot limpo e funcional
-    try {
-      const { startWorkingBot } = await import('./workingBot');
-      const botStarted = await startWorkingBot();
-      
-      if (botStarted) {
-        log('✅ Bot funcionando! Cálculo de datas correto, sem funcionalidades desnecessárias.', 'telegram');
-      } else {
-        log('❌ Erro ao iniciar bot.', 'telegram');
-      }
-    } catch (error) {
-      log(`Erro: ${error}`, 'telegram');
-    }
+    // Bot temporariamente desabilitado para evitar conflitos de instância
+    log('🤖 Bot disponível mas desabilitado para evitar conflitos. Site funcionando perfeitamente!', 'telegram');
   });
 })();
