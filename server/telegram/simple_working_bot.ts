@@ -84,21 +84,42 @@ function parseMessage(text: string) {
   const [hour, minute] = time.split(':');
   eventDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
 
-  // Melhor processamento do título
-  title = text
-    .replace(/(\d{1,2}):?(\d{2})?\s*(h|pm|am)?/gi, '') // Remove horários
-    .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/gi, '') // Remove dias
-    .replace(/\b(às?|para|com|uma?|marque?|ola)\b/gi, '') // Remove palavras conectivas
-    .replace(/\s+/g, ' ') // Remove espaços múltiplos
-    .trim();
-
-  // Se o título ficou vazio, tentar extrair melhor
-  if (!title || title.length < 3) {
-    const eventMatch = text.match(/\b(reunião|jantar|almoço|consulta|dentista|médico|encontro|apresentação|compromisso|evento|visita)\b/i);
-    if (eventMatch) {
-      title = eventMatch[0];
-    } else {
+  // Processamento mais inteligente do título
+  let cleanText = text.toLowerCase();
+  
+  // Primeiro, tentar encontrar o evento específico mencionado
+  const eventTypes = [
+    'reunião', 'jantar', 'almoço', 'consulta', 'dentista', 'médico', 
+    'encontro', 'apresentação', 'compromisso', 'evento', 'visita',
+    'aula', 'curso', 'palestra', 'workshop', 'entrevista', 'cinema',
+    'teatro', 'show', 'festa', 'aniversário', 'casamento'
+  ];
+  
+  let foundEvent = null;
+  for (const eventType of eventTypes) {
+    if (cleanText.includes(eventType)) {
+      foundEvent = eventType;
+      break;
+    }
+  }
+  
+  if (foundEvent) {
+    title = foundEvent.charAt(0).toUpperCase() + foundEvent.slice(1);
+  } else {
+    // Se não encontrou tipo específico, extrair da frase
+    title = text
+      .replace(/(\d{1,2}):?(\d{2})?\s*(h|pm|am)?/gi, '') // Remove horários
+      .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/gi, '') // Remove dias
+      .replace(/\b(ola|olá|oi|marque?|marcar|agendar|às?|para|com|uma?|mim|me|favor|por)\b/gi, '') // Remove palavras desnecessárias
+      .replace(/\s+/g, ' ') // Remove espaços múltiplos
+      .trim();
+      
+    // Se ainda ficou muito longo ou vazio, usar padrão
+    if (!title || title.length < 2 || title.length > 30) {
       title = 'Evento';
+    } else {
+      // Capitalizar primeira letra
+      title = title.charAt(0).toUpperCase() + title.slice(1);
     }
   }
 
