@@ -13,9 +13,9 @@ export default function CalendarSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Seamless Calendar Integration</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Integração Perfeita com Calendários</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Zelar works with your favorite calendar apps to keep all your schedules in one place.
+            O Zelar funciona com seus aplicativos de calendário favoritos para manter todos os seus agendamentos em um só lugar.
           </p>
         </motion.div>
         
@@ -27,9 +27,9 @@ export default function CalendarSection() {
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <h3 className="text-2xl font-semibold mb-4">Your Events, Everywhere You Need Them</h3>
+            <h3 className="text-2xl font-semibold mb-4">Seus Eventos, Onde Você Precisar</h3>
             <p className="text-gray-600 mb-6">
-              When Zelar schedules an event for you, it automatically syncs with your preferred calendar application, ensuring all your devices stay updated.
+              Quando o Zelar agenda um evento para você, ele sincroniza automaticamente com seu aplicativo de calendário preferido, garantindo que todos os seus dispositivos fiquem atualizados.
             </p>
             
             <div className="space-y-4">
@@ -39,7 +39,7 @@ export default function CalendarSection() {
                 </div>
                 <div>
                   <h4 className="font-medium">Google Calendar</h4>
-                  <p className="text-sm text-gray-600">Sync with your Google account for seamless integration across all your devices.</p>
+                  <p className="text-sm text-gray-600">Sincronize com sua conta Google para integração perfeita em todos os seus dispositivos.</p>
                 </div>
               </div>
               
@@ -49,7 +49,7 @@ export default function CalendarSection() {
                 </div>
                 <div>
                   <h4 className="font-medium">Apple Calendar</h4>
-                  <p className="text-sm text-gray-600">Perfect integration with your iPhone, iPad, and Mac devices.</p>
+                  <p className="text-sm text-gray-600">Integração perfeita com seus dispositivos iPhone, iPad e Mac.</p>
                 </div>
               </div>
               
@@ -58,8 +58,8 @@ export default function CalendarSection() {
                   <ArrowLeftRight className="text-primary" />
                 </div>
                 <div>
-                  <h4 className="font-medium">Two-Way Synchronization</h4>
-                  <p className="text-sm text-gray-600">Updates made in your calendar app are reflected in Zelar, and vice versa.</p>
+                  <h4 className="font-medium">Sincronização Bidirecional</h4>
+                  <p className="text-sm text-gray-600">Atualizações feitas no seu aplicativo de calendário são refletidas no Zelar, e vice-versa.</p>
                 </div>
               </div>
             </div>
@@ -184,8 +184,8 @@ export default function CalendarSection() {
                     </svg>
                   </div>
                   <div>
-                    <h4 className="font-medium text-sm">New Event Added</h4>
-                    <p className="text-xs text-gray-600">Meeting with John at 3:00 PM on Friday</p>
+                    <h4 className="font-medium text-sm">Novo Evento Adicionado</h4>
+                    <p className="text-xs text-gray-600">Reunião com João às 15:00 na sexta-feira</p>
                   </div>
                 </div>
               </motion.div>
