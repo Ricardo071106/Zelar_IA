@@ -21,10 +21,10 @@ export default function Header() {
   };
 
   const navItems = [
-    { name: "Features", href: "#features" },
-    { name: "How It Works", href: "#how-it-works" },
-    { name: "Testimonials", href: "#testimonials" },
-    { name: "FAQ", href: "#faq" },
+    { name: "Recursos", href: "#features" },
+    { name: "Como Funciona", href: "#how-it-works" },
+    { name: "Depoimentos", href: "#testimonials" },
+    { name: "Perguntas", href: "#faq" },
   ];
 
   return (
@@ -51,7 +51,7 @@ export default function Header() {
             className="hidden md:inline-flex bg-primary hover:bg-secondary text-white font-medium rounded-full"
           >
             <a href="https://t.me/zelar_assistente_bot" target="_blank" rel="noopener noreferrer">
-              Start Using Zelar
+              Começar a Usar o Zelar
             </a>
           </Button>
           <Button
@@ -90,7 +90,7 @@ export default function Header() {
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
             >
-              Start Using Zelar
+              Começar a Usar o Zelar
             </a>
           </Button>
         </nav>
