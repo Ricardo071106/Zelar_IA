@@ -164,6 +164,9 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
         // 7am = 07:00 (se hour = 12, converter para 0)
         if (hour === 12) hour = 0;
         console.log(`🕰️ Convertendo ${match[1]}am para ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
+      } else if (pattern.source.includes('às?|as')) {
+        // "às 19" sem h - formato 24h brasileiro
+        console.log(`🕰️ Formato às + número: às ${hour} = ${hour}:${minute.toString().padStart(2, '0')}`);
       } else {
         // Formato 24h brasileiro (19h = 19:00) - não converter
         console.log(`🕰️ Formato 24h: ${hour}h = ${hour}:${minute.toString().padStart(2, '0')}`);
