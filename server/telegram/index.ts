@@ -175,6 +175,88 @@ function isValidEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
+// Função para calcular próximo dia da semana
+function getNextWeekday(date: Date, targetDay: number): Date {
+  const result = new Date(date);
+  const daysUntilTarget = (targetDay - date.getDay() + 7) % 7;
+  if (daysUntilTarget === 0) {
+    result.setDate(date.getDate() + 7);
+  } else {
+    result.setDate(date.getDate() + daysUntilTarget);
+  }
+  return result;
+}
+
+// Função para processar mensagens de evento
+function parseMessage(text: string) {
+  const now = new Date();
+  let eventDate = new Date(now);
+  let title = text;
+  let time = '09:00';
+
+  // Extrair horário
+  const timeMatch = text.match(/(\d{1,2}):?(\d{0,2})\s*h?/);
+  if (timeMatch) {
+    const hour = timeMatch[1];
+    const minute = timeMatch[2] || '00';
+    time = `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`;
+  }
+
+  // Processar datas relativas
+  if (text.includes('amanhã')) {
+    eventDate.setDate(now.getDate() + 1);
+  } else if (text.includes('hoje')) {
+    eventDate = new Date(now);
+  } else if (text.includes('segunda')) {
+    eventDate = getNextWeekday(now, 1);
+  } else if (text.includes('terça')) {
+    eventDate = getNextWeekday(now, 2);
+  } else if (text.includes('quarta')) {
+    eventDate = getNextWeekday(now, 3);
+  } else if (text.includes('quinta')) {
+    eventDate = getNextWeekday(now, 4);
+  } else if (text.includes('sexta')) {
+    eventDate = getNextWeekday(now, 5);
+  } else if (text.includes('sábado')) {
+    eventDate = getNextWeekday(now, 6);
+  } else if (text.includes('domingo')) {
+    eventDate = getNextWeekday(now, 0);
+  }
+
+  // Definir horário
+  const [hour, minute] = time.split(':');
+  eventDate.setHours(parseInt(hour), parseInt(minute), 0, 0);
+
+  // Limpar título
+  title = text
+    .replace(/(\d{1,2}):?(\d{0,2})\s*h?/, '')
+    .replace(/\b(amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo)\b/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return {
+    title: title || 'Evento',
+    startDate: eventDate,
+    endDate: new Date(eventDate.getTime() + 60 * 60 * 1000) // +1 hora
+  };
+}
+
+// Função para gerar links de calendário
+function generateCalendarLinks(event: any) {
+  const formatDateForGoogle = (date: Date): string => {
+    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  };
+
+  const startDate = formatDateForGoogle(event.startDate);
+  const endDate = formatDateForGoogle(event.endDate);
+  
+  const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startDate}/${endDate}`;
+  
+  const outlookLink = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${event.startDate.toISOString()}&enddt=${event.endDate.toISOString()}`;
+
+  return { googleLink, outlookLink };
+}
+
 // Inicializar e configurar o bot
 export async function initializeTelegramBot() {
   try {
@@ -187,162 +269,146 @@ export async function initializeTelegramBot() {
     // Inicializar o bot do Telegram
     const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
     
-    // Comando /start - Inicia o bot
-    bot.start(async (ctx) => {
-      try {
-        if (!ctx.from) return;
-        
-        const telegramId = ctx.from.id.toString();
-        const username = ctx.from.username || ctx.from.first_name || `user_${telegramId}`;
-        
-        // Inicializar estado do usuário
-        userStates.set(telegramId, { telegramId, email: null });
-        
-        await ctx.reply(
-          `Olá, ${username}! Sou seu assistente de agenda com suporte universal para calendários!\n\n` +
-          `Esta versão não depende de senhas de aplicativo do Gmail que expiram.\n\n` +
-          `Para configurar seu email, use /email\n` +
-          `Para testar a solução universal, use /testar`
-        );
-      } catch (error) {
-        log(`Erro no comando start: ${error}`, 'telegram');
-        await ctx.reply('Ocorreu um erro ao iniciar o bot. Por favor, tente novamente mais tarde.');
-      }
+    // Comando /start
+    bot.start((ctx) => {
+      const userId = ctx.from.id.toString();
+      userStates.set(userId, { events: [] });
+      
+      ctx.reply(`🤖 *Zelar - Assistente de Agendamento*
+
+Olá! Sou seu assistente pessoal para agendamentos.
+
+📅 *Como usar:*
+• Digite naturalmente: "reunião amanhã às 15h"
+• Use /eventos para ver seus compromissos
+• Use /help para mais comandos
+
+✨ Funciono em português brasileiro!`, 
+        { parse_mode: 'Markdown' });
     });
     
-    // Comando para configurar email
-    bot.command(['email', 'configurar_email'], async (ctx) => {
-      try {
-        if (!ctx.from) return;
-        
-        const telegramId = ctx.from.id.toString();
-        
-        // Atualizar estado para aguardar email
-        userStates.set(telegramId, { 
-          ...userStates.get(telegramId) || { telegramId },
-          awaitingEmail: true 
+    // Comando /help
+    bot.help((ctx) => {
+      ctx.reply(`📋 *Comandos disponíveis:*
+
+/start - Iniciar conversa
+/eventos - Ver meus compromissos
+/help - Esta ajuda
+
+💡 *Exemplos de uso:*
+• "reunião com João amanhã às 14h"
+• "dentista na próxima segunda às 10h"
+• "almoço hoje às 12h30"
+
+Para cancelar, responda com "cancelar [número]"`, 
+        { parse_mode: 'Markdown' });
+    });
+
+    // Comando /eventos
+    bot.command('eventos', (ctx) => {
+      const userId = ctx.from.id.toString();
+      const userState = userStates.get(userId) || { events: [] };
+      
+      if (userState.events.length === 0) {
+        ctx.reply('📅 Você não tem eventos agendados.');
+        return;
+      }
+
+      let message = '📅 *Seus eventos:*\n\n';
+      userState.events.forEach((event, index) => {
+        const date = new Date(event.startDate).toLocaleDateString('pt-BR');
+        const time = new Date(event.startDate).toLocaleTimeString('pt-BR', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
         });
-        
-        await ctx.reply('Por favor, envie seu endereço de email para receber convites de calendário.');
-      } catch (error) {
-        log(`Erro ao configurar email: ${error}`, 'telegram');
-        await ctx.reply('Ocorreu um erro ao processar seu comando. Por favor, tente novamente.');
-      }
-    });
-    
-    // Comando para testar convite
-    bot.command('testar', async (ctx) => {
-      try {
-        if (!ctx.from) return;
-        
-        const telegramId = ctx.from.id.toString();
-        const userState = userStates.get(telegramId);
-        
-        if (!userState || !userState.email) {
-          await ctx.reply('Você precisa configurar seu email primeiro usando /email');
-          return;
-        }
-        
-        await ctx.reply(`Enviando convite de teste para ${userState.email}...`);
-        
-        // Criar evento de teste
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        tomorrow.setHours(15, 0, 0, 0);
-        
-        const event = {
-          id: Date.now().toString(),
-          title: 'Evento de Teste',
-          startDate: tomorrow,
-          endDate: new Date(tomorrow.getTime() + 60 * 60 * 1000),
-          location: 'Local de Teste',
-          description: 'Este é um evento de teste usando a solução universal de calendário.'
-        };
-        
-        // Enviar convite
-        const result = await sendUniversalCalendarInvite(event, userState.email);
-        
-        if (result.success) {
-          await ctx.reply(`✅ Convite enviado com sucesso para ${userState.email}`);
-          
-          if (result.previewUrl) {
-            await ctx.reply(`🔍 [Prévia do email](${result.previewUrl})`, { parse_mode: 'Markdown' });
-          }
-          
-          await ctx.reply(
-            `O email contém:\n` +
-            `- Botão para adicionar ao Google Calendar\n` +
-            `- Botão para adicionar ao Outlook\n` +
-            `- Arquivo .ics para outros calendários\n\n` +
-            `Esta solução não depende de senhas de aplicativo do Gmail!`
-          );
-        } else {
-          await ctx.reply(`❌ Erro ao enviar convite: ${result.message}`);
-        }
-      } catch (error) {
-        log(`Erro ao testar convite: ${error}`, 'telegram');
-        await ctx.reply('Ocorreu um erro ao testar o convite. Por favor, tente novamente mais tarde.');
-      }
+        message += `${index + 1}. ${event.title}\n📅 ${date} às ${time}\n\n`;
+      });
+
+      message += 'Para cancelar, digite: cancelar [número]';
+      
+      ctx.reply(message, { parse_mode: 'Markdown' });
     });
     
     // Processar mensagens de texto
-    bot.on('text', async (ctx) => {
-      try {
-        if (!ctx.message || !ctx.message.text || !ctx.from) return;
-        
-        const text = ctx.message.text;
-        const telegramId = ctx.from.id.toString();
-        const userState = userStates.get(telegramId) || { telegramId };
-        
-        // Verificar se está esperando email
-        if (userState.awaitingEmail) {
-          const email = text.trim();
-          
-          // Validar email
-          if (!isValidEmail(email)) {
-            await ctx.reply('O email informado não parece válido. Por favor, tente novamente com um formato correto, como exemplo@dominio.com');
+    bot.on('text', (ctx) => {
+      const text = ctx.message.text.toLowerCase();
+      const userId = ctx.from.id.toString();
+      
+      // Inicializar estado do usuário se necessário
+      if (!userStates.has(userId)) {
+        userStates.set(userId, { events: [] });
+      }
+      
+      const userState = userStates.get(userId);
+
+      // Processar cancelamentos
+      if (text.includes('cancelar')) {
+        const numberMatch = text.match(/cancelar\s+(\d+)/);
+        if (numberMatch) {
+          const eventIndex = parseInt(numberMatch[1]) - 1;
+          if (eventIndex >= 0 && eventIndex < userState.events.length) {
+            const cancelledEvent = userState.events.splice(eventIndex, 1)[0];
+            ctx.reply(`✅ Evento "${cancelledEvent.title}" cancelado com sucesso!`);
             return;
           }
-          
-          // Atualizar estado
-          userStates.set(telegramId, {
-            ...userState,
-            email,
-            awaitingEmail: false
+        }
+        ctx.reply('❌ Número do evento inválido. Use /eventos para ver a lista.');
+        return;
+      }
+
+      // Processar novos eventos
+      try {
+        const event = parseMessage(ctx.message.text);
+        userState.events.push(event);
+        
+        const { googleLink, outlookLink } = generateCalendarLinks(event);
+        
+        const formatDate = (date: Date): string => {
+          return date.toLocaleDateString('pt-BR', { 
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+        };
+
+        ctx.reply(`✅ *Evento criado com sucesso!*
+
+📋 *Detalhes:*
+🎯 ${event.title}
+📅 ${formatDate(event.startDate)}
+
+📱 *Adicionar ao calendário:*`, 
+          { 
+            parse_mode: 'Markdown',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '📅 Google Calendar', url: googleLink },
+                  { text: '📅 Outlook', url: outlookLink }
+                ]
+              ]
+            }
           });
           
-          await ctx.reply(
-            `✅ Email configurado com sucesso: ${email}\n\n` +
-            `Agora você pode usar /testar para enviar um convite de calendário de teste\n` +
-            `que não depende de senhas de aplicativo do Gmail!`
-          );
-          
-          return;
-        }
-        
-        // Resposta padrão
-        await ctx.reply(
-          `Recebi sua mensagem: "${text}"\n\n` +
-          `Use /testar para testar a solução universal de calendário\n` +
-          `Use /email para configurar seu email`
-        );
-        
       } catch (error) {
-        log(`Erro ao processar mensagem: ${error}`, 'telegram');
-        await ctx.reply('Ocorreu um erro ao processar sua mensagem. Por favor, tente novamente mais tarde.');
+        console.error('Erro ao processar evento:', error);
+        ctx.reply('❌ Não consegui entender sua mensagem. Tente algo como: "reunião amanhã às 15h"');
       }
     });
     
     // Definir comandos disponíveis
     await bot.telegram.setMyCommands([
-      { command: 'start', description: 'Iniciar o bot' },
-      { command: 'email', description: 'Configurar seu email' },
-      { command: 'testar', description: 'Testar convite universal de calendário' }
+      { command: 'start', description: 'Iniciar conversa' },
+      { command: 'eventos', description: 'Ver meus compromissos' },
+      { command: 'help', description: 'Ajuda e exemplos' }
     ]);
     
     // Iniciar o bot
     await bot.launch();
-    log('Bot iniciado com solução universal de calendário!', 'telegram');
+    log('Bot Zelar funcionando perfeitamente!', 'telegram');
     
     // Encerramento correto do bot
     process.once('SIGINT', () => bot.stop('SIGINT'));
@@ -350,7 +416,11 @@ export async function initializeTelegramBot() {
     
     return true;
   } catch (error) {
-    log(`Erro ao iniciar bot: ${error}`, 'telegram');
+    if (error.message && error.message.includes('409')) {
+      log('Conflito detectado - outra instância do bot está rodando', 'telegram');
+    } else {
+      log(`Erro ao iniciar bot: ${error}`, 'telegram');
+    }
     return false;
   }
 }
