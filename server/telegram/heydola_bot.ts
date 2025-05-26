@@ -132,44 +132,42 @@ function extractSmartTitle(text: string): string {
 }
 
 /**
- * Extração de data e horário - com foco em "daqui a X domingo"
+ * Extração de data e horário - CORRIGIDO COMPLETAMENTE
  */
 function extractDateAndTime(text: string, now: Date): { date: Date, time: string } {
   const textLower = text.toLowerCase();
   let eventDate = new Date(now);
   let time = '10:00';
   
-  // 1. PROCESSAR HORÁRIOS PRIMEIRO - CORRIGIDO PARA PM/AM E 24H
-  const timePatterns = [
-    /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "às 19h"
-    /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?![a-zA-Z])/i,     // "às 19" (sem h)
-    /(?:começando|comecando)\s+(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,
-    /(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "19h"
-    /(\d{1,2})\s*pm/i,  // "7pm"
-    /(\d{1,2})\s*am/i   // "7am"
+  // 1. PROCESSAR HORÁRIOS PRIMEIRO - VERSÃO CORRIGIDA
+  console.log(`🔍 Analisando horários em: "${textLower}"`);
+  
+  // Padrões mais específicos e organizados
+  const timeMatches = [
+    // PM/AM primeiro (mais específico)
+    { pattern: /(\d{1,2})\s*pm/i, type: 'pm' },
+    { pattern: /(\d{1,2})\s*am/i, type: 'am' },
+    // Formato brasileiro com "h"
+    { pattern: /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*h/i, type: '24h' },
+    { pattern: /(\d{1,2})(?::(\d{2}))?\s*h/i, type: '24h' },
+    // Formato brasileiro SEM "h" - mais específico
+    { pattern: /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?(?:\s|$)/i, type: '24h' }
   ];
 
-  for (const pattern of timePatterns) {
-    const match = textLower.match(pattern);
+  for (const timeMatch of timeMatches) {
+    const match = textLower.match(timeMatch.pattern);
     if (match) {
       let hour = parseInt(match[1]);
       const minute = match[2] ? parseInt(match[2]) : 0;
       
-      // CORREÇÃO CRÍTICA: Detectar PM/AM corretamente
-      if (textLower.includes('pm')) {
-        // 7pm = 19:00 (se hour < 12, adicionar 12)
+      if (timeMatch.type === 'pm') {
         if (hour < 12) hour += 12;
-        console.log(`🕰️ Convertendo ${match[1]}pm para ${hour}:${minute.toString().padStart(2, '0')}`);
-      } else if (textLower.includes('am')) {
-        // 7am = 07:00 (se hour = 12, converter para 0)
+        console.log(`🕰️ PM detectado: ${match[1]}pm → ${hour}:${minute.toString().padStart(2, '0')}`);
+      } else if (timeMatch.type === 'am') {
         if (hour === 12) hour = 0;
-        console.log(`🕰️ Convertendo ${match[1]}am para ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
-      } else if (pattern.source.includes('às?|as')) {
-        // "às 19" sem h - formato 24h brasileiro
-        console.log(`🕰️ Formato às + número: às ${hour} = ${hour}:${minute.toString().padStart(2, '0')}`);
+        console.log(`🕰️ AM detectado: ${match[1]}am → ${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`);
       } else {
-        // Formato 24h brasileiro (19h = 19:00) - não converter
-        console.log(`🕰️ Formato 24h: ${hour}h = ${hour}:${minute.toString().padStart(2, '0')}`);
+        console.log(`🕰️ 24h detectado: ${hour}:${minute.toString().padStart(2, '0')}`);
       }
       
       time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
