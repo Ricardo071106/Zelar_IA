@@ -69,8 +69,14 @@ function parseSmartEvent(text: string): SmartEvent {
   } else if (textLower.includes('hoje')) {
     eventDate = new Date(now);
   } else if (textLower.includes('daqui a 3 domingo') || textLower.includes('daqui a 3 domingos')) {
-    // "daqui a 3 domingo" = próximo domingo (domingo da próxima semana)
+    // "daqui a 3 domingo" = próximo domingo
     eventDate = getNextWeekday(now, 0);
+  } else if (textLower.includes('daqui a exatamente 1 mes') || textLower.includes('daqui a 1 mês')) {
+    // "daqui a 1 mês"
+    eventDate.setMonth(now.getMonth() + 1);
+  } else if (textLower.includes('próximo final de semana') || textLower.includes('proximo final de semana')) {
+    // "próximo final de semana" = próximo sábado
+    eventDate = getNextWeekday(now, 6);
   } else if (textLower.includes('domingo')) {
     eventDate = getNextWeekday(now, 0);
   } else if (textLower.includes('segunda')) {
