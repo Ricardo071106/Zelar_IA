@@ -61,24 +61,25 @@ function parseMessage(text: string) {
     }
   }
 
-  // Processar datas relativas
-  if (text.includes('amanhã')) {
+  // Processar datas relativas PRIMEIRO (antes do título)
+  const textLower = text.toLowerCase();
+  if (textLower.includes('amanhã') || textLower.includes('amanha')) {
     eventDate.setDate(now.getDate() + 1);
-  } else if (text.includes('hoje')) {
+  } else if (textLower.includes('hoje')) {
     eventDate = new Date(now);
-  } else if (text.includes('segunda')) {
+  } else if (textLower.includes('segunda')) {
     eventDate = getNextWeekday(now, 1);
-  } else if (text.includes('terça')) {
+  } else if (textLower.includes('terça')) {
     eventDate = getNextWeekday(now, 2);
-  } else if (text.includes('quarta')) {
+  } else if (textLower.includes('quarta')) {
     eventDate = getNextWeekday(now, 3);
-  } else if (text.includes('quinta')) {
+  } else if (textLower.includes('quinta')) {
     eventDate = getNextWeekday(now, 4);
-  } else if (text.includes('sexta')) {
+  } else if (textLower.includes('sexta')) {
     eventDate = getNextWeekday(now, 5);
-  } else if (text.includes('sábado')) {
+  } else if (textLower.includes('sábado')) {
     eventDate = getNextWeekday(now, 6);
-  } else if (text.includes('domingo')) {
+  } else if (textLower.includes('domingo')) {
     eventDate = getNextWeekday(now, 0);
   }
 
