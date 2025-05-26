@@ -26,42 +26,38 @@ function parseMessage(text: string) {
   let title = text;
   let time = '09:00';
 
-  // Melhor detecção de horários (incluindo PM/AM e números soltos)
-  const timePatterns = [
-    /(\d{1,2}):(\d{2})\s*h?/i,  // 15:30h ou 15:30
-    /(\d{1,2})h(\d{2})/i,       // 15h30
-    /(\d{1,2})\s*h/i,           // 15h
-    /(\d{1,2})\s*pm/i,          // 8pm
-    /(\d{1,2})\s*am/i,          // 8am
-    /\b(\d{1,2})\b(?!\d)/i      // 15 (número solto sem h/pm/am)
-  ];
+  // Detecção de horários simplificada e mais eficaz
+  // Procurar por "as" ou "às" seguido de número (versão corrigida)
+  const asMatch = text.match(/\bas\s+(\d{1,2})\b/i);
+  if (asMatch) {
+    const hour = parseInt(asMatch[1]);
+    time = `${hour.toString().padStart(2, '0')}:00`;
+  } else {
+    // Outros padrões de horário
+    const timePatterns = [
+      /(\d{1,2}):(\d{2})/i,      // 15:30
+      /(\d{1,2})h(\d{2})/i,      // 15h30  
+      /(\d{1,2})\s*h/i,          // 15h
+      /(\d{1,2})\s*pm/i,         // 8pm
+      /(\d{1,2})\s*am/i          // 8am
+    ];
 
-  for (const pattern of timePatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      let hour = parseInt(match[1]);
-      let minute = 0;
-      
-      if (match[2]) {
-        minute = parseInt(match[2]);
+    for (const pattern of timePatterns) {
+      const match = text.match(pattern);
+      if (match) {
+        let hour = parseInt(match[1]);
+        let minute = match[2] ? parseInt(match[2]) : 0;
+        
+        // Converter PM/AM
+        if (text.toLowerCase().includes('pm') && hour < 12) {
+          hour += 12;
+        } else if (text.toLowerCase().includes('am') && hour === 12) {
+          hour = 0;
+        }
+        
+        time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+        break;
       }
-      
-      // Converter PM para 24h
-      if (text.toLowerCase().includes('pm') && hour < 12) {
-        hour += 12;
-      }
-      // Converter AM
-      else if (text.toLowerCase().includes('am') && hour === 12) {
-        hour = 0;
-      }
-      // Para números soltos (sem pm/am), assumir formato 24h se >= 7, senão assumir PM se < 7
-      else if (!text.toLowerCase().includes('pm') && !text.toLowerCase().includes('am') && !text.includes('h') && hour >= 1 && hour <= 23) {
-        // Manter o horário como está se for um número válido de 24h
-        hour = hour;
-      }
-      
-      time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-      break;
     }
   }
 
@@ -112,9 +108,16 @@ function parseMessage(text: string) {
   if (foundEvent) {
     // Se encontrou "reunião", verificar se tem especificação (1:1, com pessoa, etc.)
     if (foundEvent === 'reunião') {
-      const reuniaoMatch = cleanText.match(/reunião\s+(de\s+)?(.+?)(?:\s+(?:amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}))/i);
-      if (reuniaoMatch && reuniaoMatch[2] && reuniaoMatch[2].length < 20) {
-        title = `Reunião ${reuniaoMatch[2].trim()}`;
+      // Buscar por padrões específicos como "1:1", "com fulano", etc.
+      if (cleanText.includes('1:1')) {
+        title = 'Reunião 1:1';
+      } else if (cleanText.includes('com ')) {
+        const comMatch = cleanText.match(/com\s+([a-zA-Z\s]+?)(?:\s+(?:amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo|às?|as|\d))/i);
+        if (comMatch && comMatch[1].trim().length < 15) {
+          title = `Reunião com ${comMatch[1].trim()}`;
+        } else {
+          title = 'Reunião';
+        }
       } else {
         title = 'Reunião';
       }
