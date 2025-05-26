@@ -56,9 +56,9 @@ function extractSmartTitle(text: string): string {
   
   // Padrões específicos para extrair o que realmente importa
   
-  // 1. Lembretes/Compras
+  // 1. Lembretes/Compras - padrão mais amplo
   if (textLower.includes('lembr') && textLower.includes('comprar')) {
-    const comprarMatch = text.match(/lembr(?:ar|ando)\s+(?:de\s+)?comprar\s+([a-zA-ZÀ-ÿ\s]+?)(?:\s+(?:daqui|para|na|no|às|as|amanha|hoje|\d))/i);
+    const comprarMatch = text.match(/comprar\s+([a-zA-ZÀ-ÿ\s]+?)(?:\s*$|[,.])/i);
     if (comprarMatch && comprarMatch[1].trim().length < 25) {
       return `Comprar ${comprarMatch[1].trim()}`;
     }

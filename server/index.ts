@@ -68,10 +68,10 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot Telegram inteligente
+    // Inicializar bot Telegram inspirado no HeyDola
     try {
-      await startSmartBot();
-      log('✅ Bot Telegram Smart ativado com sucesso!', 'telegram');
+      await startHeyDolaBot();
+      log('✅ Bot Telegram HeyDola ativado com sucesso!', 'telegram');
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
