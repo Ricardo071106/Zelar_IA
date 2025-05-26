@@ -334,10 +334,33 @@ export async function startHeyDolaBot(): Promise<boolean> {
       );
     });
 
-    // Processar mensagens de texto
+    // Comando para listar eventos
+    bot.command('eventos', (ctx) => {
+      ctx.reply(
+        '📅 *Gerenciamento de Eventos*\n\n' +
+        'Os eventos criados pelo bot são adicionados diretamente aos seus calendários:\n\n' +
+        '📱 *Para ver seus eventos:*\n' +
+        '• Abra Google Calendar ou Outlook\n' +
+        '• Todos os eventos criados aqui estão salvos lá\n\n' +
+        '✏️ *Para editar/excluir:*\n' +
+        '• Use o app do seu calendário\n' +
+        '• Edite diretamente no Google Calendar/Outlook\n\n' +
+        '➕ *Criar novo evento:*\n' +
+        'Digite algo como: "reunião amanhã às 15h"\n\n' +
+        'Continue criando eventos naturalmente! 🚀',
+        { parse_mode: 'Markdown' }
+      );
+    });
+
+    // Processar mensagens de texto (ignorar comandos)
     bot.on('text', async (ctx) => {
       try {
         const message = ctx.message.text;
+        
+        // Ignorar comandos que começam com /
+        if (message.startsWith('/')) {
+          return;
+        }
         
         // Processar evento com IA
         const event = parseEventMessage(message);
