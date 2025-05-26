@@ -43,24 +43,24 @@ export default function FaqSection() {
 
   const faqItems = [
     {
-      question: "How do I get started with Zelar?",
-      answer: "Getting started is easy! Just click the \"Start Using Zelar\" button on this page, which will open a chat with the Zelar bot on Telegram. Follow the simple setup instructions to connect your calendar, and you're ready to start scheduling with voice or text messages."
+      question: "Como começar a usar o Zelar?",
+      answer: "Começar é fácil! Basta clicar no botão \"Começar a Usar o Zelar\" nesta página, que abrirá um chat com o bot Zelar no Telegram. Siga as instruções simples de configuração e você estará pronto para começar a agendar com mensagens de texto."
     },
     {
-      question: "Which calendar apps does Zelar support?",
-      answer: "Zelar currently supports seamless integration with Google Calendar and Apple Calendar. We're working on adding support for more calendar services in the future. The integration process is simple and secure, requiring just a few authentication steps."
+      question: "Quais aplicativos de calendário o Zelar suporta?",
+      answer: "O Zelar oferece integração perfeita com Google Calendar, Outlook e Apple Calendar através de links diretos. O processo é simples e funciona com apenas um clique para adicionar eventos ao seu calendário preferido."
     },
     {
-      question: "Is my scheduling data secure?",
-      answer: "Absolutely! Security is our top priority. All your scheduling data is encrypted and stored securely in our dedicated database. We use industry-standard security practices to protect your information, and we never share your data with third parties without your explicit consent."
+      question: "Meus dados de agendamento estão seguros?",
+      answer: "Absolutamente! A segurança é nossa prioridade máxima. Todos os seus dados de agendamento são criptografados e armazenados com segurança em nosso banco de dados dedicado. Usamos práticas de segurança padrão da indústria para proteger suas informações."
     },
     {
-      question: "Can Zelar understand different languages?",
-      answer: "Yes, Zelar's AI-powered system can understand and process schedules in multiple languages. Currently, we support English, Spanish, Portuguese, French, and German, with more languages being added regularly to enhance accessibility for users worldwide."
+      question: "O Zelar entende português brasileiro?",
+      answer: "Sim! O sistema de IA do Zelar foi especialmente otimizado para entender e processar agendamentos em português brasileiro de forma natural. Você pode falar normalmente como 'reunião amanhã às 15h' que o bot entenderá perfeitamente."
     },
     {
-      question: "Is Zelar free to use?",
-      answer: "Zelar offers a free tier with essential scheduling features. For power users, we offer a premium plan with advanced features like recurring events, multiple calendar support, and custom reminder times. Visit our bot on Telegram for current pricing information."
+      question: "O Zelar é gratuito?",
+      answer: "Sim, o Zelar é completamente gratuito! Oferecemos todas as funcionalidades essenciais de agendamento sem custo. Basta acessar nosso bot no Telegram e começar a usar imediatamente."
     }
   ];
 
@@ -82,9 +82,9 @@ export default function FaqSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Frequently Asked Questions</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Perguntas Frequentes</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Find answers to common questions about Zelar.
+            Encontre respostas para dúvidas comuns sobre o Zelar.
           </p>
         </motion.div>
         

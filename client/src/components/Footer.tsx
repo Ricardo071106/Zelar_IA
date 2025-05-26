@@ -4,22 +4,22 @@ import { FaTwitter, FaFacebook, FaInstagram, FaLinkedin } from "react-icons/fa";
 export default function Footer() {
   const footerLinks = {
     features: [
-      { name: "Voice Recognition", href: "#features" },
-      { name: "Smart Reminders", href: "#features" },
-      { name: "Calendar Integration", href: "#features" },
-      { name: "AI Processing", href: "#features" },
+      { name: "Processamento de Linguagem", href: "#features" },
+      { name: "Lembretes Inteligentes", href: "#features" },
+      { name: "Integração com Calendários", href: "#features" },
+      { name: "Processamento com IA", href: "#features" },
     ],
     resources: [
-      { name: "FAQ", href: "#faq" },
+      { name: "Perguntas Frequentes", href: "#faq" },
       { name: "Blog", href: "#" },
-      { name: "Support", href: "#" },
-      { name: "Documentation", href: "#" },
+      { name: "Suporte", href: "#" },
+      { name: "Documentação", href: "#" },
     ],
     legal: [
-      { name: "Terms of Service", href: "#" },
-      { name: "Privacy Policy", href: "#" },
-      { name: "Data Protection", href: "#" },
-      { name: "Cookies Policy", href: "#" },
+      { name: "Termos de Serviço", href: "#" },
+      { name: "Política de Privacidade", href: "#" },
+      { name: "Proteção de Dados", href: "#" },
+      { name: "Política de Cookies", href: "#" },
     ]
   };
 
@@ -39,7 +39,7 @@ export default function Footer() {
               <Logo color="white" />
             </div>
             <p className="text-gray-400 mb-6">
-              Your AI-powered scheduling assistant that works seamlessly within Telegram.
+              Seu assistente de agenda com IA que funciona perfeitamente dentro do Telegram.
             </p>
             <div className="flex space-x-4">
               {socialLinks.map((link, index) => (
@@ -56,7 +56,7 @@ export default function Footer() {
           </div>
           
           <div>
-            <h3 className="text-lg font-semibold mb-4">Features</h3>
+            <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
               {footerLinks.features.map((link, index) => (
                 <li key={index}>
@@ -72,7 +72,7 @@ export default function Footer() {
           </div>
           
           <div>
-            <h3 className="text-lg font-semibold mb-4">Resources</h3>
+            <h3 className="text-lg font-semibold mb-4">Recursos</h3>
             <ul className="space-y-2">
               {footerLinks.resources.map((link, index) => (
                 <li key={index}>
