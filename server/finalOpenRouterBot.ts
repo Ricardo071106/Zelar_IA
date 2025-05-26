@@ -101,8 +101,14 @@ async function processNaturalLanguage(text: string): Promise<{
       "error": "descrição do erro"
     }
     
-    Hoje é ${format(new Date(), 'yyyy-MM-dd')}.
-    Interprete referências como "amanhã", "próxima segunda", "semana que vem", etc.
+    Hoje é ${format(new Date(), 'yyyy-MM-dd')} (${format(new Date(), 'EEEE', { locale: ptBR })}).
+    
+    IMPORTANTE para cálculo de datas:
+    - "amanhã" = EXATAMENTE 1 dia após hoje (${format(addDays(new Date(), 1), 'yyyy-MM-dd')} - ${format(addDays(new Date(), 1), 'EEEE', { locale: ptBR })})
+    - "depois de amanhã" = 2 dias após hoje
+    - Para dias da semana específicos, use a próxima ocorrência desse dia
+    
+    Seja PRECISO com as datas, especialmente "amanhã".
     `;
     
     // Solicitação para o OpenRouter
@@ -129,7 +135,19 @@ async function processNaturalLanguage(text: string): Promise<{
     
     // Extrair e processar a resposta
     const content = response.data.choices[0].message.content;
-    const parsedContent = JSON.parse(content);
+    
+    // Limpar a resposta e extrair apenas o JSON válido
+    let cleanContent = content.trim();
+    
+    // Se houver texto antes ou depois do JSON, extrair apenas o JSON
+    const jsonStart = cleanContent.indexOf('{');
+    const jsonEnd = cleanContent.lastIndexOf('}') + 1;
+    
+    if (jsonStart !== -1 && jsonEnd !== -1) {
+      cleanContent = cleanContent.substring(jsonStart, jsonEnd);
+    }
+    
+    const parsedContent = JSON.parse(cleanContent);
     
     // Verificar a intenção
     if (parsedContent.intent === 'create') {
