@@ -69,7 +69,12 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Bot temporariamente desabilitado para evitar conflitos de instância
-    log('🤖 Bot disponível mas desabilitado para evitar conflitos. Site funcionando perfeitamente!', 'telegram');
+    // Inicializar bot Telegram integrado
+    try {
+      await initializeTelegramBot();
+      log('✅ Bot Telegram ativado com sucesso!', 'telegram');
+    } catch (error) {
+      log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
+    }
   });
 })();
