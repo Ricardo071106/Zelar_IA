@@ -1,8 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { initializeSimpleBot } from "./telegram/simple_working_bot";
-import { startCalendarSolution } from "./calendar_solution";
+import { startSmartBot } from "./telegram/smart_bot";
 
 const app = express();
 app.use(express.json());
@@ -69,10 +68,10 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot Telegram integrado
+    // Inicializar bot Telegram inteligente
     try {
-      await initializeSimpleBot();
-      log('✅ Bot Telegram ativado com sucesso!', 'telegram');
+      await startSmartBot();
+      log('✅ Bot Telegram Smart ativado com sucesso!', 'telegram');
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
