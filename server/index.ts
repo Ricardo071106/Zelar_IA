@@ -69,18 +69,18 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot corrigido (sem conflitos)
+    // Inicializar bot único e simples
     try {
-      const { startFixedBot } = await import('./botFixed');
-      const botInitialized = await startFixedBot();
+      const { startSingleBot } = await import('./singleBot');
+      const botInitialized = await startSingleBot();
       
       if (botInitialized) {
-        log('Bot corrigido iniciado com sucesso! Problemas de data e cancelamento resolvidos.', 'telegram');
+        log('Bot iniciado! Datas e cancelamentos funcionando.', 'telegram');
       } else {
-        log('Erro ao iniciar bot corrigido.', 'telegram');
+        log('Erro ao iniciar bot.', 'telegram');
       }
     } catch (error) {
-      log(`Erro ao iniciar o bot: ${error}`, 'telegram');
+      log(`Erro: ${error}`, 'telegram');
     }
   });
 })();
