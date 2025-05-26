@@ -54,6 +54,11 @@ function parseMessage(text: string) {
       else if (text.toLowerCase().includes('am') && hour === 12) {
         hour = 0;
       }
+      // Para números soltos (sem pm/am), assumir formato 24h se >= 7, senão assumir PM se < 7
+      else if (!text.toLowerCase().includes('pm') && !text.toLowerCase().includes('am') && !text.includes('h') && hour >= 1 && hour <= 23) {
+        // Manter o horário como está se for um número válido de 24h
+        hour = hour;
+      }
       
       time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
       break;
@@ -105,7 +110,17 @@ function parseMessage(text: string) {
   }
   
   if (foundEvent) {
-    title = foundEvent.charAt(0).toUpperCase() + foundEvent.slice(1);
+    // Se encontrou "reunião", verificar se tem especificação (1:1, com pessoa, etc.)
+    if (foundEvent === 'reunião') {
+      const reuniaoMatch = cleanText.match(/reunião\s+(de\s+)?(.+?)(?:\s+(?:amanhã|hoje|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}))/i);
+      if (reuniaoMatch && reuniaoMatch[2] && reuniaoMatch[2].length < 20) {
+        title = `Reunião ${reuniaoMatch[2].trim()}`;
+      } else {
+        title = 'Reunião';
+      }
+    } else {
+      title = foundEvent.charAt(0).toUpperCase() + foundEvent.slice(1);
+    }
   } else {
     // Se não encontrou tipo específico, extrair da frase
     title = text
