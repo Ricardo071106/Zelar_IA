@@ -69,15 +69,15 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot limpo sem conflitos
+    // Inicializar bot limpo e funcional
     try {
-      const { startCleanBot } = await import('./cleanBot');
-      const botInitialized = await startCleanBot();
+      const { startWorkingBot } = await import('./workingBot');
+      const botStarted = await startWorkingBot();
       
-      if (botInitialized) {
-        log('Bot funcionando! Cálculo de datas correto e cancelamentos funcionando.', 'telegram');
+      if (botStarted) {
+        log('✅ Bot funcionando! Cálculo de datas correto, sem funcionalidades desnecessárias.', 'telegram');
       } else {
-        log('Erro ao iniciar bot.', 'telegram');
+        log('❌ Erro ao iniciar bot.', 'telegram');
       }
     } catch (error) {
       log(`Erro: ${error}`, 'telegram');
