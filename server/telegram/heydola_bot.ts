@@ -116,7 +116,9 @@ function extractSmartTitle(text: string): string {
     .replace(/(?:reserve|agende|marque)\s+(?:um\s+)?(?:horário|horario|compromisso)/gi, '')
     .replace(/(?:da\s+minha\s+agenda\s+)?(?:para|pra)\s+/gi, '')
     .replace(/(?:daqui\s+a\s+\d+\s+\w+|amanha|amanhã|hoje)/gi, '')
-    .replace(/(?:domingo|segunda(?:\s+feira|-feira)?|terça(?:\s+feira|-feira)?|quarta(?:\s+feira|-feira)?|quinta(?:\s+feira|-feira)?|sexta(?:\s+feira|-feira)?|sábado|sabado)/gi, '')
+    .replace(/sexta\s+feira/gi, '')  // Remover "sexta feira" especificamente
+    .replace(/(?:domingo|segunda-feira|terça-feira|quarta-feira|quinta-feira|sexta-feira|sábado|sabado)/gi, '')
+    .replace(/(?:segunda|terça|quarta|quinta|sexta)/gi, '')  // Remover dias sozinhos também
     .replace(/(?:às?|as|começ|comeca)\s*\d{1,2}(?::\d{2})?\s*(?:h|am|pm)?/gi, '')
     .replace(/(?:me\s+)?lembr(?:ar|ando)\s+(?:de\s+)?/gi, '')
     .replace(/\s+/g, ' ')
