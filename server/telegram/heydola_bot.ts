@@ -136,11 +136,11 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
   let eventDate = new Date(now);
   let time = '10:00';
   
-  // 1. PROCESSAR HORÁRIOS PRIMEIRO
+  // 1. PROCESSAR HORÁRIOS PRIMEIRO - CORRIGIDO PARA 24H
   const timePatterns = [
-    /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs)?(?:oras?)?/i,
-    /(?:começando|comecando)\s+(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs)?/i,
-    /(\d{1,2})(?::(\d{2}))?\s*(?:h|hs)(?:oras?)?/i,
+    /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "às 16h"
+    /(?:começando|comecando)\s+(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,
+    /(\d{1,2})(?::(\d{2}))?\s*(?:h|hs|horas?)/i,  // "16h"
     /(\d{1,2})\s*am/i,
     /(\d{1,2})\s*pm/i
   ];
@@ -151,11 +151,16 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
       let hour = parseInt(match[1]);
       const minute = match[2] ? parseInt(match[2]) : 0;
       
-      // Converter PM/AM
-      if (textLower.includes('pm') && hour < 12) hour += 12;
-      if (textLower.includes('am') && hour === 12) hour = 0;
-      
-      time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      // Para horários com "h" - manter formato 24h (16h = 16:00, não converter)
+      if (textLower.includes('h') && !textLower.includes('pm') && !textLower.includes('am')) {
+        // Formato 24h brasileiro - não converter
+        time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      } else {
+        // Converter apenas PM/AM
+        if (textLower.includes('pm') && hour < 12) hour += 12;
+        if (textLower.includes('am') && hour === 12) hour = 0;
+        time = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+      }
       break;
     }
   }
