@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { initializeTelegramBot } from "./telegram";
+import { initializeSimpleBot } from "./telegram/simple_working_bot";
 import { startCalendarSolution } from "./calendar_solution";
 
 const app = express();
@@ -71,7 +71,7 @@ app.use((req, res, next) => {
     
     // Inicializar bot Telegram integrado
     try {
-      await initializeTelegramBot();
+      await initializeSimpleBot();
       log('✅ Bot Telegram ativado com sucesso!', 'telegram');
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
