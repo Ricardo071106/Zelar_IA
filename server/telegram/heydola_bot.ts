@@ -115,7 +115,8 @@ function extractSmartTitle(text: string): string {
   let cleanText = text
     .replace(/(?:reserve|agende|marque)\s+(?:um\s+)?(?:horário|horario|compromisso)/gi, '')
     .replace(/(?:da\s+minha\s+agenda\s+)?(?:para|pra)\s+/gi, '')
-    .replace(/(?:daqui\s+a\s+\d+\s+\w+|amanha|amanhã|hoje|domingo|segunda|terça|quarta|quinta|sexta|sábado|sabado)/gi, '')
+    .replace(/(?:daqui\s+a\s+\d+\s+\w+|amanha|amanhã|hoje)/gi, '')
+    .replace(/(?:domingo|segunda(?:\s+feira|-feira)?|terça(?:\s+feira|-feira)?|quarta(?:\s+feira|-feira)?|quinta(?:\s+feira|-feira)?|sexta(?:\s+feira|-feira)?|sábado|sabado)/gi, '')
     .replace(/(?:às?|as|começ|comeca)\s*\d{1,2}(?::\d{2})?\s*(?:h|am|pm)?/gi, '')
     .replace(/(?:me\s+)?lembr(?:ar|ando)\s+(?:de\s+)?/gi, '')
     .replace(/\s+/g, ' ')
@@ -236,7 +237,7 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
     eventDate = getNextWeekday(now, 3);
   } else if (textLower.includes('quinta')) {
     eventDate = getNextWeekday(now, 4);
-  } else if (textLower.includes('sexta')) {
+  } else if (textLower.includes('sexta feira') || textLower.includes('sexta-feira') || textLower.includes('sexta')) {
     eventDate = getNextWeekday(now, 5);
   } else if (textLower.includes('sábado') || textLower.includes('sabado')) {
     eventDate = getNextWeekday(now, 6);
