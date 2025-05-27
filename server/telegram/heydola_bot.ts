@@ -19,11 +19,10 @@ interface ParsedEvent {
 }
 
 /**
- * Processamento de linguagem natural inspirado no HeyDola
+ * Processamento de linguagem natural inspirado no HeyDola - VERSÃO CORRIGIDA
  */
 function parseEventMessage(text: string): ParsedEvent {
   const now = new Date();
-  let eventDate = new Date(now);
   
   console.log('🔍 Processando:', text);
 
@@ -31,19 +30,21 @@ function parseEventMessage(text: string): ParsedEvent {
   let title = extractSmartTitle(text);
   console.log('📝 Título extraído:', title);
 
-  // 2. PROCESSAR DATAS E HORÁRIOS
-  const { date, time } = extractDateAndTime(text, now);
-  eventDate = date;
+  // 2. PROCESSAR DATAS E HORÁRIOS DE FORMA INTEGRADA
+  const result = extractDateAndTime(text, now);
   
-  // Aplicar horário
-  const [hour, minute] = time.split(':').map(Number);
-  eventDate.setHours(hour, minute, 0, 0);
+  console.log(`🕰️ Horário processado: ${result.time}`);
+  console.log(`📅 Data processada: ${result.date.toLocaleDateString('pt-BR')}`);
   
-  console.log('📅 Data final:', eventDate.toLocaleString('pt-BR'));
+  // 3. APLICAR HORÁRIO NA DATA FINAL
+  const [hour, minute] = result.time.split(':').map(Number);
+  result.date.setHours(hour, minute, 0, 0);
+  
+  console.log('📅 Data e hora FINAL:', result.date.toLocaleString('pt-BR'));
   
   return {
     title,
-    startDate: eventDate,
+    startDate: result.date,
     description: text
   };
 }
@@ -142,7 +143,7 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
   // 1. PROCESSAR HORÁRIOS PRIMEIRO - VERSÃO CORRIGIDA
   console.log(`🔍 Analisando horários em: "${textLower}"`);
   
-  // Padrões mais específicos e organizados
+  // Padrões de horário CORRIGIDOS
   const timeMatches = [
     // PM/AM primeiro (mais específico)
     { pattern: /(\d{1,2})\s*pm/i, type: 'pm' },
@@ -150,8 +151,8 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
     // Formato brasileiro com "h"
     { pattern: /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?\s*h/i, type: '24h' },
     { pattern: /(\d{1,2})(?::(\d{2}))?\s*h/i, type: '24h' },
-    // Formato brasileiro SEM "h" - mais específico
-    { pattern: /(?:às?|as)\s*(\d{1,2})(?::(\d{2}))?(?:\s|$)/i, type: '24h' }
+    // Formato brasileiro SEM "h" - CORRIGIDO
+    { pattern: /(?:às?|as)\s+(\d{1,2})(?!\w)/i, type: '24h' }
   ];
 
   for (const timeMatch of timeMatches) {
@@ -232,14 +233,14 @@ function extractDateAndTime(text: string, now: Date): { date: Date, time: string
     }
   }
   
-  // Padrões de data simples - CORRIGIDO para preservar horário
+  // Padrões de data simples - VERSÃO CORRIGIDA
   if (textLower.includes('amanha') || textLower.includes('amanhã')) {
     eventDate = new Date(now);
     eventDate.setDate(now.getDate() + 1);
-    console.log(`📅 Processando amanhã: ${eventDate.toLocaleDateString('pt-BR')}`);
+    console.log(`📅 Amanhã detectado: ${eventDate.toLocaleDateString('pt-BR')}`);
   } else if (textLower.includes('hoje')) {
     eventDate = new Date(now);
-    console.log(`📅 Processando hoje: ${eventDate.toLocaleDateString('pt-BR')}`);
+    console.log(`📅 Hoje detectado: ${eventDate.toLocaleDateString('pt-BR')}`);
   } else if (textLower.includes('domingo')) {
     eventDate = getNextWeekday(now, 0);
   } else if (textLower.includes('segunda')) {
@@ -300,7 +301,13 @@ export async function startHeyDolaBot(): Promise<boolean> {
   try {
     if (bot) {
       console.log('[telegram] Parando bot existente...');
-      await bot.stop();
+      try {
+        await bot.stop();
+        bot = null;
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar 2 segundos
+      } catch (e) {
+        console.log('[telegram] Bot já estava parado');
+      }
     }
 
     if (!process.env.TELEGRAM_BOT_TOKEN) {
