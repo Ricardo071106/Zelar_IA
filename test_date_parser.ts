@@ -36,7 +36,5 @@ async function testDateParser() {
   }
 }
 
-// Executar teste se chamado diretamente
-if (require.main === module) {
-  testDateParser();
-}
+// Executar teste
+testDateParser();
