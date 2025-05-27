@@ -30,7 +30,7 @@ export default function FeaturesSection() {
   const features = [
     {
       icon: <MessageSquare className="text-primary text-2xl" />,
-      title: "Processamento de Linguagem Natural",
+      title: "Linguagem Simples",
       description: "Simplesmente diga 'agendar reunião amanhã às 15h' e o Zelar entenderá automaticamente usando inteligência artificial."
     },
     {
