@@ -1,55 +1,19 @@
 import { DateTime } from 'luxon';
 
 /**
- * Função utilitária para interpretar datas e horários em português informal
- * 
- * @param input Texto em português com data/hora (ex: "quarta às sete da noite", "amanhã às 9")
- * @returns Data/hora no formato ISO 8601 com offset de São Paulo ou null se não conseguir interpretar
+ * Encontra o próximo dia da semana
  */
-export function parseBrazilianDateTime(input: string): string | null {
-  try {
-    console.log(`🔍 Analisando: "${input}"`);
-    
-    const normalizedInput = input.toLowerCase().trim();
-    
-    // Extrair informações de data e hora
-    const dateInfo = extractDateInfo(normalizedInput);
-    const timeInfo = extractTimeInfo(normalizedInput);
-    
-    if (!dateInfo) {
-      console.log(`❌ Não foi possível extrair data de: "${input}"`);
-      return null;
-    }
-    
-    // Criar DateTime no fuso de São Paulo
-    let baseDateTime = DateTime.now().setZone('America/Sao_Paulo');
-    
-    // Aplicar a data extraída
-    if (dateInfo.type === 'relative') {
-      baseDateTime = baseDateTime.plus({ days: dateInfo.daysOffset });
-    } else if (dateInfo.type === 'weekday') {
-      baseDateTime = getNextWeekday(baseDateTime, dateInfo.weekday, dateInfo.isNext);
-    }
-    
-    // Aplicar o horário (padrão: 9:00 se não especificado)
-    const hour = timeInfo?.hour ?? 9;
-    const minute = timeInfo?.minute ?? 0;
-    
-    const finalDateTime = baseDateTime.set({ 
-      hour, 
-      minute, 
-      second: 0, 
-      millisecond: 0 
-    });
-    
-    const isoString = finalDateTime.toISO();
-    console.log(`✅ Interpretado "${input}" como: ${isoString}`);
-    return isoString;
-    
-  } catch (error) {
-    console.error(`❌ Erro ao interpretar "${input}":`, error);
-    return null;
+function getNextWeekday(baseDate: DateTime, targetWeekday: number, isNext: boolean = false): DateTime {
+  const currentWeekday = baseDate.weekday;
+  
+  let daysToAdd = targetWeekday - currentWeekday;
+  
+  // Se é o mesmo dia da semana e queremos "próxima", adicionar uma semana
+  if (isNext || daysToAdd <= 0) {
+    daysToAdd += 7;
   }
+  
+  return baseDate.plus({ days: daysToAdd });
 }
 
 /**
@@ -131,19 +95,55 @@ function extractTimeInfo(input: string): { hour: number, minute: number } | null
 }
 
 /**
- * Encontra o próximo dia da semana
+ * Função utilitária para interpretar datas e horários em português informal
+ * 
+ * @param input Texto em português com data/hora (ex: "quarta às sete da noite", "amanhã às 9")
+ * @returns Data/hora no formato ISO 8601 com offset de São Paulo ou null se não conseguir interpretar
  */
-function getNextWeekday(baseDate: DateTime, targetWeekday: number, isNext: boolean = false): DateTime {
-  const currentWeekday = baseDate.weekday;
-  
-  let daysToAdd = targetWeekday - currentWeekday;
-  
-  // Se é o mesmo dia da semana e queremos "próxima", adicionar uma semana
-  if (isNext || daysToAdd <= 0) {
-    daysToAdd += 7;
+export function parseBrazilianDateTime(input: string): string | null {
+  try {
+    console.log(`🔍 Analisando: "${input}"`);
+    
+    const normalizedInput = input.toLowerCase().trim();
+    
+    // Extrair informações de data e hora
+    const dateInfo = extractDateInfo(normalizedInput);
+    const timeInfo = extractTimeInfo(normalizedInput);
+    
+    if (!dateInfo) {
+      console.log(`❌ Não foi possível extrair data de: "${input}"`);
+      return null;
+    }
+    
+    // Criar DateTime no fuso de São Paulo
+    let baseDateTime = DateTime.now().setZone('America/Sao_Paulo');
+    
+    // Aplicar a data extraída
+    if (dateInfo.type === 'relative' && dateInfo.daysOffset !== undefined) {
+      baseDateTime = baseDateTime.plus({ days: dateInfo.daysOffset });
+    } else if (dateInfo.type === 'weekday' && dateInfo.weekday !== undefined) {
+      baseDateTime = getNextWeekday(baseDateTime, dateInfo.weekday, dateInfo.isNext);
+    }
+    
+    // Aplicar o horário (padrão: 9:00 se não especificado)
+    const hour = timeInfo?.hour ?? 9;
+    const minute = timeInfo?.minute ?? 0;
+    
+    const finalDateTime = baseDateTime.set({ 
+      hour, 
+      minute, 
+      second: 0, 
+      millisecond: 0 
+    });
+    
+    const isoString = finalDateTime.toISO();
+    console.log(`✅ Interpretado "${input}" como: ${isoString}`);
+    return isoString;
+    
+  } catch (error) {
+    console.error(`❌ Erro ao interpretar "${input}":`, error);
+    return null;
   }
-  
-  return baseDate.plus({ days: daysToAdd });
 }
 
 /**
