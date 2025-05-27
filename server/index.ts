@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startHeyDolaBot } from "./telegram/heydola_bot";
+import { startZelarBot } from "./telegram/zelar_bot";
 
 const app = express();
 app.use(express.json());
@@ -68,10 +68,10 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot Telegram inspirado no HeyDola
+    // Inicializar bot Telegram Zelar
     try {
-      await startHeyDolaBot();
-      log('✅ Bot Telegram HeyDola ativado com sucesso!', 'telegram');
+      await startZelarBot();
+      log('✅ Bot Telegram Zelar ativado com sucesso!', 'telegram');
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
