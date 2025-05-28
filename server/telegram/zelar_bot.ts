@@ -501,10 +501,12 @@ export async function startZelarBot(): Promise<boolean> {
             minute: claudeResult.minute
           }, { zone: userTimezone });
           
+          const isoString = eventDate.toISO();
           event = {
             title: claudeResult.title,
-            displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
-            iso: eventDate.toISO()
+            startDate: isoString || eventDate.toString(),
+            description: claudeResult.title,
+            displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
           };
           
           console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
