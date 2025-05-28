@@ -409,7 +409,7 @@ export async function startZelarBot(): Promise<boolean> {
       if (!userTimezones.has(userId) && (message.includes('às') || message.includes('da noite') || message.includes('da tarde'))) {
         await ctx.reply(
           `⚠️ *Configure seu fuso horário primeiro!*\n\n` +
-          `💡 *Use:* \`/setfuso America/Sao_Paulo\`\n\n` +
+          `💡 *Use:* \`/fuso America/Sao_Paulo\`\n\n` +
           `Depois você poderá usar horários como "às 7 da noite" que serão interpretados no seu fuso local.`,
           { parse_mode: 'Markdown' }
         );
@@ -461,7 +461,7 @@ export async function startZelarBot(): Promise<boolean> {
         if (hasTimePattern && !userTimezones.has(userId)) {
           await ctx.reply(
             `⚠️ *Configure seu fuso horário primeiro!*\n\n` +
-            `💡 *Use:* \`/setfuso America/Sao_Paulo\`\n\n` +
+            `💡 *Use:* \`/fuso America/Sao_Paulo\`\n\n` +
             `Depois você poderá usar expressões como:\n` +
             `• "às 7 da noite" → 19:00 no seu horário local\n` +
             `• "às 3 da tarde" → 15:00 no seu horário local\n` +
@@ -486,7 +486,7 @@ export async function startZelarBot(): Promise<boolean> {
             '• "reunião quarta às 15h"\n' +
             '• "consulta sexta que vem às 10 da manhã"\n\n' +
             '🔍 Use `/interpretar sua frase` para testar!\n' +
-            '🌍 Use `/setfuso` para configurar horários locais!',
+            '🌍 Use `/fuso` para configurar horários locais!',
             { parse_mode: 'Markdown' }
           );
           return;
