@@ -4,7 +4,7 @@
  */
 
 import { Telegraf } from 'telegraf';
-import { parseBrazilianDateTime } from '../utils/dateParser';
+import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES } from './utils/parseDate';
 
 let bot: Telegraf | null = null;
 
@@ -56,13 +56,13 @@ function extractEventTitle(text: string): string {
 }
 
 /**
- * Processa mensagem usando interpretação avançada de datas
+ * Processa mensagem usando interpretação avançada de datas com detecção de fuso horário
  */
-function processMessage(text: string): Event | null {
-  console.log(`🔍 Processando com IA: "${text}"`);
+function processMessage(text: string, userId: string, languageCode?: string): Event | null {
+  console.log(`🔍 Processando com detecção de fuso: "${text}"`);
   
-  // Usar nossa função avançada de interpretação de datas
-  const result = parseBrazilianDateTime(text);
+  // Usar nossa função avançada de interpretação de datas com fuso do usuário
+  const result = parseUserDateTime(text, userId, languageCode);
   
   if (!result) {
     console.log('❌ Não foi possível interpretar data/hora');
@@ -132,6 +132,46 @@ export async function startZelarBot(): Promise<boolean> {
       );
     });
 
+    // Comando /fuso - configurar fuso horário
+    bot.command('fuso', async (ctx) => {
+      const message = ctx.message.text.replace('/fuso', '').trim();
+      const userId = ctx.from?.id.toString() || 'unknown';
+      
+      if (!message) {
+        const currentTimezone = getUserTimezone(userId, ctx.from?.language_code);
+        const timezoneList = COMMON_TIMEZONES.slice(0, 6).map(tz => `• \`${tz}\``).join('\n');
+        
+        await ctx.reply(
+          `🌍 *Configuração de Fuso Horário*\n\n` +
+          `📍 *Seu fuso atual:* \`${currentTimezone}\`\n\n` +
+          `💡 *Para alterar:* \`/fuso America/Sao_Paulo\`\n\n` +
+          `📋 *Fusos comuns:*\n${timezoneList}`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      const success = setUserTimezone(userId, message);
+      
+      if (success) {
+        await ctx.reply(
+          `✅ *Fuso horário atualizado!*\n\n` +
+          `🌍 *Novo fuso:* \`${message}\`\n\n` +
+          `Todos os seus eventos agora usarão este fuso horário.`,
+          { parse_mode: 'Markdown' }
+        );
+      } else {
+        await ctx.reply(
+          `❌ *Fuso horário inválido*\n\n` +
+          `💡 *Exemplos válidos:*\n` +
+          `• \`America/Sao_Paulo\` (Brasil)\n` +
+          `• \`America/New_York\` (EUA)\n` +
+          `• \`Europe/London\` (Reino Unido)`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+    });
+
     // Comando de teste para interpretação de datas
     bot.command('interpretar', async (ctx) => {
       const message = ctx.message.text.replace('/interpretar', '').trim();
@@ -141,20 +181,23 @@ export async function startZelarBot(): Promise<boolean> {
           '💡 *Como usar:*\n\n' +
           '`/interpretar quarta às sete da noite`\n' +
           '`/interpretar sexta que vem às 19h`\n' +
-          '`/interpretar amanhã às 9`\n\n' +
-          'Digite qualquer data/hora em português!',
+          '`/interpretar 19` ou `/interpretar 7 da noite`\n\n' +
+          'Digite qualquer data/hora!',
           { parse_mode: 'Markdown' }
         );
         return;
       }
 
-      const result = parseBrazilianDateTime(message);
+      const userId = ctx.from?.id.toString() || 'unknown';
+      const result = parseUserDateTime(message, userId, ctx.from?.language_code);
       
       if (result) {
+        const currentTimezone = getUserTimezone(userId, ctx.from?.language_code);
         await ctx.reply(
           `✅ *Entendi perfeitamente!*\n\n` +
           `📝 *Você disse:* "${message}"\n\n` +
-          `📅 *Interpretei como:*\n${result.readable}`,
+          `📅 *Interpretei como:*\n${result.readable}\n\n` +
+          `🌍 *Fuso usado:* \`${currentTimezone}\``,
           { parse_mode: 'Markdown' }
         );
       } else {
@@ -163,7 +206,7 @@ export async function startZelarBot(): Promise<boolean> {
           `📝 *Você disse:* "${message}"\n\n` +
           `💡 *Tente algo como:*\n` +
           `• "hoje às 15h"\n` +
-          `• "segunda que vem às 9 da manhã"\n` +
+          `• "19" ou "7 da noite"\n` +
           `• "sexta às sete da noite"`
         );
       }
@@ -176,7 +219,8 @@ export async function startZelarBot(): Promise<boolean> {
         
         if (message.startsWith('/')) return;
         
-        const event = processMessage(message);
+        const userId = ctx.from?.id.toString() || 'unknown';
+        const event = processMessage(message, userId, ctx.from?.language_code);
         
         if (!event) {
           await ctx.reply(
