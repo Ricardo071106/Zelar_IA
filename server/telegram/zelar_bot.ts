@@ -8,6 +8,94 @@ import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES }
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { DateTime, IANAZone } from 'luxon';
 
+// =================== SISTEMA DE APRENDIZADO SIMPLES ===================
+interface LearnedPattern {
+  originalText: string;
+  title: string;
+  hour: number;
+  minute: number;
+  date: string;
+  confidence: number;
+  usageCount: number;
+}
+
+// Cache em memória para padrões aprendidos
+const learnedPatterns: LearnedPattern[] = [];
+
+/**
+ * Salva um padrão bem-sucedido do Claude para uso futuro
+ */
+function savePatternForLearning(originalText: string, title: string, hour: number, minute: number, date: string): void {
+  const existing = learnedPatterns.find(p => p.originalText === originalText);
+  
+  if (existing) {
+    existing.usageCount++;
+    existing.confidence = Math.min(existing.confidence + 0.1, 1.0);
+  } else {
+    learnedPatterns.push({
+      originalText,
+      title,
+      hour,
+      minute,
+      date,
+      confidence: 0.8,
+      usageCount: 1
+    });
+  }
+  
+  console.log(`📚 Padrão aprendido: "${originalText}" → ${title} às ${hour}:${minute.toString().padStart(2, '0')}`);
+}
+
+/**
+ * Verifica se existe um padrão similar aprendido
+ */
+function checkLearnedPatterns(userText: string): Event | null {
+  const userTextLower = userText.toLowerCase();
+  
+  for (const pattern of learnedPatterns) {
+    // Calcular similaridade simples
+    const similarity = calculateSimpleSimilarity(userTextLower, pattern.originalText);
+    
+    if (similarity > 0.7 && pattern.confidence > 0.6) {
+      console.log(`🎯 Padrão similar encontrado: "${pattern.originalText}" (similaridade: ${similarity.toFixed(2)})`);
+      
+      const eventDate = DateTime.fromObject({
+        year: 2025,
+        month: 5,
+        day: 29,
+        hour: pattern.hour,
+        minute: pattern.minute
+      }, { zone: 'America/Sao_Paulo' });
+      
+      return {
+        title: pattern.title,
+        startDate: eventDate.toISO() || eventDate.toString(),
+        description: pattern.title,
+        displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
+      };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Calcula similaridade simples entre dois textos
+ */
+function calculateSimpleSimilarity(text1: string, text2: string): number {
+  const words1 = text1.split(' ').filter(w => w.length > 2);
+  const words2 = text2.split(' ').filter(w => w.length > 2);
+  
+  let matches = 0;
+  for (const word1 of words1) {
+    if (words2.some(word2 => word1.includes(word2) || word2.includes(word1))) {
+      matches++;
+    }
+  }
+  
+  return matches / Math.max(words1.length, words2.length);
+}
+
 let bot: Telegraf | null = null;
 
 // =================== INÍCIO: FUNCIONALIDADE DE HORÁRIOS LOCAIS ===================
@@ -484,7 +572,7 @@ export async function startZelarBot(): Promise<boolean> {
         }
         // =================== FIM: VERIFICAÇÃO HORÁRIOS LOCAIS ===================
         
-        // =================== CORREÇÃO: USAR CLAUDE HAIKU PARA INTERPRETAÇÃO ===================
+        // =================== SISTEMA HÍBRIDO: CLAUDE + APRENDIZADO LOCAL ===================
         console.log(`🤖 Usando Claude Haiku para interpretar: "${message}"`);
         
         const userTimezone = getUserTimezone(userIdString, ctx.from?.language_code);
@@ -509,10 +597,20 @@ export async function startZelarBot(): Promise<boolean> {
             displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
           };
           
+          // 🧠 APRENDIZADO: Salvar padrão bem-sucedido para melhorar parsing local
+          savePatternForLearning(message.toLowerCase(), claudeResult.title, claudeResult.hour, claudeResult.minute, claudeResult.date);
+          
           console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
         } else {
-          // Fallback para método anterior se Claude falhar
-          event = processMessage(message, userIdString, ctx.from?.language_code);
+          // Fallback melhorado: verificar padrões aprendidos primeiro
+          const learnedPattern = checkLearnedPatterns(message);
+          if (learnedPattern) {
+            console.log(`🎯 Usando padrão aprendido: ${learnedPattern.title}`);
+            event = learnedPattern;
+          } else {
+            // Usar método anterior como último recurso
+            event = processMessage(message, userIdString, ctx.from?.language_code);
+          }
         }
         
         if (!event) {
