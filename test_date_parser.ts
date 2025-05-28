@@ -25,9 +25,9 @@ async function testDateParser() {
     const resultado = parseBrazilianDateTime(exemplo);
     
     if (resultado) {
-      const formatoAmigavel = formatBrazilianDateTime(resultado);
-      console.log(`✅ Sucesso: ${formatoAmigavel}`);
-      console.log(`📅 ISO: ${resultado}`);
+      console.log(`✅ Sucesso!`);
+      console.log(`📅 ISO: ${resultado.iso}`);
+      console.log(`📋 Legível: ${resultado.readable}`);
     } else {
       console.log(`❌ Não foi possível interpretar`);
     }

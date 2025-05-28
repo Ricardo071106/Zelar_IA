@@ -4,13 +4,13 @@
  */
 
 import { Telegraf } from 'telegraf';
-import { parseBrazilianDateTime, formatBrazilianDateTime } from '../utils/dateParser';
+import { parseBrazilianDateTime } from '../utils/dateParser';
 
 let bot: Telegraf | null = null;
 
 interface Event {
   title: string;
-  startDate: string; // ISO string from parseBrazilianDateTime
+  startDate: string; // ISO string for Google Calendar
   description: string;
   displayDate: string; // Formatted date for display
 }
@@ -62,24 +62,23 @@ function processMessage(text: string): Event | null {
   console.log(`🔍 Processando com IA: "${text}"`);
   
   // Usar nossa função avançada de interpretação de datas
-  const parsedDateTime = parseBrazilianDateTime(text);
+  const result = parseBrazilianDateTime(text);
   
-  if (!parsedDateTime) {
+  if (!result) {
     console.log('❌ Não foi possível interpretar data/hora');
     return null;
   }
   
   const title = extractEventTitle(text);
-  const displayDate = formatBrazilianDateTime(parsedDateTime);
   
   console.log(`📝 Título extraído: "${title}"`);
-  console.log(`📅 Data interpretada: ${displayDate}`);
+  console.log(`📅 Data interpretada: ${result.readable}`);
   
   return {
     title,
-    startDate: parsedDateTime,
+    startDate: result.iso,
     description: text,
-    displayDate
+    displayDate: result.readable
   };
 }
 
@@ -149,14 +148,13 @@ export async function startZelarBot(): Promise<boolean> {
         return;
       }
 
-      const parsedDateTime = parseBrazilianDateTime(message);
+      const result = parseBrazilianDateTime(message);
       
-      if (parsedDateTime) {
-        const friendlyFormat = formatBrazilianDateTime(parsedDateTime);
+      if (result) {
         await ctx.reply(
           `✅ *Entendi perfeitamente!*\n\n` +
           `📝 *Você disse:* "${message}"\n\n` +
-          `📅 *Interpretei como:*\n${friendlyFormat}`,
+          `📅 *Interpretei como:*\n${result.readable}`,
           { parse_mode: 'Markdown' }
         );
       } else {
