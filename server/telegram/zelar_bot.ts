@@ -459,8 +459,17 @@ export async function startZelarBot(): Promise<boolean> {
       }
     });
 
+    // =================== DEFINIR COMANDOS OFICIAIS ===================
+    // Limpar comandos desnecessários e definir apenas os úteis
+    await bot.telegram.setMyCommands([
+      { command: 'start', description: 'Iniciar o assistente' },
+      { command: 'fuso', description: 'Configurar fuso horário' },
+      { command: 'setfuso', description: 'Definir fuso horário local' },
+      { command: 'interpretar', description: 'Testar interpretação de datas' }
+    ]);
+    
     await bot.launch();
-    console.log('✅ Bot Zelar ativo!');
+    console.log('✅ Bot Zelar ativo com comandos limpos!');
     return true;
 
   } catch (error) {
