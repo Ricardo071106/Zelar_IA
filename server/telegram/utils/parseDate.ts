@@ -1,4 +1,4 @@
-import { DateTime } from 'luxon';
+import { DateTime, IANAZone } from 'luxon';
 import * as chrono from 'chrono-node';
 
 /**
@@ -26,17 +26,41 @@ const TIMEZONE_BY_LANGUAGE: { [key: string]: string } = {
 const userTimezones = new Map<string, string>();
 
 /**
- * Define o fuso horário para um usuário específico
+ * Valida se um fuso horário é válido usando Luxon
+ */
+function isValidZone(zone: string): boolean {
+  try {
+    return IANAZone.isValidZone(zone);
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Define o fuso horário para um usuário específico com validação robusta
  */
 export function setUserTimezone(userId: string, timezone: string): boolean {
   try {
-    // Validar se o fuso horário é válido
-    DateTime.now().setZone(timezone);
+    // =================== CORREÇÃO: VALIDAÇÃO ROBUSTA DE FUSO ===================
+    // Primeiro validar com IANAZone
+    if (!isValidZone(timezone)) {
+      console.error(`❌ Fuso horário inválido (IANA): ${timezone}`);
+      return false;
+    }
+    
+    // Segundo testar criação de DateTime
+    const testDateTime = DateTime.now().setZone(timezone);
+    if (!testDateTime.isValid) {
+      console.error(`❌ Fuso horário inválido (DateTime): ${timezone}`);
+      return false;
+    }
+    
     userTimezones.set(userId, timezone);
-    console.log(`🌍 Fuso horário definido para usuário ${userId}: ${timezone}`);
+    console.log(`🌍 Fuso horário validado e definido para usuário ${userId}: ${timezone}`);
     return true;
+    // =================== FIM CORREÇÃO ===================
   } catch (error) {
-    console.error(`❌ Fuso horário inválido: ${timezone}`);
+    console.error(`❌ Erro ao definir fuso horário: ${timezone}`, error);
     return false;
   }
 }
@@ -149,8 +173,14 @@ export function parseUserDateTime(
   try {
     console.log(`🔍 Analisando "${input}" para usuário ${userId}`);
     
-    // Obter fuso horário do usuário
-    const userTimezone = getUserTimezone(userId, languageCode);
+    // Obter fuso horário do usuário com validação
+    let userTimezone = getUserTimezone(userId, languageCode);
+    
+    // =================== CORREÇÃO: VALIDAR FUSO ANTES DE USAR ===================
+    if (!isValidZone(userTimezone)) {
+      console.error(`❌ Fuso inválido detectado: ${userTimezone}, usando fallback`);
+      userTimezone = 'America/Sao_Paulo'; // Fallback seguro
+    }
     
     // Estratégia híbrida: extrair hora primeiro, depois data com o horário
     const timeResult = extractTimeFromText(input);
@@ -169,16 +199,27 @@ export function parseUserDateTime(
     
     console.log(`📅 Data extraída: ${dateResult.toDateString()}`);
     
-    // =================== CORREÇÃO: INTERPRETAR HORÁRIO COMO LOCAL ===================
+    // =================== CORREÇÃO: INTERPRETAR HORÁRIO COMO LOCAL COM VALIDAÇÃO ===================
     // Criar data/hora diretamente no fuso do usuário
     const userDateTime = DateTime.fromJSDate(dateResult, { zone: userTimezone })
       .set({ hour, minute, second: 0, millisecond: 0 });
     
+    // Validar se o DateTime criado é válido
+    if (!userDateTime.isValid) {
+      console.error(`❌ DateTime inválido criado com fuso ${userTimezone}`);
+      return null;
+    }
+    
     console.log(`📅 Data/hora criada no fuso ${userTimezone}: ${userDateTime.toISO()}`);
     // =================== FIM CORREÇÃO ===================
     
-    // Gerar os dois formatos
-    const iso = userDateTime.toISO()!;
+    // Gerar os dois formatos com validação
+    const iso = userDateTime.toISO();
+    if (!iso) {
+      console.error(`❌ Não foi possível gerar ISO string`);
+      return null;
+    }
+    
     const readable = userDateTime.setLocale('pt-BR').toFormat('cccc, dd \'de\' LLLL \'às\' HH:mm');
     
     console.log(`✅ Resultado final:`);
@@ -197,13 +238,24 @@ export function parseUserDateTime(
  * Encontra a próxima ocorrência de um dia da semana no futuro
  */
 function getNextWeekdayDate(weekday: number, hour: number, minute: number, zone: string): DateTime {
+  // =================== CORREÇÃO: VALIDAR FUSO ANTES DE USAR ===================
+  if (!isValidZone(zone)) {
+    console.error(`❌ Fuso inválido em getNextWeekdayDate: ${zone}, usando fallback`);
+    zone = 'America/Sao_Paulo'; // Fallback seguro
+  }
+  
   const now = DateTime.now().setZone(zone);
+  if (!now.isValid) {
+    console.error(`❌ DateTime inválido com fuso ${zone}`);
+    return DateTime.now(); // Fallback
+  }
+  
   let date = now.startOf('day');
   
   // Se é hoje e o horário ainda não passou, usar hoje
   if (date.weekday === weekday) {
     const todayWithTime = now.set({ hour, minute, second: 0, millisecond: 0 });
-    if (todayWithTime > now) {
+    if (todayWithTime.isValid && todayWithTime > now) {
       console.log(`📅 Agendando para hoje mesmo (${date.toFormat('cccc')}) pois horário ainda não passou`);
       return date;
     }
