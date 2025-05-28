@@ -86,28 +86,38 @@ function extractEventTitle(text: string): string {
   
   // =================== CORREÇÃO: USAR CHRONO-NODE PARA DETECTAR DATA/HORA ===================
   
-  // 1. PRIMEIRO: Tentar usar chrono-node para cortar a frase antes da data/hora
-  try {
-    const chrono = require('chrono-node');
-    const results = chrono.pt.parse(text);
-    
-    if (results.length > 0) {
-      // Pegar onde começa a primeira expressão de tempo
-      const dateTimeIndex = results[0].index;
-      
-      // Extrair apenas a parte antes da data/hora
-      let titlePart = text.substring(0, dateTimeIndex).trim();
-      
-      if (titlePart.length > 2) {
-        // Limpar preposições e artigos no final
-        titlePart = titlePart.replace(/\s+(no|na|em|de|da|do|às|as)$/i, '').trim();
-        
-        console.log(`📝 Título limpo extraído: "${titlePart}" de "${text}"`);
-        return capitalizeFirst(titlePart);
-      }
+  // 1. CORREÇÃO: Detectar onde começa data/hora com regex e cortar a frase
+  const timePatterns = [
+    /\b(amanhã|amanha)\b/i,
+    /\b(hoje)\b/i,
+    /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/i,
+    /\b(às|as)\s+\d{1,2}\b/i,
+    /\b\d{1,2}(:\d{2})?\s*h\b/i,
+    /\b\d{1,2}\s*(am|pm)\b/i,
+    /\b(próxima|proxima|que vem)\b/i
+  ];
+  
+  let earliestIndex = text.length;
+  let foundPattern = false;
+  
+  for (const pattern of timePatterns) {
+    const match = pattern.exec(text);
+    if (match && match.index < earliestIndex) {
+      earliestIndex = match.index;
+      foundPattern = true;
     }
-  } catch (error) {
-    console.log(`⚠️ Chrono-node não disponível, usando método regex`);
+  }
+  
+  if (foundPattern && earliestIndex > 0) {
+    let titlePart = text.substring(0, earliestIndex).trim();
+    
+    // Limpar preposições e artigos no final
+    titlePart = titlePart.replace(/\s+(no|na|em|de|da|do|às|as|para|pra)$/i, '').trim();
+    
+    if (titlePart.length > 2) {
+      console.log(`📝 Título limpo extraído: "${titlePart}" de "${text}"`);
+      return capitalizeFirst(titlePart);
+    }
   }
   
   // 2. FALLBACK: Padrões específicos com contexto (ex: "reunião com João")
