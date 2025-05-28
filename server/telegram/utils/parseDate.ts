@@ -344,24 +344,42 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
         year = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
       }
       
-      // Validar se a data é válida
-      if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
-        let parsedDate = DateTime.fromObject({ 
-          year, 
-          month: month + 1, // Luxon usa meses 1-indexed
-          day, 
-          hour, 
-          minute 
-        }, { zone: userTimezone });
-        
-        // Se não foi informado ano e a data já passou este ano, usar próximo ano
-        if (!yearStr && parsedDate < now) {
-          parsedDate = parsedDate.plus({ years: 1 });
-          console.log(`📅 Data passou este ano, ajustando para próximo ano`);
+      // =================== CORREÇÃO: VALIDAÇÃO ROBUSTA DE DATAS ===================
+      // Validar intervalos mais precisos para dia e mês
+      const daysInMonth = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; // considerando ano bissexto
+      const maxDayForMonth = daysInMonth[month] || 31;
+      
+      if (day >= 1 && day <= maxDayForMonth && month >= 0 && month <= 11) {
+        try {
+          let parsedDate = DateTime.fromObject({ 
+            year, 
+            month: month + 1, // Luxon usa meses 1-indexed
+            day, 
+            hour, 
+            minute 
+          }, { zone: userTimezone });
+          
+          // Verificar se a data é válida (Luxon detecta datas inválidas como 31/02)
+          if (!parsedDate.isValid) {
+            console.log(`❌ Data inválida detectada: ${day}/${month + 1}/${year} - ${parsedDate.invalidReason}`);
+            return null;
+          }
+          
+          // Se não foi informado ano e a data já passou este ano, usar próximo ano
+          if (!yearStr && parsedDate < now) {
+            parsedDate = parsedDate.plus({ years: 1 });
+            console.log(`📅 Data passou este ano, ajustando para próximo ano`);
+          }
+          
+          console.log(`📅 Data brasileira válida: ${day}/${month + 1}/${year} → ${parsedDate.toFormat('dd/MM/yyyy')}`);
+          return parsedDate.toJSDate();
+        } catch (error) {
+          console.log(`❌ Erro ao criar data ${day}/${month + 1}/${year}: ${error}`);
+          return null;
         }
-        
-        console.log(`📅 Data brasileira detectada: ${day}/${month + 1}/${year} → ${parsedDate.toFormat('dd/MM/yyyy')}`);
-        return parsedDate.toJSDate();
+      } else {
+        console.log(`❌ Data fora do intervalo válido: dia ${day}, mês ${month + 1}`);
+        return null;
       }
     }
     
