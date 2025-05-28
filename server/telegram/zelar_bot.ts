@@ -5,6 +5,7 @@
 
 import { Telegraf } from 'telegraf';
 import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES } from './utils/parseDate';
+import { parseEventWithClaude } from '../utils/claudeParser';
 import { DateTime, IANAZone } from 'luxon';
 
 let bot: Telegraf | null = null;
@@ -483,7 +484,34 @@ export async function startZelarBot(): Promise<boolean> {
         }
         // =================== FIM: VERIFICAÇÃO HORÁRIOS LOCAIS ===================
         
-        const event = processMessage(message, userIdString, ctx.from?.language_code);
+        // =================== CORREÇÃO: USAR CLAUDE HAIKU PARA INTERPRETAÇÃO ===================
+        console.log(`🤖 Usando Claude Haiku para interpretar: "${message}"`);
+        
+        const userTimezone = getUserTimezone(userIdString, ctx.from?.language_code);
+        const claudeResult = await parseEventWithClaude(message, userTimezone);
+        
+        let event;
+        if (claudeResult.isValid) {
+          // Usar resultado do Claude
+          const eventDate = DateTime.fromObject({
+            year: parseInt(claudeResult.date.split('-')[0]),
+            month: parseInt(claudeResult.date.split('-')[1]),
+            day: parseInt(claudeResult.date.split('-')[2]),
+            hour: claudeResult.hour,
+            minute: claudeResult.minute
+          }, { zone: userTimezone });
+          
+          event = {
+            title: claudeResult.title,
+            displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
+            iso: eventDate.toISO()
+          };
+          
+          console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
+        } else {
+          // Fallback para método anterior se Claude falhar
+          event = processMessage(message, userIdString, ctx.from?.language_code);
+        }
         
         if (!event) {
           await ctx.reply(
