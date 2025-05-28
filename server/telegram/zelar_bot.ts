@@ -84,9 +84,33 @@ interface Event {
 function extractEventTitle(text: string): string {
   const textLower = text.toLowerCase();
   
-  // =================== CORREÇÃO: EXTRAÇÃO INTELIGENTE DE TÍTULOS ===================
+  // =================== CORREÇÃO: USAR CHRONO-NODE PARA DETECTAR DATA/HORA ===================
   
-  // 1. Padrões específicos com contexto (ex: "reunião com João")
+  // 1. PRIMEIRO: Tentar usar chrono-node para cortar a frase antes da data/hora
+  try {
+    const chrono = require('chrono-node');
+    const results = chrono.pt.parse(text);
+    
+    if (results.length > 0) {
+      // Pegar onde começa a primeira expressão de tempo
+      const dateTimeIndex = results[0].index;
+      
+      // Extrair apenas a parte antes da data/hora
+      let titlePart = text.substring(0, dateTimeIndex).trim();
+      
+      if (titlePart.length > 2) {
+        // Limpar preposições e artigos no final
+        titlePart = titlePart.replace(/\s+(no|na|em|de|da|do|às|as)$/i, '').trim();
+        
+        console.log(`📝 Título limpo extraído: "${titlePart}" de "${text}"`);
+        return capitalizeFirst(titlePart);
+      }
+    }
+  } catch (error) {
+    console.log(`⚠️ Chrono-node não disponível, usando método regex`);
+  }
+  
+  // 2. FALLBACK: Padrões específicos com contexto (ex: "reunião com João")
   const specificPatterns = [
     { regex: /reunião\s+com\s+([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Reunião com ${match}` },
     { regex: /consulta\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Consulta Dr. ${match}` },
