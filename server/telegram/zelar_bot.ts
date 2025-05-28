@@ -145,15 +145,28 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
 }
 
 /**
- * Gera links para calendários usando data ISO
+ * Gera links para calendários usando data ISO com fuso correto
  */
 function generateLinks(event: Event) {
-  const eventDate = new Date(event.startDate);
-  const start = eventDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  const end = new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  // =================== CORREÇÃO 2: FORMATO GOOGLE CALENDAR ===================
+  // Converter de volta para DateTime para trabalhar com fusos
+  const eventDateTime = DateTime.fromISO(event.startDate);
+  const endDateTime = eventDateTime.plus({ hours: 1 });
   
-  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start}/${end}`;
-  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${eventDate.toISOString()}&enddt=${new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString()}`;
+  // Para Google Calendar: formato YYYYMMDDTHHMMSS sem Z (horário local)
+  const startFormatted = eventDateTime.toFormat('yyyyMMdd\'T\'HHmmss');
+  const endFormatted = endDateTime.toFormat('yyyyMMdd\'T\'HHmmss');
+  
+  // Para Outlook: usar ISO com fuso horário
+  const startISO = eventDateTime.toISO();
+  const endISO = endDateTime.toISO();
+  
+  console.log(`🔗 Links gerados:`);
+  console.log(`📅 Google: ${startFormatted}/${endFormatted}`);
+  console.log(`📅 Outlook: ${startISO} → ${endISO}`);
+  
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}`;
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}`;
   
   return { google, outlook };
 }

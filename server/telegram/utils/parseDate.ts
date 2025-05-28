@@ -211,7 +211,23 @@ function extractDateFromText(input: string): Date | null {
     const parseResults = pt.parse(dateOnlyInput, new Date(), { forwardDate: true });
     
     if (parseResults.length > 0) {
-      return parseResults[0].start.date();
+      const parsedDate = parseResults[0].start.date();
+      
+      // =================== CORREÇÃO 1: GARANTIR DATA FUTURA ===================
+      // Verificar se a data está no passado e corrigir para próxima semana
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const resultDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+      
+      if (resultDate < today) {
+        console.log(`📅 Data no passado detectada: ${resultDate.toDateString()}`);
+        // Adicionar 7 dias para ir para a próxima semana
+        resultDate.setDate(resultDate.getDate() + 7);
+        console.log(`📅 Corrigido para próxima semana: ${resultDate.toDateString()}`);
+        return resultDate;
+      }
+      
+      return parsedDate;
     }
     
     return null;
