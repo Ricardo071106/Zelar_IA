@@ -346,29 +346,73 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
 }
 
 /**
- * Extrai horário usando parser customizado (mais preciso para português)
+ * Extrai horário usando parser customizado com suporte robusto para AM/PM
+ * CORREÇÃO: Prioriza formatos AM/PM e suporte para minutos (ex: 6:30pm → 18:30)
  */
 function extractTimeFromText(input: string): { hour: number, minute: number } | null {
   const text = input.toLowerCase().trim();
   
-  // 1. Formato numérico: 19h, 19:30, etc.
-  const numericMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?h?\b/);
-  if (numericMatch) {
-    const hour = parseInt(numericMatch[1]);
-    const minute = parseInt(numericMatch[2] || '0');
-    console.log(`🕐 Formato numérico: ${hour}:${minute}`);
+  // =================== CORREÇÃO: PARSING AM/PM PRIORITÁRIO ===================
+  
+  // 1. PRIMEIRO: Formato AM/PM com minutos (6:30pm, 7:15am)
+  const ampmWithMinutesMatch = text.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)\b/i);
+  if (ampmWithMinutesMatch) {
+    let hour = parseInt(ampmWithMinutesMatch[1]);
+    const minute = parseInt(ampmWithMinutesMatch[2]);
+    const period = ampmWithMinutesMatch[3].toLowerCase();
+    
+    // Converter para formato 24h
+    if (period === 'pm' && hour < 12) {
+      hour += 12;
+    } else if (period === 'am' && hour === 12) {
+      hour = 0;
+    }
+    
+    console.log(`🕐 AM/PM com minutos: ${ampmWithMinutesMatch[1]}:${ampmWithMinutesMatch[2]}${period} → ${hour}:${minute}`);
     return { hour, minute };
   }
   
-  // 2. Formato "às X" 
-  const atMatch = text.match(/\bàs?\s+(\d{1,2})\b/);
-  if (atMatch) {
-    const hour = parseInt(atMatch[1]);
-    console.log(`🕐 Formato "às": ${hour}:00`);
+  // 2. Formato AM/PM simples (6pm, 7am)
+  const ampmMatch = text.match(/\b(\d{1,2})\s*(am|pm)\b/i);
+  if (ampmMatch) {
+    let hour = parseInt(ampmMatch[1]);
+    const period = ampmMatch[2].toLowerCase();
+    
+    // Converter para formato 24h
+    if (period === 'pm' && hour < 12) {
+      hour += 12;
+    } else if (period === 'am' && hour === 12) {
+      hour = 0;
+    }
+    
+    console.log(`🕐 AM/PM simples: ${ampmMatch[1]}${period} → ${hour}:00`);
     return { hour, minute: 0 };
   }
   
-  // 3. Números por extenso
+  // 3. Formato numérico 24h (19h, 19:30, 18:30)
+  const numericMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  if (numericMatch && !text.includes('am') && !text.includes('pm')) {
+    const hour = parseInt(numericMatch[1]);
+    const minute = parseInt(numericMatch[2] || '0');
+    
+    // Validar horário (0-23)
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      console.log(`🕐 Formato numérico 24h: ${hour}:${minute}`);
+      return { hour, minute };
+    }
+  }
+  
+  // 4. Formato "às X" (às 15, às 7)
+  const atMatch = text.match(/\bàs?\s+(\d{1,2})\b/);
+  if (atMatch && !text.includes('am') && !text.includes('pm')) {
+    const hour = parseInt(atMatch[1]);
+    if (hour >= 0 && hour <= 23) {
+      console.log(`🕐 Formato "às": ${hour}:00`);
+      return { hour, minute: 0 };
+    }
+  }
+  
+  // 5. Números por extenso com contexto de período
   const wordNumbers: { [key: string]: number } = {
     'uma': 1, 'dois': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5,
     'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10,
@@ -382,32 +426,15 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     if (new RegExp(`\\b${word}\\b`).test(text)) {
       let hour = number;
       
-      // Ajustar para período da tarde/noite
+      // Ajustar para período da tarde/noite (apenas se < 12)
       if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(text) && hour < 12) {
         hour += 12;
-        console.log(`🌙 Ajuste noite: ${number} → ${hour}`);
+        console.log(`🌙 Ajuste período: ${number} → ${hour} (${word})`);
       }
       
       console.log(`🕐 Por extenso: ${word} → ${hour}:00`);
       return { hour, minute: 0 };
     }
-  }
-  
-  // 4. Formato PM/AM
-  const pmMatch = text.match(/(\d{1,2})\s*pm/i);
-  if (pmMatch) {
-    let hour = parseInt(pmMatch[1]);
-    if (hour < 12) hour += 12;
-    console.log(`🕐 PM: ${hour}:00`);
-    return { hour, minute: 0 };
-  }
-  
-  const amMatch = text.match(/(\d{1,2})\s*am/i);
-  if (amMatch) {
-    let hour = parseInt(amMatch[1]);
-    if (hour === 12) hour = 0;
-    console.log(`🕐 AM: ${hour}:00`);
-    return { hour, minute: 0 };
   }
   
   console.log(`❌ Nenhum horário encontrado em: "${input}"`);
