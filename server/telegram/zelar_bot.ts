@@ -148,21 +148,24 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
  * Gera links para calendários usando data ISO com fuso correto
  */
 function generateLinks(event: Event) {
-  // =================== CORREÇÃO 2: FORMATO GOOGLE CALENDAR ===================
-  // Converter de volta para DateTime para trabalhar com fusos
+  // =================== CORREÇÃO 2: FORMATO GOOGLE CALENDAR CORRIGIDO ===================
+  // Converter de volta para DateTime mantendo o fuso original
   const eventDateTime = DateTime.fromISO(event.startDate);
   const endDateTime = eventDateTime.plus({ hours: 1 });
   
-  // Para Google Calendar: formato YYYYMMDDTHHMMSS sem Z (horário local)
-  const startFormatted = eventDateTime.toFormat('yyyyMMdd\'T\'HHmmss');
-  const endFormatted = endDateTime.toFormat('yyyyMMdd\'T\'HHmmss');
+  // Para Google Calendar: converter para UTC porque Google espera UTC no formato sem Z
+  const startUTC = eventDateTime.toUTC();
+  const endUTC = endDateTime.toUTC();
   
-  // Para Outlook: usar ISO com fuso horário
+  const startFormatted = startUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
+  const endFormatted = endUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
+  
+  // Para Outlook: usar ISO com fuso horário original
   const startISO = eventDateTime.toISO();
   const endISO = endDateTime.toISO();
   
   console.log(`🔗 Links gerados:`);
-  console.log(`📅 Google: ${startFormatted}/${endFormatted}`);
+  console.log(`📅 Google UTC: ${startFormatted}/${endFormatted}`);
   console.log(`📅 Outlook: ${startISO} → ${endISO}`);
   
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}`;
