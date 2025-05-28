@@ -524,6 +524,60 @@ export async function startZelarBot(): Promise<boolean> {
       }
     });
 
+    // =================== CORREÇÃO: HANDLER PARA CALLBACK QUERY (BOTÕES INLINE) ===================
+    bot.on('callback_query', async (ctx) => {
+      try {
+        if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
+          await ctx.answerCbQuery('Dados inválidos');
+          return;
+        }
+
+        const selectedTimezone = ctx.callbackQuery.data;
+        const userId = ctx.from?.id.toString() || 'unknown';
+
+        console.log(`🌍 Fuso selecionado: ${selectedTimezone} para usuário ${userId}`);
+
+        // Validar fuso horário usando lista de fusos válidos
+        const validTimezones = COMMON_TIMEZONES;
+        if (!validTimezones.includes(selectedTimezone)) {
+          await ctx.answerCbQuery('Fuso horário inválido');
+          await ctx.reply('❌ Fuso horário inválido. Tente novamente.');
+          return;
+        }
+
+        // Salvar fuso horário
+        const success = setUserTimezone(userId, selectedTimezone);
+        
+        if (success) {
+          // Sincronizar com Map local
+          const numericUserId = ctx.from?.id || 0;
+          userTimezones.set(numericUserId, selectedTimezone);
+          
+          const locationName = selectedTimezone.split('/')[1]?.replace('_', ' ') || selectedTimezone;
+          
+          await ctx.answerCbQuery(`Fuso configurado: ${locationName}`);
+          await ctx.reply(
+            `✅ *Fuso horário configurado!*\n\n` +
+            `🌍 *Novo fuso:* ${locationName}\n` +
+            `📍 *Código:* \`${selectedTimezone}\`\n\n` +
+            `Agora quando você disser:\n` +
+            `• "às 7 da noite" → será 19:00 no seu horário local\n` +
+            `• "às 3 da tarde" → será 15:00 no seu horário local\n` +
+            `• Todos os eventos usarão este fuso horário`,
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await ctx.answerCbQuery('Erro ao salvar fuso');
+          await ctx.reply('❌ Erro ao salvar fuso horário. Tente novamente.');
+        }
+
+      } catch (error) {
+        console.error('Erro ao processar callback query:', error);
+        await ctx.answerCbQuery('Erro interno');
+        await ctx.reply('❌ Erro interno. Tente novamente.');
+      }
+    });
+
     // =================== DEFINIR COMANDOS OFICIAIS ===================
     // Limpar comandos desnecessários e definir apenas os úteis
     await bot.telegram.setMyCommands([
