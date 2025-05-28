@@ -81,6 +81,18 @@ export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   }),
 }));
 
+// Padrões de aprendizado para melhorar o parsing local
+export const learningPatterns = pgTable("learning_patterns", {
+  id: serial("id").primaryKey(),
+  originalText: text("original_text").notNull(),
+  extractedTitle: text("extracted_title").notNull(),
+  detectedTime: text("detected_time").notNull(), // HH:MM format
+  detectedDate: text("detected_date").notNull(), // YYYY-MM-DD format
+  confidence: integer("confidence").notNull().default(80), // 0-100 scale
+  usageCount: integer("usage_count").notNull().default(1),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 // Schemas para inserção
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -118,6 +130,15 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   appleTokens: true,
   language: true,
   timeZone: true,
+});
+
+export const insertLearningPatternSchema = createInsertSchema(learningPatterns).pick({
+  originalText: true,
+  extractedTitle: true,
+  detectedTime: true,
+  detectedDate: true,
+  confidence: true,
+  usageCount: true,
 });
 
 // Types para exportação
