@@ -48,7 +48,7 @@
     "@types/node-schedule": "^2.1.7",
     "@types/nodemailer": "^6.4.17",
     "axios": "^1.9.0",
-    "chrono-node": "^2.8.1",
+    "chrono-node": "^2.7.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
