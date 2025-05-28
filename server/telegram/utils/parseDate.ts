@@ -152,9 +152,15 @@ export function parseUserDateTime(
     // Obter fuso horário do usuário
     const userTimezone = getUserTimezone(userId, languageCode);
     
-    // Estratégia híbrida: extrair data e hora separadamente
-    const dateResult = extractDateFromText(input);
+    // Estratégia híbrida: extrair hora primeiro, depois data com o horário
     const timeResult = extractTimeFromText(input);
+    const hour = timeResult?.hour ?? 9;
+    const minute = timeResult?.minute ?? 0;
+    
+    console.log(`🕐 Hora extraída: ${timeResult ? `${hour}:${minute}` : 'padrão 9:00'}`);
+    
+    // Extrair data passando horário para lógica inteligente de "hoje"
+    const dateResult = extractDateFromText(input, userTimezone, hour, minute);
     
     if (!dateResult) {
       console.log(`❌ Não conseguiu extrair data de: "${input}"`);
@@ -162,11 +168,6 @@ export function parseUserDateTime(
     }
     
     console.log(`📅 Data extraída: ${dateResult.toDateString()}`);
-    console.log(`🕐 Hora extraída: ${timeResult ? `${timeResult.hour}:${timeResult.minute}` : 'padrão 9:00'}`);
-    
-    // Aplicar horário na data NO FUSO DO USUÁRIO (não UTC)
-    const hour = timeResult?.hour ?? 9;
-    const minute = timeResult?.minute ?? 0;
     
     // =================== CORREÇÃO: INTERPRETAR HORÁRIO COMO LOCAL ===================
     // Criar data/hora diretamente no fuso do usuário
@@ -193,17 +194,77 @@ export function parseUserDateTime(
 }
 
 /**
- * Extrai data usando chrono-node (funciona bem para datas)
+ * Encontra a próxima ocorrência de um dia da semana no futuro
  */
-function extractDateFromText(input: string): Date | null {
+function getNextWeekdayDate(weekday: number, hour: number, minute: number, zone: string): DateTime {
+  const now = DateTime.now().setZone(zone);
+  let date = now.startOf('day');
+  
+  // Se é hoje e o horário ainda não passou, usar hoje
+  if (date.weekday === weekday) {
+    const todayWithTime = now.set({ hour, minute, second: 0, millisecond: 0 });
+    if (todayWithTime > now) {
+      console.log(`📅 Agendando para hoje mesmo (${date.toFormat('cccc')}) pois horário ainda não passou`);
+      return date;
+    }
+  }
+  
+  // Procurar próxima ocorrência do dia da semana
+  while (date.weekday !== weekday || date <= now.startOf('day')) {
+    date = date.plus({ days: 1 });
+  }
+  
+  console.log(`📅 Próxima ${['', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado', 'domingo'][weekday]}: ${date.toFormat('cccc, dd/MM')}`);
+  return date;
+}
+
+/**
+ * Extrai data usando Luxon para garantir próxima ocorrência futura
+ */
+function extractDateFromText(input: string, userTimezone: string = 'America/Sao_Paulo', hour: number = 9, minute: number = 0): Date | null {
   try {
+    const text = input.toLowerCase();
+    
+    // =================== CORREÇÃO: LÓGICA DE DIAS DA SEMANA COM LUXON ===================
+    
+    // Mapear dias da semana (Luxon: 1=segunda, 7=domingo)
+    const weekdays: { [key: string]: number } = {
+      'segunda': 1, 'segunda-feira': 1,
+      'terça': 2, 'terca': 2, 'terça-feira': 2, 'terca-feira': 2,
+      'quarta': 3, 'quarta-feira': 3,
+      'quinta': 4, 'quinta-feira': 4,
+      'sexta': 5, 'sexta-feira': 5,
+      'sábado': 6, 'sabado': 6,
+      'domingo': 7
+    };
+    
+    // Verificar se contém dia da semana
+    for (const [dayName, weekdayNum] of Object.entries(weekdays)) {
+      if (text.includes(dayName)) {
+        console.log(`📅 Detectado dia da semana: ${dayName} (${weekdayNum})`);
+        const nextDate = getNextWeekdayDate(weekdayNum, hour, minute, userTimezone);
+        return nextDate.toJSDate();
+      }
+    }
+    
+    // Casos especiais
+    if (text.includes('hoje')) {
+      console.log(`📅 Detectado: hoje`);
+      return DateTime.now().setZone(userTimezone).startOf('day').toJSDate();
+    }
+    
+    if (text.includes('amanhã') || text.includes('amanha')) {
+      console.log(`📅 Detectado: amanhã`);
+      return DateTime.now().setZone(userTimezone).plus({ days: 1 }).startOf('day').toJSDate();
+    }
+    
+    // Fallback: usar chrono-node para outros casos
     const pt = chrono.pt;
     const processedInput = preprocessPortugueseText(input);
     
-    // Remover horários para focar só na data
     const dateOnlyInput = processedInput
-      .replace(/\bàs?\s+\w+/gi, '')  // remover "às sete"
-      .replace(/\b\d{1,2}h?\b/gi, '') // remover "19h"
+      .replace(/\bàs?\s+\w+/gi, '')
+      .replace(/\b\d{1,2}h?\b/gi, '')
       .replace(/\b(da manhã|da tarde|da noite|de manhã|de tarde|de noite)\b/gi, '')
       .trim();
     
@@ -211,19 +272,15 @@ function extractDateFromText(input: string): Date | null {
     
     if (parseResults.length > 0) {
       const parsedDate = parseResults[0].start.date();
+      console.log(`📅 Chrono-node detectou: ${parsedDate.toDateString()}`);
       
-      // =================== CORREÇÃO 1: GARANTIR DATA FUTURA ===================
-      // Verificar se a data está no passado e corrigir para próxima semana
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const resultDate = new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+      // Garantir que é futuro
+      const now = DateTime.now().setZone(userTimezone);
+      const resultDateTime = DateTime.fromJSDate(parsedDate, { zone: userTimezone });
       
-      if (resultDate < today) {
-        console.log(`📅 Data no passado detectada: ${resultDate.toDateString()}`);
-        // Adicionar 7 dias para ir para a próxima semana
-        resultDate.setDate(resultDate.getDate() + 7);
-        console.log(`📅 Corrigido para próxima semana: ${resultDate.toDateString()}`);
-        return resultDate;
+      if (resultDateTime < now.startOf('day')) {
+        console.log(`📅 Data no passado, ajustando para próxima semana`);
+        return resultDateTime.plus({ weeks: 1 }).toJSDate();
       }
       
       return parsedDate;
