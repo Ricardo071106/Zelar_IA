@@ -5,8 +5,70 @@
 
 import { Telegraf } from 'telegraf';
 import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES } from './utils/parseDate';
+import { DateTime } from 'luxon';
 
 let bot: Telegraf | null = null;
+
+// =================== INÍCIO: FUNCIONALIDADE DE HORÁRIOS LOCAIS ===================
+// Map para armazenar o fuso horário de cada usuário (ID do usuário -> fuso horário)
+const userTimezones = new Map<number, string>();
+
+// Regex para detectar padrões de horário em português
+const TIME_PATTERNS = [
+  { pattern: /às\s+(\d{1,2})\s*da\s+noite/gi, type: 'noite' },        // "às 7 da noite"
+  { pattern: /às\s+(\d{1,2})\s*da\s+tarde/gi, type: 'tarde' },        // "às 3 da tarde" 
+  { pattern: /às\s+(\d{1,2})\s*da\s+manhã/gi, type: 'manha' },        // "às 8 da manhã"
+  { pattern: /às\s+(\d{1,2})\s*horas?/gi, type: 'neutral' },          // "às 19 horas"
+  { pattern: /às\s+(\d{1,2})h/gi, type: 'neutral' },                  // "às 9h"
+  { pattern: /às\s+(\d{1,2})\s*pm/gi, type: 'pm' },                   // "às 7pm"
+  { pattern: /às\s+(\d{1,2})\s*am/gi, type: 'am' },                   // "às 9am"
+];
+
+/**
+ * Interpreta horário local conforme o fuso do usuário
+ */
+function parseLocalTime(text: string, userId: number): { hour: number; minute: number; timezone: string } | null {
+  const userTimezone = userTimezones.get(userId);
+  
+  if (!userTimezone) {
+    return null; // Usuário precisa definir fuso primeiro
+  }
+
+  for (const { pattern, type } of TIME_PATTERNS) {
+    pattern.lastIndex = 0; // Reset regex
+    const match = pattern.exec(text);
+    if (match) {
+      let hour = parseInt(match[1]);
+      const minute = 0; // Por simplicidade, assumindo minutos = 0
+      
+      // Ajustar horário baseado no contexto
+      if (type === 'noite' && hour < 12) {
+        hour += 12; // "7 da noite" = 19h
+      } else if (type === 'tarde' && hour < 12) {
+        hour += 12; // "3 da tarde" = 15h
+      } else if (type === 'pm' && hour < 12) {
+        hour += 12; // "7pm" = 19h
+      }
+      // "am" e "manhã" mantém o horário como está (0-11)
+      
+      return { hour, minute, timezone: userTimezone };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Formata horário no fuso do usuário
+ */
+function formatLocalTime(hour: number, minute: number, timezone: string): string {
+  const now = DateTime.now().setZone(timezone);
+  const targetTime = now.set({ hour, minute, second: 0, millisecond: 0 });
+  const locationName = timezone.split('/')[1]?.replace('_', ' ') || timezone;
+  
+  return `${targetTime.toFormat('HH:mm')} no horário de ${locationName}`;
+}
+// =================== FIM: FUNCIONALIDADE DE HORÁRIOS LOCAIS ===================
 
 interface Event {
   title: string;
@@ -179,6 +241,57 @@ export async function startZelarBot(): Promise<boolean> {
       }
     });
 
+    // =================== INÍCIO: COMANDO /setfuso ===================
+    // Comando /setfuso - definir fuso horário local do usuário
+    bot.command('setfuso', async (ctx) => {
+      const timezoneArg = ctx.message.text.replace('/setfuso', '').trim();
+      const userId = ctx.from?.id || 0;
+      
+      if (!timezoneArg) {
+        await ctx.reply(
+          '🌍 *Configurar Fuso Horário Local*\n\n' +
+          '💡 *Como usar:*\n' +
+          '`/setfuso America/Sao_Paulo`\n' +
+          '`/setfuso America/Buenos_Aires`\n' +
+          '`/setfuso Europe/Lisbon`\n\n' +
+          '📋 *Fusos comuns:*\n' +
+          '• `America/Sao_Paulo` (Brasil)\n' +
+          '• `America/Buenos_Aires` (Argentina)\n' +
+          '• `Europe/Lisbon` (Portugal)\n' +
+          '• `America/New_York` (EUA)\n' +
+          '• `Europe/London` (Reino Unido)',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      
+      // Validar se o fuso horário é válido
+      try {
+        DateTime.now().setZone(timezoneArg);
+        userTimezones.set(userId, timezoneArg);
+        
+        const locationName = timezoneArg.split('/')[1]?.replace('_', ' ') || timezoneArg;
+        await ctx.reply(
+          `✅ *Fuso horário configurado!*\n\n` +
+          `🌍 *Novo fuso:* ${locationName}\n` +
+          `📍 *Código:* \`${timezoneArg}\`\n\n` +
+          `Agora quando você disser "às 7 da noite", será interpretado como 19:00 no horário de ${locationName}.`,
+          { parse_mode: 'Markdown' }
+        );
+      } catch (error) {
+        await ctx.reply(
+          `❌ *Fuso horário inválido*\n\n` +
+          `💡 *Exemplos válidos:*\n` +
+          `• \`America/Sao_Paulo\` (Brasil)\n` +
+          `• \`America/Buenos_Aires\` (Argentina)\n` +
+          `• \`Europe/Lisbon\` (Portugal)\n` +
+          `• \`America/New_York\` (EUA)`,
+          { parse_mode: 'Markdown' }
+        );
+      }
+    });
+    // =================== FIM: COMANDO /setfuso ===================
+
     // Comando de teste para interpretação de datas
     bot.command('interpretar', async (ctx) => {
       const message = ctx.message.text.replace('/interpretar', '').trim();
@@ -195,11 +308,38 @@ export async function startZelarBot(): Promise<boolean> {
         return;
       }
 
-      const userId = ctx.from?.id.toString() || 'unknown';
-      const result = parseUserDateTime(message, userId, ctx.from?.language_code);
+      // =================== INÍCIO: INTEGRAÇÃO HORÁRIOS LOCAIS ===================
+      const userId = ctx.from?.id || 0;
+      
+      // Primeiro tentar interpretar como horário local puro
+      const localTime = parseLocalTime(message, userId);
+      if (localTime) {
+        const formattedTime = formatLocalTime(localTime.hour, localTime.minute, localTime.timezone);
+        await ctx.reply(
+          `✅ *Horário local interpretado!*\n\n` +
+          `📝 *Você disse:* "${message}"\n\n` +
+          `🕐 *Interpretei como:* ${formattedTime}\n\n` +
+          `💡 *Para agendar:* Digite algo como "reunião sexta às 7 da noite"`
+        );
+        return;
+      }
+      
+      // Se não conseguiu interpretar como horário local, verificar se precisa configurar fuso
+      if (!userTimezones.has(userId) && (message.includes('às') || message.includes('da noite') || message.includes('da tarde'))) {
+        await ctx.reply(
+          `⚠️ *Configure seu fuso horário primeiro!*\n\n` +
+          `💡 *Use:* \`/setfuso America/Sao_Paulo\`\n\n` +
+          `Depois você poderá usar horários como "às 7 da noite" que serão interpretados no seu fuso local.`,
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+      // =================== FIM: INTEGRAÇÃO HORÁRIOS LOCAIS ===================
+
+      const result = parseUserDateTime(message, userId.toString(), ctx.from?.language_code);
       
       if (result) {
-        const currentTimezone = getUserTimezone(userId, ctx.from?.language_code);
+        const currentTimezone = getUserTimezone(userId.toString(), ctx.from?.language_code);
         await ctx.reply(
           `✅ *Entendi perfeitamente!*\n\n` +
           `📝 *Você disse:* "${message}"\n\n` +
@@ -226,8 +366,36 @@ export async function startZelarBot(): Promise<boolean> {
         
         if (message.startsWith('/')) return;
         
-        const userId = ctx.from?.id.toString() || 'unknown';
-        const event = processMessage(message, userId, ctx.from?.language_code);
+        const userId = ctx.from?.id || 0;
+        const userIdString = userId.toString();
+        
+        // =================== INÍCIO: VERIFICAÇÃO HORÁRIOS LOCAIS ===================
+        // Verificar se a mensagem contém padrões que requerem fuso horário configurado
+        const hasTimePattern = TIME_PATTERNS.some(({ pattern }) => {
+          pattern.lastIndex = 0;
+          return pattern.test(message);
+        });
+        
+        // Se contém padrão de horário mas não tem fuso configurado, pedir configuração
+        if (hasTimePattern && !userTimezones.has(userId)) {
+          await ctx.reply(
+            `⚠️ *Configure seu fuso horário primeiro!*\n\n` +
+            `💡 *Use:* \`/setfuso America/Sao_Paulo\`\n\n` +
+            `Depois você poderá usar expressões como:\n` +
+            `• "às 7 da noite" → 19:00 no seu horário local\n` +
+            `• "às 3 da tarde" → 15:00 no seu horário local\n` +
+            `• "às 9am" → 09:00 no seu horário local\n\n` +
+            `📋 *Fusos comuns:*\n` +
+            `• \`America/Sao_Paulo\` (Brasil)\n` +
+            `• \`America/Buenos_Aires\` (Argentina)\n` +
+            `• \`Europe/Lisbon\` (Portugal)`,
+            { parse_mode: 'Markdown' }
+          );
+          return;
+        }
+        // =================== FIM: VERIFICAÇÃO HORÁRIOS LOCAIS ===================
+        
+        const event = processMessage(message, userIdString, ctx.from?.language_code);
         
         if (!event) {
           await ctx.reply(
@@ -236,7 +404,8 @@ export async function startZelarBot(): Promise<boolean> {
             '• "jantar hoje às 19h"\n' +
             '• "reunião quarta às 15h"\n' +
             '• "consulta sexta que vem às 10 da manhã"\n\n' +
-            '🔍 Use `/interpretar sua frase` para testar!',
+            '🔍 Use `/interpretar sua frase` para testar!\n' +
+            '🌍 Use `/setfuso` para configurar horários locais!',
             { parse_mode: 'Markdown' }
           );
           return;
