@@ -270,13 +270,16 @@ function generateLinks(event: Event) {
  */
 export async function startZelarBot(): Promise<boolean> {
   try {
+    // =================== CORREÇÃO: PREVENÇÃO DE MÚLTIPLAS INSTÂNCIAS ===================
     if (bot) {
+      console.log('🔄 Parando instância anterior do bot...');
       try {
         await bot.stop();
         bot = null;
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Aguardar mais tempo para garantir que a instância anterior termine completamente
+        await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (e) {
-        console.log('Bot já parado');
+        console.log('⚠️ Bot já estava parado');
       }
     }
 
@@ -284,6 +287,7 @@ export async function startZelarBot(): Promise<boolean> {
       throw new Error('TELEGRAM_BOT_TOKEN não encontrado');
     }
 
+    console.log('🚀 Iniciando nova instância do bot...');
     bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
     // Comando inicial
@@ -327,34 +331,42 @@ export async function startZelarBot(): Promise<boolean> {
         return;
       }
       
-      const success = setUserTimezone(userId, message);
-      
-      if (success) {
-        // =================== SINCRONIZAR COM HORÁRIOS LOCAIS ===================
-        // Também salvar no Map para funcionalidade de horários locais
-        const numericUserId = ctx.from?.id || 0;
-        userTimezones.set(numericUserId, message);
+      // =================== CORREÇÃO: TRATAMENTO ROBUSTO DE ERRO ===================
+      try {
+        const success = setUserTimezone(userId, message);
         
-        const locationName = message.split('/')[1]?.replace('_', ' ') || message;
+        if (success) {
+          // Sincronizar com horários locais
+          const numericUserId = ctx.from?.id || 0;
+          userTimezones.set(numericUserId, message);
+          
+          const locationName = message.split('/')[1]?.replace('_', ' ') || message;
+          await ctx.reply(
+            `✅ *Fuso horário configurado!*\n\n` +
+            `🌍 *Novo fuso:* ${locationName}\n` +
+            `📍 *Código:* \`${message}\`\n\n` +
+            `Agora quando você disser:\n` +
+            `• "às 7 da noite" → será 19:00 no seu horário local\n` +
+            `• "às 3 da tarde" → será 15:00 no seu horário local\n` +
+            `• Todos os eventos usarão este fuso horário`,
+            { parse_mode: 'Markdown' }
+          );
+        } else {
+          await ctx.reply(
+            `❌ *Fuso horário inválido*\n\n` +
+            `💡 *Exemplos válidos:*\n` +
+            `• \`America/Sao_Paulo\` (Brasil)\n` +
+            `• \`America/Buenos_Aires\` (Argentina)\n` +
+            `• \`Europe/Lisbon\` (Portugal)\n` +
+            `• \`America/New_York\` (EUA)`,
+            { parse_mode: 'Markdown' }
+          );
+        }
+      } catch (error) {
+        console.error('Erro ao configurar fuso horário:', error);
         await ctx.reply(
-          `✅ *Fuso horário configurado!*\n\n` +
-          `🌍 *Novo fuso:* ${locationName}\n` +
-          `📍 *Código:* \`${message}\`\n\n` +
-          `Agora quando você disser:\n` +
-          `• "às 7 da noite" → será 19:00 no seu horário local\n` +
-          `• "às 3 da tarde" → será 15:00 no seu horário local\n` +
-          `• Todos os eventos usarão este fuso horário`,
-          { parse_mode: 'Markdown' }
-        );
-      } else {
-        await ctx.reply(
-          `❌ *Fuso horário inválido*\n\n` +
-          `💡 *Exemplos válidos:*\n` +
-          `• \`America/Sao_Paulo\` (Brasil)\n` +
-          `• \`America/Buenos_Aires\` (Argentina)\n` +
-          `• \`Europe/Lisbon\` (Portugal)\n` +
-          `• \`America/New_York\` (EUA)`,
-          { parse_mode: 'Markdown' }
+          `❌ *Erro interno*\n\n` +
+          `Tente novamente ou use um fuso horário válido como \`America/Sao_Paulo\``
         );
       }
     });
