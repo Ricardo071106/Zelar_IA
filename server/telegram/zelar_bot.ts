@@ -1,110 +1,100 @@
 /**
- * Bot Zelar - Versão limpa e funcional
- * Processamento simples e eficaz de eventos em português
+ * Bot Zelar - Versão avançada com interpretação inteligente de datas
+ * Processamento avançado de eventos em português usando Luxon
  */
 
 import { Telegraf } from 'telegraf';
+import { parseBrazilianDateTime, formatBrazilianDateTime } from '../utils/dateParser';
 
 let bot: Telegraf | null = null;
 
 interface Event {
   title: string;
-  startDate: Date;
+  startDate: string; // ISO string from parseBrazilianDateTime
   description: string;
+  displayDate: string; // Formatted date for display
 }
 
 /**
- * Processa mensagem e extrai evento
+ * Extrai título inteligente do evento
  */
-function processMessage(text: string): Event {
-  const now = new Date();
-  let eventDate = new Date(now);
-  let title = 'Evento';
-  
-  console.log(`🔍 Processando: "${text}"`);
-  
-  // 1. EXTRAIR TÍTULO
+function extractEventTitle(text: string): string {
   const textLower = text.toLowerCase();
   
-  if (textLower.includes('jantar')) title = 'Jantar';
-  else if (textLower.includes('reunião') || textLower.includes('reuniao')) title = 'Reunião';
-  else if (textLower.includes('compromisso')) title = 'Compromisso';
-  else if (textLower.includes('consulta')) title = 'Consulta';
-  else if (textLower.includes('exame')) title = 'Exame';
-  else if (textLower.includes('almoço') || textLower.includes('almoco')) title = 'Almoço';
+  // Tipos específicos de eventos
+  if (textLower.includes('jantar')) return 'Jantar';
+  if (textLower.includes('reunião') || textLower.includes('reuniao')) return 'Reunião';
+  if (textLower.includes('compromisso')) return 'Compromisso';
+  if (textLower.includes('consulta')) return 'Consulta';
+  if (textLower.includes('exame')) return 'Exame';
+  if (textLower.includes('almoço') || textLower.includes('almoco')) return 'Almoço';
+  if (textLower.includes('dentista')) return 'Dentista';
+  if (textLower.includes('médico') || textLower.includes('medico')) return 'Consulta Médica';
+  if (textLower.includes('academia')) return 'Academia';
+  if (textLower.includes('trabalho')) return 'Trabalho';
+  if (textLower.includes('escola') || textLower.includes('aula')) return 'Aula';
+  if (textLower.includes('festa')) return 'Festa';
+  if (textLower.includes('aniversário') || textLower.includes('aniversario')) return 'Aniversário';
   
-  console.log(`📝 Título: ${title}`);
+  // Extrair título mais inteligente removendo palavras de tempo
+  let title = text
+    .replace(/\b(amanhã|amanha|hoje|ontem)\b/gi, '')
+    .replace(/\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
+    .replace(/\b(próxima|proxima|que vem)\b/gi, '')
+    .replace(/\bàs?\s+\d{1,2}(:\d{2})?h?\b/gi, '')
+    .replace(/\b\d{1,2}(am|pm)\b/gi, '')
+    .replace(/\b(da manhã|da manha|da tarde|da noite|de manhã|de manha|de tarde|de noite)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  // Capitalizar primeira letra
+  if (title) {
+    title = title.charAt(0).toUpperCase() + title.slice(1);
+  }
+    
+  return title || 'Evento';
+}
+
+/**
+ * Processa mensagem usando interpretação avançada de datas
+ */
+function processMessage(text: string): Event | null {
+  console.log(`🔍 Processando com IA: "${text}"`);
   
-  // 2. PROCESSAR DATA
-  if (textLower.includes('amanhã') || textLower.includes('amanha')) {
-    eventDate.setDate(now.getDate() + 1);
-    console.log('📅 Data: amanhã');
-  } else if (textLower.includes('hoje')) {
-    console.log('📅 Data: hoje');
-  } else {
-    // Default: amanhã
-    eventDate.setDate(now.getDate() + 1);
-    console.log('📅 Data: amanhã (padrão)');
+  // Usar nossa função avançada de interpretação de datas
+  const parsedDateTime = parseBrazilianDateTime(text);
+  
+  if (!parsedDateTime) {
+    console.log('❌ Não foi possível interpretar data/hora');
+    return null;
   }
   
-  // 3. PROCESSAR HORÁRIO - VERSÃO SIMPLES E FUNCIONAL
-  let hour = 10; // Padrão
-  let minute = 0;
+  const title = extractEventTitle(text);
+  const displayDate = formatBrazilianDateTime(parsedDateTime);
   
-  // PM/AM
-  if (textLower.includes('pm')) {
-    const pmMatch = text.match(/(\d{1,2})\s*pm/i);
-    if (pmMatch) {
-      hour = parseInt(pmMatch[1]);
-      if (hour < 12) hour += 12; // Converter PM para 24h
-      console.log(`🕰️ PM: ${pmMatch[1]}pm = ${hour}:00`);
-    }
-  } else if (textLower.includes('am')) {
-    const amMatch = text.match(/(\d{1,2})\s*am/i);
-    if (amMatch) {
-      hour = parseInt(amMatch[1]);
-      if (hour === 12) hour = 0; // 12am = 00:00
-      console.log(`🕰️ AM: ${amMatch[1]}am = ${hour}:00`);
-    }
-  } else {
-    // Formato brasileiro
-    const timeMatch = text.match(/(?:às?|as)\s*(\d{1,2})(?:h)?/i) || text.match(/(\d{1,2})h/i);
-    if (timeMatch) {
-      hour = parseInt(timeMatch[1]);
-      console.log(`🕰️ 24h: ${hour}:00`);
-    }
-  }
-  
-  eventDate.setHours(hour, minute, 0, 0);
-  console.log(`📅 Data/hora final: ${eventDate.toLocaleString('pt-BR')}`);
+  console.log(`📝 Título extraído: "${title}"`);
+  console.log(`📅 Data interpretada: ${displayDate}`);
   
   return {
     title,
-    startDate: eventDate,
-    description: text
+    startDate: parsedDateTime,
+    description: text,
+    displayDate
   };
 }
 
 /**
- * Gera links para calendários
+ * Gera links para calendários usando data ISO
  */
 function generateLinks(event: Event) {
-  const start = event.startDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  const end = new Date(event.startDate.getTime() + 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const eventDate = new Date(event.startDate);
+  const start = eventDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  const end = new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${start}/${end}`;
-  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${event.startDate.toISOString()}&enddt=${new Date(event.startDate.getTime() + 60 * 60 * 1000).toISOString()}`;
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${eventDate.toISOString()}&enddt=${new Date(eventDate.getTime() + 60 * 60 * 1000).toISOString()}`;
   
-  const formatted = event.startDate.toLocaleDateString('pt-BR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long'
-  }) + ' às ' + event.startDate.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  
-  return { google, outlook, formatted };
+  return { google, outlook };
 }
 
 /**
@@ -131,15 +121,54 @@ export async function startZelarBot(): Promise<boolean> {
     // Comando inicial
     bot.start((ctx) => {
       ctx.reply(
-        '🤖 *Zelar - Assistente de Agendamentos*\n\n' +
-        'Olá! Sou seu assistente para criar eventos.\n\n' +
-        '📝 *Exemplos:*\n' +
+        '🤖 *Zelar - Assistente Inteligente de Agendamentos*\n\n' +
+        'Olá! Sou seu assistente para criar eventos com interpretação avançada de datas!\n\n' +
+        '📝 *Exemplos que entendo:*\n' +
         '• "jantar hoje às 19h"\n' +
-        '• "reunião amanhã às 7pm"\n' +
-        '• "consulta amanhã às 15"\n\n' +
-        'Digite seu compromisso naturalmente! 🚀',
+        '• "reunião quarta às sete da noite"\n' +
+        '• "consulta sexta que vem às 15h30"\n' +
+        '• "dentista próxima segunda às 10 da manhã"\n\n' +
+        '🧠 Agora entendo datas em português natural! Digite seu compromisso! 🚀',
         { parse_mode: 'Markdown' }
       );
+    });
+
+    // Comando de teste para interpretação de datas
+    bot.command('interpretar', async (ctx) => {
+      const message = ctx.message.text.replace('/interpretar', '').trim();
+      
+      if (!message) {
+        await ctx.reply(
+          '💡 *Como usar:*\n\n' +
+          '`/interpretar quarta às sete da noite`\n' +
+          '`/interpretar sexta que vem às 19h`\n' +
+          '`/interpretar amanhã às 9`\n\n' +
+          'Digite qualquer data/hora em português!',
+          { parse_mode: 'Markdown' }
+        );
+        return;
+      }
+
+      const parsedDateTime = parseBrazilianDateTime(message);
+      
+      if (parsedDateTime) {
+        const friendlyFormat = formatBrazilianDateTime(parsedDateTime);
+        await ctx.reply(
+          `✅ *Entendi perfeitamente!*\n\n` +
+          `📝 *Você disse:* "${message}"\n\n` +
+          `📅 *Interpretei como:*\n${friendlyFormat}`,
+          { parse_mode: 'Markdown' }
+        );
+      } else {
+        await ctx.reply(
+          `❌ *Não consegui entender essa data/hora*\n\n` +
+          `📝 *Você disse:* "${message}"\n\n` +
+          `💡 *Tente algo como:*\n` +
+          `• "hoje às 15h"\n` +
+          `• "segunda que vem às 9 da manhã"\n` +
+          `• "sexta às sete da noite"`
+        );
+      }
     });
 
     // Processar mensagens
@@ -150,12 +179,26 @@ export async function startZelarBot(): Promise<boolean> {
         if (message.startsWith('/')) return;
         
         const event = processMessage(message);
+        
+        if (!event) {
+          await ctx.reply(
+            '❌ *Não consegui entender a data/hora*\n\n' +
+            '💡 *Tente algo como:*\n' +
+            '• "jantar hoje às 19h"\n' +
+            '• "reunião quarta às 15h"\n' +
+            '• "consulta sexta que vem às 10 da manhã"\n\n' +
+            '🔍 Use `/interpretar sua frase` para testar!',
+            { parse_mode: 'Markdown' }
+          );
+          return;
+        }
+        
         const links = generateLinks(event);
 
-        ctx.reply(
-          '✅ *Evento criado!*\n\n' +
-          `🎯 ${event.title}\n` +
-          `📅 ${links.formatted}\n\n` +
+        await ctx.reply(
+          '✅ *Evento criado com sucesso!*\n\n' +
+          `🎯 *${event.title}*\n` +
+          `📅 ${event.displayDate}\n\n` +
           '📅 *Adicionar ao calendário:*',
           { 
             parse_mode: 'Markdown',
@@ -172,7 +215,13 @@ export async function startZelarBot(): Promise<boolean> {
 
       } catch (error) {
         console.error('Erro:', error);
-        ctx.reply('❌ Erro ao processar. Tente: "jantar hoje às 19h"');
+        await ctx.reply(
+          '❌ *Erro ao processar sua mensagem*\n\n' +
+          '💡 *Tente novamente com:*\n' +
+          '• "jantar hoje às 19h"\n' +
+          '• "reunião amanhã às 15h"\n\n' +
+          'Ou use `/interpretar sua frase` para testar!'
+        );
       }
     });
 
