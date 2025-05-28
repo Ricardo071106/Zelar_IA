@@ -444,15 +444,26 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     return { hour, minute: 0 };
   }
   
-  // 3. Formato numérico 24h (19h, 19:30, 18:30)
-  const numericMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h?\b/);
-  if (numericMatch && !text.includes('am') && !text.includes('pm')) {
-    const hour = parseInt(numericMatch[1]);
-    const minute = parseInt(numericMatch[2] || '0');
+  // 3. CORREÇÃO: Formato "às X h" prioritário (para evitar capturar números de datas)
+  const explicitTimeMatch = text.match(/\b(?:às|as)\s+(\d{1,2})(?::(\d{2}))?\s*h?\b/i);
+  if (explicitTimeMatch) {
+    const hour = parseInt(explicitTimeMatch[1]);
+    const minute = parseInt(explicitTimeMatch[2] || '0');
     
-    // Validar horário (0-23)
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      console.log(`🕐 Formato numérico 24h: ${hour}:${minute}`);
+      console.log(`🕐 CORREÇÃO - Horário explícito: "${explicitTimeMatch[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
+      return { hour, minute };
+    }
+  }
+  
+  // 4. Formato numérico seguido de h (19h, 18:30h) - MAS apenas no final da frase
+  const hourSuffixMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h\b(?!\s*\w)/i);
+  if (hourSuffixMatch && !text.includes('am') && !text.includes('pm')) {
+    const hour = parseInt(hourSuffixMatch[1]);
+    const minute = parseInt(hourSuffixMatch[2] || '0');
+    
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      console.log(`🕐 CORREÇÃO - Horário com 'h': "${hourSuffixMatch[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
       return { hour, minute };
     }
   }
