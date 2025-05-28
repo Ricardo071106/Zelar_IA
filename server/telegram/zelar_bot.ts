@@ -93,31 +93,20 @@ function extractEventTitle(text: string): string {
   
   // =================== CORREÇÃO: LIMPEZA MAIS AGRESSIVA E PRECISA ===================
   
-  // 1. Remover comandos e verbos de ação primeiro
-  const actionPatterns = [
-    /\b(agende|marque|coloque|lembre|crie|faça|vou|preciso)\s*/gi,
-    /\b(me\s+lembre|tenho\s+que|devo|vou\s+ter)\s*/gi
-  ];
+  // CORREÇÃO COMPLETA: Limpeza robusta conforme solicitado
+  const limparTitulo = (texto: string) =>
+    texto
+      .replace(/\b(amanhã|amanha|hoje|ontem|às\s?\d{1,2}(:\d{2})?\s?(h|pm|am)?|[a-zà-ú]+\s?feira|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|marcar|agendar|colocar|anotar|marque|agende|coloque|anote|lembre|crie|faça)\b/gi, '')
+      .replace(/\b(da\s+manhã|da\s+tarde|da\s+noite|de\s+manhã|de\s+tarde|de\s+noite)\b/gi, '')
+      .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '') // datas dd/mm/yyyy
+      .replace(/\s+/g, ' ')
+      .trim();
   
-  for (const pattern of actionPatterns) {
-    cleanTitle = cleanTitle.replace(pattern, '');
-  }
+  cleanTitle = limparTitulo(cleanTitle);
   
-  // 2. Remover TODAS as expressões temporais (mais abrangente)
+  // Aplicar limpeza adicional se necessário
   const temporalPatterns = [
-    // Horários completos PRIMEIRO (mais específicos)
-    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?|da\s+manhã|da\s+tarde|da\s+noite)?\b/gi,
-    /\b\d{1,2}(:\d{2})?\s*(h|horas?)\b/gi,
-    /\b\d{1,2}\s*(am|pm)\b/gi,
-    // Datas específicas
-    /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi,
-    // Dias relativos
-    /\b(amanhã|amanha|hoje|ontem)\b/gi,
-    // Dias da semana (completos)
-    /\b(próxima|proxima|que\s+vem|na)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
-    // Períodos do dia
-    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi,
-    // Palavras temporais extras
+    /\b(próxima|proxima|que\s+vem)\b/gi,
     /\b(depois|antes|agora|já|ainda)\b/gi
   ];
   

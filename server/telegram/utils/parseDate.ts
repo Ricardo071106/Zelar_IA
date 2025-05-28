@@ -462,15 +462,22 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     return { hour, minute: 0 };
   }
   
-  // 3. CORREÇÃO: Formato "às X h" prioritário (para evitar capturar números de datas)
-  const explicitTimeMatch = text.match(/\b(?:às|as)\s+(\d{1,2})(?::(\d{2}))?\s*h?\b/i);
-  if (explicitTimeMatch) {
-    const hour = parseInt(explicitTimeMatch[1]);
-    const minute = parseInt(explicitTimeMatch[2] || '0');
-    
-    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      console.log(`🕐 CORREÇÃO - Horário explícito: "${explicitTimeMatch[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
-      return { hour, minute };
+  // 3. CORREÇÃO: Formato "às X" mais abrangente (incluindo números isolados)
+  const explicitTimePatterns = [
+    /\b(?:às|as)\s+(\d{1,2})(?::(\d{2}))?\s*h?\b/i,     // "às 15h", "às 15"
+    /\b(?:às|as)\s+(\d{1,2})\b/i                         // "às 15" isolado
+  ];
+  
+  for (const pattern of explicitTimePatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      const hour = parseInt(match[1]);
+      const minute = parseInt(match[2] || '0');
+      
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        console.log(`🕐 CORREÇÃO - Horário explícito: "${match[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
+        return { hour, minute };
+      }
     }
   }
   
