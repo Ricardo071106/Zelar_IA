@@ -239,62 +239,23 @@ export async function startZelarBot(): Promise<boolean> {
       const success = setUserTimezone(userId, message);
       
       if (success) {
-        await ctx.reply(
-          `✅ *Fuso horário atualizado!*\n\n` +
-          `🌍 *Novo fuso:* \`${message}\`\n\n` +
-          `Todos os seus eventos agora usarão este fuso horário.`,
-          { parse_mode: 'Markdown' }
-        );
-      } else {
-        await ctx.reply(
-          `❌ *Fuso horário inválido*\n\n` +
-          `💡 *Exemplos válidos:*\n` +
-          `• \`America/Sao_Paulo\` (Brasil)\n` +
-          `• \`America/New_York\` (EUA)\n` +
-          `• \`Europe/London\` (Reino Unido)`,
-          { parse_mode: 'Markdown' }
-        );
-      }
-    });
-
-    // =================== INÍCIO: COMANDO /setfuso ===================
-    // Comando /setfuso - definir fuso horário local do usuário
-    bot.command('setfuso', async (ctx) => {
-      const timezoneArg = ctx.message.text.replace('/setfuso', '').trim();
-      const userId = ctx.from?.id || 0;
-      
-      if (!timezoneArg) {
-        await ctx.reply(
-          '🌍 *Configurar Fuso Horário Local*\n\n' +
-          '💡 *Como usar:*\n' +
-          '`/setfuso America/Sao_Paulo`\n' +
-          '`/setfuso America/Buenos_Aires`\n' +
-          '`/setfuso Europe/Lisbon`\n\n' +
-          '📋 *Fusos comuns:*\n' +
-          '• `America/Sao_Paulo` (Brasil)\n' +
-          '• `America/Buenos_Aires` (Argentina)\n' +
-          '• `Europe/Lisbon` (Portugal)\n' +
-          '• `America/New_York` (EUA)\n' +
-          '• `Europe/London` (Reino Unido)',
-          { parse_mode: 'Markdown' }
-        );
-        return;
-      }
-      
-      // Validar se o fuso horário é válido
-      try {
-        DateTime.now().setZone(timezoneArg);
-        userTimezones.set(userId, timezoneArg);
+        // =================== SINCRONIZAR COM HORÁRIOS LOCAIS ===================
+        // Também salvar no Map para funcionalidade de horários locais
+        const numericUserId = ctx.from?.id || 0;
+        userTimezones.set(numericUserId, message);
         
-        const locationName = timezoneArg.split('/')[1]?.replace('_', ' ') || timezoneArg;
+        const locationName = message.split('/')[1]?.replace('_', ' ') || message;
         await ctx.reply(
           `✅ *Fuso horário configurado!*\n\n` +
           `🌍 *Novo fuso:* ${locationName}\n` +
-          `📍 *Código:* \`${timezoneArg}\`\n\n` +
-          `Agora quando você disser "às 7 da noite", será interpretado como 19:00 no horário de ${locationName}.`,
+          `📍 *Código:* \`${message}\`\n\n` +
+          `Agora quando você disser:\n` +
+          `• "às 7 da noite" → será 19:00 no seu horário local\n` +
+          `• "às 3 da tarde" → será 15:00 no seu horário local\n` +
+          `• Todos os eventos usarão este fuso horário`,
           { parse_mode: 'Markdown' }
         );
-      } catch (error) {
+      } else {
         await ctx.reply(
           `❌ *Fuso horário inválido*\n\n` +
           `💡 *Exemplos válidos:*\n` +
@@ -306,7 +267,8 @@ export async function startZelarBot(): Promise<boolean> {
         );
       }
     });
-    // =================== FIM: COMANDO /setfuso ===================
+
+
 
     // Comando de teste para interpretação de datas
     bot.command('interpretar', async (ctx) => {
@@ -464,7 +426,6 @@ export async function startZelarBot(): Promise<boolean> {
     await bot.telegram.setMyCommands([
       { command: 'start', description: 'Iniciar o assistente' },
       { command: 'fuso', description: 'Configurar fuso horário' },
-      { command: 'setfuso', description: 'Definir fuso horário local' },
       { command: 'interpretar', description: 'Testar interpretação de datas' }
     ]);
     
