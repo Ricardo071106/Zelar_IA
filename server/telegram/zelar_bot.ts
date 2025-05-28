@@ -5,7 +5,7 @@
 
 import { Telegraf } from 'telegraf';
 import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES } from './utils/parseDate';
-import { DateTime } from 'luxon';
+import { DateTime, IANAZone } from 'luxon';
 
 let bot: Telegraf | null = null;
 
