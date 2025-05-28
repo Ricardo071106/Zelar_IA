@@ -86,38 +86,40 @@ function extractEventTitle(text: string): string {
   
   // =================== CORREÇÃO: USAR CHRONO-NODE PARA DETECTAR DATA/HORA ===================
   
-  // 1. CORREÇÃO: Detectar onde começa data/hora com regex e cortar a frase
-  const timePatterns = [
-    /\b(amanhã|amanha)\b/i,
-    /\b(hoje)\b/i,
-    /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/i,
-    /\b(às|as)\s+\d{1,2}\b/i,
-    /\b\d{1,2}(:\d{2})?\s*h\b/i,
-    /\b\d{1,2}\s*(am|pm)\b/i,
-    /\b(próxima|proxima|que vem)\b/i
+  // 1. CORREÇÃO: Remover completamente todas as expressões temporais da frase
+  let cleanTitle = text;
+  
+  // Padrões de expressões temporais completas para remover
+  const temporalPatterns = [
+    // Dias relativos
+    /\b(amanhã|amanha|hoje|ontem|depois de amanha|depois de amanhã)\b/gi,
+    // Dias da semana (com modificadores)
+    /\b(próxima|proxima|que vem)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
+    // Horários
+    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\b/gi,
+    /\b\d{1,2}(:\d{2})?\s*(h|horas?)\b/gi,
+    /\b\d{1,2}\s*(am|pm)\b/gi,
+    // Períodos do dia
+    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi,
+    // Preposições de tempo
+    /\b(na|no|em|de|da|do|para|pra)\s+(próxima|proxima)?\b/gi
   ];
   
-  let earliestIndex = text.length;
-  let foundPattern = false;
-  
-  for (const pattern of timePatterns) {
-    const match = pattern.exec(text);
-    if (match && match.index < earliestIndex) {
-      earliestIndex = match.index;
-      foundPattern = true;
-    }
+  // Remover todas as expressões temporais
+  for (const pattern of temporalPatterns) {
+    cleanTitle = cleanTitle.replace(pattern, ' ');
   }
   
-  if (foundPattern && earliestIndex > 0) {
-    let titlePart = text.substring(0, earliestIndex).trim();
-    
-    // Limpar preposições e artigos no final
-    titlePart = titlePart.replace(/\s+(no|na|em|de|da|do|às|as|para|pra)$/i, '').trim();
-    
-    if (titlePart.length > 2) {
-      console.log(`📝 Título limpo extraído: "${titlePart}" de "${text}"`);
-      return capitalizeFirst(titlePart);
-    }
+  // Limpar espaços extras e preposições soltas
+  cleanTitle = cleanTitle
+    .replace(/\s+/g, ' ') // múltiplos espaços → um espaço
+    .replace(/^\s*(no|na|em|de|da|do|às|as|para|pra)\s+/i, '') // preposições no início
+    .replace(/\s+(no|na|em|de|da|do|às|as|para|pra)\s*$/i, '') // preposições no final
+    .trim();
+  
+  if (cleanTitle.length > 2) {
+    console.log(`📝 Título limpo extraído: "${cleanTitle}" de "${text}"`);
+    return capitalizeFirst(cleanTitle);
   }
   
   // 2. FALLBACK: Padrões específicos com contexto (ex: "reunião com João")
