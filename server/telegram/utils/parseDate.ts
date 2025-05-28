@@ -325,7 +325,47 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
       return DateTime.now().setZone(userTimezone).plus({ days: 1 }).startOf('day').toJSDate();
     }
     
-    // Fallback: usar chrono-node para outros casos
+    // =================== CORREÇÃO: SUPORTE PARA DATAS BRASILEIRAS DD/MM/AAAA ===================
+    
+    // 1. PRIMEIRO: Tentar detectar formatos DD/MM ou DD/MM/AAAA
+    const brazilianDateRegex = /\b(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?\b/;
+    const dateMatch = text.match(brazilianDateRegex);
+    
+    if (dateMatch) {
+      let [_, dayStr, monthStr, yearStr] = dateMatch;
+      const day = parseInt(dayStr);
+      const month = parseInt(monthStr) - 1; // JavaScript months are 0-indexed
+      const now = DateTime.now().setZone(userTimezone);
+      let year = yearStr ? parseInt(yearStr) : now.year;
+      
+      // Ajustar ano de 2 dígitos (26 → 2026)
+      if (yearStr && yearStr.length === 2) {
+        const shortYear = parseInt(yearStr);
+        year = shortYear < 50 ? 2000 + shortYear : 1900 + shortYear;
+      }
+      
+      // Validar se a data é válida
+      if (day >= 1 && day <= 31 && month >= 0 && month <= 11) {
+        let parsedDate = DateTime.fromObject({ 
+          year, 
+          month: month + 1, // Luxon usa meses 1-indexed
+          day, 
+          hour, 
+          minute 
+        }, { zone: userTimezone });
+        
+        // Se não foi informado ano e a data já passou este ano, usar próximo ano
+        if (!yearStr && parsedDate < now) {
+          parsedDate = parsedDate.plus({ years: 1 });
+          console.log(`📅 Data passou este ano, ajustando para próximo ano`);
+        }
+        
+        console.log(`📅 Data brasileira detectada: ${day}/${month + 1}/${year} → ${parsedDate.toFormat('dd/MM/yyyy')}`);
+        return parsedDate.toJSDate();
+      }
+    }
+    
+    // 2. FALLBACK: usar chrono-node para outros casos
     const pt = chrono.pt;
     const processedInput = preprocessPortugueseText(input);
     
