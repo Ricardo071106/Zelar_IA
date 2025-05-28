@@ -78,43 +78,94 @@ interface Event {
 }
 
 /**
- * Extrai título inteligente do evento
+ * Extrai título inteligente do evento focando na ação principal
+ * CORREÇÃO: Agora extrai apenas o núcleo da tarefa, não a frase completa
  */
 function extractEventTitle(text: string): string {
   const textLower = text.toLowerCase();
   
-  // Tipos específicos de eventos
-  if (textLower.includes('jantar')) return 'Jantar';
-  if (textLower.includes('reunião') || textLower.includes('reuniao')) return 'Reunião';
-  if (textLower.includes('compromisso')) return 'Compromisso';
-  if (textLower.includes('consulta')) return 'Consulta';
-  if (textLower.includes('exame')) return 'Exame';
-  if (textLower.includes('almoço') || textLower.includes('almoco')) return 'Almoço';
-  if (textLower.includes('dentista')) return 'Dentista';
-  if (textLower.includes('médico') || textLower.includes('medico')) return 'Consulta Médica';
-  if (textLower.includes('academia')) return 'Academia';
-  if (textLower.includes('trabalho')) return 'Trabalho';
-  if (textLower.includes('escola') || textLower.includes('aula')) return 'Aula';
-  if (textLower.includes('festa')) return 'Festa';
-  if (textLower.includes('aniversário') || textLower.includes('aniversario')) return 'Aniversário';
+  // =================== CORREÇÃO: EXTRAÇÃO INTELIGENTE DE TÍTULOS ===================
   
-  // Extrair título mais inteligente removendo palavras de tempo
-  let title = text
+  // 1. Padrões específicos com contexto (ex: "reunião com João")
+  const specificPatterns = [
+    { regex: /reunião\s+com\s+([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Reunião com ${match}` },
+    { regex: /consulta\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Consulta Dr. ${match}` },
+    { regex: /dentista\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Dentista Dr. ${match}` },
+    { regex: /médico\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Médico Dr. ${match}` },
+    { regex: /aniversário\s+(?:do\s+|da\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Aniversário ${match}` },
+    { regex: /festa\s+(?:do\s+|da\s+|de\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Festa ${match}` }
+  ];
+  
+  for (const pattern of specificPatterns) {
+    const match = textLower.match(pattern.regex);
+    if (match && match[1]) {
+      const result = pattern.format(match[1].trim());
+      console.log(`📝 Título específico extraído: "${result}" de "${text}"`);
+      return capitalizeFirst(result);
+    }
+  }
+  
+  // 2. Extrair após verbos de ação (removendo o verbo)
+  const actionVerbs = [
+    /(?:me\s+)?lembre?\s+de\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /(?:vou\s+|ir\s+)?fazer\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /agende?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /marque?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /criar?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i
+  ];
+  
+  for (const verb of actionVerbs) {
+    const match = text.match(verb);
+    if (match && match[1]) {
+      let extracted = match[1].trim();
+      // Remover artigos desnecessários
+      extracted = extracted.replace(/^(um|uma|o|a|os|as)\s+/i, '');
+      console.log(`📝 Título extraído após verbo: "${extracted}" de "${text}"`);
+      return capitalizeFirst(extracted);
+    }
+  }
+  
+  // 3. Palavras-chave diretas (como antes, mas mais refinado)
+  const directKeywords = [
+    'jantar', 'almoço', 'almoco', 'academia', 'trabalho', 'escola', 'aula',
+    'compromisso', 'consulta', 'exame', 'reunião', 'reuniao', 'compras'
+  ];
+  
+  for (const keyword of directKeywords) {
+    if (textLower.includes(keyword)) {
+      console.log(`📝 Palavra-chave direta encontrada: "${keyword}" de "${text}"`);
+      return capitalizeFirst(keyword);
+    }
+  }
+  
+  // 4. Fallback: limpar e extrair núcleo da frase
+  let cleaned = text
+    // Remover verbos de ação no início
+    .replace(/^(me\s+lembre\s+de\s+|agende\s+|marque\s+|criar?\s+|vou\s+|ir\s+)/i, '')
+    // Remover artigos
+    .replace(/^(um|uma|o|a|os|as)\s+/i, '')
+    // Remover tempos
     .replace(/\b(amanhã|amanha|hoje|ontem)\b/gi, '')
     .replace(/\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
-    .replace(/\b(próxima|proxima|que vem)\b/gi, '')
+    .replace(/\b(próxima|proxima|que vem|na|no)\b/gi, '')
+    // Remover horários
     .replace(/\bàs?\s+\d{1,2}(:\d{2})?h?\b/gi, '')
     .replace(/\b\d{1,2}(am|pm)\b/gi, '')
-    .replace(/\b(da manhã|da manha|da tarde|da noite|de manhã|de manha|de tarde|de noite)\b/gi, '')
+    .replace(/\b(da manhã|da manha|da tarde|da noite)\b/gi, '')
+    // Limpar espaços
     .replace(/\s+/g, ' ')
     .trim();
-    
-  // Capitalizar primeira letra
-  if (title) {
-    title = title.charAt(0).toUpperCase() + title.slice(1);
-  }
-    
-  return title || 'Evento';
+  
+  console.log(`📝 Título limpo extraído: "${cleaned}" de "${text}"`);
+  return capitalizeFirst(cleaned) || 'Evento';
+}
+
+/**
+ * Capitaliza primeira letra de uma string
+ */
+function capitalizeFirst(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 /**
