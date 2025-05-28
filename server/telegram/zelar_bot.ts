@@ -119,15 +119,22 @@ export async function startZelarBot(): Promise<boolean> {
 
     // Comando inicial
     bot.start((ctx) => {
+      const userId = ctx.from?.id.toString() || 'unknown';
+      const currentTimezone = getUserTimezone(userId, ctx.from?.language_code);
+      
       ctx.reply(
         '🤖 *Zelar - Assistente Inteligente de Agendamentos*\n\n' +
-        'Olá! Sou seu assistente para criar eventos com interpretação avançada de datas!\n\n' +
+        'Olá! Sou seu assistente para criar eventos com detecção automática de fuso horário!\n\n' +
         '📝 *Exemplos que entendo:*\n' +
         '• "jantar hoje às 19h"\n' +
         '• "reunião quarta às sete da noite"\n' +
-        '• "consulta sexta que vem às 15h30"\n' +
-        '• "dentista próxima segunda às 10 da manhã"\n\n' +
-        '🧠 Agora entendo datas em português natural! Digite seu compromisso! 🚀',
+        '• "19", "7 da noite"\n' +
+        '• "consulta sexta que vem às 15h30"\n\n' +
+        `🌍 *Seu fuso atual:* \`${currentTimezone}\`\n` +
+        '⚙️ *Comandos úteis:*\n' +
+        '• `/fuso` - configurar fuso horário\n' +
+        '• `/interpretar` - testar datas\n\n' +
+        '🧠 Digite seu compromisso! 🚀',
         { parse_mode: 'Markdown' }
       );
     });
