@@ -91,31 +91,34 @@ function extractEventTitle(text: string): string {
   
   // =================== CORREÇÃO: LIMPEZA AVANÇADA DE TÍTULOS ===================
   
-  // 1. Remover verbos de ação e comandos
-  const actionWords = [
-    /\b(marque|marcar|agende|agendar|coloque|colocar|lembre|lembrar|crie|criar|faça|fazer|vou|ir)\b/gi,
-    /\b(me\s+lembre|preciso|tenho\s+que|devo|vou\s+ter)\b/gi,
-    /\b(dia|data|evento|compromisso|horário|horario)\b/gi
+  // =================== CORREÇÃO: LIMPEZA MAIS AGRESSIVA E PRECISA ===================
+  
+  // 1. Remover comandos e verbos de ação primeiro
+  const actionPatterns = [
+    /\b(agende|marque|coloque|lembre|crie|faça|vou|preciso)\s*/gi,
+    /\b(me\s+lembre|tenho\s+que|devo|vou\s+ter)\s*/gi
   ];
   
-  for (const pattern of actionWords) {
-    cleanTitle = cleanTitle.replace(pattern, ' ');
+  for (const pattern of actionPatterns) {
+    cleanTitle = cleanTitle.replace(pattern, '');
   }
   
-  // 2. Remover expressões temporais completas
+  // 2. Remover TODAS as expressões temporais (mais abrangente)
   const temporalPatterns = [
-    // Datas específicas (dd/mm, dd/mm/yyyy)
-    /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi,
-    // Dias relativos
-    /\b(amanhã|amanha|hoje|ontem|depois\s+de\s+amanha|depois\s+de\s+amanhã)\b/gi,
-    // Dias da semana com modificadores
-    /\b(próxima|proxima|que\s+vem|na)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
-    // Horários completos
-    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\b/gi,
+    // Horários completos PRIMEIRO (mais específicos)
+    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?|da\s+manhã|da\s+tarde|da\s+noite)?\b/gi,
     /\b\d{1,2}(:\d{2})?\s*(h|horas?)\b/gi,
     /\b\d{1,2}\s*(am|pm)\b/gi,
+    // Datas específicas
+    /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi,
+    // Dias relativos
+    /\b(amanhã|amanha|hoje|ontem)\b/gi,
+    // Dias da semana (completos)
+    /\b(próxima|proxima|que\s+vem|na)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
     // Períodos do dia
-    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi
+    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi,
+    // Palavras temporais extras
+    /\b(depois|antes|agora|já|ainda)\b/gi
   ];
   
   // Aplicar cada padrão sequencialmente
@@ -127,12 +130,14 @@ function extractEventTitle(text: string): string {
     }
   }
   
-  // Limpar espaços extras e preposições soltas
+  // 3. Limpeza final mais rigorosa
   cleanTitle = cleanTitle
     .replace(/\s+/g, ' ') // múltiplos espaços → um espaço
-    .replace(/^\s*(no|na|em|de|da|do|às|as|para|pra)\s+/i, '') // preposições no início
+    .replace(/^\s*(o|a|os|as|um|uma|no|na|em|de|da|do|às|as|para|pra)\s+/i, '') // artigos e preposições no início
     .replace(/\s+(no|na|em|de|da|do|às|as|para|pra)\s*$/i, '') // preposições no final
-    .trim();
+    .replace(/^\s*(e|com|sem|por)\s+/i, '') // conjunções no início
+    .trim()
+    .replace(/^./, char => char.toUpperCase()); // primeira letra maiúscula
   
   if (cleanTitle.length > 2) {
     console.log(`📝 Título limpo extraído: "${cleanTitle}" de "${text}"`);
