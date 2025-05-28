@@ -402,13 +402,22 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     }
   }
   
-  // 4. Formato "às X" (às 15, às 7)
-  const atMatch = text.match(/\bàs?\s+(\d{1,2})\b/);
-  if (atMatch && !text.includes('am') && !text.includes('pm')) {
-    const hour = parseInt(atMatch[1]);
-    if (hour >= 0 && hour <= 23) {
-      console.log(`🕐 Formato "às": ${hour}:00`);
-      return { hour, minute: 0 };
+  // 4. CORREÇÃO: Formato "às X" + números isolados no contexto de hora
+  // Detecta padrões como "às 19", "amanhã às 19", "cinema às 21"
+  const timeContextPatterns = [
+    /\bàs?\s+(\d{1,2})\b/,                    // "às 19"
+    /\b(\d{1,2})\s*(?:horas?|h)\b/,          // "19 horas", "19h" (backup)
+    /\b(?:às|as)\s+(\d{1,2})(?!\d)/          // "as 19" (sem 'h' no final)
+  ];
+  
+  for (const pattern of timeContextPatterns) {
+    const match = text.match(pattern);
+    if (match && !text.includes('am') && !text.includes('pm')) {
+      const hour = parseInt(match[1]);
+      if (hour >= 0 && hour <= 23) {
+        console.log(`🕐 Formato contextual: "${match[0]}" → ${hour}:00`);
+        return { hour, minute: 0 };
+      }
     }
   }
   
