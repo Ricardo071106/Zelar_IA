@@ -50,25 +50,43 @@ function extractDateInfo(input: string): { type: 'relative' | 'weekday', daysOff
 }
 
 /**
- * Extrai informações de horário do texto
+ * Extrai informações de horário do texto com melhor precisão
  */
 function extractTimeInfo(input: string): { hour: number, minute: number } | null {
+  console.log(`🕰️ Extraindo horário de: "${input}"`);
+  
   // Formato HH:MM
   const timeMatch1 = input.match(/\b(\d{1,2}):(\d{2})\b/);
   if (timeMatch1) {
-    return { hour: parseInt(timeMatch1[1]), minute: parseInt(timeMatch1[2]) };
+    const hour = parseInt(timeMatch1[1]);
+    const minute = parseInt(timeMatch1[2]);
+    console.log(`🕰️ Formato HH:MM encontrado: ${hour}:${minute}`);
+    return { hour, minute };
   }
   
   // Formato HHh ou HHhMM
   const timeMatch2 = input.match(/\b(\d{1,2})h(\d{2})?\b/);
   if (timeMatch2) {
-    return { hour: parseInt(timeMatch2[1]), minute: parseInt(timeMatch2[2] || '0') };
+    const hour = parseInt(timeMatch2[1]);
+    const minute = parseInt(timeMatch2[2] || '0');
+    console.log(`🕰️ Formato HHh encontrado: ${hour}:${minute}`);
+    return { hour, minute };
   }
   
-  // Formato só número (assumir hora cheia)
+  // Formato só número com "às" - mais específico
   const timeMatch3 = input.match(/\bàs?\s+(\d{1,2})\b/);
   if (timeMatch3) {
-    return { hour: parseInt(timeMatch3[1]), minute: 0 };
+    const hour = parseInt(timeMatch3[1]);
+    console.log(`🕰️ Formato "às X" encontrado: ${hour}:00`);
+    return { hour, minute: 0 };
+  }
+  
+  // Número sozinho no final (mais rigoroso)
+  const timeMatch4 = input.match(/\b(\d{1,2})\s*$/);
+  if (timeMatch4) {
+    const hour = parseInt(timeMatch4[1]);
+    console.log(`🕰️ Número no final encontrado: ${hour}:00`);
+    return { hour, minute: 0 };
   }
   
   // Expressões como "sete da noite", "nove da manhã"
@@ -87,10 +105,12 @@ function extractTimeInfo(input: string): { hour: number, minute: number } | null
         hour += 12;
       }
       
+      console.log(`🕰️ Número por extenso encontrado: ${word} → ${hour}:00`);
       return { hour, minute: 0 };
     }
   }
   
+  console.log(`❌ Nenhum horário encontrado em: "${input}"`);
   return null;
 }
 
@@ -98,9 +118,9 @@ function extractTimeInfo(input: string): { hour: number, minute: number } | null
  * Função utilitária para interpretar datas e horários em português informal
  * 
  * @param input Texto em português com data/hora (ex: "quarta às sete da noite", "amanhã às 9")
- * @returns Data/hora no formato ISO 8601 com offset de São Paulo ou null se não conseguir interpretar
+ * @returns Objeto com formato ISO para calendário e formato legível para exibição, ou null se não conseguir interpretar
  */
-export function parseBrazilianDateTime(input: string): string | null {
+export function parseBrazilianDateTime(input: string): { iso: string; readable: string } | null {
   try {
     console.log(`🔍 Analisando: "${input}"`);
     
@@ -136,14 +156,28 @@ export function parseBrazilianDateTime(input: string): string | null {
       millisecond: 0 
     });
     
-    const isoString = finalDateTime.toISO();
-    console.log(`✅ Interpretado "${input}" como: ${isoString}`);
-    return isoString;
+    // Gerar ambos os formatos
+    const iso = finalDateTime.toISO()!; // ISO com offset para Google Calendar
+    const readable = finalDateTime.setLocale('pt-BR').toFormat('cccc, dd \'de\' LLLL \'às\' HH:mm'); // Formato legível
+    
+    console.log(`✅ Interpretado "${input}"`);
+    console.log(`📅 ISO: ${iso}`);
+    console.log(`📋 Legível: ${readable}`);
+    
+    return { iso, readable };
     
   } catch (error) {
     console.error(`❌ Erro ao interpretar "${input}":`, error);
     return null;
   }
+}
+
+/**
+ * Função de compatibilidade - retorna apenas o ISO (para códigos antigos)
+ */
+export function parseBrazilianDateTimeISO(input: string): string | null {
+  const result = parseBrazilianDateTime(input);
+  return result ? result.iso : null;
 }
 
 /**
