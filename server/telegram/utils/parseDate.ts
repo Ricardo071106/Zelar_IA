@@ -1,4 +1,3 @@
-import * as chrono from 'chrono-node';
 import { DateTime } from 'luxon';
 
 /**
@@ -139,30 +138,19 @@ export function parseUserDateTime(
     // Obter fuso horário do usuário
     const userTimezone = getUserTimezone(userId, languageCode);
     
-    // Tentar primeiro com preprocessamento para português
-    const processedInput = preprocessPortugueseInput(input);
+    // Usar parser customizado para português
+    const parsedDateTime = parsePortugueseDateTime(input, userTimezone);
     
-    // Usar chrono-node para interpretar a data/hora
-    const parseResults = chrono.parse(processedInput, new Date(), { forwardDate: true });
-    
-    if (parseResults.length === 0) {
-      console.log(`❌ Chrono não conseguiu interpretar: "${input}"`);
+    if (!parsedDateTime) {
+      console.log(`❌ Não conseguiu interpretar: "${input}"`);
       return null;
     }
     
-    // Pegar o primeiro resultado do chrono
-    const chronoResult = parseResults[0];
-    const parsedDate = chronoResult.start.date();
-    
-    console.log(`📅 Chrono interpretou como: ${parsedDate.toISOString()}`);
-    
-    // Converter para o fuso horário do usuário usando Luxon
-    const userDateTime = DateTime.fromJSDate(parsedDate, { zone: 'UTC' })
-      .setZone(userTimezone);
+    console.log(`📅 Interpretado como: ${parsedDateTime.toISO()}`);
     
     // Gerar os dois formatos
-    const iso = userDateTime.toISO()!;
-    const readable = userDateTime.setLocale('pt-BR').toFormat('cccc, dd \'de\' LLLL \'às\' HH:mm');
+    const iso = parsedDateTime.toISO()!;
+    const readable = parsedDateTime.setLocale('pt-BR').toFormat('cccc, dd \'de\' LLLL \'às\' HH:mm');
     
     console.log(`✅ Resultado final:`);
     console.log(`📅 ISO (${userTimezone}): ${iso}`);
@@ -174,4 +162,139 @@ export function parseUserDateTime(
     console.error(`❌ Erro ao interpretar "${input}":`, error);
     return null;
   }
+}
+
+/**
+ * Parser customizado para datas em português
+ */
+function parsePortugueseDateTime(input: string, timezone: string): DateTime | null {
+  const text = input.toLowerCase().trim();
+  
+  // Obter data base
+  const dateInfo = extractDateInfo(text);
+  const timeInfo = extractTimeInfo(text);
+  
+  if (!dateInfo) {
+    return null;
+  }
+  
+  // Criar DateTime no fuso especificado
+  let baseDateTime = DateTime.now().setZone(timezone);
+  
+  // Aplicar a data extraída
+  if (dateInfo.type === 'relative') {
+    baseDateTime = baseDateTime.plus({ days: dateInfo.daysOffset });
+  } else if (dateInfo.type === 'weekday') {
+    baseDateTime = getNextWeekday(baseDateTime, dateInfo.weekday, dateInfo.isNext);
+  }
+  
+  // Aplicar o horário (padrão: 9:00 se não especificado)
+  const hour = timeInfo?.hour ?? 9;
+  const minute = timeInfo?.minute ?? 0;
+  
+  return baseDateTime.set({ 
+    hour, 
+    minute, 
+    second: 0, 
+    millisecond: 0 
+  });
+}
+
+/**
+ * Extrai informações de data do texto
+ */
+function extractDateInfo(input: string): { type: 'relative' | 'weekday', daysOffset?: number, weekday?: number, isNext?: boolean } | null {
+  // Expressões relativas
+  if (/\b(hoje)\b/.test(input)) {
+    return { type: 'relative', daysOffset: 0 };
+  }
+  if (/\b(amanhã|amanha)\b/.test(input)) {
+    return { type: 'relative', daysOffset: 1 };
+  }
+  
+  // Dias da semana
+  const weekdays = {
+    'segunda': 1, 'segunda-feira': 1,
+    'terça': 2, 'terca': 2, 'terça-feira': 2, 'terca-feira': 2,
+    'quarta': 3, 'quarta-feira': 3,
+    'quinta': 4, 'quinta-feira': 4,
+    'sexta': 5, 'sexta-feira': 5,
+    'sábado': 6, 'sabado': 6,
+    'domingo': 7
+  };
+  
+  for (const [day, weekday] of Object.entries(weekdays)) {
+    if (new RegExp(`\\b${day}\\b`).test(input)) {
+      const isNext = /\b(próxima|proxima|que vem)\b/.test(input);
+      return { type: 'weekday', weekday, isNext };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Extrai informações de horário do texto
+ */
+function extractTimeInfo(input: string): { hour: number, minute: number } | null {
+  // Formato HH:MM
+  const timeMatch1 = input.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (timeMatch1) {
+    return { hour: parseInt(timeMatch1[1]), minute: parseInt(timeMatch1[2]) };
+  }
+  
+  // Formato HHh ou HHhMM
+  const timeMatch2 = input.match(/\b(\d{1,2})h(\d{2})?\b/);
+  if (timeMatch2) {
+    return { hour: parseInt(timeMatch2[1]), minute: parseInt(timeMatch2[2] || '0') };
+  }
+  
+  // Formato só número com "às"
+  const timeMatch3 = input.match(/\bàs?\s+(\d{1,2})\b/);
+  if (timeMatch3) {
+    return { hour: parseInt(timeMatch3[1]), minute: 0 };
+  }
+  
+  // Número sozinho no final
+  const timeMatch4 = input.match(/\b(\d{1,2})\s*$/);
+  if (timeMatch4) {
+    return { hour: parseInt(timeMatch4[1]), minute: 0 };
+  }
+  
+  // Expressões como "sete da noite"
+  const wordNumbers: { [key: string]: number } = {
+    'uma': 1, 'dois': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5,
+    'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10,
+    'onze': 11, 'doze': 12
+  };
+  
+  for (const [word, number] of Object.entries(wordNumbers)) {
+    if (new RegExp(`\\b${word}\\b`).test(input)) {
+      let hour = number;
+      
+      // Ajustar para período da tarde/noite
+      if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(input) && hour < 12) {
+        hour += 12;
+      }
+      
+      return { hour, minute: 0 };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * Encontra o próximo dia da semana
+ */
+function getNextWeekday(baseDate: DateTime, targetWeekday: number, isNext: boolean = false): DateTime {
+  const currentWeekday = baseDate.weekday;
+  
+  let daysToAdd = targetWeekday - currentWeekday;
+  
+  if (isNext || daysToAdd <= 0) {
+    daysToAdd += 7;
+  }
+  
+  return baseDate.plus({ days: daysToAdd });
 }
