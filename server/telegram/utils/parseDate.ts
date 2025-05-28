@@ -182,8 +182,23 @@ export function parseUserDateTime(
       userTimezone = 'America/Sao_Paulo'; // Fallback seguro
     }
     
-    // Estratégia híbrida: extrair hora primeiro, depois data com o horário
-    const timeResult = extractTimeFromText(input);
+    // =================== CORREÇÃO: PARSING SIMPLIFICADO E ROBUSTO ===================
+    // Extrair hora com múltiplas tentativas antes de usar padrão
+    let timeResult = extractTimeFromText(input);
+    
+    // CORREÇÃO: Se não conseguiu extrair, tentar padrões mais simples
+    if (!timeResult) {
+      // Tentar detectar números isolados após palavras de tempo
+      const simpleTimeMatch = input.toLowerCase().match(/\b(?:às|as|ate)\s+(\d{1,2})\b/);
+      if (simpleTimeMatch) {
+        const hourFound = parseInt(simpleTimeMatch[1]);
+        if (hourFound >= 0 && hourFound <= 23) {
+          timeResult = { hour: hourFound, minute: 0 };
+          console.log(`🕐 CORREÇÃO SIMPLES - Detectado: "${simpleTimeMatch[0]}" → ${hourFound}:00`);
+        }
+      }
+    }
+    
     const hour = timeResult?.hour ?? 9;
     const minute = timeResult?.minute ?? 0;
     
