@@ -89,23 +89,36 @@ function extractEventTitle(text: string): string {
   // 1. CORREÇÃO: Remover completamente todas as expressões temporais da frase
   let cleanTitle = text;
   
-  // CORREÇÃO: Usar regex mais específica e robusta para remover expressões temporais
-  const temporalPatterns = [
-    // Dias relativos (mais específico)
-    /\s*(amanhã|amanha|hoje|ontem)\s*/gi,
-    // Dias da semana com modificadores
-    /\s*(próxima|proxima|que vem)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\s*/gi,
-    // Horários completos
-    /\s*(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\s*/gi,
-    /\s*\d{1,2}(:\d{2})?\s*(h|horas?)\s*/gi,
-    /\s*\d{1,2}\s*(am|pm)\s*/gi,
-    // Períodos do dia
-    /\s*(da|de)\s+(manhã|tarde|noite|madrugada)\s*/gi,
-    // Expressões completas como "depois de amanhã"
-    /\s*depois\s+de\s+(amanha|amanhã)\s*/gi
+  // =================== CORREÇÃO: LIMPEZA AVANÇADA DE TÍTULOS ===================
+  
+  // 1. Remover verbos de ação e comandos
+  const actionWords = [
+    /\b(marque|marcar|agende|agendar|coloque|colocar|lembre|lembrar|crie|criar|faça|fazer|vou|ir)\b/gi,
+    /\b(me\s+lembre|preciso|tenho\s+que|devo|vou\s+ter)\b/gi,
+    /\b(dia|data|evento|compromisso|horário|horario)\b/gi
   ];
   
-  // Aplicar cada padrão sequencialmente para máxima limpeza
+  for (const pattern of actionWords) {
+    cleanTitle = cleanTitle.replace(pattern, ' ');
+  }
+  
+  // 2. Remover expressões temporais completas
+  const temporalPatterns = [
+    // Datas específicas (dd/mm, dd/mm/yyyy)
+    /\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi,
+    // Dias relativos
+    /\b(amanhã|amanha|hoje|ontem|depois\s+de\s+amanha|depois\s+de\s+amanhã)\b/gi,
+    // Dias da semana com modificadores
+    /\b(próxima|proxima|que\s+vem|na)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
+    // Horários completos
+    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\b/gi,
+    /\b\d{1,2}(:\d{2})?\s*(h|horas?)\b/gi,
+    /\b\d{1,2}\s*(am|pm)\b/gi,
+    // Períodos do dia
+    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi
+  ];
+  
+  // Aplicar cada padrão sequencialmente
   for (const pattern of temporalPatterns) {
     const beforeClean = cleanTitle;
     cleanTitle = cleanTitle.replace(pattern, ' ');
