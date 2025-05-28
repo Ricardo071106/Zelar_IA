@@ -89,25 +89,29 @@ function extractEventTitle(text: string): string {
   // 1. CORREÇÃO: Remover completamente todas as expressões temporais da frase
   let cleanTitle = text;
   
-  // Padrões de expressões temporais completas para remover
+  // CORREÇÃO: Usar regex mais específica e robusta para remover expressões temporais
   const temporalPatterns = [
-    // Dias relativos
-    /\b(amanhã|amanha|hoje|ontem|depois de amanha|depois de amanhã)\b/gi,
-    // Dias da semana (com modificadores)
-    /\b(próxima|proxima|que vem)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi,
-    // Horários
-    /\b(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\b/gi,
-    /\b\d{1,2}(:\d{2})?\s*(h|horas?)\b/gi,
-    /\b\d{1,2}\s*(am|pm)\b/gi,
+    // Dias relativos (mais específico)
+    /\s*(amanhã|amanha|hoje|ontem)\s*/gi,
+    // Dias da semana com modificadores
+    /\s*(próxima|proxima|que vem)?\s*(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\s*/gi,
+    // Horários completos
+    /\s*(às|as)\s+\d{1,2}(:\d{2})?\s*(h|horas?)?\s*/gi,
+    /\s*\d{1,2}(:\d{2})?\s*(h|horas?)\s*/gi,
+    /\s*\d{1,2}\s*(am|pm)\s*/gi,
     // Períodos do dia
-    /\b(da|de)\s+(manhã|tarde|noite|madrugada)\b/gi,
-    // Preposições de tempo
-    /\b(na|no|em|de|da|do|para|pra)\s+(próxima|proxima)?\b/gi
+    /\s*(da|de)\s+(manhã|tarde|noite|madrugada)\s*/gi,
+    // Expressões completas como "depois de amanhã"
+    /\s*depois\s+de\s+(amanha|amanhã)\s*/gi
   ];
   
-  // Remover todas as expressões temporais
+  // Aplicar cada padrão sequencialmente para máxima limpeza
   for (const pattern of temporalPatterns) {
+    const beforeClean = cleanTitle;
     cleanTitle = cleanTitle.replace(pattern, ' ');
+    if (beforeClean !== cleanTitle) {
+      console.log(`🧹 Removido "${beforeClean}" → "${cleanTitle}"`);
+    }
   }
   
   // Limpar espaços extras e preposições soltas
