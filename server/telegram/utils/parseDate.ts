@@ -164,18 +164,17 @@ export function parseUserDateTime(
     console.log(`📅 Data extraída: ${dateResult.toDateString()}`);
     console.log(`🕐 Hora extraída: ${timeResult ? `${timeResult.hour}:${timeResult.minute}` : 'padrão 9:00'}`);
     
-    // Aplicar horário na data
+    // Aplicar horário na data NO FUSO DO USUÁRIO (não UTC)
     const hour = timeResult?.hour ?? 9;
     const minute = timeResult?.minute ?? 0;
     
-    const finalDate = new Date(dateResult);
-    finalDate.setHours(hour, minute, 0, 0);
+    // =================== CORREÇÃO: INTERPRETAR HORÁRIO COMO LOCAL ===================
+    // Criar data/hora diretamente no fuso do usuário
+    const userDateTime = DateTime.fromJSDate(dateResult, { zone: userTimezone })
+      .set({ hour, minute, second: 0, millisecond: 0 });
     
-    console.log(`📅 Data/hora final: ${finalDate.toISOString()}`);
-    
-    // Converter para o fuso do usuário
-    const userDateTime = DateTime.fromJSDate(finalDate, { zone: 'UTC' })
-      .setZone(userTimezone);
+    console.log(`📅 Data/hora criada no fuso ${userTimezone}: ${userDateTime.toISO()}`);
+    // =================== FIM CORREÇÃO ===================
     
     // Gerar os dois formatos
     const iso = userDateTime.toISO()!;
