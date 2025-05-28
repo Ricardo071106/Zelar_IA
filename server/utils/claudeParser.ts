@@ -35,10 +35,12 @@ REGRAS PARA TÍTULO:
   * "agende reunião sexta às 9" → "Reunião"
 
 REGRAS PARA DATA/HORA:
+- Hoje é ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('pt-BR')})
 - "amanhã" = próximo dia
 - "sexta" = próxima sexta-feira
 - "às 15" = 15:00
 - Se não especificar hora, use 09:00
+- SEMPRE use ano atual ou posterior (2025+)
 
 Responda APENAS em JSON:
 {
@@ -73,9 +75,17 @@ Responda APENAS em JSON:
     
     console.log(`🤖 Claude interpretou: "${userMessage}" → ${JSON.stringify(result)}`);
     
+    // CORREÇÃO: Garantir que a data seja sempre 2025 ou posterior
+    let correctedDate = result.date;
+    if (correctedDate && correctedDate.startsWith('2023') || correctedDate.startsWith('2024')) {
+      const currentYear = new Date().getFullYear();
+      correctedDate = correctedDate.replace(/^\d{4}/, currentYear.toString());
+      console.log(`📅 Data corrigida de ${result.date} para ${correctedDate}`);
+    }
+    
     return {
       title: result.title || 'Evento',
-      date: result.date || new Date().toISOString().split('T')[0],
+      date: correctedDate || new Date().toISOString().split('T')[0],
       hour: result.hour || 9,
       minute: result.minute || 0,
       isValid: result.isValid !== false
