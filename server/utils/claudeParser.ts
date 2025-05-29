@@ -26,16 +26,17 @@ INSTRUÇÕES:
 2. Identifique a DATA (considere fuso horário ${userTimezone})
 3. Identifique o HORÁRIO (formato 24h)
 
-REGRAS PARA TÍTULO:
-- Remova TODAS as expressões temporais: "amanhã", "hoje", "às X", "sexta", "segunda", etc.
-- Remova TODOS os comandos: "marque", "agende", "coloque", "lembre", "me lembre de", "anote"
-- Remova artigos desnecessários: "de", "do", "da" quando redundantes
-- Mantenha apenas o NÚCLEO da ação/atividade
-- Exemplos corretos:
-  * "desbloquear o cartão amanhã às 15" → "Desbloquear cartão"
+REGRAS CRÍTICAS PARA TÍTULO:
+- Remova TODOS os comandos: "marque", "agende", "coloque", "lembre", "me lembre de", "anote", "criar", "fazer"
+- Remova TODAS as expressões temporais: "amanhã", "hoje", "às 15", "às 19", "sexta", "segunda", etc.
+- Remova TODOS os horários: "às X", "às XX:XX", qualquer menção de hora
+- Remova TODOS os dias da semana: "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"
+- Mantenha APENAS o objeto/ação principal
+- Exemplos CORRETOS:
+  * "marque entrega da semana sexta às 15" → "Entrega da semana"
   * "me lembre de cancelar o amex às 19" → "Cancelar amex"
-  * "agende reunião sexta às 9" → "Reunião"
-- NUNCA inclua "Me lembre de" ou similar no título final
+  * "desbloquear o cartão amanhã às 15" → "Desbloquear cartão"
+- NUNCA inclua horários, dias da semana ou comandos no título final
 
 REGRAS PARA DATA/HORA:
 - Hoje é ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('pt-BR')})
