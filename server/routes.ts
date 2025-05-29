@@ -5,8 +5,6 @@ import { insertEventSchema, insertReminderSchema, insertUserSchema, insertUserSe
 import { z } from "zod";
 import * as fs from 'fs';
 import * as path from 'path';
-import googleAuthRoutes from './routes/googleAuth';
-
 // Middleware para validação com Zod
 function validateBody(schema: z.ZodType<any, any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -26,8 +24,6 @@ function validateBody(schema: z.ZodType<any, any>) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Rota de autenticação do Google Calendar
-  app.use('/api/auth', googleAuthRoutes);
   // Rota para página de download do Apple Calendar
   app.get('/apple/:eventId', async (req, res) => {
     try {
