@@ -185,7 +185,9 @@ function extractEventTitle(text: string): string {
   // CORREÇÃO COMPLETA: Limpeza robusta conforme solicitado
   const limparTitulo = (texto: string) =>
     texto
-      .replace(/\b(amanhã|amanha|hoje|ontem|às\s?\d{1,2}(:\d{2})?\s?(h|pm|am)?|[a-zà-ú]+\s?feira|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|marcar|agendar|colocar|anotar|marque|agende|coloque|anote|lembre|crie|faça)\b/gi, '')
+      .replace(/\b(me\s+lembre\s+de|lembre\s+me\s+de|me\s+lembrar\s+de)\b/gi, '') // "me lembre de" primeiro
+      .replace(/\b(amanhã|amanha|hoje|ontem|às\s?\d{1,2}(:\d{2})?\s?(h|pm|am)?|[a-zà-ú]+\s?feira|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)\b/gi, '')
+      .replace(/\b(marcar|agendar|colocar|anotar|marque|agende|coloque|anote|lembre|crie|faça|criar|fazer)\b/gi, '')
       .replace(/\b(da\s+manhã|da\s+tarde|da\s+noite|de\s+manhã|de\s+tarde|de\s+noite)\b/gi, '')
       .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '') // datas dd/mm/yyyy
       .replace(/\s+/g, ' ')
