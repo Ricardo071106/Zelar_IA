@@ -27,12 +27,15 @@ INSTRUÇÕES:
 3. Identifique o HORÁRIO (formato 24h)
 
 REGRAS PARA TÍTULO:
-- Remova: "amanhã", "hoje", "às X", "sexta", "segunda", etc.
-- Remova: "marque", "agende", "coloque", "lembre"
-- Mantenha apenas o núcleo da atividade
-- Exemplos:
-  * "desbloquear o cartão amanhã às 15" → "Desbloquear o cartão"
+- Remova TODAS as expressões temporais: "amanhã", "hoje", "às X", "sexta", "segunda", etc.
+- Remova TODOS os comandos: "marque", "agende", "coloque", "lembre", "me lembre de", "anote"
+- Remova artigos desnecessários: "de", "do", "da" quando redundantes
+- Mantenha apenas o NÚCLEO da ação/atividade
+- Exemplos corretos:
+  * "desbloquear o cartão amanhã às 15" → "Desbloquear cartão"
+  * "me lembre de cancelar o amex às 19" → "Cancelar amex"
   * "agende reunião sexta às 9" → "Reunião"
+- NUNCA inclua "Me lembre de" ou similar no título final
 
 REGRAS PARA DATA/HORA:
 - Hoje é ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('pt-BR')})
