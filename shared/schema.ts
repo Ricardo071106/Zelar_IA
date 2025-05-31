@@ -35,30 +35,14 @@ export const events = pgTable("events", {
   rawData: json("raw_data"), // Dados originais processados pela IA
 });
 
-export const eventRelations = relations(events, ({ one, many }) => ({
+export const eventRelations = relations(events, ({ one }) => ({
   user: one(users, {
     fields: [events.userId],
     references: [users.id],
   }),
-  reminders: many(reminders),
 }));
 
-// Lembretes
-export const reminders = pgTable("reminders", {
-  id: serial("id").primaryKey(),
-  eventId: integer("event_id").notNull().references(() => events.id),
-  reminderTime: timestamp("reminder_time").notNull(),
-  status: varchar("status", { length: 20 }).notNull().default("pending"), // pending, sent, failed
-  type: varchar("type", { length: 20 }).notNull(), // 24h, 30min, custom
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
 
-export const reminderRelations = relations(reminders, ({ one }) => ({
-  event: one(events, {
-    fields: [reminders.eventId],
-    references: [events.id],
-  }),
-}));
 
 // Configurações do usuário
 export const userSettings = pgTable("user_settings", {
@@ -104,12 +88,7 @@ export const insertEventSchema = createInsertSchema(events).pick({
   rawData: true,
 });
 
-export const insertReminderSchema = createInsertSchema(reminders).pick({
-  eventId: true,
-  reminderTime: true,
-  status: true,
-  type: true,
-});
+
 
 export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   userId: true,
@@ -131,8 +110,7 @@ export type User = typeof users.$inferSelect;
 export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
-export type InsertReminder = z.infer<typeof insertReminderSchema>;
-export type Reminder = typeof reminders.$inferSelect;
+
 
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type UserSettings = typeof userSettings.$inferSelect;
