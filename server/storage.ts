@@ -3,7 +3,6 @@ import { and, eq, lte, lt, gt } from "drizzle-orm";
 import { 
   users, type User, type InsertUser, 
   events, type Event, type InsertEvent,
-  reminders, type Reminder, type InsertReminder,
   userSettings, type UserSettings, type InsertUserSettings
 } from "@shared/schema";
 
@@ -24,12 +23,7 @@ export interface IStorage {
   updateEvent(id: number, data: Partial<InsertEvent>): Promise<Event | undefined>;
   deleteEvent(id: number): Promise<boolean>;
   
-  // Lembretes
-  getReminder(id: number): Promise<Reminder | undefined>;
-  getRemindersByEventId(eventId: number): Promise<Reminder[]>;
-  getPendingReminders(before: Date): Promise<Reminder[]>;
-  createReminder(reminder: InsertReminder): Promise<Reminder>;
-  updateReminderStatus(id: number, status: string): Promise<Reminder | undefined>;
+
   
   // Configurações do usuário
   getUserSettings(userId: number): Promise<UserSettings | undefined>;
@@ -115,53 +109,12 @@ export class DatabaseStorage implements IStorage {
   }
   
   async deleteEvent(id: number): Promise<boolean> {
-    // Primeiro exclua todos os lembretes associados
-    await db.delete(reminders).where(eq(reminders.eventId, id));
-    
-    // Agora exclua o evento
     const [deletedEvent] = await db
       .delete(events)
       .where(eq(events.id, id))
       .returning();
     
     return !!deletedEvent;
-  }
-  
-  // Lembretes
-  async getReminder(id: number): Promise<Reminder | undefined> {
-    const [reminder] = await db.select().from(reminders).where(eq(reminders.id, id));
-    return reminder;
-  }
-  
-  async getRemindersByEventId(eventId: number): Promise<Reminder[]> {
-    return await db.select().from(reminders).where(eq(reminders.eventId, eventId));
-  }
-  
-  async getPendingReminders(before: Date): Promise<Reminder[]> {
-    return await db.select().from(reminders)
-      .where(
-        and(
-          eq(reminders.status, "pending"),
-          lte(reminders.reminderTime, before)
-        )
-      );
-  }
-  
-  async createReminder(reminder: InsertReminder): Promise<Reminder> {
-    const [newReminder] = await db
-      .insert(reminders)
-      .values(reminder)
-      .returning();
-    return newReminder;
-  }
-  
-  async updateReminderStatus(id: number, status: string): Promise<Reminder | undefined> {
-    const [updatedReminder] = await db
-      .update(reminders)
-      .set({ status })
-      .where(eq(reminders.id, id))
-      .returning();
-    return updatedReminder;
   }
   
   // Configurações do usuário

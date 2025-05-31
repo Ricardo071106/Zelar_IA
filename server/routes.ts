@@ -1,10 +1,5 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { insertEventSchema, insertReminderSchema, insertUserSchema, insertUserSettingsSchema } from "@shared/schema";
-import { z } from "zod";
-import * as fs from 'fs';
-import * as path from 'path';
 // Middleware para validação com Zod
 function validateBody(schema: z.ZodType<any, any>) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -445,46 +440,7 @@ END:VCALENDAR`;
     }
   });
 
-  // Rotas de lembretes
-  app.get('/api/events/:eventId/reminders', async (req, res, next) => {
-    try {
-      const eventId = parseInt(req.params.eventId);
-      const reminders = await storage.getRemindersByEventId(eventId);
-      res.json(reminders);
-    } catch (error) {
-      next(error);
-    }
-  });
 
-  app.post('/api/reminders', validateBody(insertReminderSchema), async (req, res, next) => {
-    try {
-      const reminder = await storage.createReminder(req.body);
-      res.status(201).json(reminder);
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.put('/api/reminders/:id/status', async (req, res, next) => {
-    try {
-      const reminderId = parseInt(req.params.id);
-      const { status } = req.body;
-      
-      if (!status || !['pending', 'sent', 'failed'].includes(status)) {
-        return res.status(400).json({ error: "Status inválido" });
-      }
-      
-      const updatedReminder = await storage.updateReminderStatus(reminderId, status);
-      
-      if (!updatedReminder) {
-        return res.status(404).json({ error: "Lembrete não encontrado" });
-      }
-      
-      res.json(updatedReminder);
-    } catch (error) {
-      next(error);
-    }
-  });
 
   // Rotas de configurações de usuário
   app.get('/api/users/:userId/settings', async (req, res, next) => {
