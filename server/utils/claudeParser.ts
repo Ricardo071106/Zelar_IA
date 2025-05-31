@@ -39,12 +39,14 @@ REGRAS CRÍTICAS PARA TÍTULO:
 - NUNCA inclua horários, dias da semana ou comandos no título final
 
 REGRAS PARA DATA/HORA:
-- Hoje é ${new Date().toISOString().split('T')[0]} (${new Date().toLocaleDateString('pt-BR')})
-- "amanhã" = próximo dia
-- "sexta" = próxima sexta-feira
-- "às 15" = 15:00
+- SEMPRE calcule datas baseado no fuso ${userTimezone}
+- Hoje é ${new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone })} no fuso ${userTimezone}
+- "segunda" = próxima segunda-feira a partir de hoje
+- "amanhã" = próximo dia a partir de hoje
+- "às 15" = 15:00 no fuso ${userTimezone}
 - Se não especificar hora, use 09:00
-- SEMPRE use ano atual ou posterior (2025+)
+- SEMPRE use ano 2025 ou posterior
+- Considere que hoje é ${new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone, weekday: 'long' })}
 
 Responda APENAS em JSON:
 {
