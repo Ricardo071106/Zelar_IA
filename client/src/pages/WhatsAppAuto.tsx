@@ -145,20 +145,31 @@ export default function WhatsAppAuto() {
             </div>
           </div>
 
-          <Button 
-            onClick={connectWhatsApp} 
-            disabled={loading}
-            className="w-full"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Gerando QR Code...
-              </>
-            ) : (
-              'Conectar WhatsApp'
-            )}
-          </Button>
+          <div className="space-y-3">
+            <Button 
+              onClick={connectWhatsApp} 
+              disabled={loading}
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Gerando QR Code...
+                </>
+              ) : (
+                'Conectar WhatsApp'
+              )}
+            </Button>
+            
+            <Button 
+              onClick={() => window.open('/whatsapp-guia', '_blank')}
+              variant="outline"
+              className="w-full border-green-300 text-green-700 hover:bg-green-50"
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              📋 Como Configurar Webhook
+            </Button>
+          </div>
         </CardContent>
       </Card>
 

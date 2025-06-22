@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import WhatsAppAdmin from "@/pages/WhatsAppAdmin";
 import WhatsAppSimple from "@/pages/WhatsAppSimple";
 import WhatsAppAuto from "@/pages/WhatsAppAuto";
+import WhatsAppGuide from "@/pages/WhatsAppGuide";
 
 function Router() {
   return (
@@ -16,6 +17,7 @@ function Router() {
       <Route path="/whatsapp" component={WhatsAppAdmin} />
       <Route path="/whatsapp-simples" component={WhatsAppSimple} />
       <Route path="/whatsapp-auto" component={WhatsAppAuto} />
+      <Route path="/whatsapp-guia" component={WhatsAppGuide} />
       <Route component={NotFound} />
     </Switch>
   );
