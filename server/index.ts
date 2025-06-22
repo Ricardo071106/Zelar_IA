@@ -75,5 +75,16 @@ app.use((req, res, next) => {
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
+
+    // Inicializar WhatsApp Z-API automaticamente
+    try {
+      const { initAutoZAPI } = await import('./whatsapp/autoZAPI');
+      const initialized = initAutoZAPI();
+      if (initialized) {
+        log('✅ WhatsApp Z-API configurado automaticamente!', 'whatsapp');
+      }
+    } catch (error) {
+      log('⚠️ WhatsApp Z-API não configurado nos secrets', 'whatsapp');
+    }
   });
 })();

@@ -228,10 +228,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Webhook Z-API
+  // Webhook Z-API (automático via secrets)
   app.post('/api/zapi/webhook', async (req, res) => {
     try {
-      await processZAPIMessage(req.body);
+      const { processZAPIWebhook } = await import('./whatsapp/autoZAPI');
+      await processZAPIWebhook(req.body);
       res.status(200).json({ received: true });
     } catch (error) {
       console.error('Erro no webhook Z-API:', error);
@@ -239,11 +240,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Status Z-API
+  // Status Z-API (automático via secrets)
   app.get('/api/zapi/status', async (req, res) => {
     try {
-      const { checkConnectionStatus } = await import('./whatsapp/simpleZAPI');
-      const status = await checkConnectionStatus();
+      const { checkZAPIConnection } = await import('./whatsapp/autoZAPI');
+      const status = await checkZAPIConnection();
       res.json(status);
     } catch (error) {
       res.status(500).json({ 
@@ -253,11 +254,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Conectar Z-API
+  // Conectar Z-API (automático via secrets)
   app.post('/api/zapi/connect', async (req, res) => {
     try {
-      const { generateQRCode } = await import('./whatsapp/simpleZAPI');
-      const result = await generateQRCode();
+      const { generateZAPIQRCode } = await import('./whatsapp/autoZAPI');
+      const result = await generateZAPIQRCode();
       
       if (result.success) {
         res.json(result);
