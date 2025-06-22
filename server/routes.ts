@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { setupEvolutionAPI, processWhatsAppMessage, setupWhatsAppWebhook, checkInstanceStatus } from "./whatsapp/evolutionBot";
+import { setupEvolutionAPI, processWhatsAppMessage, setupWhatsAppWebhook, checkInstanceStatus, createInstance, connectInstance, listInstances, deleteInstance } from "./whatsapp/evolutionBot";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rota básica de saúde da aplicação
@@ -99,6 +99,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ 
         error: 'Erro ao verificar status',
         connected: false 
+      });
+    }
+  });
+
+  // Criar nova instância WhatsApp
+  app.post('/api/whatsapp/create-instance', async (req, res) => {
+    try {
+      const { instanceName, phone } = req.body;
+      
+      if (!instanceName) {
+        return res.status(400).json({ 
+          error: 'Nome da instância é obrigatório' 
+        });
+      }
+      
+      const result = await createInstance(instanceName, phone);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao criar instância' 
+      });
+    }
+  });
+
+  // Conectar instância (gerar QR Code)
+  app.post('/api/whatsapp/connect', async (req, res) => {
+    try {
+      const result = await connectInstance();
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao conectar instância' 
+      });
+    }
+  });
+
+  // Listar todas as instâncias
+  app.get('/api/whatsapp/instances', async (req, res) => {
+    try {
+      const result = await listInstances();
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao listar instâncias' 
+      });
+    }
+  });
+
+  // Deletar instância
+  app.delete('/api/whatsapp/instances/:instanceName', async (req, res) => {
+    try {
+      const { instanceName } = req.params;
+      
+      if (!instanceName) {
+        return res.status(400).json({ 
+          error: 'Nome da instância é obrigatório' 
+        });
+      }
+      
+      const result = await deleteInstance(instanceName);
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao deletar instância' 
       });
     }
   });
