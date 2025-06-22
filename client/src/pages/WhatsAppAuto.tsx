@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, XCircle, Loader2, RefreshCw, Settings } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, RefreshCw, Settings, MessageSquare } from 'lucide-react';
 
 interface ZAPIStatus {
   connected: boolean;
