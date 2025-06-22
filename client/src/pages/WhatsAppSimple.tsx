@@ -232,10 +232,14 @@ export default function WhatsAppSimple() {
             <Label htmlFor="instanceId">Instance ID</Label>
             <Input
               id="instanceId"
-              placeholder="Sua Instance ID do Z-API"
+              placeholder="ex: 3C4D5E6F"
               value={config.instanceId}
-              onChange={(e) => setConfig(prev => ({ ...prev, instanceId: e.target.value }))}
+              onChange={(e) => setConfig(prev => ({ ...prev, instanceId: e.target.value.trim() }))}
+              className={config.instanceId && config.instanceId.length < 4 ? "border-orange-300" : ""}
             />
+            {config.instanceId && config.instanceId.length < 4 && (
+              <p className="text-xs text-orange-600">Instance ID geralmente tem pelo menos 4 caracteres</p>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -243,10 +247,14 @@ export default function WhatsAppSimple() {
             <Input
               id="token"
               type="password"
-              placeholder="Seu Token do Z-API"
+              placeholder="Token longo do Z-API..."
               value={config.token}
-              onChange={(e) => setConfig(prev => ({ ...prev, token: e.target.value }))}
+              onChange={(e) => setConfig(prev => ({ ...prev, token: e.target.value.trim() }))}
+              className={config.token && config.token.length < 10 ? "border-orange-300" : ""}
             />
+            {config.token && config.token.length < 10 && (
+              <p className="text-xs text-orange-600">Token geralmente é uma string longa</p>
+            )}
           </div>
           
           <div className="space-y-2">
@@ -255,11 +263,19 @@ export default function WhatsAppSimple() {
               id="phone"
               placeholder="5511999999999"
               value={config.phone}
-              onChange={(e) => setConfig(prev => ({ ...prev, phone: e.target.value }))}
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/\D/g, '');
+                setConfig(prev => ({ ...prev, phone: cleaned }));
+              }}
+              className={config.phone && config.phone.length < 10 ? "border-orange-300" : ""}
             />
-            <p className="text-xs text-muted-foreground">
-              Número com código do país (apenas números)
-            </p>
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>Formato: 55 + DDD + número (apenas números)</p>
+              <p>Exemplo: 5511999999999 (Brasil + SP + número)</p>
+              {config.phone && config.phone.length < 10 && (
+                <p className="text-orange-600">Número parece muito curto</p>
+              )}
+            </div>
           </div>
           
           <div className="flex gap-2">
@@ -293,54 +309,47 @@ export default function WhatsAppSimple() {
         </CardContent>
       </Card>
 
-      {/* Instruções Simples */}
-      <Card>
+      {/* Resumo e Próximos Passos */}
+      <Card className="border-green-200 bg-green-50/50 dark:bg-green-900/10">
         <CardHeader>
-          <CardTitle>Como Usar (Muito Simples!)</CardTitle>
+          <CardTitle className="text-green-800 dark:text-green-200">Sistema Pronto - Próximos Passos</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">1. Cadastre-se no Z-API</h4>
-            <p className="text-sm text-muted-foreground">
-              Acesse z-api.io e crie uma conta (serviço brasileiro, muito fácil)
-            </p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-800 dark:text-green-200 font-medium">Bot Telegram funcionando com Claude Haiku</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-800 dark:text-green-200 font-medium">Interface WhatsApp Z-API criada</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-800 dark:text-green-200 font-medium">Sistema de links de calendário automático</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              <span className="text-green-800 dark:text-green-200 font-medium">Processamento inteligente de datas em português</span>
+            </div>
           </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium">2. Pegue suas credenciais</h4>
-            <p className="text-sm text-muted-foreground">
-              No painel do Z-API, copie: Instance ID e Token
-            </p>
+
+          <div className="border-t pt-4">
+            <h4 className="font-medium text-green-800 dark:text-green-200 mb-2">Para ativar WhatsApp:</h4>
+            <ol className="text-sm text-green-700 dark:text-green-300 space-y-1 list-decimal list-inside">
+              <li>Acesse https://z-api.io e crie conta gratuita</li>
+              <li>Crie uma instância no painel Z-API</li>
+              <li>Copie Instance ID e Token</li>
+              <li>Cole as credenciais nos campos acima</li>
+              <li>Clique "Configurar Z-API" e depois "Conectar WhatsApp"</li>
+              <li>Escaneie o QR Code que aparecerá</li>
+            </ol>
           </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium">3. Configure aqui</h4>
-            <p className="text-sm text-muted-foreground">
-              Cole as credenciais acima e digite seu número do WhatsApp
-            </p>
-          </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium">4. Conecte o WhatsApp</h4>
-            <p className="text-sm text-muted-foreground">
-              Clique "Conectar WhatsApp" e escaneie o QR Code
-            </p>
-          </div>
-          
-          <div className="space-y-2">
-            <h4 className="font-medium">5. Pronto!</h4>
-            <p className="text-sm text-muted-foreground">
-              Envie mensagens como "reunião amanhã às 15h" e receba links de calendário
-            </p>
-          </div>
-          
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <h4 className="font-medium text-blue-900 mb-2">📱 Webhook URL para Z-API:</h4>
-            <code className="text-sm bg-white p-2 rounded border block">
-              {window.location.origin}/api/zapi/webhook
-            </code>
-            <p className="text-xs text-blue-700 mt-2">
-              Configure esta URL no painel do Z-API para receber mensagens
+
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-3">
+            <p className="text-sm text-blue-800 dark:text-blue-200">
+              <strong>Custo:</strong> Z-API oferece 100 mensagens grátis por mês. 
+              Zelar é totalmente gratuito. Total: R$ 0,00 para começar.
             </p>
           </div>
         </CardContent>
