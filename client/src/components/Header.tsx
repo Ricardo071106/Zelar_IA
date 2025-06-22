@@ -25,6 +25,7 @@ export default function Header() {
     { name: "Como Funciona", href: "#how-it-works" },
     { name: "Depoimentos", href: "#testimonials" },
     { name: "Perguntas", href: "#faq" },
+    { name: "WhatsApp Admin", href: "/whatsapp" },
   ];
 
   return (
