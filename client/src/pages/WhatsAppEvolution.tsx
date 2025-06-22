@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { CheckCircle, XCircle, Loader2, RefreshCw, Settings, MessageSquare, AlertCircle } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, RefreshCw, Settings, MessageSquare, AlertCircle, ExternalLink } from 'lucide-react';
 
 interface EvolutionConfig {
   configured: boolean;
@@ -411,19 +411,26 @@ export default function WhatsAppEvolution() {
                   Precisa de uma Evolution API?
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-3 text-sm text-orange-700">
-                <p>
-                  A Evolution API é um serviço profissional para WhatsApp Business. 
-                  Você pode contratar de provedores confiáveis como:
-                </p>
-                <ul className="list-disc list-inside space-y-1">
-                  <li>Servidor próprio com Evolution API instalada</li>
-                  <li>Provedores de hospedagem especializados</li>
-                  <li>Serviços gerenciados de WhatsApp Business</li>
-                </ul>
-                <p className="text-xs">
-                  Não precisamos de GitHub ou configurações complexas - apenas URL, nome da instância e chave da API.
-                </p>
+              <CardContent className="space-y-4">
+                <div className="space-y-3 text-sm text-orange-700">
+                  <p>
+                    A Evolution API é um serviço profissional para WhatsApp Business. 
+                    Você pode contratar de provedores brasileiros por R$ 25-35/mês.
+                  </p>
+                  <ul className="list-disc list-inside space-y-1">
+                    <li>Setup automático e suporte em português</li>
+                    <li>Não precisa de GitHub ou servidor próprio</li>
+                    <li>Recebe URL, nome da instância e chave pronta</li>
+                  </ul>
+                </div>
+                
+                <Button 
+                  onClick={() => window.open('/como-obter-evolution', '_blank')}
+                  className="w-full bg-orange-600 hover:bg-orange-700"
+                >
+                  <ExternalLink className="w-4 h-4 mr-2" />
+                  Ver Onde Conseguir Evolution API
+                </Button>
               </CardContent>
             </Card>
           </>
