@@ -58,6 +58,152 @@ export function setupEvolutionAPI(baseUrl: string, instanceName: string, apiKey:
 }
 
 /**
+ * Cria uma nova instância na Evolution API
+ */
+export async function createInstance(instanceName: string, phone?: string): Promise<{ success: boolean, message: string, qrCode?: string }> {
+  if (!evolutionConfig) {
+    return { success: false, message: 'Evolution API não configurada' };
+  }
+
+  try {
+    const payload: any = {
+      instanceName,
+      qrcode: true,
+      integration: 'WHATSAPP-BAILEYS'
+    };
+
+    if (phone) {
+      payload.number = phone;
+    }
+
+    const response = await axios.post(
+      `${evolutionConfig.baseUrl}/instance/create`,
+      payload,
+      {
+        headers: {
+          'apikey': evolutionConfig.apiKey,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data.instance) {
+      // Atualizar config com nova instância
+      evolutionConfig.instanceName = instanceName;
+      
+      return {
+        success: true,
+        message: 'Instância criada com sucesso',
+        qrCode: response.data.qrcode?.code
+      };
+    }
+
+    return { success: false, message: 'Falha ao criar instância' };
+  } catch (error: any) {
+    console.error('❌ Erro ao criar instância:', error);
+    return { 
+      success: false, 
+      message: error.response?.data?.message || 'Erro ao criar instância' 
+    };
+  }
+}
+
+/**
+ * Conecta uma instância (gera QR Code)
+ */
+export async function connectInstance(): Promise<{ success: boolean, qrCode?: string, message: string }> {
+  if (!evolutionConfig) {
+    return { success: false, message: 'Evolution API não configurada' };
+  }
+
+  try {
+    const response = await axios.get(
+      `${evolutionConfig.baseUrl}/instance/connect/${evolutionConfig.instanceName}`,
+      {
+        headers: {
+          'apikey': evolutionConfig.apiKey
+        }
+      }
+    );
+
+    return {
+      success: true,
+      qrCode: response.data.qrcode?.code,
+      message: 'QR Code gerado com sucesso'
+    };
+  } catch (error: any) {
+    console.error('❌ Erro ao conectar instância:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Erro ao gerar QR Code'
+    };
+  }
+}
+
+/**
+ * Lista todas as instâncias
+ */
+export async function listInstances(): Promise<{ success: boolean, instances?: any[], message: string }> {
+  if (!evolutionConfig) {
+    return { success: false, message: 'Evolution API não configurada' };
+  }
+
+  try {
+    const response = await axios.get(
+      `${evolutionConfig.baseUrl}/instance/fetchInstances`,
+      {
+        headers: {
+          'apikey': evolutionConfig.apiKey
+        }
+      }
+    );
+
+    return {
+      success: true,
+      instances: response.data,
+      message: 'Instâncias listadas com sucesso'
+    };
+  } catch (error: any) {
+    console.error('❌ Erro ao listar instâncias:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Erro ao listar instâncias'
+    };
+  }
+}
+
+/**
+ * Deleta uma instância
+ */
+export async function deleteInstance(instanceName: string): Promise<{ success: boolean, message: string }> {
+  if (!evolutionConfig) {
+    return { success: false, message: 'Evolution API não configurada' };
+  }
+
+  try {
+    await axios.delete(
+      `${evolutionConfig.baseUrl}/instance/delete/${instanceName}`,
+      {
+        headers: {
+          'apikey': evolutionConfig.apiKey
+        }
+      }
+    );
+
+    return {
+      success: true,
+      message: 'Instância deletada com sucesso'
+    };
+  } catch (error: any) {
+    console.error('❌ Erro ao deletar instância:', error);
+    return {
+      success: false,
+      message: error.response?.data?.message || 'Erro ao deletar instância'
+    };
+  }
+}
+
+/**
  * Envia mensagem via Evolution API
  */
 async function sendMessage(phone: string, message: string, buttons?: any[]): Promise<boolean> {
