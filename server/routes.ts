@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { setupEvolutionAPI, processWhatsAppMessage, setupWhatsAppWebhook, checkInstanceStatus, createInstance, connectInstance, listInstances, deleteInstance } from "./whatsapp/evolutionBot";
+import { setupZAPI, processZAPIMessage, checkZAPIStatus, connectZAPI } from "./whatsapp/zapiBot";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rota básica de saúde da aplicação
@@ -183,6 +184,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       res.status(500).json({ 
         error: 'Erro interno ao deletar instância' 
+      });
+    }
+  });
+
+  // ===== ROTAS Z-API (MAIS SIMPLES) =====
+  
+  // Configurar Z-API
+  app.post('/api/zapi/setup', (req, res) => {
+    try {
+      const { instanceId, token, phone } = req.body;
+      
+      if (!instanceId || !token || !phone) {
+        return res.status(400).json({ 
+          error: 'Parâmetros obrigatórios: instanceId, token, phone' 
+        });
+      }
+      
+      const success = setupZAPI(instanceId, token, phone);
+      
+      if (success) {
+        res.json({ 
+          success: true, 
+          message: 'Z-API configurado com sucesso',
+          phone 
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Falha ao configurar Z-API' 
+        });
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao configurar Z-API' 
+      });
+    }
+  });
+
+  // Webhook Z-API
+  app.post('/api/zapi/webhook', async (req, res) => {
+    try {
+      await processZAPIMessage(req.body);
+      res.status(200).json({ received: true });
+    } catch (error) {
+      console.error('Erro no webhook Z-API:', error);
+      res.status(500).json({ error: 'Erro ao processar webhook' });
+    }
+  });
+
+  // Status Z-API
+  app.get('/api/zapi/status', async (req, res) => {
+    try {
+      const status = await checkZAPIStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro ao verificar status',
+        connected: false 
+      });
+    }
+  });
+
+  // Conectar Z-API
+  app.post('/api/zapi/connect', async (req, res) => {
+    try {
+      const result = await connectZAPI();
+      
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(500).json(result);
+      }
+    } catch (error) {
+      res.status(500).json({ 
+        error: 'Erro interno ao conectar Z-API' 
       });
     }
   });

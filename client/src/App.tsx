@@ -6,12 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import WhatsAppAdmin from "@/pages/WhatsAppAdmin";
+import WhatsAppSimple from "@/pages/WhatsAppSimple";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/whatsapp" component={WhatsAppAdmin} />
+      <Route path="/whatsapp-simples" component={WhatsAppSimple} />
       <Route component={NotFound} />
     </Switch>
   );
