@@ -266,19 +266,86 @@ export async function connectZAPI(): Promise<{ success: boolean, qrCode?: string
   }
 
   try {
-    const response = await axios.get(
-      `https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/qr-code`
-    );
+    // URLs possíveis para diferentes versões do Z-API
+    const possibleUrls = [
+      `https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/qr-code`,
+      `https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/qrcode`,
+      `https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/connect`,
+      `https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/status`
+    ];
 
-    return {
-      success: true,
-      qrCode: response.data?.qrcode,
-      message: 'QR Code gerado com sucesso'
-    };
-  } catch (error: any) {
+    let lastError: any = null;
+
+    // Tenta diferentes endpoints
+    for (const url of possibleUrls) {
+      try {
+        console.log(`Tentando URL: ${url}`);
+        
+        const response = await axios.get(url, {
+          timeout: 10000,
+          params: url.includes('qr') ? { image: true } : {}
+        });
+
+        console.log(`Resposta da API:`, response.data);
+
+        // Verifica diferentes formatos de resposta
+        const qrCode = response.data?.qrcode || 
+                      response.data?.qr_code || 
+                      response.data?.value || 
+                      response.data?.base64 ||
+                      response.data?.image;
+
+        if (qrCode) {
+          return {
+            success: true,
+            qrCode: qrCode,
+            message: 'QR Code gerado com sucesso'
+          };
+        }
+
+        // Se chegou até aqui mas não tem QR, pode ser status
+        if (response.data?.connected === false) {
+          // Tenta forçar desconexão e reconexão
+          try {
+            await axios.post(`https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/disconnect`);
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const qrResponse = await axios.get(`https://api.z-api.io/instances/${zapiConfig.instanceId}/token/${zapiConfig.token}/qr-code`);
+            const newQrCode = qrResponse.data?.qrcode || qrResponse.data?.value;
+            
+            if (newQrCode) {
+              return {
+                success: true,
+                qrCode: newQrCode,
+                message: 'QR Code gerado após desconexão'
+              };
+            }
+          } catch (disconnectError) {
+            console.log('Erro ao tentar desconectar:', disconnectError);
+          }
+        }
+
+      } catch (error: any) {
+        lastError = error;
+        console.log(`❌ Erro na URL ${url}:`);
+        console.log(`   Status: ${error.response?.status}`);
+        console.log(`   Data: ${JSON.stringify(error.response?.data)}`);
+        console.log(`   Message: ${error.message}`);
+        continue;
+      }
+    }
+
+    // Se chegou aqui, nenhuma URL funcionou
     return {
       success: false,
-      message: 'Erro ao gerar QR Code'
+      message: `Erro ao gerar QR Code. Verifique se Instance ID (${zapiConfig.instanceId}) e Token estão corretos no painel Z-API. Erro: ${lastError?.response?.data?.message || lastError?.message || 'Desconhecido'}`
+    };
+
+  } catch (error: any) {
+    console.error('Erro detalhado Z-API:', error.response?.data || error.message);
+    return {
+      success: false,
+      message: `Erro ao conectar Z-API: ${error.response?.data?.message || error.message}`
     };
   }
 }
