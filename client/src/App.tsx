@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import WhatsAppAdmin from "@/pages/WhatsAppAdmin";
 import WhatsAppSimple from "@/pages/WhatsAppSimple";
+import WhatsAppAuto from "@/pages/WhatsAppAuto";
 
 function Router() {
   return (
