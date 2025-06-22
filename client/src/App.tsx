@@ -15,6 +15,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/whatsapp" component={WhatsAppAdmin} />
       <Route path="/whatsapp-simples" component={WhatsAppSimple} />
+      <Route path="/whatsapp-auto" component={WhatsAppAuto} />
       <Route component={NotFound} />
     </Switch>
   );

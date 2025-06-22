@@ -27,15 +27,27 @@ interface Event {
 }
 
 // Configuração automática via environment variables
-const ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
-const ZAPI_TOKEN = process.env.ZAPI_TOKEN;
-
+let ZAPI_INSTANCE_ID: string | undefined;
+let ZAPI_TOKEN: string | undefined;
 let isConfigured = false;
+
+// Função para recarregar as variáveis de ambiente
+function loadEnvironmentVariables() {
+  ZAPI_INSTANCE_ID = process.env.ZAPI_INSTANCE_ID;
+  ZAPI_TOKEN = process.env.ZAPI_TOKEN;
+}
 
 /**
  * Inicializa o WhatsApp Bot automaticamente
  */
 export function initAutoZAPI(): boolean {
+  // Recarrega as variáveis de ambiente
+  loadEnvironmentVariables();
+  
+  console.log('🔍 Verificando secrets Z-API...');
+  console.log('ZAPI_INSTANCE_ID:', ZAPI_INSTANCE_ID ? 'definido' : 'não definido');
+  console.log('ZAPI_TOKEN:', ZAPI_TOKEN ? 'definido' : 'não definido');
+  
   if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
     console.log('⚠️ WhatsApp Z-API não configurado (faltam ZAPI_INSTANCE_ID ou ZAPI_TOKEN)');
     return false;
@@ -50,6 +62,7 @@ export function initAutoZAPI(): boolean {
  * Verifica se Z-API está configurado
  */
 export function isZAPIConfigured(): boolean {
+  loadEnvironmentVariables();
   return isConfigured && !!ZAPI_INSTANCE_ID && !!ZAPI_TOKEN;
 }
 
