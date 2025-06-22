@@ -191,7 +191,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ===== ROTAS Z-API (MAIS SIMPLES) =====
   
   // Configurar Z-API
-  app.post('/api/zapi/setup', (req, res) => {
+  app.post('/api/zapi/setup', async (req, res) => {
     try {
       const { instanceId, token, phone } = req.body;
       
@@ -201,13 +201,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      const success = setupZAPI(instanceId, token, phone);
+      // Usar nova implementação
+      const { setupSimpleZAPI, testZAPICredentials } = await import('./whatsapp/simpleZAPI');
       
-      if (success) {
+      const configured = setupSimpleZAPI(instanceId, token, phone);
+      
+      if (configured) {
+        // Testa as credenciais imediatamente
+        const test = await testZAPICredentials();
+        
         res.json({ 
-          success: true, 
-          message: 'Z-API configurado com sucesso',
-          phone 
+          success: test.success, 
+          message: test.success ? 'Z-API configurado e testado com sucesso' : test.message,
+          phone,
+          credentialsValid: test.success
         });
       } else {
         res.status(500).json({ 
@@ -235,7 +242,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Status Z-API
   app.get('/api/zapi/status', async (req, res) => {
     try {
-      const status = await checkZAPIStatus();
+      const { checkConnectionStatus } = await import('./whatsapp/simpleZAPI');
+      const status = await checkConnectionStatus();
       res.json(status);
     } catch (error) {
       res.status(500).json({ 
@@ -248,7 +256,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Conectar Z-API
   app.post('/api/zapi/connect', async (req, res) => {
     try {
-      const result = await connectZAPI();
+      const { generateQRCode } = await import('./whatsapp/simpleZAPI');
+      const result = await generateQRCode();
       
       if (result.success) {
         res.json(result);

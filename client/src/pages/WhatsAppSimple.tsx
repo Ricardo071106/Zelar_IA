@@ -55,13 +55,13 @@ export default function WhatsAppSimple() {
       if (data.success) {
         toast({
           title: "Sucesso",
-          description: "Z-API configurado com sucesso"
+          description: data.credentialsValid ? "Z-API configurado e testado com sucesso" : "Configurado, mas credenciais inválidas"
         });
         checkStatus();
       } else {
         toast({
-          title: "Erro",
-          description: data.error || "Falha ao configurar Z-API",
+          title: "Erro de Configuração",
+          description: data.error || data.message || "Falha ao configurar Z-API",
           variant: "destructive"
         });
       }
@@ -171,6 +171,51 @@ export default function WhatsAppSimple() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Guia de Configuração */}
+      <Card className="border-blue-200 bg-blue-50/50 dark:bg-blue-900/10">
+        <CardHeader>
+          <CardTitle className="text-blue-800 dark:text-blue-200">Como Configurar o Z-API (5 minutos)</CardTitle>
+          <CardDescription className="text-blue-700 dark:text-blue-300">
+            Siga estes passos para configurar seu WhatsApp Business
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">1</div>
+              <div>
+                <p className="font-medium text-blue-800 dark:text-blue-200">Cadastre-se no Z-API</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Acesse https://z-api.io e crie sua conta gratuita</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">2</div>
+              <div>
+                <p className="font-medium text-blue-800 dark:text-blue-200">Crie uma Instância</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">No painel Z-API, clique "Criar Instância" e escolha um nome</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">3</div>
+              <div>
+                <p className="font-medium text-blue-800 dark:text-blue-200">Copie as Credenciais</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Anote o <strong>Instance ID</strong> e <strong>Token</strong> que aparecem na tela</p>
+              </div>
+            </div>
+            
+            <div className="flex items-start gap-3">
+              <div className="bg-blue-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">4</div>
+              <div>
+                <p className="font-medium text-blue-800 dark:text-blue-200">Configure Abaixo</p>
+                <p className="text-sm text-blue-700 dark:text-blue-300">Cole as credenciais nos campos e seu número no formato 5511999999999</p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
