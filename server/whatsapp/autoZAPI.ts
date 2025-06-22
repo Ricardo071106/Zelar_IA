@@ -70,7 +70,9 @@ export function isZAPIConfigured(): boolean {
  * Envia mensagem via Z-API
  */
 async function sendZAPIMessage(phone: string, message: string): Promise<boolean> {
-  if (!isZAPIConfigured()) {
+  loadEnvironmentVariables();
+  
+  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
     console.error('❌ Z-API não configurado');
     return false;
   }
@@ -199,10 +201,26 @@ async function processEventMessage(text: string): Promise<Event | null> {
  * Processa mensagem recebida via webhook
  */
 export async function processZAPIWebhook(data: WhatsAppMessage): Promise<void> {
-  if (!isZAPIConfigured()) {
+  // Força recarregamento das variáveis de ambiente
+  const instanceId = process.env.ZAPI_INSTANCE_ID;
+  const token = process.env.ZAPI_TOKEN;
+  
+  console.log('🔍 Webhook - verificando credenciais:', {
+    instanceId: instanceId ? 'FOUND' : 'NOT_FOUND',
+    token: token ? 'FOUND' : 'NOT_FOUND'
+  });
+  
+  if (!instanceId || !token) {
     console.log('⚠️ Z-API não configurado, ignorando mensagem WhatsApp');
     return;
   }
+  
+  // Atualiza variáveis globais
+  ZAPI_INSTANCE_ID = instanceId;
+  ZAPI_TOKEN = token;
+  isConfigured = true;
+  
+  console.log('📱 Z-API configurado para webhook - processando mensagem');
 
   try {
     // Ignora mensagens próprias
