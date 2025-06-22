@@ -45,8 +45,8 @@ export function initAutoZAPI(): boolean {
   loadEnvironmentVariables();
   
   console.log('🔍 Verificando secrets Z-API...');
-  console.log('ZAPI_INSTANCE_ID:', ZAPI_INSTANCE_ID ? 'definido' : 'não definido');
-  console.log('ZAPI_TOKEN:', ZAPI_TOKEN ? 'definido' : 'não definido');
+  console.log('ZAPI_INSTANCE_ID:', ZAPI_INSTANCE_ID ? `definido (${ZAPI_INSTANCE_ID.length} chars)` : 'não definido');
+  console.log('ZAPI_TOKEN:', ZAPI_TOKEN ? `definido (${ZAPI_TOKEN.length} chars)` : 'não definido');
   
   if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
     console.log('⚠️ WhatsApp Z-API não configurado (faltam ZAPI_INSTANCE_ID ou ZAPI_TOKEN)');
@@ -54,7 +54,7 @@ export function initAutoZAPI(): boolean {
   }
 
   isConfigured = true;
-  console.log(`📱 WhatsApp Z-API configurado automaticamente: ${ZAPI_INSTANCE_ID}`);
+  console.log(`📱 WhatsApp Z-API configurado automaticamente: ${ZAPI_INSTANCE_ID.substring(0, 8)}...`);
   return true;
 }
 
@@ -270,7 +270,9 @@ export async function processZAPIWebhook(data: WhatsAppMessage): Promise<void> {
  * Verifica status da conexão
  */
 export async function checkZAPIConnection(): Promise<{ connected: boolean, message: string }> {
-  if (!isZAPIConfigured()) {
+  loadEnvironmentVariables();
+  
+  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
     return { connected: false, message: 'Z-API não configurado via secrets' };
   }
 
@@ -298,7 +300,9 @@ export async function checkZAPIConnection(): Promise<{ connected: boolean, messa
  * Gera QR Code para conexão
  */
 export async function generateZAPIQRCode(): Promise<{ success: boolean, qrCode?: string, message: string }> {
-  if (!isZAPIConfigured()) {
+  loadEnvironmentVariables();
+  
+  if (!ZAPI_INSTANCE_ID || !ZAPI_TOKEN) {
     return { success: false, message: 'Configure ZAPI_INSTANCE_ID e ZAPI_TOKEN nos secrets' };
   }
 
