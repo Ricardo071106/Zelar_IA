@@ -80,24 +80,59 @@ async function sendZAPIMessage(phone: string, message: string): Promise<boolean>
   try {
     const cleanPhone = phone.replace(/\D/g, '');
     
-    const response = await axios.post(
-      `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`,
+    // Tentar diferentes formatos de autenticação Z-API
+    const authConfigs = [
       {
-        phone: cleanPhone,
-        message: message
+        url: `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Client-Token': ZAPI_TOKEN
+        }
       },
       {
-        timeout: 10000,
+        url: `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${ZAPI_TOKEN}`
+        }
+      },
+      {
+        url: `https://api.z-api.io/instances/${ZAPI_INSTANCE_ID}/token/${ZAPI_TOKEN}/send-text`,
         headers: {
           'Content-Type': 'application/json'
         }
       }
-    );
+    ];
 
-    console.log(`✅ Mensagem WhatsApp enviada para ${phone}`);
-    return response.status === 200;
+    let response;
+    let lastError;
+
+    for (const config of authConfigs) {
+      try {
+        response = await axios.post(config.url, {
+          phone: cleanPhone,
+          message: message
+        }, {
+          timeout: 10000,
+          headers: config.headers
+        });
+        
+        if (response.status === 200) {
+          console.log(`✅ Mensagem WhatsApp enviada para ${phone} (método: ${JSON.stringify(config.headers)})`);
+          return true;
+        }
+      } catch (error: any) {
+        lastError = error;
+        console.log(`❌ Tentativa falhou:`, error.response?.data || error.message);
+        continue;
+      }
+    }
+
+    // Se chegou aqui, todas as tentativas falharam
+    console.error('❌ Erro ao enviar WhatsApp:', lastError?.response?.data || lastError?.message);
+    return false;
   } catch (error: any) {
-    console.error('❌ Erro ao enviar WhatsApp:', error.response?.data || error.message);
+    console.error('❌ Erro ao enviar WhatsApp (catch geral):', error.response?.data || error.message);
     return false;
   }
 }
