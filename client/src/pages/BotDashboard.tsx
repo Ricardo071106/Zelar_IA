@@ -245,17 +245,34 @@ export default function BotDashboard() {
         </Card>
       </div>
 
-      {/* QR Code Display */}
+      {/* QR Code Display for Personal WhatsApp */}
       {botStatus.whatsapp.status === 'aguardando_qr' && botStatus.whatsapp.qrCode && (
         <Alert>
           <AlertDescription>
             <div className="flex flex-col items-center p-4">
-              <h3 className="font-semibold mb-2">Escaneie o QR Code com seu WhatsApp</h3>
+              <h3 className="font-semibold mb-2">QR Code - WhatsApp Pessoal</h3>
               <div className="bg-white p-4 rounded-lg">
                 <pre className="text-xs">{botStatus.whatsapp.qrCode}</pre>
               </div>
               <p className="text-sm text-muted-foreground mt-2">
                 Abra o WhatsApp → Menu → Dispositivos conectados → Conectar dispositivo
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* QR Code Display for Business WhatsApp */}
+      {botStatus.whatsappBusiness.status === 'aguardando_qr' && botStatus.whatsappBusiness.qrCode && (
+        <Alert>
+          <AlertDescription>
+            <div className="flex flex-col items-center p-4">
+              <h3 className="font-semibold mb-2">QR Code - WhatsApp Business</h3>
+              <div className="bg-white p-4 rounded-lg">
+                <pre className="text-xs">{botStatus.whatsappBusiness.qrCode}</pre>
+              </div>
+              <p className="text-sm text-muted-foreground mt-2">
+                Abra o WhatsApp Business → Menu → Dispositivos conectados → Conectar dispositivo
               </p>
             </div>
           </AlertDescription>
