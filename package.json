@@ -49,6 +49,7 @@
     "@types/nodemailer": "^6.4.17",
     "@whiskeysockets/baileys": "^6.7.18",
     "axios": "^1.9.0",
+    "body-parser": "^2.2.0",
     "chrono-node": "^2.7.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
