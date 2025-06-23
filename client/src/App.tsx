@@ -7,6 +7,7 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import BotDashboard from "@/pages/BotDashboard";
 import QRBusiness from "@/pages/QRBusiness";
+import WhatsAppConfig from "@/pages/WhatsAppConfig";
 
 function Router() {
   return (
@@ -14,6 +15,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={BotDashboard} />
       <Route path="/qr-business" component={QRBusiness} />
+      <Route path="/whatsapp-config" component={WhatsAppConfig} />
       <Route component={NotFound} />
     </Switch>
   );

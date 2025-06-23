@@ -7,10 +7,11 @@ let whatsappStatus = {
   qrCode: null
 };
 
-let businessQR = {
+let businessQR: any = {
   qrCode: null,
   isConnected: false,
-  clientInfo: null
+  clientInfo: null,
+  configuration: null
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -110,6 +111,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: "Erro ao obter informações Business"
       });
     }
+  });
+
+  // Configure WhatsApp Business number
+  app.post("/api/whatsapp-business/configure", (req, res) => {
+    const { phoneNumber, businessName } = req.body;
+    
+    if (!phoneNumber || !businessName) {
+      return res.status(400).json({
+        success: false,
+        error: "Número e nome da empresa são obrigatórios"
+      });
+    }
+
+    // Store configuration (in production, save to database)
+    businessQR.configuration = {
+      phoneNumber,
+      businessName,
+      configuredAt: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      message: "Configuração salva com sucesso",
+      whatsappLink: `https://wa.me/${phoneNumber}?text=${encodeURIComponent('Olá! Gostaria de agendar um evento usando o Zelar Assistant.')}`
+    });
+  });
+
+  // Get WhatsApp Business configuration
+  app.get("/api/whatsapp-business/config", (req, res) => {
+    res.json({
+      success: true,
+      configuration: businessQR.configuration || null
+    });
   });
 
   // Bot dashboard status
