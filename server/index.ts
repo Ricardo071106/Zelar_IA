@@ -77,73 +77,75 @@ app.use((req, res, next) => {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
 
-    // Inicializar WhatsApp Personal Bot
+    // Inicializar WhatsApp Bots
+    let whatsappBot: any = null;
+    let whatsappBusinessBot: any = null;
+
     try {
       log('📱 Iniciando WhatsApp Personal Bot...', 'whatsapp');
-      const whatsappBot = spawn('node', ['whatsapp-bot.js'], {
+      whatsappBot = spawn('node', ['whatsapp-bot.js'], {
         stdio: 'pipe',
         cwd: process.cwd()
       });
 
-      whatsappBot.stdout?.on('data', (data) => {
+      whatsappBot.stdout?.on('data', (data: any) => {
         log(`[WhatsApp Personal] ${data.toString().trim()}`, "whatsapp");
       });
 
-      whatsappBot.stderr?.on('data', (data) => {
+      whatsappBot.stderr?.on('data', (data: any) => {
         log(`[WhatsApp Personal Error] ${data.toString().trim()}`, "whatsapp");
       });
 
-      whatsappBot.on('error', (error) => {
+      whatsappBot.on('error', (error: any) => {
         log(`❌ Erro no WhatsApp Personal: ${error.message}`, "whatsapp");
       });
 
-      whatsappBot.on('close', (code) => {
+      whatsappBot.on('close', (code: any) => {
         log(`📴 WhatsApp Personal encerrado com código: ${code}`, "whatsapp");
       });
 
-      log('✅ WhatsApp Personal Bot iniciado com sucesso!', 'whatsapp');
+      log('✅ WhatsApp Personal Bot iniciado!', 'whatsapp');
     } catch (error) {
       log('⚠️ WhatsApp Personal Bot não pôde ser iniciado', 'whatsapp');
     }
 
-    // Inicializar WhatsApp Business Bot
     try {
       log('🏢 Iniciando WhatsApp Business Bot...', 'whatsapp-business');
-      const whatsappBusinessBot = spawn('node', ['whatsapp-business-bot.js'], {
+      whatsappBusinessBot = spawn('node', ['whatsapp-business-bot.js'], {
         stdio: 'pipe',
         cwd: process.cwd()
       });
 
-      whatsappBusinessBot.stdout?.on('data', (data) => {
+      whatsappBusinessBot.stdout?.on('data', (data: any) => {
         log(`[WhatsApp Business] ${data.toString().trim()}`, "whatsapp-business");
       });
 
-      whatsappBusinessBot.stderr?.on('data', (data) => {
+      whatsappBusinessBot.stderr?.on('data', (data: any) => {
         log(`[WhatsApp Business Error] ${data.toString().trim()}`, "whatsapp-business");
       });
 
-      whatsappBusinessBot.on('error', (error) => {
+      whatsappBusinessBot.on('error', (error: any) => {
         log(`❌ Erro no WhatsApp Business: ${error.message}`, "whatsapp-business");
       });
 
-      whatsappBusinessBot.on('close', (code) => {
+      whatsappBusinessBot.on('close', (code: any) => {
         log(`📴 WhatsApp Business encerrado com código: ${code}`, "whatsapp-business");
       });
 
-      // Tratar encerramento limpo para ambos os bots
-      const cleanupBots = () => {
-        log('🛑 Encerrando aplicação...');
-        whatsappBot.kill('SIGTERM');
-        whatsappBusinessBot.kill('SIGTERM');
-        process.exit(0);
-      };
-
-      process.on('SIGINT', cleanupBots);
-      process.on('SIGTERM', cleanupBots);
-
-      log('✅ WhatsApp Business Bot iniciado com sucesso!', 'whatsapp-business');
+      log('✅ WhatsApp Business Bot iniciado!', 'whatsapp-business');
     } catch (error) {
       log('⚠️ WhatsApp Business Bot não pôde ser iniciado', 'whatsapp-business');
     }
+
+    // Tratar encerramento limpo para ambos os bots
+    const cleanupBots = () => {
+      log('🛑 Encerrando aplicação...');
+      if (whatsappBot) whatsappBot.kill('SIGTERM');
+      if (whatsappBusinessBot) whatsappBusinessBot.kill('SIGTERM');
+      process.exit(0);
+    };
+
+    process.on('SIGINT', cleanupBots);
+    process.on('SIGTERM', cleanupBots);
   });
 })();
