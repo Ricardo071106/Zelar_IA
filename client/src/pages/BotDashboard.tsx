@@ -202,18 +202,18 @@ export default function BotDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">WhatsApp Pessoal</CardTitle>
+            <CardTitle className="text-sm font-medium">WhatsApp (Em Breve)</CardTitle>
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              {getStatusBadge(botStatus.whatsapp.status)}
+              <Badge variant="secondary">Em desenvolvimento</Badge>
               <span className="text-xs text-muted-foreground">
-                {botStatus.whatsapp.lastUpdate}
+                Indisponível
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              WhatsApp Web pessoal (Porta 3000)
+              Funcionalidade será adicionada em breve
             </p>
           </CardContent>
         </Card>
@@ -290,32 +290,21 @@ export default function BotDashboard() {
         <TabsContent value="whatsapp" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Enviar Mensagem WhatsApp</CardTitle>
+              <CardTitle>WhatsApp - Em Desenvolvimento</CardTitle>
               <CardDescription>
-                Teste o envio de mensagens através da API do WhatsApp
+                Esta funcionalidade será implementada em uma versão futura
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Número (com DDI + DDD)</label>
-                <Input
-                  placeholder="5511999999999"
-                  value={whatsappForm.number}
-                  onChange={(e) => setWhatsappForm(prev => ({ ...prev, number: e.target.value }))}
-                />
+              <div className="text-center py-8">
+                <Phone className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-4 text-lg font-medium text-gray-900">
+                  Funcionalidade em Desenvolvimento
+                </h3>
+                <p className="mt-2 text-gray-500">
+                  O módulo WhatsApp será adicionado em breve. Por enquanto, utilize o bot do Telegram.
+                </p>
               </div>
-              <div>
-                <label className="text-sm font-medium">Mensagem</label>
-                <Textarea
-                  placeholder="Digite sua mensagem aqui..."
-                  value={whatsappForm.message}
-                  onChange={(e) => setWhatsappForm(prev => ({ ...prev, message: e.target.value }))}
-                />
-              </div>
-              <Button onClick={sendWhatsAppMessage} disabled={botStatus.whatsapp.status !== 'conectado'}>
-                <Send className="w-4 h-4 mr-2" />
-                Enviar Mensagem
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
