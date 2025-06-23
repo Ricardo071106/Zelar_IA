@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Bot Zelar - Teste</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #25D366;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+        }
+        .section h2 {
+            color: #333;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #25D366;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #128C7E;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .logs {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 WhatsApp Bot Zelar</h1>
+        
+        <div class="section">
+            <h2>📊 Status da Conexão</h2>
+            <button onclick="checkStatus()">Verificar Status</button>
+            <div id="statusResult" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>📤 Enviar Mensagem</h2>
+            <div class="form-group">
+                <label for="phoneNumber">Número do WhatsApp:</label>
+                <input type="text" id="phoneNumber" placeholder="5511999999999" />
+                <small>Formato: DDI + DDD + Número (ex: 5511999999999)</small>
+            </div>
+            <div class="form-group">
+                <label for="message">Mensagem:</label>
+                <textarea id="message" rows="4" placeholder="Digite sua mensagem aqui..."></textarea>
+            </div>
+            <button onclick="sendMessage()">Enviar Mensagem</button>
+            <div id="sendResult" class="status" style="display: none;"></div>
+        </div>
+
+        <div class="section">
+            <h2>📋 Como Usar</h2>
+            <div class="info">
+                <h3>Funcionalidades do Bot:</h3>
+                <ul>
+                    <li><strong>QR Code:</strong> Execute o bot e escaneie o QR Code com seu WhatsApp</li>
+                    <li><strong>Resposta Automática:</strong> Bot responde "Olá! Seja bem-vindo ao Zelar!" para todas as mensagens</li>
+                    <li><strong>API de Envio:</strong> Use o formulário acima para enviar mensagens via API</li>
+                    <li><strong>Sessão Salva:</strong> Não precisa escanear QR Code toda vez</li>
+                    <li><strong>Logs:</strong> Todas as mensagens são registradas no console</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔧 Comandos para Executar</h2>
+            <div class="logs">
+# 1. Executar o bot WhatsApp
+node whatsapp-bot.js
+
+# 2. Testar API via curl
+curl -X POST http://localhost:3000/send \
+  -H "Content-Type: application/json" \
+  -d '{"number": "5511999999999", "message": "Teste via API"}'
+
+# 3. Verificar status
+curl http://localhost:3000/status
+
+# 4. Ver endpoints disponíveis
+curl http://localhost:3000/
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📖 Logs de Teste</h2>
+            <div id="logs" class="logs">
+                Logs aparecerão aqui quando você testar as funcionalidades...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000';
+
+        function addLog(message) {
+            const logs = document.getElementById('logs');
+            const timestamp = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${timestamp}] ${message}\n`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        async function checkStatus() {
+            try {
+                addLog('Verificando status da conexão...');
+                const response = await fetch(`${API_BASE}/status`);
+                const data = await response.json();
+                
+                const statusDiv = document.getElementById('statusResult');
+                statusDiv.style.display = 'block';
+                
+                if (data.status === 'Conectado') {
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = `✅ Status: ${data.status}<br>Timestamp: ${data.timestamp}`;
+                    addLog(`✅ WhatsApp conectado - ${data.status}`);
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = `❌ Status: ${data.status}<br>Timestamp: ${data.timestamp}`;
+                    addLog(`❌ WhatsApp desconectado - ${data.status}`);
+                }
+            } catch (error) {
+                const statusDiv = document.getElementById('statusResult');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status error';
+                statusDiv.innerHTML = `❌ Erro: ${error.message}`;
+                addLog(`❌ Erro ao verificar status: ${error.message}`);
+            }
+        }
+
+        async function sendMessage() {
+            const phone = document.getElementById('phoneNumber').value;
+            const message = document.getElementById('message').value;
+            
+            if (!phone || !message) {
+                alert('Por favor, preencha o número e a mensagem');
+                return;
+            }
+
+            try {
+                addLog(`Enviando mensagem para ${phone}...`);
+                const response = await fetch(`${API_BASE}/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        number: phone,
+                        message: message
+                    })
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('sendResult');
+                resultDiv.style.display = 'block';
+
+                if (data.success) {
+                    resultDiv.className = 'status success';
+                    resultDiv.innerHTML = `✅ ${data.message}<br>Para: ${data.to}<br>Conteúdo: ${data.content}`;
+                    addLog(`✅ Mensagem enviada para ${phone}: ${message}`);
+                    
+                    // Limpar formulário
+                    document.getElementById('phoneNumber').value = '';
+                    document.getElementById('message').value = '';
+                } else {
+                    resultDiv.className = 'status error';
+                    resultDiv.innerHTML = `❌ ${data.error}`;
+                    addLog(`❌ Erro ao enviar mensagem: ${data.error}`);
+                }
+            } catch (error) {
+                const resultDiv = document.getElementById('sendResult');
+                resultDiv.style.display = 'block';
+                resultDiv.className = 'status error';
+                resultDiv.innerHTML = `❌ Erro: ${error.message}`;
+                addLog(`❌ Erro de conexão: ${error.message}`);
+            }
+        }
+
+        // Log inicial
+        addLog('Interface de teste carregada. Execute o bot com: node whatsapp-bot.js');
+    </script>
+</body>
+</html>
