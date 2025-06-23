@@ -1,2 +1,3 @@
-2025/06/23-03:12:08.213 12a8 Creating DB /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/metadata since it was missing.
-2025/06/23-03:12:08.231 12a8 Reusing MANIFEST /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/metadata/MANIFEST-000001
+2025/06/23-03:16:20.735 15e8 Reusing MANIFEST /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/metadata/MANIFEST-000001
+2025/06/23-03:16:20.737 15e8 Recovering log #3
+2025/06/23-03:16:20.738 15e8 Reusing old log /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/metadata/000003.log 
