@@ -2,91 +2,54 @@
  * Script para testar a API do WhatsApp
  */
 
-const https = require('https');
+const BASE_URL = 'http://localhost:3002';
 
 function makeRequest(path, method = 'GET', data = null) {
-  return new Promise((resolve, reject) => {
     const options = {
-      hostname: 'localhost',
-      port: 3000,
-      path: path,
-      method: method,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let body = '';
-      res.on('data', (chunk) => body += chunk);
-      res.on('end', () => {
-        try {
-          resolve({
-            statusCode: res.statusCode,
-            data: JSON.parse(body)
-          });
-        } catch (error) {
-          resolve({
-            statusCode: res.statusCode,
-            data: body
-          });
+        method,
+        headers: {
+            'Content-Type': 'application/json',
         }
-      });
-    });
-
-    req.on('error', reject);
+    };
     
     if (data) {
-      req.write(JSON.stringify(data));
+        options.body = JSON.stringify(data);
     }
     
-    req.end();
-  });
+    return fetch(`${BASE_URL}${path}`, options)
+        .then(response => response.json())
+        .catch(error => ({ error: error.message }));
 }
 
 async function testWhatsAppAPI() {
-  console.log('🧪 Testando API do WhatsApp...\n');
-
-  try {
-    // Teste 1: Verificar status
-    console.log('1. Verificando status da conexão...');
-    const statusResponse = await makeRequest('/status');
-    console.log(`Status: ${statusResponse.statusCode}`);
-    console.log(`Resposta:`, statusResponse.data);
+    console.log('🧪 Testando API WhatsApp Baileys');
     
-    if (statusResponse.data.status === 'connected') {
-      console.log('✅ WhatsApp conectado - pronto para enviar mensagens!');
-      
-      // Teste 2: Enviar mensagem de teste (comentado para não spammar)
-      /*
-      console.log('\n2. Testando envio de mensagem...');
-      const sendResponse = await makeRequest('/send-message', 'POST', {
-        number: '5511999999999', // Número de teste
-        message: 'Teste do bot Zelar - mensagem automática'
-      });
-      console.log(`Envio: ${sendResponse.statusCode}`);
-      console.log(`Resposta:`, sendResponse.data);
-      */
-      
-    } else {
-      console.log('⏳ WhatsApp não conectado ainda - escaneie o QR Code');
-      
-      // Teste 3: Obter QR Code
-      console.log('\n2. Obtendo QR Code...');
-      const qrResponse = await makeRequest('/qr');
-      console.log(`QR: ${qrResponse.statusCode}`);
-      if (qrResponse.data.qrCode) {
-        console.log('✅ QR Code disponível para escaneamento');
-      } else {
-        console.log('⏳ QR Code ainda não gerado');
-      }
+    // Teste 1: Status
+    console.log('\n1. Verificando status...');
+    const status = await makeRequest('/status');
+    console.log('Status:', status);
+    
+    // Teste 2: QR Code
+    if (!status.connected) {
+        console.log('\n2. Obtendo QR Code...');
+        const qr = await makeRequest('/qr');
+        console.log('QR disponível:', !!qr.qr);
     }
-
-  } catch (error) {
-    console.error('❌ Erro durante os testes:', error.message);
-    console.log('ℹ️  Certifique-se de que o bot está rodando na porta 3000');
-  }
+    
+    // Teste 3: Envio (apenas se conectado)
+    if (status.connected) {
+        console.log('\n3. Testando envio de mensagem...');
+        const send = await makeRequest('/send-message', 'POST', {
+            number: '5511999999999',
+            message: 'Teste do Zelar Bot - mensagem automática'
+        });
+        console.log('Resultado:', send);
+    }
+    
+    console.log('\n✅ Teste completo!');
+    if (!status.connected) {
+        console.log('💡 Escaneie o QR Code para ativar todas as funcionalidades');
+    }
 }
 
-// Aguardar um pouco e testar
-setTimeout(testWhatsAppAPI, 5000);
+testWhatsAppAPI();

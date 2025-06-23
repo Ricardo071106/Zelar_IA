@@ -107,6 +107,7 @@ Zelar is a comprehensive Node.js application that provides an intelligent schedu
 
 Changelog:
 - June 23, 2025. Initial setup
+- June 23, 2025. WhatsApp integration completed using Baileys library with real QR code generation
 
 ## User Preferences
 
