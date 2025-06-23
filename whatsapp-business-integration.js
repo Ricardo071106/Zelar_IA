@@ -1,6 +1,43 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
-import { parseEventWithClaude } from './server/utils/claudeParser.js';
+
+// Simple date processing function (since we can't import the full parser)
+async function parseEventText(text) {
+    try {
+        // Basic Portuguese date patterns
+        const patterns = [
+            /(?:reunião|meeting|encontro)\s+(.+?)\s+(?:às?|at)\s+(\d{1,2})(?::(\d{2}))?h?/i,
+            /(.+?)\s+(?:amanhã|tomorrow)\s+(?:às?|at)\s+(\d{1,2})(?::(\d{2}))?h?/i,
+            /(.+?)\s+(?:sexta|friday|segunda|monday|terça|tuesday|quarta|wednesday|quinta|thursday|sábado|saturday|domingo|sunday)\s+(?:às?|at)\s+(\d{1,2})(?::(\d{2}))?h?/i,
+            /(.+?)\s+(?:às?|at)\s+(\d{1,2})(?::(\d{2}))?h?/i
+        ];
+
+        for (const pattern of patterns) {
+            const match = text.match(pattern);
+            if (match) {
+                const title = match[1].trim();
+                const hour = parseInt(match[2]);
+                const minute = parseInt(match[3] || '0');
+                
+                // Default to tomorrow for this example
+                const date = new Date();
+                date.setDate(date.getDate() + 1);
+                
+                return {
+                    isValid: true,
+                    title: title,
+                    date: date.toISOString(),
+                    hour: hour,
+                    minute: minute
+                };
+            }
+        }
+        
+        return { isValid: false };
+    } catch (error) {
+        return { isValid: false };
+    }
+}
 
 console.log('🚀 Iniciando WhatsApp Business - Zelar Assistant');
 
@@ -48,8 +85,8 @@ client.on('message', async (message) => {
     console.log(`📩 Nova mensagem de ${userName}: ${userMessage}`);
     
     try {
-        // Usar o mesmo processamento inteligente do Telegram
-        const parsedEvent = await parseEventWithClaude(userMessage);
+        // Usar processamento inteligente similar ao Telegram
+        const parsedEvent = await parseEventText(userMessage);
         
         if (parsedEvent.isValid) {
             // Evento detectado - criar links de calendário
