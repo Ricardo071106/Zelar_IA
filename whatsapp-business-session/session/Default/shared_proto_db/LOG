@@ -1,3 +1,3 @@
-2025/06/23-03:19:18.946 1893 Reusing MANIFEST /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/MANIFEST-000001
-2025/06/23-03:19:18.951 1893 Recovering log #3
-2025/06/23-03:19:18.952 1893 Reusing old log /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/000003.log 
+2025/06/23-03:28:01.118 1deb Reusing MANIFEST /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/MANIFEST-000001
+2025/06/23-03:28:01.120 1deb Recovering log #3
+2025/06/23-03:28:01.121 1deb Reusing old log /home/runner/workspace/whatsapp-business-session/session/Default/shared_proto_db/000003.log 
