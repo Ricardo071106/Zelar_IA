@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startZelarBot } from "./telegram/zelar_bot";
+import { spawn } from "child_process";
 
 const app = express();
 app.use(express.json());
@@ -76,15 +77,46 @@ app.use((req, res, next) => {
       log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
     }
 
-    // Inicializar WhatsApp Z-API automaticamente
+    // Inicializar WhatsApp Bot
     try {
-      const { initAutoZAPI } = await import('./whatsapp/autoZAPI');
-      const initialized = initAutoZAPI();
-      if (initialized) {
-        log('✅ WhatsApp Z-API configurado automaticamente!', 'whatsapp');
-      }
+      log('📱 Iniciando WhatsApp Bot...', 'whatsapp');
+      const whatsappBot = spawn('node', ['whatsapp-bot.js'], {
+        stdio: 'pipe',
+        cwd: process.cwd()
+      });
+
+      whatsappBot.stdout?.on('data', (data) => {
+        log(`[WhatsApp] ${data.toString().trim()}`, "whatsapp");
+      });
+
+      whatsappBot.stderr?.on('data', (data) => {
+        log(`[WhatsApp Error] ${data.toString().trim()}`, "whatsapp");
+      });
+
+      whatsappBot.on('error', (error) => {
+        log(`❌ Erro no WhatsApp bot: ${error.message}`, "whatsapp");
+      });
+
+      whatsappBot.on('close', (code) => {
+        log(`📴 WhatsApp bot encerrado com código: ${code}`, "whatsapp");
+      });
+
+      // Tratar encerramento limpo
+      process.on('SIGINT', () => {
+        log('🛑 Encerrando aplicação...');
+        whatsappBot.kill('SIGTERM');
+        process.exit(0);
+      });
+
+      process.on('SIGTERM', () => {
+        log('🛑 Encerrando aplicação...');
+        whatsappBot.kill('SIGTERM');
+        process.exit(0);
+      });
+
+      log('✅ WhatsApp Bot iniciado com sucesso!', 'whatsapp');
     } catch (error) {
-      log('⚠️ WhatsApp Z-API não configurado nos secrets', 'whatsapp');
+      log('⚠️ WhatsApp Bot não pôde ser iniciado', 'whatsapp');
     }
   });
 })();
