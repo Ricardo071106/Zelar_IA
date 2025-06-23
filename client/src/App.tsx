@@ -6,12 +6,14 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import BotDashboard from "@/pages/BotDashboard";
+import QRBusiness from "@/pages/QRBusiness";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={BotDashboard} />
+      <Route path="/qr-business" component={QRBusiness} />
       <Route component={NotFound} />
     </Switch>
   );
