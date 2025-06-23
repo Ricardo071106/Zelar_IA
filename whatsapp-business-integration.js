@@ -1,5 +1,6 @@
 import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth } = pkg;
+import qrcode from 'qrcode-terminal';
 
 // Simple date processing function (since we can't import the full parser)
 async function parseEventText(text) {
@@ -61,8 +62,11 @@ const client = new Client({
 client.on('qr', (qr) => {
     console.log('\n=== PRIMEIRA CONFIGURAÇÃO ===');
     console.log('Escaneie este QR Code com seu WhatsApp Business:');
+    console.log('\n');
+    qrcode.generate(qr, {small: true});
+    console.log('\nCódigo QR também disponível em texto:');
     console.log(qr);
-    console.log('Após escanear, seu número estará conectado ao sistema Zelar');
+    console.log('\nApós escanear, seu número estará conectado ao sistema Zelar');
 });
 
 // Bot conectado e pronto
