@@ -109,7 +109,8 @@ export default function BotDashboard() {
       // Esta funcionalidade seria integrada com o parser de eventos existente
       addTestResult('success', 'Evento de calendário processado com sucesso');
     } catch (error) {
-      addTestResult('error', `Erro ao processar evento: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      addTestResult('error', `Erro ao processar evento: ${errorMessage}`);
     }
   };
 
