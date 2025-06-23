@@ -18,12 +18,23 @@ interface BotStatus {
     lastUpdate?: string;
     qrCode?: string;
   };
+  whatsappBusiness: {
+    status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
+    lastUpdate?: string;
+    qrCode?: string;
+    businessInfo?: {
+      isBusiness: boolean;
+      pushname?: string;
+      number?: string;
+    };
+  };
 }
 
 export default function BotDashboard() {
   const [botStatus, setBotStatus] = useState<BotStatus>({
     telegram: { status: 'carregando' },
-    whatsapp: { status: 'carregando' }
+    whatsapp: { status: 'carregando' },
+    whatsappBusiness: { status: 'carregando' }
   });
   
   const [whatsappForm, setWhatsappForm] = useState({
@@ -47,7 +58,7 @@ export default function BotDashboard() {
 
   const checkBotStatus = async () => {
     try {
-      // Verificar status do WhatsApp
+      // Verificar status do WhatsApp pessoal
       const whatsappResponse = await fetch('/api/whatsapp/status');
       if (whatsappResponse.ok) {
         const whatsappData = await whatsappResponse.json();
@@ -67,7 +78,29 @@ export default function BotDashboard() {
       }));
     }
 
-    // Simular status do Telegram (sempre conectado se o servidor estiver rodando)
+    try {
+      // Verificar status do WhatsApp Business
+      const businessResponse = await fetch('/api/whatsapp-business/status');
+      if (businessResponse.ok) {
+        const businessData = await businessResponse.json();
+        setBotStatus(prev => ({
+          ...prev,
+          whatsappBusiness: {
+            status: businessData.status === 'Conectado' ? 'conectado' : 'desconectado',
+            lastUpdate: new Date().toLocaleString('pt-BR'),
+            qrCode: businessData.qrCode,
+            businessInfo: businessData.clientInfo
+          }
+        }));
+      }
+    } catch (error) {
+      setBotStatus(prev => ({
+        ...prev,
+        whatsappBusiness: { status: 'desconectado', lastUpdate: new Date().toLocaleString('pt-BR') }
+      }));
+    }
+
+    // Status do Telegram (sempre conectado se o servidor estiver rodando)
     setBotStatus(prev => ({
       ...prev,
       telegram: { status: 'conectado', lastUpdate: new Date().toLocaleString('pt-BR') }
@@ -148,7 +181,7 @@ export default function BotDashboard() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bot Telegram</CardTitle>
@@ -169,7 +202,7 @@ export default function BotDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Bot WhatsApp</CardTitle>
+            <CardTitle className="text-sm font-medium">WhatsApp Pessoal</CardTitle>
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -180,8 +213,34 @@ export default function BotDashboard() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Integração direta via WhatsApp Web
+              WhatsApp Web pessoal (Porta 3000)
             </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">WhatsApp Business</CardTitle>
+            <div className="flex items-center gap-1">
+              <Phone className="h-4 w-4 text-muted-foreground" />
+              <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">BIZ</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              {getStatusBadge(botStatus.whatsappBusiness.status)}
+              <span className="text-xs text-muted-foreground">
+                {botStatus.whatsappBusiness.lastUpdate}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              WhatsApp Business (Porta 3001)
+            </p>
+            {botStatus.whatsappBusiness.businessInfo && (
+              <div className="text-xs text-green-600 mt-1">
+                {botStatus.whatsappBusiness.businessInfo.pushname}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
