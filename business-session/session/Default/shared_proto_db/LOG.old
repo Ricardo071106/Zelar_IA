@@ -1,2 +1,3 @@
-2025/06/23-02:47:11.694 545 Creating DB /home/runner/workspace/business-session/session/Default/shared_proto_db since it was missing.
-2025/06/23-02:47:11.709 545 Reusing MANIFEST /home/runner/workspace/business-session/session/Default/shared_proto_db/MANIFEST-000001
+2025/06/23-02:47:27.430 5c3 Reusing MANIFEST /home/runner/workspace/business-session/session/Default/shared_proto_db/MANIFEST-000001
+2025/06/23-02:47:27.439 5c3 Recovering log #3
+2025/06/23-02:47:27.440 5c3 Reusing old log /home/runner/workspace/business-session/session/Default/shared_proto_db/000003.log 
