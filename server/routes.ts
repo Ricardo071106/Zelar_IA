@@ -7,6 +7,12 @@ let whatsappStatus = {
   qrCode: null
 };
 
+let businessQR = {
+  qrCode: null,
+  isConnected: false,
+  clientInfo: null
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Rota básica de saúde da aplicação
   app.get('/api/health', (req, res) => {
@@ -117,7 +123,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
-  // QR Code page for WhatsApp Business
+  // Generate QR for Business
+  app.get("/generate-business-qr", async (req, res) => {
+    try {
+      // Start WhatsApp Business bot process and get QR
+      const { spawn } = await import('child_process');
+      const qrBot = spawn('node', ['simple-business-connect.js'], {
+        stdio: 'pipe',
+        cwd: process.cwd()
+      });
+
+      let qrGenerated = false;
+      
+      qrBot.stdout?.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('ESCANEIE COM SEU WHATSAPP BUSINESS') && !qrGenerated) {
+          qrGenerated = true;
+          // Extract QR from output - will be handled by the client-side polling
+        }
+      });
+
+      res.json({ message: 'QR generation started', timestamp: new Date().toISOString() });
+    } catch (error) {
+      res.status(500).json({ error: 'Failed to start QR generation' });
+    }
+  });
+
+  // QR Code page for WhatsApp Business  
   app.get("/qr-business", (req, res) => {
     res.send(`
 <!DOCTYPE html>
