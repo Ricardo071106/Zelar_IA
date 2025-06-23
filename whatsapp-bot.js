@@ -3,10 +3,11 @@
  * Sistema completo com API REST e auto-resposta
  */
 
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const express = require('express');
-const bodyParser = require('body-parser');
-const qrcode = require('qrcode-terminal');
+import pkg from 'whatsapp-web.js';
+const { Client, LocalAuth } = pkg;
+import express from 'express';
+import bodyParser from 'body-parser';
+import qrcode from 'qrcode-terminal';
 
 // Configuração do Express
 const app = express();
