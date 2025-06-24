@@ -47,6 +47,7 @@
     "@types/luxon": "^3.6.2",
     "@types/node-schedule": "^2.1.7",
     "@types/nodemailer": "^6.4.17",
+    "@types/qrcode": "^1.5.5",
     "@whiskeysockets/baileys": "^6.7.18",
     "axios": "^1.9.0",
     "body-parser": "^2.2.0",
