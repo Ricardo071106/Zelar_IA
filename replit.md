@@ -2,7 +2,13 @@
 
 ## Overview
 
-Zelar is a comprehensive Node.js application that provides an intelligent scheduling assistant via Telegram and WhatsApp integration. The system processes natural language requests to create calendar events, manage appointments, and provide calendar synchronization capabilities. It features a modern React frontend with TypeScript, a Node.js backend with Express, and database integration using Drizzle ORM.
+Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI-powered natural language processing. The system provides dual bot integration through Telegram and WhatsApp, processing Brazilian Portuguese text to create calendar events and manage appointments. Built with Node.js, Express, and featuring a modern React frontend with TypeScript, plus PostgreSQL database integration using Drizzle ORM.
+
+### Current Status
+- **Telegram Bot**: Fully operational with Claude AI integration for intelligent event parsing
+- **WhatsApp Bot**: Operational with stable QR code system and auto-response capabilities
+- **Database**: PostgreSQL with complete user management and event storage
+- **Frontend**: React-based interface for system monitoring and management
 
 ## System Architecture
 
@@ -101,13 +107,29 @@ Zelar is a comprehensive Node.js application that provides an intelligent schedu
 ### Port Configuration
 - **Port 3000**: Main application server (mapped to external 3000)
 - **Port 3001**: Secondary services (mapped to external 3001)
-- **Port 5000**: Production server (mapped to external 80)
+- **Port 3004**: WhatsApp Bot server with stable QR code system
+- **Port 5000**: Telegram Bot and main application server
 
 ## Changelog
 
-Changelog:
-- June 23, 2025. Initial setup
+- June 23, 2025. Initial setup with Telegram bot and Claude AI integration
 - June 23, 2025. WhatsApp integration completed using Baileys library with real QR code generation
+- June 23, 2025. Implemented stable WhatsApp system to resolve "device connection" errors
+- June 23, 2025. Both Telegram and WhatsApp bots fully operational with auto-response capabilities
+
+## Recent Changes
+
+### WhatsApp Implementation Success
+- Created stable QR code generation system using multiple approaches
+- Resolved "não é possível conectar dispositivos" error with improved timing and reset functionality
+- WhatsApp bot now operational on port 3004 with endpoints for QR generation and message sending
+- Implemented automatic session management and message history tracking
+
+### System Integration
+- Telegram bot (port 5000): Claude AI-powered natural language processing for calendar events
+- WhatsApp bot (port 3004): Auto-response system with stable connection management
+- Database: PostgreSQL with user management and event storage capabilities
+- API endpoints: Complete REST API for both platforms
 
 ## User Preferences
 
