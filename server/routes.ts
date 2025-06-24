@@ -81,7 +81,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(503).json({ error: 'WhatsApp não conectado' });
     }
     
-    const messageData = {
+    const messageData: WhatsAppMessage = {
       id: Date.now().toString(),
       to: number,
       message: message,
