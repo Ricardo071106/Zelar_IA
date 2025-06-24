@@ -6,6 +6,7 @@ import FeaturesSection from "@/components/FeaturesSection";
 import HowItWorksSection from "@/components/HowItWorksSection";
 import CalendarSection from "@/components/CalendarSection";
 import BotDemoSection from "@/components/BotDemoSection";
+import { WhatsAppSection } from "@/components/WhatsAppSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import FaqSection from "@/components/FaqSection";
 import CtaSection from "@/components/CtaSection";
@@ -45,6 +46,7 @@ export default function Home() {
         <FeaturesSection />
         <HowItWorksSection />
         <BotDemoSection />
+        <WhatsAppSection />
         <CalendarSection />
         <TestimonialsSection />
         <FaqSection />
