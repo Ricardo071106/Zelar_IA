@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startZelarBot } from "./telegram/zelar_bot";
+import { startSimpleBot } from "./telegram/simple_bot";
 
 const app = express();
 app.use(express.json());
@@ -68,12 +68,12 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot Telegram Zelar
+    // Inicializar bot Telegram simples
     try {
-      await startZelarBot();
-      log('✅ Bot Telegram Zelar ativado com sucesso!', 'telegram');
+      await startSimpleBot();
+      log('✅ Bot Telegram ativado com sucesso!', 'telegram');
     } catch (error) {
-      log('⚠️ Bot temporariamente indisponível - site funcionando perfeitamente!', 'telegram');
+      log('⚠️ Bot temporariamente indisponível', 'telegram');
     }
 
     log('🤖 Sistema Zelar funcionando com foco no Telegram', 'system');
