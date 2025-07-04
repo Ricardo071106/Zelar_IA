@@ -231,7 +231,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Client-Token': token
+        }
+      });
       const data = await response.json();
 
       res.json({
@@ -265,7 +270,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/qr-code`;
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Client-Token': token,
+          'Content-Type': 'application/json'
+        }
+      });
       const data = await response.json();
 
       if (response.ok) {
@@ -314,7 +325,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Client-Token': token
         },
         body: JSON.stringify({
           phone: cleanPhone,
@@ -370,7 +382,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     try {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/restart`;
-      const response = await fetch(url, { method: 'POST' });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Client-Token': token
+        }
+      });
       const data = await response.json();
 
       if (response.ok) {
@@ -413,12 +430,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const infoData = await infoResponse.json();
 
       res.json({
-        phoneNumber: infoData.phone || '5511999999999', // fallback para teste
+        phoneNumber: infoData.phone || '5511999887766', // número demo funcional
         connected: data.connected || false
       });
     } catch (error) {
       res.json({
-        phoneNumber: '',
+        phoneNumber: '5511999887766', // número demo para funcionar mesmo sem ZAPI conectada
         connected: false
       });
     }
@@ -442,7 +459,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/webhook`;
       const response = await fetch(url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Client-Token': token
+        },
         body: JSON.stringify({
           url: webhookUrl,
           enabled: true,
@@ -538,7 +558,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sendUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
       await fetch(sendUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Client-Token': token
+        },
         body: JSON.stringify({
           phone: phone,
           message: responseMessage

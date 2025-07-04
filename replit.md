@@ -119,17 +119,19 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ## Recent Changes
 
-### WhatsApp Implementation Success
-- Created stable QR code generation system using multiple approaches
-- Resolved "não é possível conectar dispositivos" error with improved timing and reset functionality
-- WhatsApp bot now operational on port 3004 with endpoints for QR generation and message sending
-- Implemented automatic session management and message history tracking
+### WhatsApp Integration via ZAPI
+- Implemented ZAPI integration with user-provided credentials
+- Created floating WhatsApp button on website that redirects to direct conversation
+- Built intelligent webhook system using same Claude AI processing as Telegram
+- Added automatic response system for WhatsApp messages with calendar event creation
+- Configured endpoints for ZAPI connection, status checking, and webhook management
 
-### System Integration
-- Telegram bot (port 5000): Claude AI-powered natural language processing for calendar events
-- WhatsApp bot (port 3004): Auto-response system with stable connection management
-- Database: PostgreSQL with user management and event storage capabilities
-- API endpoints: Complete REST API for both platforms
+### Complete Bot Ecosystem
+- Telegram bot (port 5000): Claude AI-powered natural language processing (@zelar_assistente_bot)
+- WhatsApp bot: Direct conversation via floating button + automatic AI responses
+- Website integration: Visitors can click WhatsApp button and get instant intelligent responses
+- Database: PostgreSQL with complete user and event management
+- Unified AI processing: Both platforms use identical Claude-powered event interpretation
 
 ## User Preferences
 

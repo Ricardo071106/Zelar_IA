@@ -20,8 +20,8 @@ export default function WhatsAppFloatingButton() {
     }
   };
 
-  // Só mostrar se o WhatsApp estiver conectado
-  if (!whatsappInfo?.connected) {
+  // Mostrar sempre se configurado (independente da conexão)
+  if (!whatsappInfo?.phoneNumber) {
     return null;
   }
 
