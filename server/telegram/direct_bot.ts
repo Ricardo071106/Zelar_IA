@@ -16,6 +16,15 @@ interface TelegramUpdate {
     text: string;
     chat: { id: number };
   };
+  callback_query?: {
+    id: string;
+    from: { id: number; username?: string };
+    message: {
+      message_id: number;
+      chat: { id: number };
+    };
+    data: string;
+  };
 }
 
 interface Event {
@@ -59,6 +68,28 @@ async function sendMessage(chatId: number, text: string, replyMarkup?: any): Pro
     return response.ok;
   } catch (error) {
     console.error('❌ Erro ao enviar mensagem:', error);
+    return false;
+  }
+}
+
+async function answerCallbackQuery(callbackId: string, text?: string): Promise<boolean> {
+  try {
+    const token = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token) return false;
+
+    const response = await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        callback_query_id: callbackId,
+        text: text || '',
+        show_alert: false
+      })
+    });
+
+    return response.ok;
+  } catch (error) {
+    console.error('❌ Erro ao responder callback:', error);
     return false;
   }
 }
@@ -115,6 +146,64 @@ async function getUpdates(): Promise<TelegramUpdate[]> {
 }
 
 async function processUpdate(update: TelegramUpdate): Promise<void> {
+  // Processar callback queries (botões inline)
+  if (update.callback_query) {
+    const callbackData = update.callback_query.data;
+    const chatId = update.callback_query.message.chat.id;
+    const callbackId = update.callback_query.id;
+    
+    console.log(`🔘 Callback: "${callbackData}" do chat ${chatId}`);
+    
+    // Processar seleção de fuso horário
+    if (callbackData?.startsWith('tz_')) {
+      const timezoneMap: { [key: string]: string } = {
+        'tz_brazil': 'America/Sao_Paulo',
+        'tz_us_east': 'America/New_York',
+        'tz_us_central': 'America/Chicago',
+        'tz_us_west': 'America/Los_Angeles',
+        'tz_london': 'Europe/London',
+        'tz_europe': 'Europe/Berlin',
+        'tz_moscow': 'Europe/Moscow',
+        'tz_india': 'Asia/Kolkata',
+        'tz_china': 'Asia/Shanghai',
+        'tz_japan': 'Asia/Tokyo',
+        'tz_sydney': 'Australia/Sydney',
+        'tz_newzealand': 'Pacific/Auckland'
+      };
+
+      const timezoneNames: { [key: string]: string } = {
+        'tz_brazil': 'Brasil/Argentina (UTC-3)',
+        'tz_us_east': 'EUA Leste/Canadá (UTC-5)',
+        'tz_us_central': 'EUA Central/México (UTC-6)',
+        'tz_us_west': 'EUA Oeste (UTC-8)',
+        'tz_london': 'Londres/Dublin (UTC+0)',
+        'tz_europe': 'Europa Central (UTC+1)',
+        'tz_moscow': 'Moscou/Turquia (UTC+3)',
+        'tz_india': 'Índia (UTC+5:30)',
+        'tz_china': 'China/Singapura (UTC+8)',
+        'tz_japan': 'Japão/Coreia (UTC+9)',
+        'tz_sydney': 'Austrália Leste (UTC+10)',
+        'tz_newzealand': 'Nova Zelândia (UTC+12)'
+      };
+
+      const selectedTimezone = timezoneMap[callbackData];
+      const timezoneName = timezoneNames[callbackData];
+      
+      if (selectedTimezone) {
+        await sendMessage(chatId,
+          `✅ *Fuso horário atualizado!*\n\n` +
+          `🌍 Região: ${timezoneName}\n` +
+          `⏰ Agora todos os eventos serão criados neste fuso horário.\n\n` +
+          `💡 Envie uma mensagem como "reunião amanhã às 14h" para testar!`
+        );
+        
+        await answerCallbackQuery(callbackId, `Fuso horário definido: ${timezoneName}`);
+      }
+    }
+    
+    return;
+  }
+
   if (!update.message || !update.message.text) return;
 
   const message = update.message.text;
