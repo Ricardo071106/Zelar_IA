@@ -8,6 +8,7 @@ import Home from "@/pages/home";
 import BotDashboard from "@/pages/BotDashboard";
 import QRBusiness from "@/pages/QRBusiness";
 import WhatsAppDemo from "@/pages/WhatsAppDemo";
+import WhatsAppSetup from "@/pages/WhatsAppSetup";
 import SystemDashboard from "@/pages/SystemDashboard";
 
 function Router() {
@@ -18,6 +19,7 @@ function Router() {
       <Route path="/system" component={SystemDashboard} />
       <Route path="/qr-business" component={QRBusiness} />
       <Route path="/whatsapp" component={WhatsAppDemo} />
+      <Route path="/whatsapp-setup" component={WhatsAppSetup} />
       <Route component={NotFound} />
     </Switch>
   );

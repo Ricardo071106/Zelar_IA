@@ -113,6 +113,28 @@ export default function WhatsAppDemo() {
         ))}
       </div>
 
+      {/* Link para configuração do WhatsApp */}
+      <div className="mb-8">
+        <Card className="border-blue-500 bg-blue-50">
+          <CardHeader>
+            <CardTitle className="text-blue-800">Configurar WhatsApp Próprio</CardTitle>
+            <CardDescription className="text-blue-700">
+              Configure seu próprio número WhatsApp para receber agendamentos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button 
+              onClick={() => window.location.href = '/whatsapp-setup'}
+              variant="outline"
+              className="border-blue-500 text-blue-700 hover:bg-blue-100"
+            >
+              <MessageCircle className="h-4 w-4 mr-2" />
+              Configurar Meu WhatsApp
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Status da ZAPI */}
       <Card className="mb-8">
         <CardHeader>
