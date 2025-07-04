@@ -3,7 +3,6 @@ import { createServer, type Server } from "http";
 
 // WhatsApp integrations
 import { whatsappBusiness } from './whatsapp/businessAPI';
-import { zapiWhatsApp } from './whatsapp/zapiIntegration';
 
 interface WhatsAppMessage {
   id: string;
@@ -217,52 +216,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ZAPI WhatsApp endpoints
   app.get('/api/zapi/status', async (_req, res) => {
-    try {
-      const accountInfo = zapiWhatsApp.getAccountInfo();
-      
-      if (!accountInfo.configured) {
-        return res.json({
-          connected: false,
-          configured: false,
-          messageCount: messageCount,
-          timestamp: new Date().toISOString()
-        });
-      }
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    const configured = !!(instanceId && token);
+    
+    if (!configured) {
+      return res.json({
+        connected: false,
+        configured: false,
+        messageCount: messageCount,
+        timestamp: new Date().toISOString()
+      });
+    }
 
-      const statusResult = await zapiWhatsApp.getInstanceStatus();
-      
+    try {
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
+      const response = await fetch(url);
+      const data = await response.json();
+
       res.json({
-        connected: statusResult.connected,
-        configured: accountInfo.configured,
-        instanceId: accountInfo.instanceId,
+        connected: data.connected || false,
+        configured: true,
+        instanceId: instanceId,
         messageCount: messageCount,
         timestamp: new Date().toISOString()
       });
     } catch (error) {
-      res.status(500).json({
+      res.json({
         connected: false,
-        configured: false,
-        messageCount: 0,
-        error: 'Erro ao verificar status ZAPI',
+        configured: true,
+        instanceId: instanceId,
+        messageCount: messageCount,
         timestamp: new Date().toISOString()
       });
     }
   });
 
   app.post('/api/zapi/connect', async (_req, res) => {
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    
+    if (!instanceId || !token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Credenciais ZAPI não configuradas'
+      });
+    }
+
     try {
-      const result = await zapiWhatsApp.connectInstance();
-      
-      if (result.success) {
-        console.log('Tentativa de conexão ZAPI iniciada');
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/qr-code`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log('QR code ZAPI gerado');
         res.json({
           success: true,
-          qrCode: result.qrCode
+          qrCode: data.qrcode || data.qr_code
         });
       } else {
         res.status(400).json({
           success: false,
-          error: result.error
+          error: data.error || 'Erro ao obter QR code'
         });
       }
     } catch (error) {
@@ -274,23 +289,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/zapi/send-test', async (req, res) => {
-    try {
-      const { phone, message } = req.body;
-      
-      if (!phone || !message) {
-        return res.status(400).json({
-          success: false,
-          error: 'Campos obrigatórios: phone, message'
-        });
-      }
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    const { phone, message } = req.body;
+    
+    if (!phone || !message) {
+      return res.status(400).json({
+        success: false,
+        error: 'Campos obrigatórios: phone, message'
+      });
+    }
 
-      const result = await zapiWhatsApp.sendTextMessage(phone, message);
+    if (!instanceId || !token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Credenciais ZAPI não configuradas'
+      });
+    }
+
+    try {
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+      const cleanPhone = phone.replace(/\D/g, '');
       
-      if (result.success) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          phone: cleanPhone,
+          message: message
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && !data.error) {
         messageCount++;
         
         const messageData: WhatsAppMessage = {
-          id: result.messageId || Date.now().toString(),
+          id: data.messageId || data.id || Date.now().toString(),
           to: phone,
           message: message,
           timestamp: new Date().toISOString(),
@@ -302,15 +340,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log(`Mensagem enviada via ZAPI para ${phone}`);
         res.json({
           success: true,
-          messageId: result.messageId
+          messageId: data.messageId || data.id
         });
       } else {
         res.status(400).json({
           success: false,
-          error: result.error
+          error: data.error || data.message || 'Erro ao enviar mensagem'
         });
       }
     } catch (error) {
+      console.error('Erro no envio ZAPI:', error);
       res.status(500).json({
         success: false,
         error: 'Erro ao enviar mensagem via ZAPI'
@@ -319,16 +358,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/zapi/restart', async (_req, res) => {
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    
+    if (!instanceId || !token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Credenciais ZAPI não configuradas'
+      });
+    }
+
     try {
-      const result = await zapiWhatsApp.restartInstance();
-      
-      if (result.success) {
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/restart`;
+      const response = await fetch(url, { method: 'POST' });
+      const data = await response.json();
+
+      if (response.ok) {
         console.log('Instância ZAPI reiniciada');
         res.json({ success: true });
       } else {
         res.status(400).json({
           success: false,
-          error: result.error
+          error: data.error || 'Erro ao reiniciar instância'
         });
       }
     } catch (error) {
