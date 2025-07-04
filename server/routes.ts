@@ -119,12 +119,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         diagnosis: 'ZAPI_INSTANCE_ID e ZAPI_TOKEN não encontrados'
       });
     }
+    
+    // Debug das credenciais (apenas primeiros caracteres)
+    console.log(`🔍 Testando ZAPI - Instance: ${instanceId?.substring(0, 8)}... Token: ${token?.substring(0, 8)}...`);
 
     try {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
+      
+      // Testar diferentes métodos de autenticação
       const response = await fetch(url, {
+        method: 'GET',
         headers: {
-          'Client-Token': token
+          'Content-Type': 'application/json'
         }
       });
       
@@ -133,7 +139,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Diagnosticar problemas específicos
       let diagnosis = 'Funcionando normalmente';
       if (data.error === 'Client-Token is required') {
-        diagnosis = 'Token inválido ou instância não ativa. Verifique se a instância ZAPI está ativa no painel.';
+        diagnosis = 'Credenciais ZAPI inválidas ou instância pausada. Verifique se a instância está ativa e se o token está correto.';
+      } else if (data.error === 'Instance not found') {
+        diagnosis = 'Instância não encontrada. Verifique se o INSTANCE_ID está correto.';
       } else if (!response.ok) {
         diagnosis = `Erro na API: ${data.error || 'Erro desconhecido'}`;
       } else if (!data.connected) {
