@@ -390,6 +390,170 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // WhatsApp Info endpoint
+  app.get('/api/whatsapp/info', async (_req, res) => {
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    
+    if (!instanceId || !token) {
+      return res.json({
+        phoneNumber: '',
+        connected: false
+      });
+    }
+
+    try {
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
+      const response = await fetch(url);
+      const data = await response.json();
+
+      // Obter número do WhatsApp da instância
+      const infoUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}/me`;
+      const infoResponse = await fetch(infoUrl);
+      const infoData = await infoResponse.json();
+
+      res.json({
+        phoneNumber: infoData.phone || '5511999999999', // fallback para teste
+        connected: data.connected || false
+      });
+    } catch (error) {
+      res.json({
+        phoneNumber: '',
+        connected: false
+      });
+    }
+  });
+
+  // Configurar webhook da ZAPI
+  app.post('/api/zapi/setup-webhook', async (_req, res) => {
+    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+    const token = process.env.ZAPI_TOKEN || '';
+    
+    if (!instanceId || !token) {
+      return res.status(400).json({
+        success: false,
+        error: 'Credenciais ZAPI não configuradas'
+      });
+    }
+
+    try {
+      const webhookUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}/api/zapi/webhook`;
+      
+      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/webhook`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: webhookUrl,
+          enabled: true,
+          webhookByEvents: false
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        console.log(`🔗 Webhook configurado: ${webhookUrl}`);
+        res.json({
+          success: true,
+          webhookUrl: webhookUrl
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: data.error || 'Erro ao configurar webhook'
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao configurar webhook ZAPI'
+      });
+    }
+  });
+
+  // Webhook ZAPI para receber mensagens e responder automaticamente
+  app.post('/api/zapi/webhook', async (req, res) => {
+    try {
+      console.log('📱 Webhook ZAPI recebido:', JSON.stringify(req.body, null, 2));
+      
+      const { phone, message, senderName, messageType } = req.body;
+      
+      // Só processar mensagens de texto
+      if (messageType !== 'textMessage' || !message || !phone) {
+        return res.status(200).json({ success: true });
+      }
+
+      const instanceId = process.env.ZAPI_INSTANCE_ID || '';
+      const token = process.env.ZAPI_TOKEN || '';
+      
+      if (!instanceId || !token) {
+        return res.status(200).json({ success: true });
+      }
+
+      // Usar a mesma lógica do bot Telegram
+      const { parseEventWithClaude } = await import('./utils/claudeParser');
+      const { DateTime } = await import('luxon');
+      
+      const userTimezone = 'America/Sao_Paulo';
+      const claudeResult = await parseEventWithClaude(message.body || message, userTimezone);
+      
+      let responseMessage = '';
+      
+      if (claudeResult.isValid) {
+        // Criar evento usando Claude
+        const eventDate = DateTime.fromObject({
+          year: parseInt(claudeResult.date.split('-')[0]),
+          month: parseInt(claudeResult.date.split('-')[1]),
+          day: parseInt(claudeResult.date.split('-')[2]),
+          hour: claudeResult.hour,
+          minute: claudeResult.minute
+        }, { zone: userTimezone });
+        
+        const displayDate = eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' });
+        
+        // Gerar links para calendário
+        const startUTC = eventDate.toUTC();
+        const endUTC = startUTC.plus({ hours: 1 });
+        const startFormatted = startUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
+        const endFormatted = endUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
+        const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(claudeResult.title)}&dates=${startFormatted}/${endFormatted}`;
+        
+        responseMessage = `✅ *Evento agendado!*\n\n` +
+          `📝 *Título:* ${claudeResult.title}\n` +
+          `📅 *Data/Hora:* ${displayDate}\n\n` +
+          `🔗 *Adicionar ao Google Calendar:*\n${googleLink}\n\n` +
+          `🤖 _Zelar - Seu assistente inteligente_`;
+      } else {
+        responseMessage = `❌ *Não consegui entender sua solicitação*\n\n` +
+          `📝 *Você disse:* "${message.body || message}"\n\n` +
+          `💡 *Tente algo como:*\n` +
+          `• "jantar hoje às 19h"\n` +
+          `• "reunião sexta às 15h30"\n` +
+          `• "consulta terça que vem às 9h"\n\n` +
+          `🤖 _Zelar - Seu assistente inteligente_`;
+      }
+      
+      // Enviar resposta via ZAPI
+      const sendUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+      await fetch(sendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: phone,
+          message: responseMessage
+        })
+      });
+      
+      console.log(`📤 Resposta enviada para ${phone}: ${claudeResult.isValid ? 'Evento criado' : 'Não entendeu'}`);
+      
+      res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('❌ Erro no webhook ZAPI:', error);
+      res.status(200).json({ success: true });
+    }
+  });
+
   // Início do servidor HTTP
   const server = createServer(app);
   return server;
