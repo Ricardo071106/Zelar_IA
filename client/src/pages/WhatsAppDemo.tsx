@@ -25,11 +25,14 @@ export default function WhatsAppDemo() {
     
     setProcessing(true);
     try {
-      // Simular o processamento da mensagem usando a mesma IA
+      // Processar mensagem usando a mesma IA do Telegram
       const response = await fetch('/api/whatsapp/test-message', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: testMessage })
+        body: JSON.stringify({ 
+          phone: '5511999999999', // número exemplo
+          message: testMessage 
+        })
       });
       
       if (response.ok) {
