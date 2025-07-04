@@ -7,7 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ExternalLink, MessageCircle, Bot, Send, CheckCircle, Copy } from 'lucide-react';
 
 export default function WhatsAppDemo() {
-  const [testMessage, setTestMessage] = useState('');
+  const [testMessage, setTestMessage] = useState('Reunião com cliente amanhã às 14h');
   const [processedResult, setProcessedResult] = useState<any>(null);
   const [processing, setProcessing] = useState(false);
   const [whatsappLink, setWhatsappLink] = useState('');
@@ -25,6 +25,8 @@ export default function WhatsAppDemo() {
     
     setProcessing(true);
     try {
+      console.log('Enviando mensagem:', testMessage);
+      
       // Processar mensagem usando a mesma IA do Telegram
       const response = await fetch('/api/whatsapp/test-message', {
         method: 'POST',
@@ -35,19 +37,25 @@ export default function WhatsAppDemo() {
         })
       });
       
+      console.log('Status da resposta:', response.status);
+      
       if (response.ok) {
         const result = await response.json();
+        console.log('Resultado:', result);
         setProcessedResult(result);
       } else {
+        const errorText = await response.text();
+        console.error('Erro na resposta:', errorText);
         setProcessedResult({
           success: false,
-          response: 'Erro ao processar mensagem'
+          response: `Erro ${response.status}: ${errorText}`
         });
       }
     } catch (error) {
+      console.error('Erro de conexão:', error);
       setProcessedResult({
         success: false,
-        response: 'Erro de conexão'
+        response: `Erro de conexão: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
       });
     } finally {
       setProcessing(false);
