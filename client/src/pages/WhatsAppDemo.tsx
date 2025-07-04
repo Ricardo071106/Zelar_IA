@@ -127,6 +127,30 @@ export default function WhatsAppDemo() {
                         <strong>{processedResult.event.title}</strong><br />
                         {processedResult.event.displayDate}
                       </p>
+                      
+                      {processedResult.event.calendarLinks && (
+                        <div className="mt-2 space-y-1">
+                          <p className="text-xs text-blue-600 font-medium">Adicionar ao calendário:</p>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.open(processedResult.event.calendarLinks.google, '_blank')}
+                              className="text-xs"
+                            >
+                              📅 Google Calendar
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.open(processedResult.event.calendarLinks.outlook, '_blank')}
+                              className="text-xs"
+                            >
+                              📆 Outlook
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

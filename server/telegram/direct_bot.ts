@@ -168,15 +168,51 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
           { text: '🇺🇸 EUA Leste (UTC-5)', callback_data: 'tz_us_east' }
         ],
         [
+          { text: '🇺🇸 EUA Central (UTC-6)', callback_data: 'tz_us_central' },
+          { text: '🇺🇸 EUA Oeste (UTC-8)', callback_data: 'tz_us_west' }
+        ],
+        [
           { text: '🇬🇧 Londres (UTC+0)', callback_data: 'tz_london' },
-          { text: '🇯🇵 Tóquio (UTC+9)', callback_data: 'tz_tokyo' }
+          { text: '🇩🇪 Alemanha (UTC+1)', callback_data: 'tz_germany' }
+        ],
+        [
+          { text: '🇫🇷 França (UTC+1)', callback_data: 'tz_france' },
+          { text: '🇪🇸 Espanha (UTC+1)', callback_data: 'tz_spain' }
+        ],
+        [
+          { text: '🇮🇹 Itália (UTC+1)', callback_data: 'tz_italy' },
+          { text: '🇳🇱 Holanda (UTC+1)', callback_data: 'tz_netherlands' }
+        ],
+        [
+          { text: '🇷🇺 Moscou (UTC+3)', callback_data: 'tz_moscow' },
+          { text: '🇹🇷 Istambul (UTC+3)', callback_data: 'tz_istanbul' }
+        ],
+        [
+          { text: '🇮🇳 Índia (UTC+5:30)', callback_data: 'tz_india' },
+          { text: '🇨🇳 China (UTC+8)', callback_data: 'tz_china' }
+        ],
+        [
+          { text: '🇯🇵 Japão (UTC+9)', callback_data: 'tz_japan' },
+          { text: '🇰🇷 Coreia (UTC+9)', callback_data: 'tz_korea' }
+        ],
+        [
+          { text: '🇦🇺 Sydney (UTC+10)', callback_data: 'tz_sydney' },
+          { text: '🇳🇿 Nova Zelândia (UTC+12)', callback_data: 'tz_newzealand' }
+        ],
+        [
+          { text: '🇦🇷 Argentina (UTC-3)', callback_data: 'tz_argentina' },
+          { text: '🇨🇱 Chile (UTC-3)', callback_data: 'tz_chile' }
+        ],
+        [
+          { text: '🇲🇽 México (UTC-6)', callback_data: 'tz_mexico' },
+          { text: '🇨🇦 Canadá (UTC-5)', callback_data: 'tz_canada' }
         ]
       ]
     };
     
     await sendMessage(chatId,
       '🌍 *Selecione seu fuso horário:*\n\n' +
-      'Isso garantirá que os eventos sejam criados no horário correto.',
+      'Isso garantirá que os eventos sejam criados no horário correto para sua região.',
       replyMarkup
     );
     return;
