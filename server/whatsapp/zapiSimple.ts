@@ -1,6 +1,6 @@
 /**
- * ZAPI WhatsApp Integration
- * Integração com Z-API para WhatsApp Business
+ * ZAPI WhatsApp Simple Integration
+ * Versão simplificada usando apenas autenticação via URL
  */
 
 interface ZAPIConfig {
@@ -9,18 +9,7 @@ interface ZAPIConfig {
   baseUrl: string;
 }
 
-interface ZAPIMessage {
-  phone: string;
-  message: string;
-}
-
-interface ZAPIResponse {
-  success: boolean;
-  messageId?: string;
-  error?: string;
-}
-
-export class ZAPIWhatsApp {
+export class ZAPISimple {
   private config: ZAPIConfig;
 
   constructor() {
@@ -31,17 +20,11 @@ export class ZAPIWhatsApp {
     };
   }
 
-  /**
-   * Verifica se as credenciais estão configuradas
-   */
-  public isConfigured(): boolean {
+  isConfigured(): boolean {
     return !!(this.config.instanceId && this.config.token);
   }
 
-  /**
-   * Obtém o status da instância
-   */
-  public async getInstanceStatus(): Promise<{
+  async getInstanceStatus(): Promise<{
     success: boolean;
     connected: boolean;
     data?: any;
@@ -58,11 +41,7 @@ export class ZAPIWhatsApp {
     try {
       const url = `${this.config.baseUrl}/${this.config.instanceId}/token/${this.config.token}/status`;
       
-      const response = await fetch(url, {
-        headers: {
-          'Client-Token': this.config.token
-        }
-      });
+      const response = await fetch(url);
       const data = await response.json();
 
       if (response.ok) {
@@ -87,10 +66,11 @@ export class ZAPIWhatsApp {
     }
   }
 
-  /**
-   * Envia uma mensagem de texto
-   */
-  public async sendTextMessage(phone: string, message: string): Promise<ZAPIResponse> {
+  async sendTextMessage(phone: string, message: string): Promise<{
+    success: boolean;
+    messageId?: string;
+    error?: string;
+  }> {
     if (!this.isConfigured()) {
       return {
         success: false,
@@ -101,10 +81,9 @@ export class ZAPIWhatsApp {
     try {
       const url = `${this.config.baseUrl}/${this.config.instanceId}/token/${this.config.token}/send-text`;
       
-      // Limpar número de telefone (remover caracteres especiais)
       const cleanPhone = phone.replace(/\D/g, '');
       
-      const payload: ZAPIMessage = {
+      const payload = {
         phone: cleanPhone,
         message: message
       };
@@ -112,8 +91,7 @@ export class ZAPIWhatsApp {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Client-Token': this.config.token
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });
@@ -139,10 +117,7 @@ export class ZAPIWhatsApp {
     }
   }
 
-  /**
-   * Conecta a instância (gera QR code se necessário)
-   */
-  public async connectInstance(): Promise<{
+  async connectInstance(): Promise<{
     success: boolean;
     qrCode?: string;
     error?: string;
@@ -157,11 +132,7 @@ export class ZAPIWhatsApp {
     try {
       const url = `${this.config.baseUrl}/${this.config.instanceId}/token/${this.config.token}/qr-code`;
       
-      const response = await fetch(url, {
-        headers: {
-          'Client-Token': this.config.token
-        }
-      });
+      const response = await fetch(url);
       const data = await response.json();
 
       if (response.ok) {
@@ -183,10 +154,7 @@ export class ZAPIWhatsApp {
     }
   }
 
-  /**
-   * Reinicia a instância
-   */
-  public async restartInstance(): Promise<{
+  async restartInstance(): Promise<{
     success: boolean;
     error?: string;
   }> {
@@ -200,12 +168,7 @@ export class ZAPIWhatsApp {
     try {
       const url = `${this.config.baseUrl}/${this.config.instanceId}/token/${this.config.token}/restart`;
       
-      const response = await fetch(url, { 
-        method: 'POST',
-        headers: {
-          'Client-Token': this.config.token
-        }
-      });
+      const response = await fetch(url, { method: 'POST' });
       const data = await response.json();
 
       if (response.ok) {
@@ -226,10 +189,7 @@ export class ZAPIWhatsApp {
     }
   }
 
-  /**
-   * Gera resposta automática
-   */
-  public generateAutoResponse(incomingMessage: string): string {
+  generateAutoResponse(incomingMessage: string): string {
     const lowerMessage = incomingMessage.toLowerCase();
     
     if (lowerMessage.includes('ola') || lowerMessage.includes('oi') || lowerMessage.includes('olá')) {
@@ -251,10 +211,7 @@ export class ZAPIWhatsApp {
     return '😊 Obrigado pela mensagem!\n\nPara agendamentos inteligentes, use nosso bot: @ZelarBot\n\nEle entende português e cria seus compromissos automaticamente. Experimente!';
   }
 
-  /**
-   * Obtém informações da conta
-   */
-  public getAccountInfo(): {
+  getAccountInfo(): {
     instanceId: string;
     configured: boolean;
   } {
@@ -265,4 +222,4 @@ export class ZAPIWhatsApp {
   }
 }
 
-export const zapiWhatsApp = new ZAPIWhatsApp();
+export const zapiSimple = new ZAPISimple();
