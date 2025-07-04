@@ -387,6 +387,7 @@ export async function startZelarBot(): Promise<boolean> {
     }
 
     console.log('🚀 Iniciando nova instância do bot...');
+    console.log('📱 Token configurado:', process.env.TELEGRAM_BOT_TOKEN ? 'SIM' : 'NÃO');
     bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 
     // Comando inicial
@@ -724,12 +725,14 @@ export async function startZelarBot(): Promise<boolean> {
       { command: 'interpretar', description: 'Testar interpretação de datas' }
     ]);
     
+    console.log('🚀 Iniciando bot via launch()...');
     await bot.launch();
     console.log('✅ Bot Zelar ativo com comandos limpos!');
     return true;
 
   } catch (error) {
     console.error('❌ Erro ao iniciar bot:', error);
+    console.error('❌ Detalhes do erro:', error.message);
     return false;
   }
 }
