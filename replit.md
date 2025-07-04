@@ -143,8 +143,9 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 ### Correções Bot Telegram (Julho 2025)
 - ✅ RESTAURADO: Comandos /timezone, /help com interface completa
 - ✅ ADICIONADO: Mensagem de boas-vindas com informação de fuso horário
-- ✅ FUNCIONANDO: Seleção de fuso horário (Brasil, EUA, Londres, Tóquio, etc)
-- ✅ CORRIGIDO: Sistema de comandos completo restaurado
+- ✅ ORGANIZADO: Fusos horários agrupados por região (eliminando duplicações)
+- ✅ MELHORADO: Interface com 12 fusos principais cobrindo todo o mundo
+- ✅ CORRIGIDO: Sistema de comandos completo restaurado e no menu do bot
 
 ### Sistema de Monitoramento Completo (Julho 2025)
 - ✅ CRIADO: Dashboard administrativo em `/system` com monitoramento em tempo real
