@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 
-// WhatsApp integration
-import QRCode from 'qrcode';
+// WhatsApp Business API integration
+import { whatsappBusiness } from './whatsapp/businessAPI';
 
 interface WhatsAppMessage {
   id: string;
@@ -13,9 +13,10 @@ interface WhatsAppMessage {
   direction: 'sent' | 'received';
 }
 
-let whatsappConnected = false;
-let whatsappQRCode: string | null = null;
+let whatsappBusinessConnected = false;
+let whatsappBusinessConfigured = false;
 let whatsappMessages: WhatsAppMessage[] = [];
+let messageCount = 0;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // WhatsApp API endpoints
@@ -120,6 +121,97 @@ export async function registerRoutes(app: Express): Promise<Server> {
         lastUpdate: new Date().toISOString()
       }
     });
+  });
+
+  // WhatsApp Business API endpoints
+  app.get('/api/whatsapp-business/status', (_req, res) => {
+    res.json({
+      connected: whatsappBusinessConnected,
+      configured: whatsappBusinessConfigured,
+      messageCount: messageCount,
+      phoneNumber: whatsappBusiness.isConfigured() ? 'Configurado' : undefined,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  app.post('/api/whatsapp-business/configure', (req, res) => {
+    try {
+      const { phoneNumber, accessToken, phoneNumberId, businessAccountId } = req.body;
+      
+      if (!phoneNumber || !accessToken || !phoneNumberId) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Campos obrigatórios: phoneNumber, accessToken, phoneNumberId' 
+        });
+      }
+
+      whatsappBusiness.setCredentials({
+        phoneNumber,
+        accessToken,
+        phoneNumberId,
+        businessAccountId
+      });
+
+      whatsappBusinessConfigured = whatsappBusiness.isConfigured();
+      
+      console.log('WhatsApp Business API configurada');
+      res.json({ success: true, configured: whatsappBusinessConfigured });
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Erro ao configurar WhatsApp Business' });
+    }
+  });
+
+  app.post('/api/whatsapp-business/test', async (_req, res) => {
+    try {
+      const result = await whatsappBusiness.getPhoneNumberInfo();
+      
+      if (result.success) {
+        whatsappBusinessConnected = true;
+        console.log('WhatsApp Business API testada com sucesso');
+        res.json({ success: true, data: result.data });
+      } else {
+        whatsappBusinessConnected = false;
+        res.status(400).json({ success: false, error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Erro ao testar conexão' });
+    }
+  });
+
+  app.post('/api/whatsapp-business/send-test', async (req, res) => {
+    try {
+      const { to, message } = req.body;
+      
+      if (!to || !message) {
+        return res.status(400).json({ 
+          success: false, 
+          error: 'Campos obrigatórios: to, message' 
+        });
+      }
+
+      const result = await whatsappBusiness.sendTextMessage(to, message);
+      
+      if (result.success) {
+        messageCount++;
+        
+        const messageData: WhatsAppMessage = {
+          id: result.messageId || Date.now().toString(),
+          to: to,
+          message: message,
+          timestamp: new Date().toISOString(),
+          direction: 'sent'
+        };
+        
+        whatsappMessages.push(messageData);
+        
+        console.log(`Mensagem enviada via WhatsApp Business para ${to}`);
+        res.json({ success: true, messageId: result.messageId });
+      } else {
+        res.status(400).json({ success: false, error: result.error });
+      }
+    } catch (error) {
+      res.status(500).json({ success: false, error: 'Erro ao enviar mensagem' });
+    }
   });
 
   // Início do servidor HTTP
