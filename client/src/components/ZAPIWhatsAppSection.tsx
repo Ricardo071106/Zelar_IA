@@ -89,6 +89,26 @@ export function ZAPIWhatsAppSection() {
     }
   };
 
+  const setupWebhook = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/zapi/setup-webhook', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        alert('🤖 Bot configurado! Agora o WhatsApp responderá automaticamente aos agendamentos.');
+        fetchStatus();
+      } else {
+        setError(data.error || 'Erro ao configurar bot');
+      }
+    } catch (err) {
+      setError('Erro ao configurar bot');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const restartInstance = async () => {
     setLoading(true);
     setError(null);
@@ -294,6 +314,21 @@ export function ZAPIWhatsAppSection() {
                   </Button>
                 )}
                 
+                {status?.configured && status?.connected && (
+                  <Button 
+                    onClick={setupWebhook}
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    {loading ? (
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                    )}
+                    Configurar Bot
+                  </Button>
+                )}
+
                 {status?.configured && (
                   <Button 
                     onClick={restartInstance} 

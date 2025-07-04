@@ -7,6 +7,7 @@ import HowItWorksSection from "@/components/HowItWorksSection";
 import CalendarSection from "@/components/CalendarSection";
 import BotDemoSection from "@/components/BotDemoSection";
 import { ZAPIWhatsAppSection } from "@/components/ZAPIWhatsAppSection";
+import WhatsAppFloatingButton from "@/components/WhatsAppFloatingButton";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import FaqSection from "@/components/FaqSection";
 import CtaSection from "@/components/CtaSection";
@@ -53,6 +54,7 @@ export default function Home() {
         <CtaSection />
       </main>
       <Footer />
+      <WhatsAppFloatingButton />
     </div>
   );
 }
