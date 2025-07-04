@@ -5,6 +5,7 @@ import { DateTime } from 'luxon';
 import { getWhatsAppStatus, generateWhatsAppUrl, getRecommendedSolution } from './whatsapp/fallback_system';
 import { getWorkingWhatsAppSolutions, getBestWhatsAppOption, getWhatsAppDirectLink, getZAPIStatus } from './whatsapp/working_solution';
 import { HealthChecker } from './utils/healthCheck';
+import { processWhatsAppMessageAuto, isEventMessage, generateHelpResponse } from './whatsapp/auto_bot';
 
 interface WhatsAppMessage {
   id: string;
@@ -65,43 +66,37 @@ async function sendZAPIMessage(phone: string, message: string): Promise<boolean>
 }
 
 async function processWhatsAppMessage(from: string, messageText: string): Promise<void> {
-  console.log(`📱 Processando mensagem WhatsApp: "${messageText}" de ${from}`);
-
+  console.log(`📱 Processando mensagem WhatsApp de ${from}: ${messageText}`);
+  
   try {
-    // Usar Claude para interpretar a mensagem
-    const claudeResult = await parseEventWithClaude(messageText, 'America/Sao_Paulo');
-    
-    if (!claudeResult.isValid) {
-      const response = '❌ Não consegui entender a data/hora.\n\n💡 Tente algo como:\n• "jantar hoje às 19h"\n• "reunião quarta às 15h"';
-      await sendZAPIMessage(from, response);
-      return;
+    // Verificar se é uma mensagem de evento
+    if (isEventMessage(messageText)) {
+      // Processar com o bot automático (mesma IA do Telegram)
+      const result = await processWhatsAppMessageAuto(from, messageText);
+      
+      if (result.success) {
+        // Tentar enviar resposta via ZAPI
+        const sent = await sendZAPIMessage(from, result.response);
+        if (sent) {
+          console.log(`✅ Evento criado e resposta enviada para ${from}: ${result.event?.title}`);
+        } else {
+          console.log(`❌ Evento criado mas falha ao enviar resposta para ${from}`);
+        }
+      } else {
+        // Erro ao processar evento
+        await sendZAPIMessage(from, result.response);
+        console.log(`⚠️ Erro ao processar evento para ${from}: ${result.error}`);
+      }
+    } else {
+      // Mensagem não é evento - enviar ajuda
+      const helpMessage = generateHelpResponse();
+      await sendZAPIMessage(from, helpMessage);
+      console.log(`ℹ️ Mensagem de ajuda enviada para ${from}`);
     }
-
-    // Criar evento
-    const eventDate = DateTime.fromObject({
-      year: parseInt(claudeResult.date.split('-')[0]),
-      month: parseInt(claudeResult.date.split('-')[1]),
-      day: parseInt(claudeResult.date.split('-')[2]),
-      hour: claudeResult.hour,
-      minute: claudeResult.minute
-    }, { zone: 'America/Sao_Paulo' });
-
-    const event = {
-      title: claudeResult.title,
-      startDate: eventDate.toISO() || eventDate.toString(),
-      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
-    };
-
-    const links = generateCalendarLinks(event.title, event.startDate);
-
-    const response = `✅ *Evento criado!*\n\n🎯 *${event.title}*\n📅 ${event.displayDate}\n\n📅 Adicionar ao calendário:\n${links.google}`;
-    
-    await sendZAPIMessage(from, response);
-    console.log(`✅ Evento WhatsApp criado: ${event.title}`);
-
   } catch (error) {
     console.error('❌ Erro ao processar mensagem WhatsApp:', error);
-    await sendZAPIMessage(from, '❌ Erro interno. Tente novamente.');
+    const errorMessage = "Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente em alguns instantes.";
+    await sendZAPIMessage(from, errorMessage);
   }
 }
 

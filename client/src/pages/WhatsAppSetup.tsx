@@ -51,8 +51,13 @@ export default function WhatsAppSetup() {
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">Configurar WhatsApp para Zelar</h1>
-        <p className="text-gray-600">Configure seu número WhatsApp para receber agendamentos</p>
+        <h1 className="text-3xl font-bold mb-2">WhatsApp com IA Integrada</h1>
+        <p className="text-gray-600">Mesma inteligência artificial do Telegram, agora no WhatsApp</p>
+        <div className="mt-4">
+          <Badge variant="secondary" className="bg-blue-100 text-blue-800">
+            Processamento Automático com Claude AI
+          </Badge>
+        </div>
       </div>
 
       {/* Opção Recomendada */}
@@ -196,25 +201,25 @@ export default function WhatsAppSetup() {
             <div className="space-y-3">
               <div className="flex items-center gap-2">
                 <MessageCircle className="h-5 w-5 text-green-600" />
-                <h4 className="font-medium">WhatsApp Manual</h4>
-                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800">Manual</Badge>
+                <h4 className="font-medium">WhatsApp com IA</h4>
+                <Badge variant="secondary" className="bg-green-100 text-green-800">Automático</Badge>
               </div>
               <ul className="text-sm space-y-1">
                 <li className="flex items-center gap-2">
-                  <AlertCircle className="h-3 w-3 text-yellow-500" />
-                  Processamento manual
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  IA integrada (Claude)
                 </li>
                 <li className="flex items-center gap-2">
                   <CheckCircle className="h-3 w-3 text-green-500" />
-                  Familiar para usuários
+                  Interpretação automática
                 </li>
                 <li className="flex items-center gap-2">
-                  <AlertCircle className="h-3 w-3 text-yellow-500" />
-                  Requer configuração
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  Criação de eventos automática
                 </li>
                 <li className="flex items-center gap-2">
-                  <AlertCircle className="h-3 w-3 text-yellow-500" />
-                  Não tem IA integrada
+                  <CheckCircle className="h-3 w-3 text-green-500" />
+                  Links para calendário
                 </li>
               </ul>
             </div>
@@ -224,10 +229,10 @@ export default function WhatsAppSetup() {
 
       {/* Instrução Final */}
       <Alert className="mt-8">
-        <AlertCircle className="h-4 w-4" />
+        <CheckCircle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Recomendação:</strong> Use o Bot Telegram para uma experiência completa e automática. 
-          O WhatsApp manual é uma opção para quem prefere processar mensagens manualmente.
+          <strong>Novidade:</strong> Agora o WhatsApp também processa mensagens automaticamente com a mesma IA do Telegram! 
+          Ambas as plataformas oferecem interpretação inteligente e criação automática de eventos no calendário.
         </AlertDescription>
       </Alert>
     </div>
