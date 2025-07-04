@@ -111,10 +111,11 @@ export default function WhatsAppDemo() {
             </Button>
           </div>
 
+          {/* Resultado do processamento */}
           {processedResult && (
             <div className="mt-4">
               <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">Resultado do processamento:</h4>
+                <h4 className="font-medium mb-2">🤖 Resultado do processamento:</h4>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     {processedResult.success ? (
@@ -122,7 +123,7 @@ export default function WhatsAppDemo() {
                     ) : (
                       <div className="h-4 w-4 rounded-full bg-red-500" />
                     )}
-                    <span className="text-sm">
+                    <span className="text-sm font-medium">
                       {processedResult.success ? 'Evento processado com sucesso!' : 'Erro no processamento'}
                     </span>
                   </div>
@@ -131,43 +132,69 @@ export default function WhatsAppDemo() {
                     <pre className="whitespace-pre-wrap">{processedResult.response}</pre>
                   </div>
 
-                  {processedResult.event && (
-                    <div className="bg-blue-50 p-3 rounded">
-                      <h5 className="font-medium text-blue-800 mb-1">Evento criado:</h5>
-                      <p className="text-sm text-blue-700">
+                  {processedResult.success && processedResult.event && (
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h5 className="font-bold text-green-800 mb-2">📅 Evento criado:</h5>
+                      <p className="text-sm text-green-700 mb-3">
                         <strong>{processedResult.event.title}</strong><br />
                         {processedResult.event.displayDate}
                       </p>
                       
-                      {processedResult.event.calendarLinks && (
-                        <div className="mt-2 space-y-1">
-                          <p className="text-xs text-blue-600 font-medium">Adicionar ao calendário:</p>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => window.open(processedResult.event.calendarLinks.google, '_blank')}
-                              className="text-xs"
-                            >
-                              📅 Google Calendar
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => window.open(processedResult.event.calendarLinks.outlook, '_blank')}
-                              className="text-xs"
-                            >
-                              📆 Outlook
-                            </Button>
-                          </div>
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-green-800 mb-2">Clique para adicionar ao calendário:</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            className="bg-blue-600 hover:bg-blue-700 text-white"
+                            onClick={() => {
+                              console.log('Abrindo Google Calendar:', processedResult.event.calendarLinks.google);
+                              window.open(processedResult.event.calendarLinks.google, '_blank');
+                            }}
+                          >
+                            📅 Google Calendar
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            className="bg-orange-600 hover:bg-orange-700 text-white"
+                            onClick={() => {
+                              console.log('Abrindo Outlook:', processedResult.event.calendarLinks.outlook);
+                              window.open(processedResult.event.calendarLinks.outlook, '_blank');
+                            }}
+                          >
+                            📆 Outlook
+                          </Button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   )}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Botão de teste direto */}
+          <div className="mt-4">
+            <Button 
+              onClick={() => {
+                setProcessedResult({
+                  success: true,
+                  response: "✅ Evento criado com sucesso!\n\n📅 *Reunião com cliente*\n🕐 5 de julho de 2025 às 14:00 BRT",
+                  event: {
+                    title: "Reunião com cliente",
+                    displayDate: "5 de julho de 2025 às 14:00 BRT",
+                    calendarLinks: {
+                      google: "https://calendar.google.com/calendar/render?action=TEMPLATE&text=Reunião%20com%20cliente&dates=20250705T170000Z/20250705T180000Z",
+                      outlook: "https://outlook.live.com/calendar/0/deeplink/compose?subject=Reunião%20com%20cliente&startdt=2025-07-05T17:00:00.000Z&enddt=2025-07-05T18:00:00.000Z"
+                    }
+                  }
+                });
+              }}
+              variant="outline"
+              className="text-xs"
+            >
+              🧪 Teste Visual (Botões de Calendário)
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
