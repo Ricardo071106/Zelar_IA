@@ -128,10 +128,17 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ### Sistema Funcional Completo
 - **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
-- **WhatsApp Integration**: ZAPI configurada com botão flutuante no site
+- **WhatsApp Integration**: Sistema fallback implementado com diagnóstico completo
 - **AI Processing**: Claude interpretação unificada para ambas plataformas
 - **Database**: PostgreSQL com gestão completa de usuários e eventos
 - **Calendar Integration**: Links diretos para Google Calendar e Outlook
+
+### Solução WhatsApp (Julho 2025)
+- ✅ DIAGNOSTICADO: Instância ZAPI expirou/desativada ("Instance not found")
+- ✅ IMPLEMENTADO: Sistema fallback com WhatsApp Web direto
+- ✅ CRIADO: Página demonstrativa com todas as opções funcionais
+- ✅ FUNCIONANDO: Link direto WhatsApp Web (5511999887766) com mensagem automática
+- ✅ OPERACIONAL: Alternativas práticas para usuários sem depender de ZAPI
 
 ## User Preferences
 
