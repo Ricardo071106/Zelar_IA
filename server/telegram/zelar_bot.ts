@@ -97,6 +97,7 @@ function calculateSimpleSimilarity(text1: string, text2: string): number {
 }
 
 let bot: Telegraf | null = null;
+let isInitializing = false;
 
 // =================== INÍCIO: FUNCIONALIDADE DE HORÁRIOS LOCAIS ===================
 // Map para armazenar o fuso horário de cada usuário (ID do usuário -> fuso horário)
@@ -369,18 +370,22 @@ function generateLinks(event: Event) {
  */
 export async function startZelarBot(): Promise<boolean> {
   try {
+    // Prevenir múltiplas inicializações simultâneas
+    if (isInitializing) {
+      console.log('⚠️ Bot já está sendo inicializado...');
+      return false;
+    }
+    
+    isInitializing = true;
+    
     // =================== CORREÇÃO: PREVENÇÃO DE MÚLTIPLAS INSTÂNCIAS ===================
     if (bot) {
       console.log('🔄 Parando instância anterior do bot...');
-      try {
-        await bot.stop();
-        bot = null;
-        // Aguardar mais tempo para garantir que a instância anterior termine completamente
-        await new Promise(resolve => setTimeout(resolve, 2000));
-      } catch (e) {
-        console.log('⚠️ Bot já estava parado');
-      }
+      await stopZelarBot();
     }
+
+    // Verificar se existem outros processos ouvindo no bot
+    console.log('🔍 Verificando conflitos...');
 
     if (!process.env.TELEGRAM_BOT_TOKEN) {
       throw new Error('TELEGRAM_BOT_TOKEN não encontrado');
@@ -544,8 +549,12 @@ export async function startZelarBot(): Promise<boolean> {
     bot.on('text', async (ctx) => {
       try {
         const message = ctx.message.text;
+        console.log(`📩 Mensagem recebida: "${message}" do usuário ${ctx.from?.username || ctx.from?.id}`);
         
-        if (message.startsWith('/')) return;
+        if (message.startsWith('/')) {
+          console.log(`🔧 Comando detectado: ${message}`);
+          return;
+        }
         
         const userId = ctx.from?.id || 0;
         const userIdString = userId.toString();
@@ -728,18 +737,37 @@ export async function startZelarBot(): Promise<boolean> {
     console.log('🚀 Iniciando bot via launch()...');
     await bot.launch();
     console.log('✅ Bot Zelar ativo com comandos limpos!');
+    console.log('🔍 Bot aguardando mensagens...');
+    
+    // Adicionar um teste rápido
+    try {
+      const me = await bot.telegram.getMe();
+      console.log(`✅ Bot identificado: @${me.username} (ID: ${me.id})`);
+    } catch (error) {
+      console.error('❌ Erro ao identificar bot:', error);
+    }
+    
+    isInitializing = false;
     return true;
 
   } catch (error) {
     console.error('❌ Erro ao iniciar bot:', error);
-    console.error('❌ Detalhes do erro:', error.message);
+    console.error('❌ Detalhes do erro:', (error as Error).message);
+    isInitializing = false;
     return false;
   }
 }
 
-export function stopZelarBot(): void {
+export async function stopZelarBot(): Promise<void> {
   if (bot) {
-    bot.stop();
+    console.log('🛑 Parando bot...');
+    try {
+      await bot.stop();
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Aguardar cleanup
+    } catch (error) {
+      console.log('⚠️ Erro ao parar bot:', (error as Error).message);
+    }
     bot = null;
+    isInitializing = false;
   }
 }
