@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { parseEventWithClaude } from './utils/claudeParser';
 import { DateTime } from 'luxon';
 import { getWhatsAppStatus, generateWhatsAppUrl, getRecommendedSolution } from './whatsapp/fallback_system';
+import { getWorkingWhatsAppSolutions, getBestWhatsAppOption, getWhatsAppDirectLink, getZAPIStatus } from './whatsapp/working_solution';
 
 interface WhatsAppMessage {
   id: string;
@@ -271,20 +272,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Info do WhatsApp (para o botão flutuante)
   app.get('/api/whatsapp/info', async (_req, res) => {
-    const status = getWhatsAppStatus();
-    const recommendation = getRecommendedSolution();
+    const workingSolutions = getWorkingWhatsAppSolutions();
+    const bestOption = getBestWhatsAppOption();
+    const directLink = getWhatsAppDirectLink();
+    const zapiStatus = getZAPIStatus();
     
     res.json({
-      phoneNumber: status.phoneNumber,
-      connected: true, // sempre funcional via WhatsApp Web
-      whatsappWebUrl: generateWhatsAppUrl(status.phoneNumber),
-      zapistatus: {
-        isWorking: status.isZAPIWorking,
-        hasCredentials: status.hasValidCredentials,
-        error: status.lastError
-      },
-      recommendation: recommendation,
-      alternatives: status.alternatives
+      phoneNumber: '5511999887766',
+      connected: true,
+      whatsappWebUrl: directLink,
+      bestOption: bestOption,
+      workingSolutions: workingSolutions,
+      zapiStatus: zapiStatus,
+      quickActions: [
+        {
+          name: 'Telegram Bot',
+          url: 'https://t.me/zelar_assistente_bot',
+          description: 'IA automática - mais rápido',
+          recommended: true
+        },
+        {
+          name: 'WhatsApp Web',
+          url: directLink,
+          description: 'Conversa direta',
+          recommended: false
+        }
+      ]
     });
   });
 
