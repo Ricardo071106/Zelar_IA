@@ -6,9 +6,9 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ### Current Status
 - **Telegram Bot**: ✅ FUNCIONANDO - Bot @zelar_assistente_bot ativo com Claude AI integration
-- **WhatsApp Bot**: Configurado com ZAPI integration e botão flutuante no site
+- **WhatsApp Bot**: REMOVIDO - Código completamente limpo conforme solicitado
 - **Database**: PostgreSQL com user management e event storage completos
-- **Frontend**: React interface para monitoramento do sistema
+- **Frontend**: React interface focado apenas no Telegram
 
 ## System Architecture
 
