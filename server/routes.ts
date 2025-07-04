@@ -376,10 +376,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`🧪 Testando mensagem WhatsApp: "${message}"`);
 
-      // Processar usando o bot automático
-      const result = await processWhatsAppMessageAuto('teste', message);
+      // Processar usando o mesmo Claude que o Telegram
+      const claudeResult = await parseEventWithClaude(message, 'America/Sao_Paulo');
       
-      res.json(result);
+      if (!claudeResult.isValid) {
+        return res.json({
+          success: false,
+          response: claudeResult.error || 'Não consegui identificar um evento na sua mensagem.\n\nTente algo como:\n• "Reunião com cliente amanhã às 14h"\n• "Jantar sexta às 19h30"'
+        });
+      }
+
+      // Criar data/hora
+      const startDateTime = DateTime.fromISO(claudeResult.date, { zone: 'America/Sao_Paulo' })
+        .set({ hour: claudeResult.hour, minute: claudeResult.minute });
+      
+      const endDateTime = startDateTime.plus({ hours: 1 });
+
+      const event = {
+        id: `wa-test-${Date.now()}`,
+        title: claudeResult.title,
+        startDate: startDateTime.toISO(),
+        endDate: endDateTime.toISO(),
+        displayDate: startDateTime.toLocaleString(DateTime.DATETIME_FULL, { locale: 'pt-BR' })
+      };
+
+      const links = generateCalendarLinks(event.title, event.startDate);
+
+      const response = `✅ Evento criado com sucesso!
+
+📅 *${event.title}*
+🕐 ${event.displayDate}
+
+*Adicionar ao calendário:*
+🗓️ Google Calendar: ${links.google}
+📆 Outlook: ${links.outlook}
+
+_Processado automaticamente pelo Zelar AI_`;
+
+      res.json({
+        success: true,
+        response,
+        event
+      });
+      
     } catch (error) {
       console.error('❌ Erro ao testar mensagem WhatsApp:', error);
       res.status(500).json({

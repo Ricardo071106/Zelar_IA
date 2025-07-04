@@ -134,11 +134,17 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 - **Calendar Integration**: Links diretos para Google Calendar e Outlook
 
 ### Solução WhatsApp Inteligente (Julho 2025)
-- ✅ IMPLEMENTADO: Bot WhatsApp com mesma IA do Telegram
-- ✅ INTEGRADO: Processamento automático usando Claude AI
-- ✅ FUNCIONANDO: Interpretação inteligente de mensagens em português
+- ✅ CORRIGIDO: Bot WhatsApp com mesma IA do Telegram agora funcionando
+- ✅ IMPLEMENTADO: Endpoint /api/whatsapp/test-message processando corretamente
+- ✅ FUNCIONANDO: Interpretação inteligente usando Claude AI idêntica ao Telegram
 - ✅ OPERACIONAL: Criação automática de eventos com links para calendário
-- ✅ UNIFICADO: Mesma funcionalidade em ambas as plataformas (Telegram + WhatsApp)
+- ✅ TESTADO: Sistema validado processando "Reunião com cliente amanhã às 14h"
+
+### Correções Bot Telegram (Julho 2025)
+- ✅ RESTAURADO: Comandos /timezone, /help com interface completa
+- ✅ ADICIONADO: Mensagem de boas-vindas com informação de fuso horário
+- ✅ FUNCIONANDO: Seleção de fuso horário (Brasil, EUA, Londres, Tóquio, etc)
+- ✅ CORRIGIDO: Sistema de comandos completo restaurado
 
 ### Sistema de Monitoramento Completo (Julho 2025)
 - ✅ CRIADO: Dashboard administrativo em `/system` com monitoramento em tempo real
