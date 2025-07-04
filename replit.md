@@ -5,10 +5,10 @@
 Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI-powered natural language processing. The system provides dual bot integration through Telegram and WhatsApp, processing Brazilian Portuguese text to create calendar events and manage appointments. Built with Node.js, Express, and featuring a modern React frontend with TypeScript, plus PostgreSQL database integration using Drizzle ORM.
 
 ### Current Status
-- **Telegram Bot**: Fully operational with Claude AI integration for intelligent event parsing
-- **WhatsApp Bot**: Operational with stable QR code system and auto-response capabilities
-- **Database**: PostgreSQL with complete user management and event storage
-- **Frontend**: React-based interface for system monitoring and management
+- **Telegram Bot**: ✅ FUNCIONANDO - Bot @zelar_assistente_bot ativo com Claude AI integration
+- **WhatsApp Bot**: Configurado com ZAPI integration e botão flutuante no site
+- **Database**: PostgreSQL com user management e event storage completos
+- **Frontend**: React interface para monitoramento do sistema
 
 ## System Architecture
 
@@ -119,19 +119,19 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ## Recent Changes
 
-### WhatsApp Integration via ZAPI
-- Implemented ZAPI integration with user-provided credentials
-- Created floating WhatsApp button on website that redirects to direct conversation
-- Built intelligent webhook system using same Claude AI processing as Telegram
-- Added automatic response system for WhatsApp messages with calendar event creation
-- Configured endpoints for ZAPI connection, status checking, and webhook management
+### SOLUÇÃO TELEGRAM BOT (Julho 2025)
+- ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
+- ✅ IMPLEMENTADO: Bot direto usando API Telegram ao invés de Telegraf polling
+- ✅ FUNCIONANDO: Bot @zelar_assistente_bot respondendo mensagens em tempo real
+- ✅ INTEGRADO: Claude AI para interpretação inteligente de eventos em português
+- ✅ OPERACIONAL: Criação automática de eventos com links para Google Calendar e Outlook
 
-### Complete Bot Ecosystem
-- Telegram bot (port 5000): Claude AI-powered natural language processing (@zelar_assistente_bot)
-- WhatsApp bot: Direct conversation via floating button + automatic AI responses
-- Website integration: Visitors can click WhatsApp button and get instant intelligent responses
-- Database: PostgreSQL with complete user and event management
-- Unified AI processing: Both platforms use identical Claude-powered event interpretation
+### Sistema Funcional Completo
+- **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
+- **WhatsApp Integration**: ZAPI configurada com botão flutuante no site
+- **AI Processing**: Claude interpretação unificada para ambas plataformas
+- **Database**: PostgreSQL com gestão completa de usuários e eventos
+- **Calendar Integration**: Links diretos para Google Calendar e Outlook
 
 ## User Preferences
 

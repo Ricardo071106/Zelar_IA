@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startSimpleBot } from "./telegram/simple_bot";
+import { startDirectBot } from "./telegram/direct_bot";
 
 const app = express();
 app.use(express.json());
@@ -68,9 +68,9 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Inicializar bot Telegram simples
+    // Inicializar bot Telegram direto
     try {
-      await startSimpleBot();
+      await startDirectBot();
       log('✅ Bot Telegram ativado com sucesso!', 'telegram');
     } catch (error) {
       log('⚠️ Bot temporariamente indisponível', 'telegram');
