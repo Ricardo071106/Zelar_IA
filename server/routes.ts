@@ -418,7 +418,10 @@ _Processado automaticamente pelo Zelar AI_`;
       res.json({
         success: true,
         response,
-        event
+        event: {
+          ...event,
+          calendarLinks: links
+        }
       });
       
     } catch (error) {
