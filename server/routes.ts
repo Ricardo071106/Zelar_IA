@@ -27,9 +27,11 @@ function generateCalendarLinks(title: string, startDate: string) {
   
   const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   
-  const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(start)}/${formatDate(end)}`;
+  const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(start)}/${formatDate(end)}&details=${encodeURIComponent('Evento criado pelo Assistente Zelar')}`;
   
-  return { google: googleUrl };
+  const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(title)}&startdt=${start.toISOString()}&enddt=${end.toISOString()}&body=${encodeURIComponent('Evento criado pelo Assistente Zelar')}`;
+  
+  return { google: googleUrl, outlook: outlookUrl };
 }
 
 async function sendZAPIMessage(phone: string, message: string): Promise<boolean> {
@@ -395,8 +397,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const event = {
         id: `wa-test-${Date.now()}`,
         title: claudeResult.title,
-        startDate: startDateTime.toISO(),
-        endDate: endDateTime.toISO(),
+        startDate: startDateTime.toISO() || startDateTime.toString(),
+        endDate: endDateTime.toISO() || endDateTime.toString(),
         displayDate: startDateTime.toLocaleString(DateTime.DATETIME_FULL, { locale: 'pt-BR' })
       };
 

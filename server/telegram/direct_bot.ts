@@ -63,6 +63,39 @@ async function sendMessage(chatId: number, text: string, replyMarkup?: any): Pro
   }
 }
 
+async function setupBotCommands(token: string): Promise<void> {
+  try {
+    const commands = [
+      {
+        command: 'start',
+        description: 'Iniciar o assistente e ver instruções'
+      },
+      {
+        command: 'help',
+        description: 'Mostrar ajuda completa e exemplos'
+      },
+      {
+        command: 'timezone',
+        description: 'Alterar fuso horário'
+      }
+    ];
+
+    const response = await fetch(`${TELEGRAM_API}${token}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ commands })
+    });
+
+    if (response.ok) {
+      console.log('✅ Comandos configurados no menu do bot');
+    } else {
+      console.log('⚠️ Falha ao configurar comandos');
+    }
+  } catch (error) {
+    console.error('❌ Erro ao configurar comandos:', error);
+  }
+}
+
 async function getUpdates(): Promise<TelegramUpdate[]> {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -233,6 +266,9 @@ export async function startDirectBot(): Promise<boolean> {
 
     const botInfo = await response.json();
     console.log(`✅ Bot @${botInfo.result.username} conectado!`);
+
+    // Configurar comandos no menu do bot
+    await setupBotCommands(token);
 
     isRunning = true;
 
