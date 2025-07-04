@@ -1,8 +1,8 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-
-// WhatsApp integrations
-import { whatsappBusiness } from './whatsapp/businessAPI';
+import { parseEventWithClaude } from './utils/claudeParser';
+import { DateTime } from 'luxon';
+import { getWhatsAppStatus, generateWhatsAppUrl, getRecommendedSolution } from './whatsapp/fallback_system';
 
 interface WhatsAppMessage {
   id: string;
@@ -13,238 +13,142 @@ interface WhatsAppMessage {
   direction: 'sent' | 'received';
 }
 
-let whatsappBusinessConnected = false;
-let whatsappBusinessConfigured = false;
+// Estado do WhatsApp ZAPI
 let whatsappMessages: WhatsAppMessage[] = [];
 let messageCount = 0;
 
-export async function registerRoutes(app: Express): Promise<Server> {
-  // WhatsApp API endpoints
-  app.get('/api/whatsapp/status', (req, res) => {
-    res.json({
-      connected: whatsappConnected,
-      hasQR: !!whatsappQRCode,
-      messageCount: whatsappMessages.length,
-      timestamp: new Date().toISOString()
-    });
-  });
+// Funções auxiliares
+function generateCalendarLinks(title: string, startDate: string) {
+  const start = new Date(startDate);
+  const end = new Date(start.getTime() + 60 * 60 * 1000);
+  
+  const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+  
+  const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(start)}/${formatDate(end)}`;
+  
+  return { google: googleUrl };
+}
 
-  app.post('/api/whatsapp/generate-qr', async (req, res) => {
-    try {
-      const qrData = `whatsapp_connection_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-      whatsappQRCode = await QRCode.toDataURL(qrData, {
-        width: 300,
-        margin: 2,
-        color: { dark: '#000000', light: '#FFFFFF' }
-      });
-      
-      console.log('QR Code gerado para WhatsApp');
-      res.json({ success: true, qrCode: whatsappQRCode });
-    } catch (error) {
-      res.status(500).json({ error: 'Erro ao gerar QR Code' });
-    }
-  });
+async function sendZAPIMessage(phone: string, message: string): Promise<boolean> {
+  const instanceId = process.env.ZAPI_INSTANCE_ID;
+  const token = process.env.ZAPI_TOKEN;
+  
+  if (!instanceId || !token) {
+    console.error('❌ Credenciais ZAPI não configuradas');
+    return false;
+  }
 
-  app.post('/api/whatsapp/connect', (req, res) => {
-    whatsappConnected = true;
-    whatsappQRCode = null;
-    console.log('WhatsApp conectado com sucesso');
+  try {
+    const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
+    const cleanPhone = phone.replace(/\D/g, '');
     
-    // Simular mensagem inicial
-    setTimeout(() => {
-      whatsappMessages.push({
-        id: Date.now().toString(),
-        from: '5511987654321',
-        message: 'Olá! Como posso agendar um compromisso?',
-        timestamp: new Date().toISOString(),
-        direction: 'received'
-      });
-      
-      // Auto-resposta
-      setTimeout(() => {
-        whatsappMessages.push({
-          id: (Date.now() + 1).toString(),
-          to: '5511987654321',
-          message: 'Olá, aqui é o Zelar! Para agendar compromissos, use nosso bot do Telegram.',
-          timestamp: new Date().toISOString(),
-          direction: 'sent'
-        });
-      }, 2000);
-    }, 3000);
-    
-    res.json({ success: true, connected: true });
-  });
-
-  app.post('/api/whatsapp/send', (req, res) => {
-    const { number, message } = req.body;
-    
-    if (!whatsappConnected) {
-      return res.status(503).json({ error: 'WhatsApp não conectado' });
-    }
-    
-    const messageData: WhatsAppMessage = {
-      id: Date.now().toString(),
-      to: number,
-      message: message,
-      timestamp: new Date().toISOString(),
-      direction: 'sent'
-    };
-    
-    whatsappMessages.push(messageData);
-    console.log(`Mensagem WhatsApp enviada para ${number}: ${message}`);
-    
-    res.json({ success: true, messageId: messageData.id });
-  });
-
-  app.get('/api/whatsapp/messages', (req, res) => {
-    const limit = parseInt(req.query.limit as string) || 20;
-    res.json({
-      messages: whatsappMessages.slice(-limit),
-      total: whatsappMessages.length
-    });
-  });
-
-  // Rota básica de saúde da aplicação
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-
-  // Bot dashboard status
-  app.get("/api/bots/status", (req, res) => {
-    res.json({
-      telegram: {
-        status: 'conectado',
-        lastUpdate: new Date().toISOString()
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Client-Token': token
       },
-      whatsapp: {
-        status: 'Em desenvolvimento',
-        lastUpdate: new Date().toISOString()
-      }
+      body: JSON.stringify({
+        phone: cleanPhone,
+        message: message
+      })
     });
-  });
 
-  // WhatsApp Business API endpoints
-  app.get('/api/whatsapp-business/status', (_req, res) => {
-    res.json({
-      connected: whatsappBusinessConnected,
-      configured: whatsappBusinessConfigured,
-      messageCount: messageCount,
-      phoneNumber: whatsappBusiness.isConfigured() ? 'Configurado' : undefined,
-      timestamp: new Date().toISOString()
-    });
-  });
+    const data = await response.json();
+    return response.ok && !data.error;
+  } catch (error) {
+    console.error('❌ Erro ao enviar mensagem ZAPI:', error);
+    return false;
+  }
+}
 
-  app.post('/api/whatsapp-business/configure', (req, res) => {
-    try {
-      const { phoneNumber, accessToken, phoneNumberId, businessAccountId } = req.body;
-      
-      if (!phoneNumber || !accessToken || !phoneNumberId) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Campos obrigatórios: phoneNumber, accessToken, phoneNumberId' 
-        });
-      }
+async function processWhatsAppMessage(from: string, messageText: string): Promise<void> {
+  console.log(`📱 Processando mensagem WhatsApp: "${messageText}" de ${from}`);
 
-      whatsappBusiness.setCredentials({
-        phoneNumber,
-        accessToken,
-        phoneNumberId,
-        businessAccountId
-      });
-
-      whatsappBusinessConfigured = whatsappBusiness.isConfigured();
-      
-      console.log('WhatsApp Business API configurada');
-      res.json({ success: true, configured: whatsappBusinessConfigured });
-    } catch (error) {
-      res.status(500).json({ success: false, error: 'Erro ao configurar WhatsApp Business' });
-    }
-  });
-
-  app.post('/api/whatsapp-business/test', async (_req, res) => {
-    try {
-      const result = await whatsappBusiness.getPhoneNumberInfo();
-      
-      if (result.success) {
-        whatsappBusinessConnected = true;
-        console.log('WhatsApp Business API testada com sucesso');
-        res.json({ success: true, data: result.data });
-      } else {
-        whatsappBusinessConnected = false;
-        res.status(400).json({ success: false, error: result.error });
-      }
-    } catch (error) {
-      res.status(500).json({ success: false, error: 'Erro ao testar conexão' });
-    }
-  });
-
-  app.post('/api/whatsapp-business/send-test', async (req, res) => {
-    try {
-      const { to, message } = req.body;
-      
-      if (!to || !message) {
-        return res.status(400).json({ 
-          success: false, 
-          error: 'Campos obrigatórios: to, message' 
-        });
-      }
-
-      const result = await whatsappBusiness.sendTextMessage(to, message);
-      
-      if (result.success) {
-        messageCount++;
-        
-        const messageData: WhatsAppMessage = {
-          id: result.messageId || Date.now().toString(),
-          to: to,
-          message: message,
-          timestamp: new Date().toISOString(),
-          direction: 'sent'
-        };
-        
-        whatsappMessages.push(messageData);
-        
-        console.log(`Mensagem enviada via WhatsApp Business para ${to}`);
-        res.json({ success: true, messageId: result.messageId });
-      } else {
-        res.status(400).json({ success: false, error: result.error });
-      }
-    } catch (error) {
-      res.status(500).json({ success: false, error: 'Erro ao enviar mensagem' });
-    }
-  });
-
-  // ZAPI WhatsApp endpoints
-  app.get('/api/zapi/status', async (_req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
-    const configured = !!(instanceId && token);
+  try {
+    // Usar Claude para interpretar a mensagem
+    const claudeResult = await parseEventWithClaude(messageText, 'America/Sao_Paulo');
     
-    if (!configured) {
+    if (!claudeResult.isValid) {
+      const response = '❌ Não consegui entender a data/hora.\n\n💡 Tente algo como:\n• "jantar hoje às 19h"\n• "reunião quarta às 15h"';
+      await sendZAPIMessage(from, response);
+      return;
+    }
+
+    // Criar evento
+    const eventDate = DateTime.fromObject({
+      year: parseInt(claudeResult.date.split('-')[0]),
+      month: parseInt(claudeResult.date.split('-')[1]),
+      day: parseInt(claudeResult.date.split('-')[2]),
+      hour: claudeResult.hour,
+      minute: claudeResult.minute
+    }, { zone: 'America/Sao_Paulo' });
+
+    const event = {
+      title: claudeResult.title,
+      startDate: eventDate.toISO() || eventDate.toString(),
+      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
+    };
+
+    const links = generateCalendarLinks(event.title, event.startDate);
+
+    const response = `✅ *Evento criado!*\n\n🎯 *${event.title}*\n📅 ${event.displayDate}\n\n📅 Adicionar ao calendário:\n${links.google}`;
+    
+    await sendZAPIMessage(from, response);
+    console.log(`✅ Evento WhatsApp criado: ${event.title}`);
+
+  } catch (error) {
+    console.error('❌ Erro ao processar mensagem WhatsApp:', error);
+    await sendZAPIMessage(from, '❌ Erro interno. Tente novamente.');
+  }
+}
+
+export async function registerRoutes(app: Express): Promise<Server> {
+  
+  // =================== ZAPI WhatsApp Routes ===================
+  
+  // Status da ZAPI
+  app.get('/api/zapi/status', async (_req, res) => {
+    const instanceId = process.env.ZAPI_INSTANCE_ID;
+    const token = process.env.ZAPI_TOKEN;
+    
+    if (!instanceId || !token) {
       return res.json({
         connected: false,
         configured: false,
-        messageCount: messageCount,
-        timestamp: new Date().toISOString()
+        error: 'Credenciais não configuradas',
+        diagnosis: 'ZAPI_INSTANCE_ID e ZAPI_TOKEN não encontrados'
       });
     }
 
     try {
       const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
       const response = await fetch(url, {
-        method: 'GET',
         headers: {
           'Client-Token': token
         }
       });
+      
       const data = await response.json();
-
+      
+      // Diagnosticar problemas específicos
+      let diagnosis = 'Funcionando normalmente';
+      if (data.error === 'Client-Token is required') {
+        diagnosis = 'Token inválido ou instância não ativa. Verifique se a instância ZAPI está ativa no painel.';
+      } else if (!response.ok) {
+        diagnosis = `Erro na API: ${data.error || 'Erro desconhecido'}`;
+      } else if (!data.connected) {
+        diagnosis = 'WhatsApp não conectado. É necessário escanear QR Code.';
+      }
+      
       res.json({
         connected: data.connected || false,
         configured: true,
         instanceId: instanceId,
         messageCount: messageCount,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        diagnosis: diagnosis,
+        apiResponse: data
       });
     } catch (error) {
       res.json({
@@ -252,14 +156,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         configured: true,
         instanceId: instanceId,
         messageCount: messageCount,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        diagnosis: 'Erro de conectividade com ZAPI. Verifique se as credenciais estão corretas.',
+        error: (error as Error).message
       });
     }
   });
 
+  // Conectar ZAPI (gerar QR)
   app.post('/api/zapi/connect', async (_req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
+    const instanceId = process.env.ZAPI_INSTANCE_ID;
+    const token = process.env.ZAPI_TOKEN;
     
     if (!instanceId || !token) {
       return res.status(400).json({
@@ -277,6 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           'Content-Type': 'application/json'
         }
       });
+      
       const data = await response.json();
 
       if (response.ok) {
@@ -299,9 +207,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Enviar mensagem teste
   app.post('/api/zapi/send-test', async (req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
     const { phone, message } = req.body;
     
     if (!phone || !message) {
@@ -311,273 +218,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
 
-    if (!instanceId || !token) {
-      return res.status(400).json({
-        success: false,
-        error: 'Credenciais ZAPI não configuradas'
-      });
-    }
-
-    try {
-      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
-      const cleanPhone = phone.replace(/\D/g, '');
+    const success = await sendZAPIMessage(phone, message);
+    
+    if (success) {
+      messageCount++;
       
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Client-Token': token
-        },
-        body: JSON.stringify({
-          phone: cleanPhone,
-          message: message
-        })
-      });
-
-      const data = await response.json();
-
-      if (response.ok && !data.error) {
-        messageCount++;
-        
-        const messageData: WhatsAppMessage = {
-          id: data.messageId || data.id || Date.now().toString(),
-          to: phone,
-          message: message,
-          timestamp: new Date().toISOString(),
-          direction: 'sent'
-        };
-        
-        whatsappMessages.push(messageData);
-        
-        console.log(`Mensagem enviada via ZAPI para ${phone}`);
-        res.json({
-          success: true,
-          messageId: data.messageId || data.id
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          error: data.error || data.message || 'Erro ao enviar mensagem'
-        });
-      }
-    } catch (error) {
-      console.error('Erro no envio ZAPI:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Erro ao enviar mensagem via ZAPI'
-      });
-    }
-  });
-
-  app.post('/api/zapi/restart', async (_req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
-    
-    if (!instanceId || !token) {
-      return res.status(400).json({
-        success: false,
-        error: 'Credenciais ZAPI não configuradas'
-      });
-    }
-
-    try {
-      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/restart`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Client-Token': token
-        }
-      });
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log('Instância ZAPI reiniciada');
-        res.json({ success: true });
-      } else {
-        res.status(400).json({
-          success: false,
-          error: data.error || 'Erro ao reiniciar instância'
-        });
-      }
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        error: 'Erro ao reiniciar instância ZAPI'
-      });
-    }
-  });
-
-  // WhatsApp Info endpoint
-  app.get('/api/whatsapp/info', async (_req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
-    
-    if (!instanceId || !token) {
-      return res.json({
-        phoneNumber: '',
-        connected: false
-      });
-    }
-
-    try {
-      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/status`;
-      const response = await fetch(url);
-      const data = await response.json();
-
-      // Obter número do WhatsApp da instância
-      const infoUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}/me`;
-      const infoResponse = await fetch(infoUrl);
-      const infoData = await infoResponse.json();
-
-      res.json({
-        phoneNumber: infoData.phone || '5511999887766', // número demo funcional
-        connected: data.connected || false
-      });
-    } catch (error) {
-      res.json({
-        phoneNumber: '5511999887766', // número demo para funcionar mesmo sem ZAPI conectada
-        connected: false
-      });
-    }
-  });
-
-  // Configurar webhook da ZAPI
-  app.post('/api/zapi/setup-webhook', async (_req, res) => {
-    const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-    const token = process.env.ZAPI_TOKEN || '';
-    
-    if (!instanceId || !token) {
-      return res.status(400).json({
-        success: false,
-        error: 'Credenciais ZAPI não configuradas'
-      });
-    }
-
-    try {
-      const webhookUrl = `https://${process.env.REPLIT_DEV_DOMAIN || 'localhost:5000'}/api/zapi/webhook`;
+      const messageData: WhatsAppMessage = {
+        id: Date.now().toString(),
+        to: phone,
+        message: message,
+        timestamp: new Date().toISOString(),
+        direction: 'sent'
+      };
       
-      const url = `https://api.z-api.io/instances/${instanceId}/token/${token}/webhook`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Client-Token': token
-        },
-        body: JSON.stringify({
-          url: webhookUrl,
-          enabled: true,
-          webhookByEvents: false
-        })
+      whatsappMessages.push(messageData);
+      
+      res.json({ 
+        success: true, 
+        messageId: messageData.id 
       });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        console.log(`🔗 Webhook configurado: ${webhookUrl}`);
-        res.json({
-          success: true,
-          webhookUrl: webhookUrl
-        });
-      } else {
-        res.status(400).json({
-          success: false,
-          error: data.error || 'Erro ao configurar webhook'
-        });
-      }
-    } catch (error) {
+    } else {
       res.status(500).json({
         success: false,
-        error: 'Erro ao configurar webhook ZAPI'
+        error: 'Erro ao enviar mensagem'
       });
     }
   });
 
-  // Webhook ZAPI para receber mensagens e responder automaticamente
+  // Webhook para receber mensagens ZAPI
   app.post('/api/zapi/webhook', async (req, res) => {
     try {
-      console.log('📱 Webhook ZAPI recebido:', JSON.stringify(req.body, null, 2));
+      const { phone, message } = req.body;
       
-      const { phone, message, senderName, messageType } = req.body;
-      
-      // Só processar mensagens de texto
-      if (messageType !== 'textMessage' || !message || !phone) {
-        return res.status(200).json({ success: true });
-      }
-
-      const instanceId = process.env.ZAPI_INSTANCE_ID || '';
-      const token = process.env.ZAPI_TOKEN || '';
-      
-      if (!instanceId || !token) {
-        return res.status(200).json({ success: true });
-      }
-
-      // Usar a mesma lógica do bot Telegram
-      const { parseEventWithClaude } = await import('./utils/claudeParser');
-      const { DateTime } = await import('luxon');
-      
-      const userTimezone = 'America/Sao_Paulo';
-      const claudeResult = await parseEventWithClaude(message.body || message, userTimezone);
-      
-      let responseMessage = '';
-      
-      if (claudeResult.isValid) {
-        // Criar evento usando Claude
-        const eventDate = DateTime.fromObject({
-          year: parseInt(claudeResult.date.split('-')[0]),
-          month: parseInt(claudeResult.date.split('-')[1]),
-          day: parseInt(claudeResult.date.split('-')[2]),
-          hour: claudeResult.hour,
-          minute: claudeResult.minute
-        }, { zone: userTimezone });
+      if (phone && message && message.text) {
+        console.log(`📱 Webhook ZAPI: mensagem de ${phone}: ${message.text}`);
         
-        const displayDate = eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' });
+        // Processar mensagem em background
+        setImmediate(() => {
+          processWhatsAppMessage(phone, message.text);
+        });
         
-        // Gerar links para calendário
-        const startUTC = eventDate.toUTC();
-        const endUTC = startUTC.plus({ hours: 1 });
-        const startFormatted = startUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
-        const endFormatted = endUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
-        const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(claudeResult.title)}&dates=${startFormatted}/${endFormatted}`;
-        
-        responseMessage = `✅ *Evento agendado!*\n\n` +
-          `📝 *Título:* ${claudeResult.title}\n` +
-          `📅 *Data/Hora:* ${displayDate}\n\n` +
-          `🔗 *Adicionar ao Google Calendar:*\n${googleLink}\n\n` +
-          `🤖 _Zelar - Seu assistente inteligente_`;
+        // Responder imediatamente ao webhook
+        res.status(200).json({ success: true });
       } else {
-        responseMessage = `❌ *Não consegui entender sua solicitação*\n\n` +
-          `📝 *Você disse:* "${message.body || message}"\n\n` +
-          `💡 *Tente algo como:*\n` +
-          `• "jantar hoje às 19h"\n` +
-          `• "reunião sexta às 15h30"\n` +
-          `• "consulta terça que vem às 9h"\n\n` +
-          `🤖 _Zelar - Seu assistente inteligente_`;
+        res.status(400).json({ error: 'Dados inválidos' });
       }
-      
-      // Enviar resposta via ZAPI
-      const sendUrl = `https://api.z-api.io/instances/${instanceId}/token/${token}/send-text`;
-      await fetch(sendUrl, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Client-Token': token
-        },
-        body: JSON.stringify({
-          phone: phone,
-          message: responseMessage
-        })
-      });
-      
-      console.log(`📤 Resposta enviada para ${phone}: ${claudeResult.isValid ? 'Evento criado' : 'Não entendeu'}`);
-      
-      res.status(200).json({ success: true });
     } catch (error) {
       console.error('❌ Erro no webhook ZAPI:', error);
-      res.status(200).json({ success: true });
+      res.status(500).json({ error: 'Erro interno' });
     }
   });
 
-  // Início do servidor HTTP
-  const server = createServer(app);
-  return server;
+  // Info do WhatsApp (para o botão flutuante)
+  app.get('/api/whatsapp/info', async (_req, res) => {
+    const status = getWhatsAppStatus();
+    const recommendation = getRecommendedSolution();
+    
+    res.json({
+      phoneNumber: status.phoneNumber,
+      connected: true, // sempre funcional via WhatsApp Web
+      whatsappWebUrl: generateWhatsAppUrl(status.phoneNumber),
+      zapistatus: {
+        isWorking: status.isZAPIWorking,
+        hasCredentials: status.hasValidCredentials,
+        error: status.lastError
+      },
+      recommendation: recommendation,
+      alternatives: status.alternatives
+    });
+  });
+
+  // Mensagens (para histórico)
+  app.get('/api/whatsapp/messages', (_req, res) => {
+    const limit = parseInt(_req.query.limit as string) || 20;
+    const recentMessages = whatsappMessages.slice(-limit);
+    
+    res.json({
+      messages: recentMessages,
+      total: whatsappMessages.length
+    });
+  });
+
+  return createServer(app);
 }
