@@ -1,235 +1,222 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ExternalLink, MessageCircle, Bot, CheckCircle, XCircle } from 'lucide-react';
-
-interface WhatsAppInfo {
-  phoneNumber: string;
-  connected: boolean;
-  whatsappWebUrl: string;
-  bestOption: {
-    method: string;
-    url: string;
-    description: string;
-    isWorking: boolean;
-  };
-  workingSolutions: Array<{
-    method: string;
-    url: string;
-    description: string;
-    isWorking: boolean;
-  }>;
-  zapiStatus: {
-    isActive: boolean;
-    error: string;
-    recommendation: string;
-  };
-  quickActions: Array<{
-    name: string;
-    url: string;
-    description: string;
-    recommended: boolean;
-  }>;
-}
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ExternalLink, MessageCircle, Bot, Send, CheckCircle, Copy } from 'lucide-react';
 
 export default function WhatsAppDemo() {
-  const [whatsappInfo, setWhatsappInfo] = useState<WhatsAppInfo | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [testMessage, setTestMessage] = useState('');
+  const [processedResult, setProcessedResult] = useState<any>(null);
+  const [processing, setProcessing] = useState(false);
+  const [whatsappLink, setWhatsappLink] = useState('');
 
   useEffect(() => {
-    const fetchWhatsAppInfo = async () => {
-      try {
-        const response = await fetch('/api/whatsapp/info');
-        const data = await response.json();
-        setWhatsappInfo(data);
-      } catch (error) {
-        console.error('Erro ao buscar informações do WhatsApp:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchWhatsAppInfo();
+    // Gerar link WhatsApp automaticamente
+    const message = 'Olá! Quero testar o Assistente Zelar. Como funciona?';
+    const phone = '5511999887766'; // número exemplo
+    const encodedMessage = encodeURIComponent(message);
+    setWhatsappLink(`https://wa.me/${phone}?text=${encodedMessage}`);
   }, []);
 
-  if (loading) {
-    return (
-      <div className="container mx-auto p-4">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Carregando informações do WhatsApp...</p>
-        </div>
-      </div>
-    );
-  }
+  const processTestMessage = async () => {
+    if (!testMessage) return;
+    
+    setProcessing(true);
+    try {
+      // Simular o processamento da mensagem usando a mesma IA
+      const response = await fetch('/api/whatsapp/test-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: testMessage })
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setProcessedResult(result);
+      } else {
+        setProcessedResult({
+          success: false,
+          response: 'Erro ao processar mensagem'
+        });
+      }
+    } catch (error) {
+      setProcessedResult({
+        success: false,
+        response: 'Erro de conexão'
+      });
+    } finally {
+      setProcessing(false);
+    }
+  };
 
-  if (!whatsappInfo) {
-    return (
-      <div className="container mx-auto p-4">
-        <div className="text-center">
-          <p className="text-red-600">Erro ao carregar informações do WhatsApp</p>
-        </div>
-      </div>
-    );
-  }
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (error) {
+      console.error('Erro ao copiar:', error);
+    }
+  };
 
   return (
     <div className="container mx-auto p-4 max-w-4xl">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold mb-2">Assistente Zelar - WhatsApp</h1>
-        <p className="text-gray-600">Agende compromissos de forma inteligente</p>
+        <h1 className="text-3xl font-bold mb-2">WhatsApp com IA - Demonstração</h1>
+        <p className="text-gray-600">Teste a inteligência artificial do Zelar processando suas mensagens</p>
+        <div className="mt-4">
+          <Badge variant="secondary" className="bg-green-100 text-green-800">
+            Mesmo processamento do Bot Telegram
+          </Badge>
+        </div>
       </div>
 
-      {/* Ações Rápidas */}
-      <div className="grid md:grid-cols-2 gap-4 mb-8">
-        {whatsappInfo.quickActions.map((action, index) => (
-          <Card key={index} className={action.recommended ? 'border-green-500 bg-green-50' : ''}>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  {action.name === 'Telegram Bot' ? <Bot className="h-5 w-5" /> : <MessageCircle className="h-5 w-5" />}
-                  {action.name}
-                </CardTitle>
-                {action.recommended && (
-                  <Badge variant="secondary" className="bg-green-100 text-green-800">
-                    Recomendado
-                  </Badge>
-                )}
-              </div>
-              <CardDescription>{action.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button 
-                onClick={() => window.open(action.url, '_blank')}
-                className={action.recommended ? 'bg-green-600 hover:bg-green-700' : ''}
-                size="sm"
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                Abrir {action.name}
-              </Button>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {/* Link para configuração do WhatsApp */}
-      <div className="mb-8">
-        <Card className="border-blue-500 bg-blue-50">
-          <CardHeader>
-            <CardTitle className="text-blue-800">Configurar WhatsApp Próprio</CardTitle>
-            <CardDescription className="text-blue-700">
-              Configure seu próprio número WhatsApp para receber agendamentos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button 
-              onClick={() => window.location.href = '/whatsapp-setup'}
-              variant="outline"
-              className="border-blue-500 text-blue-700 hover:bg-blue-100"
-            >
-              <MessageCircle className="h-4 w-4 mr-2" />
-              Configurar Meu WhatsApp
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Status da ZAPI */}
+      {/* Teste de Mensagem */}
       <Card className="mb-8">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <XCircle className="h-5 w-5 text-red-500" />
-            Status da ZAPI
+            <Bot className="h-5 w-5 text-blue-600" />
+            Teste da IA - Processamento Automático
           </CardTitle>
+          <CardDescription>
+            Digite uma mensagem como se fosse enviar no WhatsApp e veja como a IA processa
+          </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive">Inativa</Badge>
-              <span className="text-sm text-gray-600">
-                {whatsappInfo.zapiStatus.error}
-              </span>
+        <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Input
+              placeholder='Ex: "Reunião com cliente amanhã às 14h"'
+              value={testMessage}
+              onChange={(e) => setTestMessage(e.target.value)}
+              className="flex-1"
+              onKeyDown={(e) => e.key === 'Enter' && processTestMessage()}
+            />
+            <Button 
+              onClick={processTestMessage}
+              disabled={!testMessage || processing}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {processing ? 'Processando...' : 'Testar IA'}
+            </Button>
+          </div>
+
+          {processedResult && (
+            <div className="mt-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-2">Resultado do processamento:</h4>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    {processedResult.success ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full bg-red-500" />
+                    )}
+                    <span className="text-sm">
+                      {processedResult.success ? 'Evento processado com sucesso!' : 'Erro no processamento'}
+                    </span>
+                  </div>
+                  
+                  <div className="bg-white p-3 rounded border text-sm">
+                    <pre className="whitespace-pre-wrap">{processedResult.response}</pre>
+                  </div>
+
+                  {processedResult.event && (
+                    <div className="bg-blue-50 p-3 rounded">
+                      <h5 className="font-medium text-blue-800 mb-1">Evento criado:</h5>
+                      <p className="text-sm text-blue-700">
+                        <strong>{processedResult.event.title}</strong><br />
+                        {processedResult.event.displayDate}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Recomendação:</strong> {whatsappInfo.zapiStatus.recommendation}
-              </p>
-            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Link WhatsApp Real */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5 text-green-600" />
+            WhatsApp Web Direto
+          </CardTitle>
+          <CardDescription>
+            Use este link para conversar diretamente via WhatsApp
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="bg-green-50 p-4 rounded-lg">
+            <h4 className="font-medium text-green-800 mb-2">Como funciona:</h4>
+            <ol className="text-sm text-green-700 space-y-1">
+              <li>1. Clique no botão abaixo para abrir WhatsApp</li>
+              <li>2. Envie mensagens como: "Reunião amanhã às 14h"</li>
+              <li>3. O sistema processará automaticamente com IA</li>
+              <li>4. Você receberá links para adicionar ao calendário</li>
+            </ol>
+          </div>
+
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => window.open(whatsappLink, '_blank')}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Abrir WhatsApp Web
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => copyToClipboard(whatsappLink)}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              Copiar Link
+            </Button>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            Link: {whatsappLink}
           </div>
         </CardContent>
       </Card>
 
-      {/* Todas as Soluções */}
-      <Card>
+      {/* Exemplos de Uso */}
+      <Card className="mb-8">
         <CardHeader>
-          <CardTitle>Todas as Opções Disponíveis</CardTitle>
-          <CardDescription>
-            Escolha a melhor forma de usar o assistente Zelar
-          </CardDescription>
+          <CardTitle>Exemplos de Mensagens</CardTitle>
+          <CardDescription>Teste estas mensagens para ver como a IA interpreta</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {whatsappInfo.workingSolutions.map((solution, index) => (
-              <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  {solution.isWorking ? (
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  )}
-                  <div>
-                    <div className="font-medium capitalize">
-                      {solution.method.replace('_', ' ')}
-                    </div>
-                    <div className="text-sm text-gray-600">
-                      {solution.description}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant={solution.isWorking ? 'default' : 'secondary'}>
-                    {solution.isWorking ? 'Funcionando' : 'Inativo'}
-                  </Badge>
-                  {solution.isWorking && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => window.open(solution.url, '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-1" />
-                      Abrir
-                    </Button>
-                  )}
-                </div>
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              'Reunião com cliente amanhã às 14h',
+              'Jantar com família sexta às 19h30',
+              'Consulta médica terça às 10h',
+              'Call de projeto quinta às 15h',
+              'Dentista segunda às 9h',
+              'Apresentação na empresa às 16h'
+            ].map((example, index) => (
+              <div 
+                key={index}
+                className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
+                onClick={() => setTestMessage(example)}
+              >
+                <div className="text-sm">"{example}"</div>
               </div>
             ))}
           </div>
         </CardContent>
       </Card>
 
-      {/* Exemplo de Uso */}
-      <Card className="mt-8">
-        <CardHeader>
-          <CardTitle>Como Usar</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="bg-gray-50 p-3 rounded-lg">
-              <p className="text-sm font-medium mb-2">Exemplo de mensagem:</p>
-              <p className="text-sm text-gray-700 italic">
-                "Reunião com cliente amanhã às 14h na sala de reuniões"
-              </p>
-            </div>
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <p className="text-sm font-medium mb-2">O que acontece:</p>
-              <p className="text-sm text-blue-800">
-                O assistente interpreta sua mensagem e cria um evento no calendário automaticamente
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Informação sobre o Sistema */}
+      <Alert>
+        <Bot className="h-4 w-4" />
+        <AlertDescription>
+          <strong>Sistema Inteligente:</strong> O WhatsApp usa a mesma inteligência artificial Claude do Bot Telegram, 
+          processando mensagens em português brasileiro e criando eventos automaticamente no calendário.
+        </AlertDescription>
+      </Alert>
     </div>
   );
 }

@@ -362,5 +362,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Endpoint para testar processamento WhatsApp
+  app.post('/api/whatsapp/test-message', async (req, res) => {
+    try {
+      const { message } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ 
+          success: false, 
+          response: 'Mensagem é obrigatória' 
+        });
+      }
+
+      console.log(`🧪 Testando mensagem WhatsApp: "${message}"`);
+
+      // Processar usando o bot automático
+      const result = await processWhatsAppMessageAuto('teste', message);
+      
+      res.json(result);
+    } catch (error) {
+      console.error('❌ Erro ao testar mensagem WhatsApp:', error);
+      res.status(500).json({
+        success: false,
+        response: 'Erro interno do servidor'
+      });
+    }
+  });
+
   return createServer(app);
 }

@@ -20,6 +20,7 @@ function Router() {
       <Route path="/qr-business" component={QRBusiness} />
       <Route path="/whatsapp" component={WhatsAppDemo} />
       <Route path="/whatsapp-setup" component={WhatsAppSetup} />
+      <Route path="/whatsapp-demo" component={WhatsAppDemo} />
       <Route component={NotFound} />
     </Switch>
   );
