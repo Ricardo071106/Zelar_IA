@@ -23,9 +23,9 @@ export default function Header() {
   const navItems = [
     { name: "Recursos", href: "#features" },
     { name: "Como Funciona", href: "#how-it-works" },
-    { name: "Depoimentos", href: "#testimonials" },
+    { name: "Sistema", href: "/system" },
+    { name: "WhatsApp", href: "/whatsapp" },
     { name: "Perguntas", href: "#faq" },
-    { name: "WhatsApp Simples", href: "/whatsapp-simples" },
   ];
 
   return (
