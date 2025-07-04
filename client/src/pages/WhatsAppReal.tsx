@@ -4,6 +4,7 @@ export default function WhatsAppReal() {
   const [status, setStatus] = useState<any>(null);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [updatingStatus, setUpdatingStatus] = useState(false);
   const [testPhone, setTestPhone] = useState('5511999999999');
 
   useEffect(() => {
@@ -11,12 +12,17 @@ export default function WhatsAppReal() {
   }, []);
 
   const checkStatus = async () => {
+    setUpdatingStatus(true);
     try {
+      console.log('Buscando status...');
       const response = await fetch('/api/zapi/status');
       const data = await response.json();
+      console.log('Status recebido:', data);
       setStatus(data);
     } catch (error) {
       console.error('Erro ao verificar status:', error);
+    } finally {
+      setUpdatingStatus(false);
     }
   };
 
@@ -98,6 +104,12 @@ export default function WhatsAppReal() {
             {status.diagnosis && (
               <p><strong>Diagnóstico:</strong> {status.diagnosis}</p>
             )}
+            
+            {status.timestamp && (
+              <div style={{ marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                <strong>Última verificação:</strong> {new Date(status.timestamp).toLocaleString('pt-BR')}
+              </div>
+            )}
           </div>
         ) : (
           <p>Carregando status...</p>
@@ -105,17 +117,18 @@ export default function WhatsAppReal() {
         
         <button 
           onClick={checkStatus}
+          disabled={updatingStatus}
           style={{
             padding: '8px 16px',
-            backgroundColor: '#007bff',
+            backgroundColor: updatingStatus ? '#ccc' : '#007bff',
             color: 'white',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
+            cursor: updatingStatus ? 'not-allowed' : 'pointer',
             marginTop: '10px'
           }}
         >
-          Atualizar Status
+          {updatingStatus ? 'Atualizando...' : 'Atualizar Status'}
         </button>
       </div>
 
