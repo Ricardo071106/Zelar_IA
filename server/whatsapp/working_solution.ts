@@ -43,9 +43,14 @@ export function getBestWhatsAppOption(): WhatsAppSolution {
 }
 
 export function getWhatsAppDirectLink(message?: string): string {
-  const defaultMessage = 'Olá! Quero agendar um compromisso. Exemplo: "Reunião com cliente amanhã às 14h"';
+  // Número funcional para demonstração - substitua pelo seu número real
+  const defaultMessage = 'Olá! Testando o sistema Zelar para agendamentos inteligentes.';
   const encodedMessage = encodeURIComponent(message || defaultMessage);
-  return `https://wa.me/5511999887766?text=${encodedMessage}`;
+  
+  // Use seu próprio número aqui ou configure um número de atendimento
+  const phoneNumber = process.env.WHATSAPP_PHONE || '5511999999999'; // número exemplo
+  
+  return `https://wa.me/${phoneNumber}?text=${encodedMessage}`;
 }
 
 export function getZAPIStatus(): {
