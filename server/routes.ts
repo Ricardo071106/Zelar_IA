@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 
-// WhatsApp Business API integration
+// WhatsApp integrations
 import { whatsappBusiness } from './whatsapp/businessAPI';
+import { zapiWhatsApp } from './whatsapp/zapiIntegration';
 
 interface WhatsAppMessage {
   id: string;
@@ -211,6 +212,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       res.status(500).json({ success: false, error: 'Erro ao enviar mensagem' });
+    }
+  });
+
+  // ZAPI WhatsApp endpoints
+  app.get('/api/zapi/status', async (_req, res) => {
+    try {
+      const accountInfo = zapiWhatsApp.getAccountInfo();
+      
+      if (!accountInfo.configured) {
+        return res.json({
+          connected: false,
+          configured: false,
+          messageCount: messageCount,
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      const statusResult = await zapiWhatsApp.getInstanceStatus();
+      
+      res.json({
+        connected: statusResult.connected,
+        configured: accountInfo.configured,
+        instanceId: accountInfo.instanceId,
+        messageCount: messageCount,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({
+        connected: false,
+        configured: false,
+        messageCount: 0,
+        error: 'Erro ao verificar status ZAPI',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  app.post('/api/zapi/connect', async (_req, res) => {
+    try {
+      const result = await zapiWhatsApp.connectInstance();
+      
+      if (result.success) {
+        console.log('Tentativa de conexão ZAPI iniciada');
+        res.json({
+          success: true,
+          qrCode: result.qrCode
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao conectar via ZAPI'
+      });
+    }
+  });
+
+  app.post('/api/zapi/send-test', async (req, res) => {
+    try {
+      const { phone, message } = req.body;
+      
+      if (!phone || !message) {
+        return res.status(400).json({
+          success: false,
+          error: 'Campos obrigatórios: phone, message'
+        });
+      }
+
+      const result = await zapiWhatsApp.sendTextMessage(phone, message);
+      
+      if (result.success) {
+        messageCount++;
+        
+        const messageData: WhatsAppMessage = {
+          id: result.messageId || Date.now().toString(),
+          to: phone,
+          message: message,
+          timestamp: new Date().toISOString(),
+          direction: 'sent'
+        };
+        
+        whatsappMessages.push(messageData);
+        
+        console.log(`Mensagem enviada via ZAPI para ${phone}`);
+        res.json({
+          success: true,
+          messageId: result.messageId
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao enviar mensagem via ZAPI'
+      });
+    }
+  });
+
+  app.post('/api/zapi/restart', async (_req, res) => {
+    try {
+      const result = await zapiWhatsApp.restartInstance();
+      
+      if (result.success) {
+        console.log('Instância ZAPI reiniciada');
+        res.json({ success: true });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: result.error
+        });
+      }
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error: 'Erro ao reiniciar instância ZAPI'
+      });
     }
   });
 

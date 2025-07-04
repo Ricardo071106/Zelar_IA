@@ -6,7 +6,7 @@ import FeaturesSection from "@/components/FeaturesSection";
 import HowItWorksSection from "@/components/HowItWorksSection";
 import CalendarSection from "@/components/CalendarSection";
 import BotDemoSection from "@/components/BotDemoSection";
-import { WhatsAppBusinessSection } from "@/components/WhatsAppBusinessSection";
+import { ZAPIWhatsAppSection } from "@/components/ZAPIWhatsAppSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import FaqSection from "@/components/FaqSection";
 import CtaSection from "@/components/CtaSection";
@@ -46,7 +46,7 @@ export default function Home() {
         <FeaturesSection />
         <HowItWorksSection />
         <BotDemoSection />
-        <WhatsAppBusinessSection />
+        <ZAPIWhatsAppSection />
         <CalendarSection />
         <TestimonialsSection />
         <FaqSection />
