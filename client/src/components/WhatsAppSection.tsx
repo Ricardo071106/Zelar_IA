@@ -2,20 +2,28 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Smartphone, MessageCircle, QrCode, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Smartphone, MessageCircle, Settings, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 
 interface WhatsAppStatus {
   connected: boolean;
-  hasQR: boolean;
+  configured: boolean;
   messageCount: number;
   timestamp: string;
 }
 
 export function WhatsAppSection() {
   const [status, setStatus] = useState<WhatsAppStatus | null>(null);
-  const [qrCode, setQrCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const [credentials, setCredentials] = useState({
+    phoneNumber: '',
+    accessToken: '',
+    phoneNumberId: '',
+    businessAccountId: ''
+  });
 
   const fetchStatus = async () => {
     try {
@@ -28,41 +36,46 @@ export function WhatsAppSection() {
     }
   };
 
-  const generateQR = async () => {
+  const configureWhatsApp = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/whatsapp/generate-qr', { method: 'POST' });
+      const response = await fetch('/api/whatsapp/configure', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(credentials)
+      });
       const data = await response.json();
       
       if (data.success) {
-        setQrCode(data.qrCode);
+        setShowConfig(false);
         fetchStatus();
       } else {
-        setError('Erro ao gerar QR Code');
+        setError(data.error || 'Erro ao configurar WhatsApp Business');
       }
     } catch (err) {
-      setError('Erro ao gerar QR Code');
+      setError('Erro ao configurar WhatsApp Business');
     } finally {
       setLoading(false);
     }
   };
 
-  const simulateConnection = async () => {
+  const testConnection = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch('/api/whatsapp/connect', { method: 'POST' });
+      const response = await fetch('/api/whatsapp/test', { method: 'POST' });
       const data = await response.json();
       
       if (data.success) {
-        setQrCode(null);
         fetchStatus();
       } else {
-        setError('Erro ao conectar');
+        setError(data.error || 'Erro ao testar conexão');
       }
     } catch (err) {
-      setError('Erro ao conectar');
+      setError('Erro ao testar conexão');
     } finally {
       setLoading(false);
     }
