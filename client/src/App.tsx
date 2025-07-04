@@ -6,11 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import BotDashboard from "@/pages/BotDashboard";
-import QRBusiness from "@/pages/QRBusiness";
-import WhatsAppDemo from "@/pages/WhatsAppDemo";
-import WhatsAppSimple from "@/pages/WhatsAppSimple";
-import WhatsAppReal from "@/pages/WhatsAppReal";
-import WhatsAppSetup from "@/pages/WhatsAppSetup";
+
 import SystemDashboard from "@/pages/SystemDashboard";
 
 function Router() {
@@ -19,11 +15,8 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={BotDashboard} />
       <Route path="/system" component={SystemDashboard} />
-      <Route path="/qr-business" component={QRBusiness} />
-      <Route path="/whatsapp" component={WhatsAppSimple} />
-      <Route path="/whatsapp-real" component={WhatsAppReal} />
-      <Route path="/whatsapp-setup" component={WhatsAppSetup} />
-      <Route path="/whatsapp-demo" component={WhatsAppDemo} />
+
+
       <Route component={NotFound} />
     </Switch>
   );

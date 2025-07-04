@@ -58,50 +58,7 @@ export class HealthChecker {
     }
   }
 
-  async checkWhatsApp(): Promise<HealthCheckResult> {
-    const start = Date.now();
-    
-    try {
-      // Verificar se ZAPI está funcionando
-      const response = await fetch(`https://api.z-api.io/instances/${process.env.ZAPI_INSTANCE_ID}/token/${process.env.ZAPI_TOKEN}/status`);
-      const responseTime = Date.now() - start;
-      
-      if (response.ok) {
-        const result: HealthCheckResult = {
-          component: 'whatsapp_zapi',
-          status: 'healthy',
-          responseTime,
-          details: 'ZAPI funcionando normalmente',
-          timestamp: new Date()
-        };
-        
-        this.lastChecks.set('whatsapp_zapi', result);
-        return result;
-      } else {
-        const result: HealthCheckResult = {
-          component: 'whatsapp_zapi',
-          status: 'degraded',
-          responseTime,
-          details: 'ZAPI inativa - usando fallback WhatsApp Web',
-          timestamp: new Date()
-        };
-        
-        this.lastChecks.set('whatsapp_zapi', result);
-        return result;
-      }
-    } catch (error) {
-      const result: HealthCheckResult = {
-        component: 'whatsapp_zapi',
-        status: 'degraded',
-        responseTime: Date.now() - start,
-        details: 'ZAPI indisponível - fallback ativo',
-        timestamp: new Date()
-      };
-      
-      this.lastChecks.set('whatsapp_zapi', result);
-      return result;
-    }
-  }
+
 
   async checkDatabase(): Promise<HealthCheckResult> {
     const start = Date.now();
@@ -172,14 +129,13 @@ export class HealthChecker {
   async performFullHealthCheck(): Promise<SystemHealth> {
     const components = await Promise.all([
       this.checkTelegramBot(),
-      this.checkWhatsApp(),
       this.checkDatabase(),
       this.checkAI()
     ]);
 
     // Determinar saúde geral do sistema
-    const unhealthyCount = components.filter(c => c.status === 'unhealthy').length;
-    const degradedCount = components.filter(c => c.status === 'degraded').length;
+    const unhealthyCount = components.filter((c: HealthCheckResult) => c.status === 'unhealthy').length;
+    const degradedCount = components.filter((c: HealthCheckResult) => c.status === 'degraded').length;
 
     let overall: 'healthy' | 'degraded' | 'unhealthy';
     
@@ -206,3 +162,6 @@ export class HealthChecker {
     return Array.from(this.lastChecks.values());
   }
 }
+
+// Exportar instância global
+export const systemHealth = new HealthChecker();
