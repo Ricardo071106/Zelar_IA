@@ -97,7 +97,54 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       '• "jantar hoje às 19h"\n' +
       '• "reunião amanhã às 15h"\n' +
       '• "consulta sexta às 10h"\n\n' +
+      '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
+      'Use /timezone para alterar\n\n' +
+      '📝 *Comandos:*\n' +
+      '/timezone - Alterar fuso horário\n' +
+      '/help - Ajuda completa\n\n' +
       'Envie qualquer mensagem com data e horário!'
+    );
+    return;
+  }
+
+  // Comando /help
+  if (message === '/help') {
+    await sendMessage(chatId,
+      '🤖 *Assistente Zelar - Ajuda*\n\n' +
+      '📅 *Como usar:*\n' +
+      'Envie mensagens naturais como:\n' +
+      '• "reunião com cliente amanhã às 14h"\n' +
+      '• "jantar com família sexta às 19h30"\n' +
+      '• "consulta médica terça-feira às 10h"\n' +
+      '• "call de projeto quinta às 15h"\n\n' +
+      '⚙️ *Comandos:*\n' +
+      '/timezone - Alterar fuso horário\n' +
+      '/start - Mensagem inicial\n\n' +
+      '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
+      '✨ Processamento com IA Claude!'
+    );
+    return;
+  }
+
+  // Comando /timezone
+  if (message === '/timezone') {
+    const replyMarkup = {
+      inline_keyboard: [
+        [
+          { text: '🇧🇷 Brasil (UTC-3)', callback_data: 'tz_brazil' },
+          { text: '🇺🇸 EUA Leste (UTC-5)', callback_data: 'tz_us_east' }
+        ],
+        [
+          { text: '🇬🇧 Londres (UTC+0)', callback_data: 'tz_london' },
+          { text: '🇯🇵 Tóquio (UTC+9)', callback_data: 'tz_tokyo' }
+        ]
+      ]
+    };
+    
+    await sendMessage(chatId,
+      '🌍 *Selecione seu fuso horário:*\n\n' +
+      'Isso garantirá que os eventos sejam criados no horário correto.',
+      replyMarkup
     );
     return;
   }
