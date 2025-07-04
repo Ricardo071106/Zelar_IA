@@ -62,8 +62,24 @@ export default function WhatsAppReal() {
 
   return (
     <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>Conectar WhatsApp Real</h1>
-      <p>Configure seu número do WhatsApp para receber mensagens e processar eventos automaticamente.</p>
+      <h1>Ativar WhatsApp Automático</h1>
+      <p>Configure seu número do WhatsApp para receber mensagens das pessoas e responder automaticamente com eventos de calendário.</p>
+      
+      <div style={{ 
+        backgroundColor: '#e7f3ff', 
+        padding: '15px', 
+        borderRadius: '8px',
+        marginBottom: '20px',
+        border: '1px solid #b3d9ff'
+      }}>
+        <h4>Como funciona:</h4>
+        <ul style={{ margin: 0 }}>
+          <li>Pessoas enviam: "Reunião amanhã às 14h" para seu WhatsApp</li>
+          <li>Sistema responde automaticamente com links de calendário</li>
+          <li>Mesma inteligência AI do Bot Telegram</li>
+          <li>Funciona 24/7 sem você precisar fazer nada</li>
+        </ul>
+      </div>
       
       {/* Status da conexão */}
       <div style={{ 
@@ -103,8 +119,37 @@ export default function WhatsAppReal() {
         </button>
       </div>
 
+      {/* Problema com ZAPI */}
+      {status && !status.connected && status.diagnosis?.includes('Token inválido') && (
+        <div style={{ 
+          backgroundColor: '#f8d7da', 
+          padding: '20px', 
+          borderRadius: '8px',
+          marginBottom: '20px',
+          border: '1px solid #f5c6cb'
+        }}>
+          <h3>⚠️ Instância ZAPI Inativa</h3>
+          <p><strong>Problema:</strong> {status.diagnosis}</p>
+          
+          <div style={{ marginTop: '15px' }}>
+            <h4>Como resolver:</h4>
+            <ol>
+              <li>Acesse o painel da ZAPI: <a href="https://developer.z-api.io" target="_blank" style={{ color: '#007bff' }}>https://developer.z-api.io</a></li>
+              <li>Faça login na sua conta</li>
+              <li>Verifique se sua instância <strong>{status.instanceId}</strong> está ativa</li>
+              <li>Se estiver pausada, clique em "Ativar" ou "Start"</li>
+              <li>Aguarde alguns minutos e clique em "Atualizar Status" aqui</li>
+            </ol>
+          </div>
+          
+          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff', borderRadius: '4px' }}>
+            <strong>Instância ID:</strong> {status.instanceId}
+          </div>
+        </div>
+      )}
+
       {/* Conexão WhatsApp */}
-      {!status?.connected && (
+      {status?.configured && !status?.connected && !status.diagnosis?.includes('Token inválido') && (
         <div style={{ 
           backgroundColor: '#fff3cd', 
           padding: '20px', 
