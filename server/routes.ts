@@ -2,7 +2,8 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
-import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus } from './whatsapp/levanter-bot';
+// Importação dinâmica para compatibilidade
+let whatsappBot: any;
 
 let messageCount = 0;
 
@@ -54,10 +55,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // =================== WhatsApp Bot Routes ===================
   
+  // Função para carregar o módulo WhatsApp dinamicamente
+  async function loadWhatsAppBot() {
+    if (!whatsappBot) {
+      whatsappBot = await import('./whatsapp/levanter-bot.js');
+    }
+    return whatsappBot;
+  }
+
   // Start WhatsApp Bot
   app.post('/api/whatsapp/start', async (_req, res) => {
     try {
-      const success = await startWhatsAppBot();
+      const bot = await loadWhatsAppBot();
+      const success = await bot.startWhatsAppBot();
       res.json({ 
         success, 
         message: success ? 'WhatsApp Bot iniciado com sucesso' : 'Falha ao iniciar WhatsApp Bot' 
@@ -71,7 +81,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Stop WhatsApp Bot
   app.post('/api/whatsapp/stop', async (_req, res) => {
     try {
-      await stopWhatsAppBot();
+      const bot = await loadWhatsAppBot();
+      await bot.stopWhatsAppBot();
       res.json({ success: true, message: 'WhatsApp Bot parado com sucesso' });
     } catch (error) {
       console.error('Erro ao parar WhatsApp Bot:', error);
@@ -82,7 +93,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WhatsApp Bot Status
   app.get('/api/whatsapp/status', async (_req, res) => {
     try {
-      const status = getWhatsAppStatus();
+      const bot = await loadWhatsAppBot();
+      const status = bot.getWhatsAppStatus();
       res.json(status);
     } catch (error) {
       console.error('Erro ao obter status WhatsApp:', error);

@@ -1,34 +1,31 @@
 /**
  * WhatsApp Bot usando Levanter/Baileys
- * Integração com Claude AI para processamento de mensagens
- * Mesma funcionalidade do Telegram Bot aplicada ao WhatsApp
+ * Versão JavaScript para compatibilidade
  */
 
-import makeWASocket, {
+const {
+  default: makeWASocket,
   DisconnectReason,
   useMultiFileAuthState,
   Browsers,
-  WAMessage,
-  fetchLatestBaileysVersion,
-  proto
-} from '@whiskeysockets/baileys';
-import { Boom } from '@hapi/boom';
-import * as QRCode from 'qrcode-terminal';
-import pino from 'pino';
-import { log } from '../vite';
-import { parseEventWithClaude } from '../utils/claudeParser';
+  fetchLatestBaileysVersion
+} = require('@whiskeysockets/baileys');
 
-let sock: any;
+const QRCode = require('qrcode-terminal');
+const pino = require('pino');
+
+let sock;
 let isConnected = false;
 
 /**
  * Função para processar mensagens do WhatsApp usando Claude AI
  */
-async function processWhatsAppMessage(from: string, messageText: string, sock: any): Promise<void> {
+async function processWhatsAppMessage(from, messageText, sock) {
   try {
-    log(`📱 Processando mensagem WhatsApp de ${from}: ${messageText}`, 'whatsapp');
+    console.log(`📱 Processando mensagem WhatsApp de ${from}: ${messageText}`);
     
-    // Usar o mesmo parser do Telegram
+    // Usar o mesmo parser do Telegram (importação dinâmica)
+    const { parseEventWithClaude } = await import('../utils/claudeParser.js');
     const result = await parseEventWithClaude(messageText);
     
     if (result.isValid) {
@@ -61,7 +58,7 @@ async function processWhatsAppMessage(from: string, messageText: string, sock: a
         `💡 _Clique nos links para adicionar automaticamente ao seu calendário!_`;
       
       await sock.sendMessage(from, { text: response });
-      log(`✅ Resposta enviada para ${from}`, 'whatsapp');
+      console.log(`✅ Resposta enviada para ${from}`);
       
     } else {
       // Mensagem de erro ou não reconhecida
@@ -77,7 +74,7 @@ async function processWhatsAppMessage(from: string, messageText: string, sock: a
     }
     
   } catch (error) {
-    log(`❌ Erro ao processar mensagem WhatsApp: ${error}`, 'whatsapp');
+    console.log(`❌ Erro ao processar mensagem WhatsApp: ${error}`);
     await sock.sendMessage(from, { 
       text: '❌ Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.' 
     });
@@ -87,11 +84,11 @@ async function processWhatsAppMessage(from: string, messageText: string, sock: a
 /**
  * Gera link para Google Calendar
  */
-function generateGoogleCalendarLink(event: any): string {
+function generateGoogleCalendarLink(event) {
   const startDate = new Date(event.startDate);
   const endDate = new Date(event.endDate || new Date(startDate.getTime() + 60 * 60 * 1000));
   
-  const formatDateForGoogle = (date: Date): string => {
+  const formatDateForGoogle = (date) => {
     return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   };
   
@@ -109,7 +106,7 @@ function generateGoogleCalendarLink(event: any): string {
 /**
  * Gera link para Outlook
  */
-function generateOutlookCalendarLink(event: any): string {
+function generateOutlookCalendarLink(event) {
   const startDate = new Date(event.startDate);
   const endDate = new Date(event.endDate || new Date(startDate.getTime() + 60 * 60 * 1000));
   
@@ -127,12 +124,12 @@ function generateOutlookCalendarLink(event: any): string {
 /**
  * Conecta ao WhatsApp
  */
-async function connectToWhatsApp(): Promise<boolean> {
+async function connectToWhatsApp() {
   try {
     const { state, saveCreds } = await useMultiFileAuthState('auth_info_levanter');
     const { version, isLatest } = await fetchLatestBaileysVersion();
     
-    log(`🔗 Usando versão do Baileys: ${version}, é a mais recente: ${isLatest}`, 'whatsapp');
+    console.log(`🔗 Usando versão do Baileys: ${version}, é a mais recente: ${isLatest}`);
     
     sock = makeWASocket({
       version,
@@ -142,26 +139,24 @@ async function connectToWhatsApp(): Promise<boolean> {
       printQRInTerminal: true
     });
     
-    // Store removido para simplificar a implementação
-    
-    sock.ev.on('connection.update', (update: any) => {
+    sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
       
       if (qr) {
-        log('📱 QR Code gerado para WhatsApp:', 'whatsapp');
+        console.log('📱 QR Code gerado para WhatsApp:');
         QRCode.generate(qr, { small: true });
       }
       
       if (connection === 'close') {
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        log(`❌ Conexão WhatsApp fechada. Reconectar: ${shouldReconnect}`, 'whatsapp');
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        console.log(`❌ Conexão WhatsApp fechada. Reconectar: ${shouldReconnect}`);
         
         if (shouldReconnect) {
           setTimeout(() => connectToWhatsApp(), 5000);
         }
         isConnected = false;
       } else if (connection === 'open') {
-        log('✅ WhatsApp conectado com sucesso!', 'whatsapp');
+        console.log('✅ WhatsApp conectado com sucesso!');
         isConnected = true;
       }
     });
@@ -169,7 +164,7 @@ async function connectToWhatsApp(): Promise<boolean> {
     sock.ev.on('creds.update', saveCreds);
     
     // Escutar mensagens
-    sock.ev.on('messages.upsert', async (m: any) => {
+    sock.ev.on('messages.upsert', async (m) => {
       const message = m.messages[0];
       
       if (!message.key.fromMe && message.message) {
@@ -186,7 +181,7 @@ async function connectToWhatsApp(): Promise<boolean> {
     return true;
     
   } catch (error) {
-    log(`❌ Erro ao conectar WhatsApp: ${error}`, 'whatsapp');
+    console.log(`❌ Erro ao conectar WhatsApp: ${error}`);
     return false;
   }
 }
@@ -194,18 +189,18 @@ async function connectToWhatsApp(): Promise<boolean> {
 /**
  * Desconecta do WhatsApp
  */
-async function disconnectWhatsApp(): Promise<void> {
+async function disconnectWhatsApp() {
   if (sock) {
     await sock.logout();
     isConnected = false;
-    log('🔌 WhatsApp desconectado', 'whatsapp');
+    console.log('🔌 WhatsApp desconectado');
   }
 }
 
 /**
  * Verifica status da conexão
  */
-function getWhatsAppStatus(): { connected: boolean, message: string } {
+function getWhatsAppStatus() {
   return {
     connected: isConnected,
     message: isConnected ? 'WhatsApp conectado e funcionando' : 'WhatsApp desconectado'
@@ -215,22 +210,21 @@ function getWhatsAppStatus(): { connected: boolean, message: string } {
 /**
  * Inicia o bot WhatsApp
  */
-export async function startWhatsAppBot(): Promise<boolean> {
-  log('🚀 Iniciando WhatsApp Bot com Levanter...', 'whatsapp');
+async function startWhatsAppBot() {
+  console.log('🚀 Iniciando WhatsApp Bot com Levanter...');
   return await connectToWhatsApp();
 }
 
 /**
  * Para o bot WhatsApp
  */
-export async function stopWhatsAppBot(): Promise<void> {
+async function stopWhatsAppBot() {
   await disconnectWhatsApp();
 }
 
-/**
- * Exporta funções para uso externo
- */
-export {
+module.exports = {
+  startWhatsAppBot,
+  stopWhatsAppBot,
   getWhatsAppStatus,
   connectToWhatsApp,
   disconnectWhatsApp
