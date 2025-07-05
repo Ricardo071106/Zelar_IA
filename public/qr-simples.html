@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp QR - Zelar Bot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #25D366, #128C7E);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        .container {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 400px;
+            color: #333;
+        }
+        h1 {
+            color: #25D366;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .qr-area {
+            background: #f8f9fa;
+            border: 3px dashed #25D366;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+        .qr-placeholder {
+            font-size: 48px;
+            color: #25D366;
+            opacity: 0.7;
+        }
+        .instructions {
+            background: #e8f5e8;
+            border-left: 4px solid #25D366;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .step {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+        }
+        .step-number {
+            background: #25D366;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 10px;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .btn {
+            background: #25D366;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #128C7E;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .loading { background: #fff3cd; color: #856404; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .qr-code {
+            background: white;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📱 WhatsApp Zelar Bot</h1>
+        <p>Conecte seu WhatsApp com o assistente inteligente</p>
+        
+        <div id="status" class="status loading">🔄 Clique para gerar QR Code</div>
+        
+        <div class="qr-area" id="qr-area">
+            <div class="qr-placeholder">📱</div>
+        </div>
+        
+        <button class="btn" onclick="startWhatsApp()">🚀 Conectar WhatsApp</button>
+        
+        <div class="instructions">
+            <strong>📋 Como conectar:</strong>
+            <div class="step">
+                <div class="step-number">1</div>
+                <span>Clique no botão acima</span>
+            </div>
+            <div class="step">
+                <div class="step-number">2</div>
+                <span>Abra <strong>WhatsApp</strong> no celular</span>
+            </div>
+            <div class="step">
+                <div class="step-number">3</div>
+                <span>Vá em <strong>Configurações</strong></span>
+            </div>
+            <div class="step">
+                <div class="step-number">4</div>
+                <span>Toque em <strong>"Dispositivos Vinculados"</strong></span>
+            </div>
+            <div class="step">
+                <div class="step-number">5</div>
+                <span><strong>Escaneie o QR Code</strong></span>
+            </div>
+        </div>
+        
+        <div style="margin-top: 20px; font-size: 14px; color: #666;">
+            ✨ Após conectar, envie mensagens como:<br>
+            <em>"Reunião amanhã às 14h"</em><br>
+            <em>"Dentista sexta às 10h"</em>
+        </div>
+    </div>
+
+    <script>
+        async function startWhatsApp() {
+            const statusEl = document.getElementById('status');
+            const qrArea = document.getElementById('qr-area');
+            
+            statusEl.textContent = '🔄 Iniciando WhatsApp Bot...';
+            statusEl.className = 'status loading';
+            
+            try {
+                // Simular conexão e QR code
+                setTimeout(() => {
+                    statusEl.textContent = '📱 QR Code gerado! Escaneie agora.';
+                    statusEl.className = 'status success';
+                    
+                    // Mostrar QR code simulado
+                    qrArea.innerHTML = `
+                        <div style="font-family: monospace; font-size: 8px; line-height: 8px; background: white; padding: 15px; border-radius: 8px;">
+                            ██████████████  ██  ██████████████<br>
+                            ██          ██    ▄ ██          ██<br>
+                            ██  ██████  ██▄ ▄█▄ ██  ██████  ██<br>
+                            ██  ██████  ██  ▄▄  ██  ██████  ██<br>
+                            ██  ██████  ██▄▄▄▄▄▄██  ██████  ██<br>
+                            ██          ██▄▄▄▄▄▄██          ██<br>
+                            ██████████████▄▄▄▄▄▄██████████████<br>
+                            ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄<br>
+                            ▄▄  ██▄▄██▄▄▄▄██▄▄▄▄██▄▄  ██▄▄██<br>
+                            ██▄▄██▄▄██▄▄██▄▄██▄▄██▄▄██▄▄██▄▄<br>
+                            ▄▄██▄▄██▄▄██▄▄██▄▄██▄▄██▄▄██▄▄██<br>
+                            ██▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄██<br>
+                            ██████████████▄▄▄▄▄▄██████████████<br>
+                            ██          ██▄▄██▄▄██          ██<br>
+                            ██  ██████  ██▄▄██▄▄██  ██████  ██<br>
+                            ██  ██████  ██▄▄██▄▄██  ██████  ██<br>
+                            ██  ██████  ██▄▄██▄▄██  ██████  ██<br>
+                            ██          ██▄▄██▄▄██          ██<br>
+                            ██████████████▄▄██▄▄██████████████
+                        </div>
+                    `;
+                    
+                    // Simular verificação de conexão
+                    setTimeout(() => {
+                        statusEl.textContent = '⏳ Aguardando escaneamento...';
+                    }, 2000);
+                    
+                }, 1500);
+                
+            } catch (error) {
+                statusEl.textContent = '❌ Erro ao conectar';
+                statusEl.className = 'status error';
+            }
+        }
+        
+        // Auto-iniciar em 2 segundos
+        setTimeout(() => {
+            const status = document.getElementById('status');
+            status.textContent = '🚀 Pronto! Clique para conectar.';
+            status.className = 'status success';
+        }, 1000);
+    </script>
+</body>
+</html>
