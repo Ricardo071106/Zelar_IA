@@ -59,7 +59,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Função para carregar o módulo WhatsApp dinamicamente
   async function loadWhatsAppBot() {
     if (!whatsappBot) {
-      whatsappBot = require('./whatsapp/levanter-bot.cjs');
+      whatsappBot = require('./whatsapp/simple_whatsapp.cjs');
     }
     return whatsappBot;
   }
