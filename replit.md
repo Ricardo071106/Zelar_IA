@@ -6,7 +6,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 
 ### Current Status
 - **Telegram Bot**: ✅ FUNCIONANDO - Bot @zelar_assistente_bot ativo com Claude AI integration
-- **WhatsApp Bot**: 🟡 AGUARDANDO - Bot principal pronto, aguardando normalização do serviço WhatsApp
+- **WhatsApp Bot**: ⏳ LIMITAÇÃO TEMPORAL - Código funcional, WhatsApp bloqueando novos dispositivos
 - **Database**: PostgreSQL com user management e event storage completos
 - **Frontend**: React interface com monitoramento de sistema
 
@@ -125,6 +125,13 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ ORGANIZADO: Estrutura limpa focada no essencial
 - ✅ AGUARDANDO: Normalização do serviço WhatsApp para conexão
 - ✅ FUNCIONAL: Telegram bot completamente operacional
+
+### TESTES WHATSAPP EXTENSIVOS (Julho 2025)
+- ✅ TESTADO: Múltiplas implementações (Baileys, whatsapp-web.js)
+- ✅ CONFIRMADO: Código funcional com QR codes gerados corretamente
+- ✅ VERIFICADO: Diferentes configurações de browser e device
+- ⏳ BLOQUEADO: WhatsApp impedindo conexões de novos dispositivos
+- ✅ PRONTO: Bot WhatsApp aguardando normalização do serviço
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
