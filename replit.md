@@ -1,14 +1,14 @@
-# Zelar - AI-Powered Telegram Scheduling Assistant
+# Zelar - AI-Powered Scheduling Assistant
 
 ## Overview
 
-Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI-powered natural language processing. The system provides dual bot integration through Telegram and WhatsApp, processing Brazilian Portuguese text to create calendar events and manage appointments. Built with Node.js, Express, and featuring a modern React frontend with TypeScript, plus PostgreSQL database integration using Drizzle ORM.
+Zelar é um assistente inteligente de agendamento com processamento de linguagem natural em português brasileiro. O sistema oferece integração com Telegram e WhatsApp, processando texto natural para criar eventos de calendário e gerenciar compromissos. Construído com Node.js, Express, React frontend com TypeScript, e integração com banco PostgreSQL usando Drizzle ORM.
 
 ### Current Status
 - **Telegram Bot**: ✅ FUNCIONANDO - Bot @zelar_assistente_bot ativo com Claude AI integration
-- **WhatsApp Bot**: REMOVIDO - Código completamente limpo conforme solicitado
+- **WhatsApp Bot**: 🟡 AGUARDANDO - Bot principal pronto, aguardando normalização do serviço WhatsApp
 - **Database**: PostgreSQL com user management e event storage completos
-- **Frontend**: React interface focado apenas no Telegram
+- **Frontend**: React interface com monitoramento de sistema
 
 ## System Architecture
 
@@ -119,12 +119,12 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ## Recent Changes
 
-### LIMPEZA COMPLETA DO CÓDIGO (Julho 2025)
-- ✅ REMOVIDO: Todas as páginas e componentes WhatsApp do frontend
-- ✅ LIMPO: Código ZAPI e Baileys completamente removido do servidor
-- ✅ ELIMINADO: Toda a pasta server/email e funcionalidades relacionadas
-- ✅ SIMPLIFICADO: Comandos do bot focados apenas no essencial
-- ✅ OTIMIZADO: Sistema muito mais leve e focado no Telegram
+### LIMPEZA E ORGANIZAÇÃO DO CÓDIGO (Julho 2025)
+- ✅ REMOVIDO: Códigos WhatsApp duplicados e arquivos temporários
+- ✅ MANTIDO: Um único bot WhatsApp principal (standalone_whatsapp.cjs)
+- ✅ ORGANIZADO: Estrutura limpa focada no essencial
+- ✅ AGUARDANDO: Normalização do serviço WhatsApp para conexão
+- ✅ FUNCIONAL: Telegram bot completamente operacional
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
@@ -135,8 +135,8 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 
 ### Sistema Funcional Completo
 - **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
-- **WhatsApp Integration**: REMOVIDO - Código completamente limpo conforme solicitado
-- **AI Processing**: Claude interpretação focada exclusivamente no Telegram
+- **WhatsApp Integration**: Aguardando normalização - bot principal pronto para conexão
+- **AI Processing**: Claude AI integrado para ambas as plataformas
 - **Database**: PostgreSQL com gestão completa de usuários e eventos
 - **Calendar Integration**: Links diretos para Google Calendar e Outlook
 
@@ -157,3 +157,5 @@ Zelar is a comprehensive multi-platform scheduling assistant with intelligent AI
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+WhatsApp integration: Aguardar normalização do serviço antes de prosseguir.
+Code organization: Manter apenas uma versão principal de cada bot, sem duplicações.
