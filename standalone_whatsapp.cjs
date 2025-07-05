@@ -3,7 +3,7 @@ const QRCode = require('qrcode-terminal');
 const { exec } = require('child_process');
 const fs = require('fs');
 
-console.log('🚀 Iniciando WhatsApp Bot Zelar...');
+console.log('🚀 Iniciando WhatsApp Bot Zelar - Versão Principal...');
 
 let sock = null;
 let isConnected = false;
