@@ -77,13 +77,11 @@ export async function createICalEvent(event: Event, userEmail: string): Promise<
       description: event.description || '',
       location: event.location || '',
       organizer: {
-        name: 'Zelar Assistant',
-        email: 'assistant@zelar.com'
+        name: 'Zelar Assistant'
       },
       attendees: [
         {
-          name: userEmail.split('@')[0],
-          email: userEmail,
+          name: 'Participante',
           rsvp: true
         }
       ]
