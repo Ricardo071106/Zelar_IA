@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
+import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus } from './whatsapp/levanter-bot';
 
 let messageCount = 0;
 
@@ -47,6 +48,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(response);
     } catch (error) {
       console.error('Erro ao buscar status do sistema:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
+  // =================== WhatsApp Bot Routes ===================
+  
+  // Start WhatsApp Bot
+  app.post('/api/whatsapp/start', async (_req, res) => {
+    try {
+      const success = await startWhatsAppBot();
+      res.json({ 
+        success, 
+        message: success ? 'WhatsApp Bot iniciado com sucesso' : 'Falha ao iniciar WhatsApp Bot' 
+      });
+    } catch (error) {
+      console.error('Erro ao iniciar WhatsApp Bot:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
+  // Stop WhatsApp Bot
+  app.post('/api/whatsapp/stop', async (_req, res) => {
+    try {
+      await stopWhatsAppBot();
+      res.json({ success: true, message: 'WhatsApp Bot parado com sucesso' });
+    } catch (error) {
+      console.error('Erro ao parar WhatsApp Bot:', error);
+      res.status(500).json({ error: 'Erro interno do servidor' });
+    }
+  });
+
+  // WhatsApp Bot Status
+  app.get('/api/whatsapp/status', async (_req, res) => {
+    try {
+      const status = getWhatsAppStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Erro ao obter status WhatsApp:', error);
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
