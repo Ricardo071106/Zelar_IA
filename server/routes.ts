@@ -98,7 +98,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(status);
     } catch (error) {
       console.error('Erro ao obter status WhatsApp:', error);
-      res.status(500).json({ error: 'Erro interno do servidor' });
+      res.json({ 
+        connected: false, 
+        message: 'WhatsApp Bot não inicializado',
+        error: error.message 
+      });
     }
   });
 
