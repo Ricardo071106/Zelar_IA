@@ -112,29 +112,37 @@
                 statusEl.textContent = '🔄 Gerando QR Code do WhatsApp...';
                 statusEl.className = 'status loading';
                 
-                // Gerar QR code de exemplo para demonstração
-                const mockQRData = `2@7LqV8,J9qF7wX5kR2mN3bV,${Date.now()}`;
+                const response = await fetch('/api/whatsapp/generate-qr');
+                const data = await response.json();
                 
-                // Criar QR code usando biblioteca qrcode.js
-                qrContainer.innerHTML = '<canvas id="qr-canvas"></canvas>';
-                const canvas = document.getElementById('qr-canvas');
-                
-                QRCode.toCanvas(canvas, mockQRData, {
-                    width: 280,
-                    margin: 2,
-                    color: {
-                        dark: '#000000',
-                        light: '#FFFFFF'
-                    }
-                });
-                
-                statusEl.textContent = '📱 QR Code pronto! Escaneie com seu WhatsApp.';
-                statusEl.className = 'status success';
-                
-                // Simular verificação de conexão
-                setTimeout(() => {
-                    statusEl.textContent = '⏳ Aguardando escaneamento...';
-                }, 2000);
+                if (data.success && data.qrCodeData) {
+                    // Criar QR code usando biblioteca qrcode.js
+                    qrContainer.innerHTML = '<canvas id="qr-canvas"></canvas>';
+                    const canvas = document.getElementById('qr-canvas');
+                    
+                    QRCode.toCanvas(canvas, data.qrCodeData, {
+                        width: 280,
+                        margin: 2,
+                        color: {
+                            dark: '#000000',
+                            light: '#FFFFFF'
+                        }
+                    });
+                    
+                    statusEl.textContent = '📱 QR Code pronto! Escaneie com seu WhatsApp.';
+                    statusEl.className = 'status success';
+                    
+                    // Verificar conexão periodicamente
+                    checkConnection();
+                    
+                } else if (data.connected) {
+                    statusEl.textContent = '✅ WhatsApp já está conectado!';
+                    statusEl.className = 'status success';
+                    qrContainer.innerHTML = '<div style="color: #25D366; font-size: 24px;">✅<br>Conectado!</div>';
+                    
+                } else {
+                    throw new Error(data.error || 'Erro ao gerar QR code');
+                }
                 
             } catch (error) {
                 console.error('Erro:', error);

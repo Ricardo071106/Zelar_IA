@@ -110,41 +110,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Gerar QR Code para interface web
   app.get('/api/whatsapp/generate-qr', async (_req, res) => {
     try {
-      // Executar bot standalone e capturar QR
-      const { spawn } = require('child_process');
-      const qrProcess = spawn('node', ['compact_whatsapp_qr.cjs'], {
-        cwd: process.cwd()
-      });
+      const fs = require('fs');
       
-      let qrData = '';
-      let timeout = setTimeout(() => {
-        qrProcess.kill();
-        res.json({ error: 'Timeout ao gerar QR code' });
-      }, 15000);
-      
-      qrProcess.stdout.on('data', (data) => {
-        const output = data.toString();
+      // Verificar se existe dados do QR no arquivo
+      if (fs.existsSync('qr_data.json')) {
+        const qrData = JSON.parse(fs.readFileSync('qr_data.json', 'utf8'));
         
-        // Procurar por dados do QR no output
-        if (output.includes('connected to WA')) {
-          // Simular dados do QR - na prática você capturaria o QR real
-          const mockQR = `2@${Math.random().toString(36).substring(2)},${Math.random().toString(36).substring(2)},${Date.now()}`;
-          
-          clearTimeout(timeout);
-          qrProcess.kill();
-          
+        if (qrData.qr && !qrData.connected) {
           res.json({
             success: true,
-            qrCodeData: mockQR,
-            message: 'QR Code gerado'
+            qrCodeData: qrData.qr,
+            message: 'QR Code disponível'
           });
+          return;
         }
+        
+        if (qrData.connected) {
+          res.json({
+            success: false,
+            connected: true,
+            message: 'WhatsApp já conectado'
+          });
+          return;
+        }
+      }
+      
+      // Iniciar serviço QR em background
+      const { spawn } = require('child_process');
+      const qrProcess = spawn('node', ['whatsapp_qr_real.cjs'], {
+        cwd: process.cwd(),
+        detached: true,
+        stdio: 'ignore'
       });
       
-      qrProcess.on('error', (error) => {
-        clearTimeout(timeout);
-        res.json({ error: error.message });
-      });
+      qrProcess.unref();
+      
+      // Aguardar QR ser gerado
+      let attempts = 0;
+      const checkQR = setInterval(() => {
+        attempts++;
+        
+        if (attempts > 30) { // 15 segundos
+          clearInterval(checkQR);
+          res.json({ error: 'Timeout ao gerar QR code' });
+          return;
+        }
+        
+        if (fs.existsSync('qr_data.json')) {
+          const qrData = JSON.parse(fs.readFileSync('qr_data.json', 'utf8'));
+          
+          if (qrData.qr) {
+            clearInterval(checkQR);
+            res.json({
+              success: true,
+              qrCodeData: qrData.qr,
+              message: 'QR Code gerado'
+            });
+          }
+        }
+      }, 500);
       
     } catch (error) {
       console.error('Erro ao gerar QR:', error);
