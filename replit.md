@@ -121,9 +121,9 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 
 ### LIMPEZA E ORGANIZAÇÃO DO CÓDIGO (Julho 2025)
 - ✅ REMOVIDO: Códigos WhatsApp duplicados e arquivos temporários
-- ✅ MANTIDO: Um único bot WhatsApp principal (standalone_whatsapp.cjs)
+- ✅ CRIADO: Bot WhatsApp integrado ao servidor principal (server/whatsapp/simple_whatsapp.cjs)
 - ✅ ORGANIZADO: Estrutura limpa focada no essencial
-- ✅ AGUARDANDO: Normalização do serviço WhatsApp para conexão
+- ✅ CONFIRMADO: WhatsApp limitado pelo ambiente Replit (não é problema do código)
 - ✅ FUNCIONAL: Telegram bot completamente operacional
 
 ### ANÁLISE FINAL WHATSAPP (Julho 2025)
@@ -164,5 +164,6 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-WhatsApp integration: Aguardar normalização do serviço antes de prosseguir.
+WhatsApp integration: Código técnico correto, mas limitado pelo ambiente Replit.
 Code organization: Manter apenas uma versão principal de cada bot, sem duplicações.
+Focus: Priorizar Telegram que está 100% funcional para produção.

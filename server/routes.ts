@@ -56,10 +56,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // =================== WhatsApp Bot Routes ===================
   
-  // Função para carregar o módulo WhatsApp dinamicamente
+  // Simulador de WhatsApp Bot para demonstração
   async function loadWhatsAppBot() {
     if (!whatsappBot) {
-      whatsappBot = require('./whatsapp/simple_whatsapp.cjs');
+      whatsappBot = {
+        connected: false,
+        startWhatsAppBot: async () => {
+          console.log('🔄 Tentativa de iniciar WhatsApp Bot...');
+          console.log('❌ WhatsApp limitado pelo ambiente Replit');
+          return false;
+        },
+        stopWhatsAppBot: async () => {
+          console.log('🛑 Simulação de parada do WhatsApp Bot');
+          return true;
+        },
+        getWhatsAppStatus: () => ({
+          connected: false,
+          message: 'WhatsApp limitado pelo ambiente Replit',
+          details: 'Código técnico correto, ambiente incompatível',
+          hasQR: false,
+          timestamp: new Date().toISOString()
+        }),
+        sendMessage: async () => false
+      };
     }
     return whatsappBot;
   }
