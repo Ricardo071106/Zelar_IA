@@ -119,13 +119,12 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ ORGANIZADO: Estrutura focada exclusivamente no Telegram
 - ✅ FUNCIONAL: Sistema Telegram 100% operacional
 
-### LIMPEZA FRONTEND COMPLETA (Julho 2025)
-- ✅ REMOVIDO: Todas as referências WhatsApp do frontend
-- ✅ LIMPO: BotDashboard.tsx - removido QR codes e formulários WhatsApp
-- ✅ CORRIGIDO: SystemDashboard.tsx - removido estrutura JSX quebrada
-- ✅ ATUALIZADO: Header.tsx - removido links para WhatsApp
-- ✅ SIMPLIFICADO: BotDemoSection.tsx - apenas botão Telegram
-- ✅ FUNCIONAL: Sistema frontend 100% limpo e focado no Telegram
+### ADIÇÃO WHATSAPP SIMPLES (Julho 2025)
+- ✅ INSTALADO: whatsapp-web.js e qrcode-terminal
+- ✅ CRIADO: Bot WhatsApp simples com respostas automáticas
+- ✅ IMPLEMENTADO: API routes para controle do WhatsApp (/api/whatsapp/*)
+- ✅ ADICIONADO: Interface frontend para controle do WhatsApp
+- ✅ FUNCIONAL: Sistema dual Telegram + WhatsApp operacional
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização

@@ -2,11 +2,60 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
+import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus, sendWhatsAppMessage } from './whatsapp/simple_whatsapp_bot';
 import * as path from 'path';
 let messageCount = 0;
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // =================== WhatsApp Bot Routes ===================
+  
+  // Start WhatsApp bot
+  app.post('/api/whatsapp/start', async (_req, res) => {
+    try {
+      const started = await startWhatsAppBot();
+      res.json({ success: started, message: started ? 'WhatsApp bot iniciado' : 'Erro ao iniciar bot' });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro interno' });
+    }
+  });
+
+  // Stop WhatsApp bot
+  app.post('/api/whatsapp/stop', async (_req, res) => {
+    try {
+      stopWhatsAppBot();
+      res.json({ success: true, message: 'WhatsApp bot parado' });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro interno' });
+    }
+  });
+
+  // Get WhatsApp status
+  app.get('/api/whatsapp/status', async (_req, res) => {
+    try {
+      const status = getWhatsAppStatus();
+      res.json(status);
+    } catch (error) {
+      res.status(500).json({ error: 'Erro ao obter status' });
+    }
+  });
+
+  // Send WhatsApp message
+  app.post('/api/whatsapp/send', async (req, res) => {
+    try {
+      const { number, message } = req.body;
+      
+      if (!number || !message) {
+        return res.status(400).json({ error: 'Número e mensagem são obrigatórios' });
+      }
+
+      const sent = await sendWhatsAppMessage(number, message);
+      res.json({ success: sent, message: sent ? 'Mensagem enviada' : 'Erro ao enviar mensagem' });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro interno' });
+    }
+  });
+
   // =================== Health Check & System Status ===================
   
   // System status endpoint
