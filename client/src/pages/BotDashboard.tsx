@@ -17,6 +17,7 @@ interface BotStatus {
     status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
     lastUpdate?: string;
     qrCode?: string;
+    qrCodeImage?: string;
   };
 }
 
@@ -59,7 +60,8 @@ export default function BotDashboard() {
           whatsapp: {
             status: whatsappData.connected ? 'conectado' : 'desconectado',
             lastUpdate: new Date().toLocaleString('pt-BR'),
-            qrCode: whatsappData.qrCode
+            qrCode: whatsappData.qrCode,
+            qrCodeImage: whatsappData.qrCodeImage
           }
         }));
       }
@@ -246,20 +248,39 @@ export default function BotDashboard() {
                 </Button>
               </div>
 
-              {botStatus.whatsapp.qrCode && botStatus.whatsapp.status !== 'conectado' && (
+              {(botStatus.whatsapp.qrCode || botStatus.whatsapp.qrCodeImage) && botStatus.whatsapp.status !== 'conectado' && (
                 <Alert>
                   <MessageSquare className="h-4 w-4" />
                   <AlertDescription>
-                    <div className="space-y-2">
+                    <div className="space-y-4">
                       <p className="font-medium">Escaneie o QR Code com seu WhatsApp:</p>
-                      <div className="bg-white p-4 rounded-lg">
-                        <pre className="text-xs font-mono break-all whitespace-pre-wrap">
-                          {botStatus.whatsapp.qrCode}
-                        </pre>
+                      
+                      {botStatus.whatsapp.qrCodeImage ? (
+                        <div className="flex justify-center">
+                          <div className="bg-white p-4 rounded-lg shadow-sm border">
+                            <img 
+                              src={botStatus.whatsapp.qrCodeImage} 
+                              alt="QR Code WhatsApp" 
+                              className="w-64 h-64 object-contain"
+                            />
+                          </div>
+                        </div>
+                      ) : botStatus.whatsapp.qrCode ? (
+                        <div className="bg-white p-4 rounded-lg">
+                          <pre className="text-xs font-mono break-all whitespace-pre-wrap">
+                            {botStatus.whatsapp.qrCode}
+                          </pre>
+                        </div>
+                      ) : null}
+                      
+                      <div className="text-center">
+                        <p className="text-sm text-muted-foreground">
+                          Abra o WhatsApp → Menu → Dispositivos conectados → Conectar dispositivo
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Use a câmera do seu celular para escanear o código acima
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground">
-                        Abra o WhatsApp → Menu → Dispositivos conectados → Conectar dispositivo
-                      </p>
                     </div>
                   </AlertDescription>
                 </Alert>
