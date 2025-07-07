@@ -3,6 +3,8 @@
  * Implementação baseada no código fornecido pelo usuário
  */
 
+import { generateQRCodeBase64, generateWhatsAppQRData } from '../utils/qrCodeGenerator';
+
 let whatsappClient: any = null;
 let isConnected = false;
 let qrCodeData = '';
@@ -11,25 +13,18 @@ let qrCodeImageBase64 = '';
 // Gerar um QR code real usando a biblioteca qrcode
 async function generateRealQRCode(): Promise<void> {
     try {
-        // Importar qrcode dinamicamente
-        const QRCode = await import('qrcode');
-        
         // Dados para o QR code (simula dados de conexão WhatsApp)
-        qrCodeData = `1@${Math.random().toString(36).substring(2)},${Date.now()},${Math.random().toString(36)}`;
+        qrCodeData = generateWhatsAppQRData();
+        
+        console.log('🔄 Gerando QR Code real com dados:', qrCodeData);
         
         // Gerar QR code real como imagem base64
-        qrCodeImageBase64 = await QRCode.default.toDataURL(qrCodeData, {
-            width: 300,
-            margin: 2,
-            color: {
-                dark: '#000000',
-                light: '#FFFFFF'
-            }
-        });
+        qrCodeImageBase64 = await generateQRCodeBase64(qrCodeData);
         
         console.log('📱 QR Code real gerado com sucesso!');
+        console.log('📱 Tipo:', qrCodeImageBase64.substring(0, 30));
     } catch (error) {
-        console.error('Erro ao gerar QR code real, usando fallback:', error);
+        console.error('❌ Erro ao gerar QR code real, usando fallback:', error);
         
         // Fallback para SVG simples se não conseguir usar a biblioteca
         qrCodeData = 'Demo QR Code for WhatsApp';
