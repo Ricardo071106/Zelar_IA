@@ -13,13 +13,17 @@ interface BotStatus {
     status: 'conectado' | 'desconectado' | 'carregando';
     lastUpdate?: string;
   };
-
+  whatsapp: {
+    status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
+    lastUpdate?: string;
+    qrCode?: string;
+  };
 }
 
 export default function BotDashboard() {
   const [botStatus, setBotStatus] = useState<BotStatus>({
     telegram: { status: 'carregando' },
-
+    whatsapp: { status: 'carregando' }
   });
   
 
@@ -39,13 +43,32 @@ export default function BotDashboard() {
   };
 
   const checkBotStatus = async () => {
-    // Sistema focado apenas no Telegram
-
     // Status do Telegram (sempre conectado se o servidor estiver rodando)
     setBotStatus(prev => ({
       ...prev,
       telegram: { status: 'conectado', lastUpdate: new Date().toLocaleString('pt-BR') }
     }));
+
+    // Verificar status do WhatsApp
+    try {
+      const whatsappResponse = await fetch('/api/whatsapp/status');
+      if (whatsappResponse.ok) {
+        const whatsappData = await whatsappResponse.json();
+        setBotStatus(prev => ({
+          ...prev,
+          whatsapp: {
+            status: whatsappData.connected ? 'conectado' : 'desconectado',
+            lastUpdate: new Date().toLocaleString('pt-BR'),
+            qrCode: whatsappData.qrCode
+          }
+        }));
+      }
+    } catch (error) {
+      setBotStatus(prev => ({
+        ...prev,
+        whatsapp: { status: 'desconectado', lastUpdate: new Date().toLocaleString('pt-BR') }
+      }));
+    }
   };
 
   const sendWhatsAppMessage = async () => {
@@ -113,7 +136,7 @@ export default function BotDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Bot Zelar Dashboard</h1>
           <p className="text-muted-foreground">
-            Central de controle do bot Telegram
+            Central de controle dos bots Telegram e WhatsApp
           </p>
         </div>
         <Button onClick={checkBotStatus}>
@@ -143,18 +166,18 @@ export default function BotDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sistema Telegram</CardTitle>
+            <CardTitle className="text-sm font-medium">WhatsApp Bot</CardTitle>
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <Badge variant="secondary">Em desenvolvimento</Badge>
+              {getStatusBadge(botStatus.whatsapp.status)}
               <span className="text-xs text-muted-foreground">
-                Indisponível
+                {botStatus.whatsapp.lastUpdate}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Funcionalidade será adicionada em breve
+              Bot simples com respostas automáticas
             </p>
           </CardContent>
         </Card>
@@ -169,9 +192,93 @@ export default function BotDashboard() {
       {/* Testing Interface */}
       <Tabs defaultValue="calendar" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
           <TabsTrigger value="calendar">Teste Calendário</TabsTrigger>
           <TabsTrigger value="logs">Logs de Teste</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="whatsapp" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>WhatsApp Bot Control</CardTitle>
+              <CardDescription>
+                Controle e teste do bot WhatsApp simples
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/whatsapp/start', { method: 'POST' });
+                      if (response.ok) {
+                        addTestResult('success', 'WhatsApp bot iniciado');
+                        setTimeout(checkBotStatus, 2000);
+                      } else {
+                        addTestResult('error', 'Erro ao iniciar WhatsApp bot');
+                      }
+                    } catch (error) {
+                      addTestResult('error', 'Erro de conexão');
+                    }
+                  }}
+                  size="sm"
+                >
+                  Iniciar Bot WhatsApp
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    try {
+                      const response = await fetch('/api/whatsapp/stop', { method: 'POST' });
+                      if (response.ok) {
+                        addTestResult('success', 'WhatsApp bot parado');
+                        checkBotStatus();
+                      } else {
+                        addTestResult('error', 'Erro ao parar WhatsApp bot');
+                      }
+                    } catch (error) {
+                      addTestResult('error', 'Erro de conexão');
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                >
+                  Parar Bot
+                </Button>
+              </div>
+
+              {botStatus.whatsapp.qrCode && botStatus.whatsapp.status !== 'conectado' && (
+                <Alert>
+                  <MessageSquare className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-2">
+                      <p className="font-medium">Escaneie o QR Code com seu WhatsApp:</p>
+                      <div className="bg-white p-4 rounded-lg">
+                        <pre className="text-xs font-mono break-all whitespace-pre-wrap">
+                          {botStatus.whatsapp.qrCode}
+                        </pre>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Abra o WhatsApp → Menu → Dispositivos conectados → Conectar dispositivo
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {botStatus.whatsapp.status === 'conectado' && (
+                <Alert>
+                  <CheckCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <p className="font-medium">WhatsApp conectado com sucesso!</p>
+                    <p className="text-sm text-muted-foreground">
+                      Envie "oi" ou "lembrete" para o número conectado para testar as respostas.
+                    </p>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
           <Card>
