@@ -13,34 +13,16 @@ interface BotStatus {
     status: 'conectado' | 'desconectado' | 'carregando';
     lastUpdate?: string;
   };
-  whatsapp: {
-    status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
-    lastUpdate?: string;
-    qrCode?: string;
-  };
-  whatsappBusiness: {
-    status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
-    lastUpdate?: string;
-    qrCode?: string;
-    businessInfo?: {
-      isBusiness: boolean;
-      pushname?: string;
-      number?: string;
-    };
-  };
+
 }
 
 export default function BotDashboard() {
   const [botStatus, setBotStatus] = useState<BotStatus>({
     telegram: { status: 'carregando' },
-    whatsapp: { status: 'carregando' },
-    whatsappBusiness: { status: 'carregando' }
+
   });
   
-  const [whatsappForm, setWhatsappForm] = useState({
-    number: '',
-    message: ''
-  });
+
   
   const [testResults, setTestResults] = useState<{
     type: 'success' | 'error' | 'info';
@@ -57,48 +39,7 @@ export default function BotDashboard() {
   };
 
   const checkBotStatus = async () => {
-    try {
-      // Verificar status do WhatsApp pessoal
-      const whatsappResponse = await fetch('/api/whatsapp/status');
-      if (whatsappResponse.ok) {
-        const whatsappData = await whatsappResponse.json();
-        setBotStatus(prev => ({
-          ...prev,
-          whatsapp: {
-            status: whatsappData.status === 'Conectado' ? 'conectado' : 'desconectado',
-            lastUpdate: new Date().toLocaleString('pt-BR'),
-            qrCode: whatsappData.qrCode
-          }
-        }));
-      }
-    } catch (error) {
-      setBotStatus(prev => ({
-        ...prev,
-        whatsapp: { status: 'desconectado', lastUpdate: new Date().toLocaleString('pt-BR') }
-      }));
-    }
-
-    try {
-      // Verificar status do WhatsApp Business
-      const businessResponse = await fetch('/api/whatsapp-business/status');
-      if (businessResponse.ok) {
-        const businessData = await businessResponse.json();
-        setBotStatus(prev => ({
-          ...prev,
-          whatsappBusiness: {
-            status: businessData.status === 'Conectado' ? 'conectado' : 'desconectado',
-            lastUpdate: new Date().toLocaleString('pt-BR'),
-            qrCode: businessData.qrCode,
-            businessInfo: businessData.clientInfo
-          }
-        }));
-      }
-    } catch (error) {
-      setBotStatus(prev => ({
-        ...prev,
-        whatsappBusiness: { status: 'desconectado', lastUpdate: new Date().toLocaleString('pt-BR') }
-      }));
-    }
+    // Sistema focado apenas no Telegram
 
     // Status do Telegram (sempre conectado se o servidor estiver rodando)
     setBotStatus(prev => ({
@@ -172,7 +113,7 @@ export default function BotDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Bot Zelar Dashboard</h1>
           <p className="text-muted-foreground">
-            Central de controle dos bots Telegram e WhatsApp
+            Central de controle do bot Telegram
           </p>
         </div>
         <Button onClick={checkBotStatus}>
@@ -202,7 +143,7 @@ export default function BotDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">WhatsApp (Em Breve)</CardTitle>
+            <CardTitle className="text-sm font-medium">Sistema Telegram</CardTitle>
             <Phone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -218,96 +159,19 @@ export default function BotDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">WhatsApp Business</CardTitle>
-            <div className="flex items-center gap-1">
-              <Phone className="h-4 w-4 text-muted-foreground" />
-              <span className="text-xs bg-blue-100 text-blue-800 px-1 rounded">BIZ</span>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              {getStatusBadge(botStatus.whatsappBusiness.status)}
-              <span className="text-xs text-muted-foreground">
-                {botStatus.whatsappBusiness.lastUpdate}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              WhatsApp Business (Porta 3001)
-            </p>
-            {botStatus.whatsappBusiness.businessInfo && (
-              <div className="text-xs text-green-600 mt-1">
-                {botStatus.whatsappBusiness.businessInfo.pushname}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+
       </div>
 
-      {/* QR Code Display for Personal WhatsApp */}
-      {botStatus.whatsapp.status === 'aguardando_qr' && botStatus.whatsapp.qrCode && (
-        <Alert>
-          <AlertDescription>
-            <div className="flex flex-col items-center p-4">
-              <h3 className="font-semibold mb-2">QR Code - WhatsApp Pessoal</h3>
-              <div className="bg-white p-4 rounded-lg">
-                <pre className="text-xs">{botStatus.whatsapp.qrCode}</pre>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Abra o WhatsApp → Menu → Dispositivos conectados → Conectar dispositivo
-              </p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
 
-      {/* QR Code Display for Business WhatsApp */}
-      {botStatus.whatsappBusiness.status === 'aguardando_qr' && botStatus.whatsappBusiness.qrCode && (
-        <Alert>
-          <AlertDescription>
-            <div className="flex flex-col items-center p-4">
-              <h3 className="font-semibold mb-2">QR Code - WhatsApp Business</h3>
-              <div className="bg-white p-4 rounded-lg">
-                <pre className="text-xs">{botStatus.whatsappBusiness.qrCode}</pre>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2">
-                Abra o WhatsApp Business → Menu → Dispositivos conectados → Conectar dispositivo
-              </p>
-            </div>
-          </AlertDescription>
-        </Alert>
-      )}
+
+
 
       {/* Testing Interface */}
-      <Tabs defaultValue="whatsapp" className="space-y-4">
+      <Tabs defaultValue="calendar" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="whatsapp">Teste WhatsApp</TabsTrigger>
           <TabsTrigger value="calendar">Teste Calendário</TabsTrigger>
           <TabsTrigger value="logs">Logs de Teste</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="whatsapp" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>WhatsApp - Em Desenvolvimento</CardTitle>
-              <CardDescription>
-                Esta funcionalidade será implementada em uma versão futura
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-center py-8">
-                <Phone className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
-                  Funcionalidade em Desenvolvimento
-                </h3>
-                <p className="mt-2 text-gray-500">
-                  O módulo WhatsApp será adicionado em breve. Por enquanto, utilize o bot do Telegram.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">
           <Card>

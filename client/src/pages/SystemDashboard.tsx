@@ -27,12 +27,7 @@ interface SystemStatus {
     uptime: string;
     lastActivity: string;
   };
-  whatsapp: {
-    status: 'online' | 'offline' | 'error';
-    zapiActive: boolean;
-    fallbackActive: boolean;
-    messagesProcessed: number;
-  };
+
   database: {
     status: 'connected' | 'disconnected';
     totalUsers: number;
@@ -56,12 +51,7 @@ export default function SystemDashboard() {
       uptime: '0h 0m',
       lastActivity: 'Agora'
     },
-    whatsapp: {
-      status: 'offline',
-      zapiActive: false,
-      fallbackActive: true,
-      messagesProcessed: 0
-    },
+
     database: {
       status: 'connected',
       totalUsers: 0,
@@ -159,7 +149,7 @@ export default function SystemDashboard() {
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="overview">Visão Geral</TabsTrigger>
           <TabsTrigger value="telegram">Telegram</TabsTrigger>
-          <TabsTrigger value="whatsapp">WhatsApp</TabsTrigger>
+
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
         </TabsList>
 
@@ -184,23 +174,7 @@ export default function SystemDashboard() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">WhatsApp</CardTitle>
-                <MessageSquare className="h-4 w-4 text-green-600" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  {getStatusIcon(systemStatus.whatsapp.status)}
-                  <Badge className={getStatusColor(systemStatus.whatsapp.status)}>
-                    {systemStatus.whatsapp.fallbackActive ? 'Fallback' : 'Offline'}
-                  </Badge>
-                </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  ZAPI: {systemStatus.whatsapp.zapiActive ? 'Ativa' : 'Inativa'}
-                </p>
-              </CardContent>
-            </Card>
+    
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -370,76 +344,6 @@ export default function SystemDashboard() {
                 <p className="text-sm text-green-700">
                   O bot está funcionando perfeitamente, processando mensagens em português e criando eventos automaticamente.
                 </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="whatsapp">
-          <Card>
-            <CardHeader>
-              <CardTitle>Status do WhatsApp</CardTitle>
-              <CardDescription>Monitoramento da integração WhatsApp e ZAPI</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="bg-yellow-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-yellow-800 mb-2">ZAPI: Inativa</h4>
-                  <p className="text-sm text-yellow-700">
-                    A instância ZAPI não foi encontrada. Provavelmente expirou ou foi desativada.
-                  </p>
-                </div>
-                
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-green-800 mb-2">Sistema Fallback: Ativo</h4>
-                  <p className="text-sm text-green-700">
-                    WhatsApp Web direto está funcionando através do link: https://wa.me/5511999887766
-                  </p>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <h4 className="font-medium mb-2">Soluções Disponíveis</h4>
-                    <ul className="text-sm space-y-1">
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        Telegram Bot (Recomendado)
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <CheckCircle className="h-3 w-3 text-green-500" />
-                        WhatsApp Web Direto
-                      </li>
-                      <li className="flex items-center gap-2">
-                        <XCircle className="h-3 w-3 text-red-500" />
-                        ZAPI Automática
-                      </li>
-                    </ul>
-                  </div>
-                  
-                  <div>
-                    <h4 className="font-medium mb-2">Ações Disponíveis</h4>
-                    <div className="space-y-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => window.open('https://t.me/zelar_assistente_bot', '_blank')}
-                      >
-                        <Bot className="h-4 w-4 mr-2" />
-                        Abrir Bot Telegram
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full justify-start"
-                        onClick={() => window.open('https://wa.me/5511999887766', '_blank')}
-                      >
-                        <MessageSquare className="h-4 w-4 mr-2" />
-                        Abrir WhatsApp Web
-                      </Button>
-                    </div>
-                  </div>
-                </div>
               </div>
             </CardContent>
           </Card>

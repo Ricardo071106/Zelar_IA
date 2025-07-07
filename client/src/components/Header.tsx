@@ -24,7 +24,7 @@ export default function Header() {
     { name: "Recursos", href: "#features" },
     { name: "Como Funciona", href: "#how-it-works" },
     { name: "Sistema", href: "/system" },
-    { name: "WhatsApp", href: "/whatsapp" },
+
     { name: "Perguntas", href: "#faq" },
   ];
 
