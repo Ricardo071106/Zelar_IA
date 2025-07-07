@@ -21,11 +21,9 @@ export default function Header() {
   };
 
   const navItems = [
-    { name: "Recursos", href: "#features" },
-    { name: "Como Funciona", href: "#how-it-works" },
+    { name: "Dashboard", href: "/dashboard" },
+    { name: "WhatsApp", href: "/whatsapp" },
     { name: "Sistema", href: "/system" },
-
-    { name: "Perguntas", href: "#faq" },
   ];
 
   return (
