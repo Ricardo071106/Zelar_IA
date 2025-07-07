@@ -48,10 +48,11 @@ function generateDemoQRCode(): void {
 // Funções de controle
 export async function startWhatsAppBot(): Promise<boolean> {
     try {
-        if (whatsappClient) {
-            console.log('WhatsApp bot já está iniciado');
-            return true;
-        }
+        // Sempre resetar o estado primeiro
+        whatsappClient = null;
+        isConnected = false;
+        qrCodeData = '';
+        qrCodeImageBase64 = '';
 
         console.log('🚀 Iniciando WhatsApp bot (modo demonstração)...');
         
@@ -62,7 +63,7 @@ export async function startWhatsAppBot(): Promise<boolean> {
         // Simular processo de inicialização
         whatsappClient = { status: 'demo' };
         
-        // Simular conexão após 10 segundos (para demonstração)
+        // Simular conexão após 60 segundos (para demonstração - tempo suficiente para ver o QR)
         setTimeout(() => {
             if (whatsappClient) {
                 console.log('✅ Simulação: WhatsApp conectado com sucesso!');
@@ -70,7 +71,7 @@ export async function startWhatsAppBot(): Promise<boolean> {
                 qrCodeData = '';
                 qrCodeImageBase64 = '';
             }
-        }, 10000);
+        }, 60000);
         
         return true;
     } catch (error) {
@@ -81,11 +82,11 @@ export async function startWhatsAppBot(): Promise<boolean> {
 
 export function stopWhatsAppBot(): void {
     if (whatsappClient) {
-        whatsappClient.destroy();
         whatsappClient = null;
         isConnected = false;
         qrCodeData = '';
         qrCodeImageBase64 = '';
+        console.log('🛑 WhatsApp bot parado');
     }
 }
 
