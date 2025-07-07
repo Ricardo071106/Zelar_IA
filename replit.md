@@ -2,11 +2,10 @@
 
 ## Overview
 
-Zelar é um assistente inteligente de agendamento com processamento de linguagem natural em português brasileiro. O sistema oferece integração com Telegram e WhatsApp, processando texto natural para criar eventos de calendário e gerenciar compromissos. Construído com Node.js, Express, React frontend com TypeScript, e integração com banco PostgreSQL usando Drizzle ORM.
+Zelar é um assistente inteligente de agendamento com processamento de linguagem natural em português brasileiro. O sistema oferece integração com Telegram, processando texto natural para criar eventos de calendário e gerenciar compromissos. Construído com Node.js, Express, React frontend com TypeScript, e integração com banco PostgreSQL usando Drizzle ORM.
 
 ### Current Status
 - **Telegram Bot**: ✅ FUNCIONANDO - Bot @zelar_assistente_bot ativo com Claude AI integration
-- **WhatsApp Bot**: ❌ LIMITAÇÃO TÉCNICA - Ambiente Replit incompatível com WhatsApp Web
 - **Database**: PostgreSQL com user management e event storage completos
 - **Frontend**: React interface com monitoramento de sistema
 
@@ -26,7 +25,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - **Database**: PostgreSQL with Drizzle ORM for type-safe database operations
 - **Authentication**: Session-based authentication with database persistence
 - **Bot Integration**: Telegraf for Telegram bot functionality
-- **WhatsApp Integration**: Multiple implementations including whatsapp-web.js and Baileys
+
 
 ### Data Storage Solutions
 - **Primary Database**: PostgreSQL hosted on Neon Database
@@ -43,11 +42,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
    - Calendar integration with Google Calendar and Apple Calendar
    - User management and settings persistence
 
-2. **WhatsApp Integration (`whatsapp-*.js`)**
-   - Multiple WhatsApp Web implementations
-   - QR code authentication
-   - Message processing and auto-response
-   - Business account support
+
 
 ### Core Features
 1. **Event Management**
@@ -69,7 +64,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 
 ## Data Flow
 
-1. **User Input**: Users send natural language messages via Telegram or WhatsApp
+1. **User Input**: Users send natural language messages via Telegram
 2. **Message Processing**: Bot receives message and extracts event information
 3. **Date Parsing**: Advanced date/time parsing handles Brazilian Portuguese expressions
 4. **Event Creation**: System creates event in database with proper timezone handling
@@ -80,7 +75,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 
 ### Core Dependencies
 - **Database**: Neon PostgreSQL with connection pooling
-- **Bot Platforms**: Telegram Bot API, WhatsApp Web APIs
+- **Bot Platforms**: Telegram Bot API
 - **Date Processing**: Luxon for timezone-aware date handling
 - **Email Services**: Nodemailer with multiple transport options
 - **AI Processing**: Anthropic Claude API for natural language processing
@@ -107,32 +102,30 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 ### Port Configuration
 - **Port 3000**: Main application server (mapped to external 3000)
 - **Port 3001**: Secondary services (mapped to external 3001)
-- **Port 3004**: WhatsApp Bot server with stable QR code system
+
 - **Port 5000**: Telegram Bot and main application server
 
 ## Changelog
 
 - June 23, 2025. Initial setup with Telegram bot and Claude AI integration
-- June 23, 2025. WhatsApp integration completed using Baileys library with real QR code generation
-- June 23, 2025. Implemented stable WhatsApp system to resolve "device connection" errors
-- June 23, 2025. Both Telegram and WhatsApp bots fully operational with auto-response capabilities
+- June 23, 2025. Focus on Telegram bot with full AI integration
 
 ## Recent Changes
 
-### LIMPEZA E ORGANIZAÇÃO DO CÓDIGO (Julho 2025)
-- ✅ REMOVIDO: Códigos WhatsApp duplicados e arquivos temporários
-- ✅ CRIADO: Bot WhatsApp integrado ao servidor principal (server/whatsapp/simple_whatsapp.cjs)
-- ✅ ORGANIZADO: Estrutura limpa focada no essencial
-- ✅ CONFIRMADO: WhatsApp limitado pelo ambiente Replit (não é problema do código)
-- ✅ FUNCIONAL: Telegram bot completamente operacional
+### LIMPEZA TOTAL DO CÓDIGO (Julho 2025)
+- ✅ REMOVIDO: Todos os códigos WhatsApp do projeto
+- ✅ DELETADO: Arquivos, pastas e rotas WhatsApp
+- ✅ LIMPO: Documentação e referências WhatsApp
+- ✅ ORGANIZADO: Estrutura focada exclusivamente no Telegram
+- ✅ FUNCIONAL: Sistema Telegram 100% operacional
 
-### ANÁLISE FINAL WHATSAPP (Julho 2025)
-- ✅ TESTADO: Múltiplas implementações (Baileys, whatsapp-web.js)
-- ✅ CONFIRMADO: Código tecnicamente correto e QR codes válidos
-- ✅ VERIFICADO: Teste com número pessoal também falhou
-- ✅ COMPROVADO: QR codes de alta qualidade gerados com sucesso
-- ❌ CONCLUSÃO: Limitação do ambiente Replit para WhatsApp Web
-- ✅ DECISÃO: Foco no Telegram que está 100% funcional
+### LIMPEZA FRONTEND COMPLETA (Julho 2025)
+- ✅ REMOVIDO: Todas as referências WhatsApp do frontend
+- ✅ LIMPO: BotDashboard.tsx - removido QR codes e formulários WhatsApp
+- ✅ CORRIGIDO: SystemDashboard.tsx - removido estrutura JSX quebrada
+- ✅ ATUALIZADO: Header.tsx - removido links para WhatsApp
+- ✅ SIMPLIFICADO: BotDemoSection.tsx - apenas botão Telegram
+- ✅ FUNCIONAL: Sistema frontend 100% limpo e focado no Telegram
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
@@ -143,7 +136,6 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 
 ### Sistema Funcional Completo
 - **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
-- **WhatsApp Integration**: Código pronto, mas limitado pelo ambiente Replit
 - **AI Processing**: Claude AI integrado e operacional no Telegram
 - **Database**: PostgreSQL com gestão completa de usuários e eventos
 - **Calendar Integration**: Links diretos para Google Calendar e Outlook
@@ -165,7 +157,6 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
-WhatsApp integration: Código técnico correto, mas limitado pelo ambiente Replit.
 Code organization: Manter apenas uma versão principal de cada bot, sem duplicações.
-Focus: Priorizar Telegram que está 100% funcional para produção.
-Testing approach: Usuário testou múltiplos QR codes WhatsApp sem sucesso - confirma limitação ambiental.
+Focus: Sistema focado exclusivamente no Telegram que está 100% funcional para produção.
+Architecture: Estrutura limpa sem códigos desnecessários ou funcionalidades não utilizadas.
