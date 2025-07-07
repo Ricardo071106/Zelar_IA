@@ -168,3 +168,4 @@ Preferred communication style: Simple, everyday language.
 WhatsApp integration: Código técnico correto, mas limitado pelo ambiente Replit.
 Code organization: Manter apenas uma versão principal de cada bot, sem duplicações.
 Focus: Priorizar Telegram que está 100% funcional para produção.
+Testing approach: Usuário testou múltiplos QR codes WhatsApp sem sucesso - confirma limitação ambiental.
