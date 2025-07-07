@@ -119,12 +119,12 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ ORGANIZADO: Estrutura focada exclusivamente no Telegram
 - ✅ FUNCIONAL: Sistema Telegram 100% operacional
 
-### ADIÇÃO WHATSAPP SIMPLES (Julho 2025)
-- ✅ INSTALADO: whatsapp-web.js e qrcode-terminal
-- ✅ CRIADO: Bot WhatsApp simples com respostas automáticas
-- ✅ IMPLEMENTADO: API routes para controle do WhatsApp (/api/whatsapp/*)
-- ✅ ADICIONADO: Interface frontend para controle do WhatsApp
-- ✅ FUNCIONAL: Sistema dual Telegram + WhatsApp operacional
+### REMOÇÃO COMPLETA WHATSAPP (Julho 2025)
+- ✅ REMOVIDO: Todas as dependências whatsapp-web.js, qrcode e qrcode-terminal
+- ✅ DELETADO: Arquivos e pastas WhatsApp sem deixar rastros
+- ✅ LIMPO: Rotas API /api/whatsapp/* completamente removidas
+- ✅ ATUALIZADO: Interface frontend sem referências ao WhatsApp
+- ✅ FUNCIONAL: Sistema exclusivamente focado no Telegram
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
@@ -133,11 +133,12 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ INTEGRADO: Claude AI para interpretação inteligente de eventos em português
 - ✅ OPERACIONAL: Criação automática de eventos com links para Google Calendar e Outlook
 
-### Sistema Funcional Completo
+### Sistema Funcional Exclusivo Telegram
 - **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
 - **AI Processing**: Claude AI integrado e operacional no Telegram
 - **Database**: PostgreSQL com gestão completa de usuários e eventos
 - **Calendar Integration**: Links diretos para Google Calendar e Outlook
+- **Arquitetura Limpa**: Código focado exclusivamente no Telegram, sem dependências desnecessárias
 
 ### Correções Bot Telegram (Julho 2025)
 - ✅ RESTAURADO: Comandos /timezone, /help com interface completa

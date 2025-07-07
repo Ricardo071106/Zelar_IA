@@ -6,7 +6,6 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import BotDashboard from "@/pages/BotDashboard";
-import WhatsAppPage from "@/pages/WhatsAppPage";
 import SystemDashboard from "@/pages/SystemDashboard";
 
 function Router() {
@@ -14,7 +13,6 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={BotDashboard} />
-      <Route path="/whatsapp" component={WhatsAppPage} />
       <Route path="/system" component={SystemDashboard} />
       <Route component={NotFound} />
     </Switch>

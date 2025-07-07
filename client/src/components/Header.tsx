@@ -22,7 +22,6 @@ export default function Header() {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard" },
-    { name: "WhatsApp", href: "/whatsapp" },
     { name: "Sistema", href: "/system" },
   ];
 

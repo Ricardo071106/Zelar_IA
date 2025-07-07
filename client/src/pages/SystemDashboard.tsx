@@ -234,12 +234,12 @@ export default function SystemDashboard() {
                 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <MessageSquare className="h-4 w-4" />
-                    <span className="text-sm">WhatsApp</span>
+                    <Database className="h-4 w-4" />
+                    <span className="text-sm">Database</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Progress value={systemStatus.whatsapp.fallbackActive ? 60 : 0} className="w-16" />
-                    <span className="text-xs text-gray-500">60%</span>
+                    <Progress value={100} className="w-16" />
+                    <span className="text-xs text-gray-500">100%</span>
                   </div>
                 </div>
                 
@@ -372,11 +372,11 @@ export default function SystemDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                      <span className="text-sm">WhatsApp</span>
+                      <span className="text-sm">Database</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Progress value={25} className="w-24" />
-                      <span className="text-sm font-medium">25%</span>
+                      <Progress value={100} className="w-24" />
+                      <span className="text-sm font-medium">100%</span>
                     </div>
                   </div>
                 </div>
