@@ -8,41 +8,50 @@ let isConnected = false;
 let qrCodeData = '';
 let qrCodeImageBase64 = '';
 
-// Simular um QR code para demonstração
-function generateDemoQRCode(): void {
-    qrCodeData = 'Demo QR Code for WhatsApp';
-    // Gerar um QR code de demonstração em base64
-    qrCodeImageBase64 = 'data:image/svg+xml;base64,' + Buffer.from(`
-        <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
-            <rect width="300" height="300" fill="white"/>
-            <rect x="50" y="50" width="200" height="200" fill="none" stroke="black" stroke-width="2"/>
-            <text x="150" y="120" text-anchor="middle" font-family="Arial" font-size="14" fill="black">
-                QR Code do WhatsApp
-            </text>
-            <text x="150" y="140" text-anchor="middle" font-family="Arial" font-size="12" fill="gray">
-                (Demonstração)
-            </text>
-            <text x="150" y="180" text-anchor="middle" font-family="Arial" font-size="10" fill="gray">
-                Escaneie com seu WhatsApp
-            </text>
-            <text x="150" y="200" text-anchor="middle" font-family="Arial" font-size="10" fill="gray">
-                para conectar o bot
-            </text>
-            <!-- QR code pattern simulation -->
-            <rect x="70" y="70" width="20" height="20" fill="black"/>
-            <rect x="90" y="70" width="20" height="20" fill="white"/>
-            <rect x="110" y="70" width="20" height="20" fill="black"/>
-            <rect x="200" y="70" width="20" height="20" fill="black"/>
-            <rect x="220" y="70" width="20" height="20" fill="white"/>
-            <rect x="70" y="90" width="20" height="20" fill="white"/>
-            <rect x="110" y="90" width="20" height="20" fill="black"/>
-            <rect x="200" y="90" width="20" height="20" fill="white"/>
-            <rect x="220" y="90" width="20" height="20" fill="black"/>
-            <rect x="70" y="220" width="20" height="20" fill="black"/>
-            <rect x="90" y="220" width="20" height="20" fill="white"/>
-            <rect x="110" y="220" width="20" height="20" fill="black"/>
-        </svg>
-    `).toString('base64');
+// Gerar um QR code real usando a biblioteca qrcode
+async function generateRealQRCode(): Promise<void> {
+    try {
+        // Importar qrcode dinamicamente
+        const QRCode = await import('qrcode');
+        
+        // Dados para o QR code (simula dados de conexão WhatsApp)
+        qrCodeData = `1@${Math.random().toString(36).substring(2)},${Date.now()},${Math.random().toString(36)}`;
+        
+        // Gerar QR code real como imagem base64
+        qrCodeImageBase64 = await QRCode.default.toDataURL(qrCodeData, {
+            width: 300,
+            margin: 2,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
+        
+        console.log('📱 QR Code real gerado com sucesso!');
+    } catch (error) {
+        console.error('Erro ao gerar QR code real, usando fallback:', error);
+        
+        // Fallback para SVG simples se não conseguir usar a biblioteca
+        qrCodeData = 'Demo QR Code for WhatsApp';
+        qrCodeImageBase64 = 'data:image/svg+xml;base64,' + Buffer.from(`
+            <svg width="300" height="300" xmlns="http://www.w3.org/2000/svg">
+                <rect width="300" height="300" fill="white"/>
+                <rect x="50" y="50" width="200" height="200" fill="none" stroke="black" stroke-width="2"/>
+                <text x="150" y="120" text-anchor="middle" font-family="Arial" font-size="14" fill="black">
+                    QR Code do WhatsApp
+                </text>
+                <text x="150" y="140" text-anchor="middle" font-family="Arial" font-size="12" fill="gray">
+                    (Demonstração)
+                </text>
+                <text x="150" y="180" text-anchor="middle" font-family="Arial" font-size="10" fill="gray">
+                    Escaneie com seu WhatsApp
+                </text>
+                <text x="150" y="200" text-anchor="middle" font-family="Arial" font-size="10" fill="gray">
+                    para conectar o bot
+                </text>
+            </svg>
+        `).toString('base64');
+    }
 }
 
 // Funções de controle
@@ -56,22 +65,22 @@ export async function startWhatsAppBot(): Promise<boolean> {
 
         console.log('🚀 Iniciando WhatsApp bot (modo demonstração)...');
         
-        // Gerar QR code de demonstração
-        generateDemoQRCode();
+        // Gerar QR code real
+        await generateRealQRCode();
         console.log('📱 QR Code gerado! Acesse /whatsapp para visualizar');
         
         // Simular processo de inicialização
         whatsappClient = { status: 'demo' };
         
-        // Simular conexão após 60 segundos (para demonstração - tempo suficiente para ver o QR)
-        setTimeout(() => {
-            if (whatsappClient) {
-                console.log('✅ Simulação: WhatsApp conectado com sucesso!');
-                isConnected = true;
-                qrCodeData = '';
-                qrCodeImageBase64 = '';
-            }
-        }, 60000);
+        // Manter QR code visível permanentemente para demonstração
+        // setTimeout(() => {
+        //     if (whatsappClient) {
+        //         console.log('✅ Simulação: WhatsApp conectado com sucesso!');
+        //         isConnected = true;
+        //         qrCodeData = '';
+        //         qrCodeImageBase64 = '';
+        //     }
+        // }, 60000);
         
         return true;
     } catch (error) {
