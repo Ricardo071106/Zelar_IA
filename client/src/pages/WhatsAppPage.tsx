@@ -256,22 +256,39 @@ export default function WhatsAppPage() {
                 <CardContent>
                   {status.hasQrCodeImage ? (
                     <div className="text-center space-y-4">
-                      <div className="inline-block p-4 bg-white rounded-lg shadow-sm border">
+                      <div className="inline-block p-6 bg-white rounded-lg shadow-lg border-2">
                         <img 
                           src={status.qrCodeImage}
                           alt="QR Code WhatsApp"
-                          className="w-80 h-80"
+                          className="w-96 h-96 rounded-lg"
                         />
                       </div>
                       <div className="text-sm text-gray-600 max-w-md mx-auto">
-                        <div className="bg-blue-50 p-4 rounded-lg">
-                          <h4 className="font-medium text-blue-900 mb-2">Como conectar:</h4>
-                          <ol className="text-left space-y-1">
-                            <li>1. Abra o WhatsApp no seu celular</li>
-                            <li>2. Toque em "Mais opções" (⋮) → "Dispositivos conectados"</li>
-                            <li>3. Toque em "Conectar um dispositivo"</li>
-                            <li>4. Aponte a câmera para este QR Code</li>
+                        <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                          <h4 className="font-medium text-green-900 mb-3">📱 Como conectar seu WhatsApp:</h4>
+                          <ol className="text-left space-y-2 text-sm">
+                            <li className="flex items-start">
+                              <span className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 mt-0.5">1</span>
+                              Abra o WhatsApp no seu celular
+                            </li>
+                            <li className="flex items-start">
+                              <span className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 mt-0.5">2</span>
+                              Toque em "Mais opções" (⋮) → "Dispositivos conectados"
+                            </li>
+                            <li className="flex items-start">
+                              <span className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 mt-0.5">3</span>
+                              Toque em "Conectar um dispositivo"
+                            </li>
+                            <li className="flex items-start">
+                              <span className="bg-green-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs mr-2 mt-0.5">4</span>
+                              Aponte a câmera para este QR Code
+                            </li>
                           </ol>
+                          <div className="mt-3 p-2 bg-yellow-50 rounded border border-yellow-200">
+                            <p className="text-xs text-yellow-800">
+                              ⚠️ O QR Code expira em 60 segundos. Se não funcionar, clique em "Conectar WhatsApp" novamente.
+                            </p>
+                          </div>
                         </div>
                         <div className="mt-4">
                           <Button

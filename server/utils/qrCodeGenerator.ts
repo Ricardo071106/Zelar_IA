@@ -7,14 +7,18 @@ import QRCode from 'qrcode';
 
 export async function generateQRCodeImage(text: string): Promise<string> {
   try {
-    // Gerar QR code como imagem PNG em base64
+    // Gerar QR code como imagem PNG em base64 com configurações otimizadas para WhatsApp
     const qrCodeDataURL = await QRCode.toDataURL(text, {
       type: 'image/png',
-      width: 400,
-      margin: 2,
+      width: 512,
+      margin: 4,
       color: {
         dark: '#000000',
         light: '#FFFFFF'
+      },
+      errorCorrectionLevel: 'M',
+      rendererOpts: {
+        quality: 0.9
       }
     });
     
