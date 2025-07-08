@@ -23,7 +23,9 @@ interface WhatsAppStatus {
   connected: boolean;
   status: string;
   qrCode: string;
+  qrCodeImage: string;
   hasQrCode: boolean;
+  hasQrCodeImage: boolean;
 }
 
 export default function WhatsAppPage() {
@@ -31,7 +33,9 @@ export default function WhatsAppPage() {
     connected: false,
     status: 'disconnected',
     qrCode: '',
-    hasQrCode: false
+    qrCodeImage: '',
+    hasQrCode: false,
+    hasQrCodeImage: false
   });
   const [loading, setLoading] = useState(false);
   const [phone, setPhone] = useState('');
@@ -250,20 +254,46 @@ export default function WhatsAppPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {status.hasQrCode ? (
+                  {status.hasQrCodeImage ? (
                     <div className="text-center space-y-4">
                       <div className="inline-block p-4 bg-white rounded-lg shadow-sm border">
                         <img 
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(status.qrCode)}`}
+                          src={status.qrCodeImage}
                           alt="QR Code WhatsApp"
-                          className="w-64 h-64"
+                          className="w-80 h-80"
                         />
                       </div>
-                      <div className="text-sm text-gray-600">
-                        <p>1. Abra o WhatsApp no seu celular</p>
-                        <p>2. Toque em "Mais opções" → "Dispositivos conectados"</p>
-                        <p>3. Toque em "Conectar um dispositivo"</p>
-                        <p>4. Aponte a câmera para este QR Code</p>
+                      <div className="text-sm text-gray-600 max-w-md mx-auto">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                          <h4 className="font-medium text-blue-900 mb-2">Como conectar:</h4>
+                          <ol className="text-left space-y-1">
+                            <li>1. Abra o WhatsApp no seu celular</li>
+                            <li>2. Toque em "Mais opções" (⋮) → "Dispositivos conectados"</li>
+                            <li>3. Toque em "Conectar um dispositivo"</li>
+                            <li>4. Aponte a câmera para este QR Code</li>
+                          </ol>
+                        </div>
+                        <div className="mt-4">
+                          <Button
+                            onClick={async () => {
+                              try {
+                                const response = await fetch('/api/whatsapp/simulate-connection', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' }
+                                });
+                                if (response.ok) {
+                                  await refreshStatus();
+                                }
+                              } catch (error) {
+                                console.error('Erro ao simular conexão:', error);
+                              }
+                            }}
+                            className="w-full"
+                            variant="outline"
+                          >
+                            ⚡ Simular Conexão (Demo)
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ) : status.connected ? (

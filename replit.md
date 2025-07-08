@@ -125,6 +125,8 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ IMPLEMENTADO: Rotas API /api/whatsapp/* completas e funcionais
 - ✅ ADICIONADO: Interface WhatsApp com QR Code, status e teste de mensagens
 - ✅ FUNCIONAL: Sistema dual Telegram + WhatsApp para lançamento no Brasil
+- ✅ CORRIGIDO: QR Code real gerado como imagem PNG base64 funcionando perfeitamente
+- ✅ IMPLEMENTADO: Bot WhatsApp simplificado sem dependências Chromium problemáticas
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
