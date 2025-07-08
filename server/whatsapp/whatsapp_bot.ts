@@ -6,13 +6,15 @@
 import qrcode from 'qrcode-terminal';
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { storage } from '../storage';
+import { generateQRCodeImage } from '../utils/qrCodeGenerator';
 
 // Importação dinâmica do whatsapp-web.js
 let Client: any, LocalAuth: any;
 
-let client: Client | null = null;
+let client: any = null;
 let isConnected = false;
 let qrCodeData = '';
+let qrCodeImage = '';
 let connectionStatus = 'disconnected';
 
 interface WhatsAppEvent {
@@ -30,8 +32,8 @@ export async function startWhatsAppBot(): Promise<boolean> {
     // Importação dinâmica para evitar problemas de ES modules
     if (!Client) {
       const whatsappWeb = await import('whatsapp-web.js');
-      Client = whatsappWeb.Client;
-      LocalAuth = whatsappWeb.LocalAuth;
+      Client = whatsappWeb.default?.Client || whatsappWeb.Client;
+      LocalAuth = whatsappWeb.default?.LocalAuth || whatsappWeb.LocalAuth;
     }
 
     if (client) {
@@ -51,11 +53,19 @@ export async function startWhatsAppBot(): Promise<boolean> {
     });
 
     // Configurar eventos
-    client.on('qr', (qr) => {
+    client.on('qr', async (qr) => {
       qrCodeData = qr;
       connectionStatus = 'qr_code';
       console.log('📱 QR Code gerado! Escaneie para conectar.');
       qrcode.generate(qr, { small: true });
+      
+      // Gerar imagem do QR code
+      try {
+        qrCodeImage = await generateQRCodeImage(qr);
+        console.log('📱 QR Code imagem gerada!');
+      } catch (error) {
+        console.error('❌ Erro ao gerar QR code imagem:', error);
+      }
     });
 
     client.on('ready', () => {
@@ -63,6 +73,7 @@ export async function startWhatsAppBot(): Promise<boolean> {
       isConnected = true;
       connectionStatus = 'connected';
       qrCodeData = '';
+      qrCodeImage = '';
     });
 
     client.on('authenticated', () => {
@@ -79,6 +90,8 @@ export async function startWhatsAppBot(): Promise<boolean> {
       console.log('📱 WhatsApp desconectado:', reason);
       isConnected = false;
       connectionStatus = 'disconnected';
+      qrCodeData = '';
+      qrCodeImage = '';
     });
 
     // Processar mensagens
@@ -222,6 +235,7 @@ export async function stopWhatsAppBot(): Promise<void> {
     isConnected = false;
     connectionStatus = 'disconnected';
     qrCodeData = '';
+    qrCodeImage = '';
     console.log('🛑 WhatsApp bot parado');
   } catch (error) {
     console.error('❌ Erro ao parar WhatsApp bot:', error);
@@ -254,7 +268,9 @@ export function getWhatsAppStatus(): any {
     connected: isConnected,
     status: connectionStatus,
     qrCode: qrCodeData,
-    hasQrCode: qrCodeData.length > 0
+    qrCodeImage: qrCodeImage,
+    hasQrCode: qrCodeData.length > 0,
+    hasQrCodeImage: qrCodeImage.length > 0
   };
 }
 

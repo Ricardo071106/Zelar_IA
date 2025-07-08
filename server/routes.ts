@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
-import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus, sendWhatsAppMessage } from './whatsapp/whatsapp_bot';
+import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus, sendWhatsAppMessage, simulateConnection } from './whatsapp/simple_whatsapp';
 import * as path from 'path';
 let messageCount = 0;
 
@@ -51,6 +51,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const sent = await sendWhatsAppMessage(phone, message);
       res.json({ success: sent, message: sent ? 'Mensagem enviada' : 'Erro ao enviar mensagem' });
+    } catch (error) {
+      res.status(500).json({ error: 'Erro interno' });
+    }
+  });
+
+  // Simulate WhatsApp connection (for demo)
+  app.post('/api/whatsapp/simulate-connection', async (_req, res) => {
+    try {
+      simulateConnection();
+      res.json({ success: true, message: 'Conexão simulada' });
     } catch (error) {
       res.status(500).json({ error: 'Erro interno' });
     }
