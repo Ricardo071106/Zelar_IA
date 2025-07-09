@@ -93,6 +93,40 @@ export class HealthChecker {
     }
   }
 
+  async checkWhatsAppBot(): Promise<HealthCheckResult> {
+    const start = Date.now();
+    
+    try {
+      // Importar dinamicamente para evitar erro se não estiver inicializado
+      const { getWhatsAppBot } = await import('../whatsapp/whatsappBot');
+      const bot = getWhatsAppBot();
+      const status = bot.getStatus();
+      
+      const result: HealthCheckResult = {
+        component: 'whatsapp',
+        status: status.isReady ? 'healthy' : (status.qrCode ? 'degraded' : 'unhealthy'),
+        responseTime: Date.now() - start,
+        details: status.isReady ? 'WhatsApp conectado e funcionando' : 
+                status.qrCode ? 'Aguardando autenticação QR Code' : 'WhatsApp desconectado',
+        timestamp: new Date()
+      };
+      
+      this.lastChecks.set('whatsapp', result);
+      return result;
+    } catch (error) {
+      const result: HealthCheckResult = {
+        component: 'whatsapp',
+        status: 'unhealthy',
+        responseTime: Date.now() - start,
+        details: `WhatsApp bot error: ${error instanceof Error ? error.message : 'Bot não inicializado'}`,
+        timestamp: new Date()
+      };
+      
+      this.lastChecks.set('whatsapp', result);
+      return result;
+    }
+  }
+
   async checkAI(): Promise<HealthCheckResult> {
     const start = Date.now();
     

@@ -2,6 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
+import whatsappRoutes from './routes/whatsappRoutes';
 
 import * as path from 'path';
 let messageCount = 0;
@@ -53,6 +54,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: 'Erro interno do servidor' });
     }
   });
+
+  // =================== Rotas WhatsApp ===================
+  app.use('/api/whatsapp', whatsappRoutes);
 
   // =================== Sistema focado no Telegram ===================
 
