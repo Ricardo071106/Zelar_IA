@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
-import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus, sendWhatsAppMessage, simulateConnection } from './whatsapp/simple_whatsapp';
+import { startWhatsAppBot, stopWhatsAppBot, getWhatsAppStatus, sendWhatsAppMessage, simulateConnection } from './whatsapp/final_whatsapp';
 import * as path from 'path';
 let messageCount = 0;
 
