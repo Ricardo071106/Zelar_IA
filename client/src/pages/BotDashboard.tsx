@@ -13,18 +13,12 @@ interface BotStatus {
     status: 'conectado' | 'desconectado' | 'carregando';
     lastUpdate?: string;
   };
-  whatsapp: {
-    status: 'conectado' | 'desconectado' | 'carregando' | 'aguardando_qr';
-    lastUpdate?: string;
-    qrCode?: string;
-    qrCodeImage?: string;
-  };
+
 }
 
 export default function BotDashboard() {
   const [botStatus, setBotStatus] = useState<BotStatus>({
-    telegram: { status: 'carregando' },
-    whatsapp: { status: 'carregando' }
+    telegram: { status: 'carregando' }
   });
   
 
@@ -49,57 +43,9 @@ export default function BotDashboard() {
       ...prev,
       telegram: { status: 'conectado', lastUpdate: new Date().toLocaleString('pt-BR') }
     }));
-
-    // Verificar status do WhatsApp
-    try {
-      const whatsappResponse = await fetch('/api/whatsapp/status');
-      if (whatsappResponse.ok) {
-        const whatsappData = await whatsappResponse.json();
-        setBotStatus(prev => ({
-          ...prev,
-          whatsapp: {
-            status: whatsappData.connected ? 'conectado' : 'desconectado',
-            lastUpdate: new Date().toLocaleString('pt-BR'),
-            qrCode: whatsappData.qrCode,
-            qrCodeImage: whatsappData.qrCodeImage
-          }
-        }));
-      }
-    } catch (error) {
-      setBotStatus(prev => ({
-        ...prev,
-        whatsapp: { status: 'desconectado', lastUpdate: new Date().toLocaleString('pt-BR') }
-      }));
-    }
   };
 
-  const sendWhatsAppMessage = async () => {
-    if (!whatsappForm.number || !whatsappForm.message) {
-      addTestResult('error', 'Preencha o número e a mensagem');
-      return;
-    }
 
-    try {
-      const response = await fetch('/api/whatsapp/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          number: whatsappForm.number,
-          message: whatsappForm.message
-        })
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        addTestResult('success', `Mensagem enviada para ${whatsappForm.number}`);
-        setWhatsappForm({ number: '', message: '' });
-      } else {
-        addTestResult('error', `Erro: ${result.error}`);
-      }
-    } catch (error) {
-      addTestResult('error', `Erro de conexão: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
-    }
-  };
 
   const testCalendarEvent = async () => {
     const testMessage = "Reunião com a equipe amanhã às 15h";
@@ -138,7 +84,7 @@ export default function BotDashboard() {
         <div>
           <h1 className="text-3xl font-bold">Bot Zelar Dashboard</h1>
           <p className="text-muted-foreground">
-            Central de controle dos bots Telegram e WhatsApp
+            Central de controle do bot Telegram
           </p>
         </div>
         <Button onClick={checkBotStatus}>
@@ -147,7 +93,7 @@ export default function BotDashboard() {
       </div>
 
       {/* Status Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Bot Telegram</CardTitle>

@@ -119,14 +119,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ ORGANIZADO: Estrutura focada exclusivamente no Telegram
 - ✅ FUNCIONAL: Sistema Telegram 100% operacional
 
-### REINTEGRAÇÃO WHATSAPP ROBUSTA (Julho 2025)
-- ✅ REINSTALADO: whatsapp-web.js, qrcode e qrcode-terminal com versão estável
-- ✅ CRIADO: Bot WhatsApp robusto com LocalAuth e Claude AI integrado
-- ✅ IMPLEMENTADO: Rotas API /api/whatsapp/* completas e funcionais
-- ✅ ADICIONADO: Interface WhatsApp com QR Code, status e teste de mensagens
-- ✅ FUNCIONAL: Sistema dual Telegram + WhatsApp para lançamento no Brasil
-- ✅ CORRIGIDO: QR Code real gerado como imagem PNG base64 funcionando perfeitamente
-- ✅ IMPLEMENTADO: Bot WhatsApp simplificado sem dependências Chromium problemáticas
+
 
 ### SOLUÇÃO TELEGRAM BOT (Julho 2025)
 - ✅ RESOLVIDO: Conflito 409 "multiple getUpdates requests" que impedia inicialização
@@ -135,13 +128,12 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 - ✅ INTEGRADO: Claude AI para interpretação inteligente de eventos em português
 - ✅ OPERACIONAL: Criação automática de eventos com links para Google Calendar e Outlook
 
-### Sistema Funcional Dual-Platform
+### Sistema Funcional Telegram-First
 - **Telegram Bot**: Funcionando 100% - processamento de linguagem natural brasileira
-- **WhatsApp Bot**: Integrado com Claude AI e autenticação robusta LocalAuth
-- **AI Processing**: Claude AI operacional em ambas as plataformas
+- **AI Processing**: Claude AI operacional para interpretação de eventos
 - **Database**: PostgreSQL com gestão completa de usuários e eventos
 - **Calendar Integration**: Links diretos para Google Calendar, Outlook e Apple Calendar
-- **Pronto para Lançamento**: Sistema dual-platform otimizado para o mercado brasileiro
+- **Pronto para Lançamento**: Sistema focado no Telegram otimizado para o mercado brasileiro
 
 ### Correções Bot Telegram (Julho 2025)
 - ✅ RESTAURADO: Comandos /timezone, /help com interface completa
@@ -153,7 +145,7 @@ Zelar é um assistente inteligente de agendamento com processamento de linguagem
 ### Sistema de Monitoramento Completo (Julho 2025)
 - ✅ CRIADO: Dashboard administrativo em `/system` com monitoramento em tempo real
 - ✅ IMPLEMENTADO: Sistema de health check para todos os componentes
-- ✅ FUNCIONANDO: Verificação automática de Telegram, WhatsApp, Database e IA
+- ✅ FUNCIONANDO: Verificação automática de Telegram, Database e IA
 - ✅ OPERACIONAL: Interface visual com status, métricas e alertas
 - ✅ INTEGRADO: Navegação melhorada no header com acesso direto ao sistema
 
