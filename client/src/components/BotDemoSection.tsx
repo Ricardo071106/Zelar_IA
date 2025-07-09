@@ -71,7 +71,7 @@ export default function BotDemoSection() {
               <div className="space-y-4">
                 {[
                   "Crie eventos com facilidade usando linguagem natural",
-                  "Funciona no Telegram e WhatsApp",
+                  "Funciona no Telegram",
                   "Integração com Google Calendar, Outlook e Apple Calendar", 
                   "Links diretos para adicionar eventos ao calendário"
                 ].map((feature, index) => (
