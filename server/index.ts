@@ -3,6 +3,7 @@ import { createServer } from "http";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startDirectBot } from "./telegram/direct_bot";
+import { getWhatsAppBot } from "./whatsapp/whatsappBot";
 
 const app = express();
 app.use(express.json());
@@ -81,6 +82,16 @@ app.use((req, res, next) => {
       log('⚠️ Bot temporariamente indisponível', 'telegram');
     }
 
-    log('🤖 Sistema Zelar funcionando com foco no Telegram', 'system');
+    // Iniciar WhatsApp bot automaticamente (pode falhar no Replit)
+    try {
+      const whatsappBot = getWhatsAppBot();
+      await whatsappBot.initialize();
+      log('✅ WhatsApp bot iniciado com sucesso!', 'whatsapp');
+    } catch (error) {
+      log('⚠️ WhatsApp bot indisponível no Replit (requer Chrome)', 'whatsapp');
+      log('💡 Para usar WhatsApp, execute localmente ou configure servidor próprio', 'whatsapp');
+    }
+
+    log('🤖 Sistema Zelar funcionando com foco dual-platform', 'system');
   });
 })();

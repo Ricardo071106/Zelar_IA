@@ -43,7 +43,24 @@ export class WhatsAppBot {
           '--disable-accelerated-2d-canvas',
           '--no-first-run',
           '--no-zygote',
-          '--disable-gpu'
+          '--disable-gpu',
+          '--disable-extensions',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--disable-default-apps',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-default-browser-check',
+          '--no-first-run',
+          '--disable-logging',
+          '--disable-permissions-api',
+          '--disable-features=VizDisplayCompositor',
+          '--single-process'
         ]
       }
     });
@@ -54,26 +71,19 @@ export class WhatsAppBot {
   private setupEventHandlers(): void {
     // QR Code para autenticação
     this.client.on('qr', async (qr) => {
-      console.log('🔗 QR Code recebido para WhatsApp');
+      console.log('\n🔗 CONECTAR WHATSAPP BOT:');
+      console.log('Escaneie o QR code abaixo com seu WhatsApp para conectar o bot:\n');
+      qrcode.generate(qr, { small: true });
+      console.log('\n📱 Abra o WhatsApp > Menu > Dispositivos conectados > Conectar dispositivo');
+      console.log('🔍 Escaneie o QR code acima para ativar o bot WhatsApp\n');
       
-      // Gerar QR code como imagem
-      try {
-        const qrCodeImage = await qrcode.toDataURL(qr);
-        this.status.qrCode = qr;
-        this.status.qrCodeImage = qrCodeImage;
-        
-        // Salvar QR code como arquivo também
-        const qrPath = path.join(process.cwd(), 'public', 'whatsapp-qr.png');
-        await qrcode.toFile(qrPath, qr);
-        
-        console.log('📱 QR Code salvo em /public/whatsapp-qr.png');
-        
-        // Notificar callbacks
-        this.qrCodeCallbacks.forEach(callback => callback(qr));
-        this.notifyStatusChange();
-      } catch (error) {
-        console.error('❌ Erro ao gerar QR code:', error);
-      }
+      // Salvar QR code atual
+      this.status.qrCode = qr;
+      this.status.qrCodeImage = await qrcode.toDataURL(qr);
+      
+      // Notificar callbacks
+      this.qrCodeCallbacks.forEach(callback => callback(qr));
+      this.notifyStatusChange();
     });
 
     // Cliente autenticado
@@ -275,3 +285,6 @@ export async function destroyWhatsAppBot(): Promise<void> {
     whatsappBot = null;
   }
 }
+
+// Export direto da instância para compatibilidade
+export { getWhatsAppBot as whatsappBot };

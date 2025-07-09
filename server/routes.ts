@@ -2,7 +2,7 @@ import { Express, Request, Response } from 'express';
 import { Server } from 'http';
 import { systemHealth } from './utils/healthCheck';
 import { parseEventWithClaude } from './utils/claudeParser';
-import whatsappRoutes from './routes/whatsappRoutes';
+// WhatsApp bot iniciado automaticamente no terminal
 
 import * as path from 'path';
 let messageCount = 0;
@@ -17,6 +17,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/system/status', async (_req, res) => {
     try {
       const telegramCheck = await systemHealth.checkTelegramBot();
+      const whatsappCheck = await systemHealth.checkWhatsAppBot();
       const databaseCheck = await systemHealth.checkDatabase();
       const aiCheck = await systemHealth.checkAI();
       
@@ -27,6 +28,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           botUsername: '@zelar_assistente_bot',
           lastCheck: telegramCheck.timestamp,
           responseTime: telegramCheck?.responseTime || 0
+        },
+        whatsapp: {
+          status: whatsappCheck.status,
+          details: whatsappCheck.details,
+          provider: 'WhatsApp Web.js',
+          lastCheck: whatsappCheck.timestamp,
+          responseTime: whatsappCheck?.responseTime || 0
         },
         database: {
           status: databaseCheck.status,
@@ -56,7 +64,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // =================== Rotas WhatsApp ===================
-  app.use('/api/whatsapp', whatsappRoutes);
+  // WhatsApp bot rodando automaticamente no terminal
 
   // =================== Sistema focado no Telegram ===================
 
