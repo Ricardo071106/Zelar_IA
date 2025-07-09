@@ -52,7 +52,7 @@ export default function Home() {
               variant="outline"
               className="border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white font-semibold px-8 py-3 rounded-full w-full sm:w-auto"
             >
-              <a href="https://wa.me/message/XXXXXXXXXXXXXXX" target="_blank" rel="noopener noreferrer">
+              <a href="https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" target="_blank" rel="noopener noreferrer">
                 <Phone className="w-5 h-5 mr-2" />
                 Usar no WhatsApp
               </a>
@@ -167,7 +167,7 @@ export default function Home() {
               variant="outline"
               className="border-2 border-green-600 text-green-600 hover:bg-green-600 hover:text-white font-semibold px-8 py-3 rounded-full w-full sm:w-auto"
             >
-              <a href="https://wa.me/message/XXXXXXXXXXXXXXX" target="_blank" rel="noopener noreferrer">
+              <a href="https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" target="_blank" rel="noopener noreferrer">
                 <Phone className="w-5 h-5 mr-2" />
                 Começar no WhatsApp
               </a>
