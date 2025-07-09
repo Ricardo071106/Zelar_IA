@@ -5,6 +5,7 @@ import HowItWorksSection from "@/components/HowItWorksSection";
 import BotDemoSection from "@/components/BotDemoSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import CtaSection from "@/components/CtaSection";
+import Footer from "@/components/Footer";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
       <BotDemoSection />
       <TestimonialsSection />
       <CtaSection />
+      <Footer />
     </div>
   );
 }
