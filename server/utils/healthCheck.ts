@@ -163,6 +163,7 @@ export class HealthChecker {
   async performFullHealthCheck(): Promise<SystemHealth> {
     const components = await Promise.all([
       this.checkTelegramBot(),
+      this.checkWhatsAppBot(),
       this.checkDatabase(),
       this.checkAI()
     ]);
