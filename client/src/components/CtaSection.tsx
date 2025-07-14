@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
-import { FaTelegram } from "react-icons/fa";
+import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 
 export default function CtaSection() {
   return (
@@ -17,27 +17,51 @@ export default function CtaSection() {
             Junte-se a milhares de usuários que estão economizando tempo e se organizando com o assistente de agenda IA do Zelar.
           </p>
           
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <Button 
-              asChild
-              variant="default"
-              size="lg"
-              className="bg-white text-primary hover:bg-gray-100 font-semibold rounded-full px-8 py-4 text-lg"
+          <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <a 
-                href="https://t.me/zelar_assistente_bot" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="inline-flex items-center"
+              <Button 
+                asChild
+                variant="default"
+                size="lg"
+                className="bg-white text-primary hover:bg-gray-100 font-semibold rounded-full px-8 py-4 text-lg"
               >
-                <FaTelegram className="mr-3 text-xl" />
-                Começar a Usar o Zelar Agora
-              </a>
-            </Button>
-          </motion.div>
+                <a 
+                  href="https://t.me/zelar_assistente_bot" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                >
+                  <FaTelegram className="mr-3 text-xl" />
+                  Usar no Telegram
+                </a>
+              </Button>
+            </motion.div>
+
+            <motion.div
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Button 
+                asChild
+                variant="default"
+                size="lg"
+                className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-8 py-4 text-lg border-0"
+              >
+                <a 
+                  href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center"
+                >
+                  <FaWhatsapp className="mr-3 text-xl" />
+                  Usar no WhatsApp
+                </a>
+              </Button>
+            </motion.div>
+          </div>
         </motion.div>
       </div>
     </section>

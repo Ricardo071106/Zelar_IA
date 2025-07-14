@@ -1,0 +1,4 @@
+2025/07/12-15:13:00.098 108565 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/07/12-15:13:00.098 108565 Recovering log #352
+2025/07/12-15:13:00.102 108565 Reusing old log /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000352.log 
+2025/07/12-15:13:01.717 108571 Manual compaction at level-0 from '\x00m\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00n\x00\x00\x00' @ 0 : 0; will stop at (end)

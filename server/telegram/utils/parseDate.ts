@@ -292,8 +292,32 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
   try {
     const text = input.toLowerCase();
     
-    // =================== CORREÇÃO: LÓGICA DE DIAS DA SEMANA COM LUXON ===================
+    // NOVO: Detectar 'daqui X sábados' e somar X semanas ao próximo sábado (PRIORITÁRIO)
+    const daquiSabados = text.match(/daqui\s+(a\s+)?(\d+|um|uma|dois|duas|três|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+s[áa]bados?/);
+    if (daquiSabados) {
+      const extensoParaNumero: { [key: string]: number } = {
+        'um': 1, 'uma': 1, 'dois': 2, 'duas': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5, 'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10
+      };
+      let n = daquiSabados[2];
+      let semanas = parseInt(n);
+      if (isNaN(semanas)) {
+        semanas = extensoParaNumero[n] || 1;
+      }
+      const now = DateTime.now().setZone(userTimezone);
+      let date = now;
+      let daysToAdd = (6 - now.weekday + 7) % 7;
+      if (daysToAdd === 0) daysToAdd = 7;
+      date = date.plus({ days: daysToAdd });
+      if (semanas > 1) {
+        date = date.plus({ weeks: semanas - 1 });
+      }
+      date = date.set({ hour, minute, second: 0, millisecond: 0 });
+      console.log(`[extractDateFromText][DEBUG] 'daqui X sábados': semanas=${semanas}, resultado=${date.toFormat('dd/MM/yyyy HH:mm')}`);
+      if (!date.isValid) return null;
+      return date.toJSDate();
+    }
     
+    // =================== CORREÇÃO: LÓGICA DE DIAS DA SEMANA COM LUXON ===================
     // Mapear dias da semana (Luxon: 1=segunda, 7=domingo)
     const weekdays: { [key: string]: number } = {
       'segunda': 1, 'segunda-feira': 1,
@@ -322,7 +346,10 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
     
     if (text.includes('amanhã') || text.includes('amanha')) {
       console.log(`📅 Detectado: amanhã`);
-      return DateTime.now().setZone(userTimezone).plus({ days: 1 }).startOf('day').toJSDate();
+      const now = DateTime.now().setZone(userTimezone);
+      const tomorrow = now.plus({ days: 1 });
+      console.log(`📅 Hoje: ${now.toFormat('dd/MM/yyyy HH:mm')}, Amanhã: ${tomorrow.toFormat('dd/MM/yyyy HH:mm')}`);
+      return tomorrow.toJSDate();
     }
     
     // =================== CORREÇÃO: SUPORTE PARA DATAS BRASILEIRAS DD/MM/AAAA ===================
@@ -424,124 +451,306 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
  */
 function extractTimeFromText(input: string): { hour: number, minute: number } | null {
   const text = input.toLowerCase().trim();
-  
-  // =================== CORREÇÃO: PARSING AM/PM PRIORITÁRIO ===================
-  
-  // 1. PRIMEIRO: Formato AM/PM com minutos (6:30pm, 7:15am)
-  const ampmWithMinutesMatch = text.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)\b/i);
-  if (ampmWithMinutesMatch) {
-    let hour = parseInt(ampmWithMinutesMatch[1]);
-    const minute = parseInt(ampmWithMinutesMatch[2]);
-    const period = ampmWithMinutesMatch[3].toLowerCase();
-    
-    // Converter para formato 24h
-    if (period === 'pm' && hour < 12) {
-      hour += 12;
-    } else if (period === 'am' && hour === 12) {
-      hour = 0;
-    }
-    
-    console.log(`🕐 AM/PM com minutos: ${ampmWithMinutesMatch[1]}:${ampmWithMinutesMatch[2]}${period} → ${hour}:${minute}`);
-    return { hour, minute };
-  }
-  
-  // 2. Formato AM/PM simples (6pm, 7am)
-  const ampmMatch = text.match(/\b(\d{1,2})\s*(am|pm)\b/i);
-  if (ampmMatch) {
-    let hour = parseInt(ampmMatch[1]);
-    const period = ampmMatch[2].toLowerCase();
-    
-    // Converter para formato 24h
-    if (period === 'pm' && hour < 12) {
-      hour += 12;
-    } else if (period === 'am' && hour === 12) {
-      hour = 0;
-    }
-    
-    console.log(`🕐 AM/PM simples: ${ampmMatch[1]}${period} → ${hour}:00`);
-    return { hour, minute: 0 };
-  }
-  
-  // 3. CORREÇÃO: Formato "às X" mais abrangente (incluindo números isolados)
-  const explicitTimePatterns = [
-    /\b(?:às|as)\s+(\d{1,2})(?::(\d{2}))?\s*h?\b/i,     // "às 15h", "às 15"
-    /\b(?:às|as)\s+(\d{1,2})\b/i                         // "às 15" isolado
-  ];
-  
-  for (const pattern of explicitTimePatterns) {
-    const match = text.match(pattern);
-    if (match) {
-      const hour = parseInt(match[1]);
-      const minute = parseInt(match[2] || '0');
-      
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        console.log(`🕐 CORREÇÃO - Horário explícito: "${match[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
-        return { hour, minute };
-      }
-    }
-  }
-  
-  // 4. Formato numérico seguido de h (19h, 18:30h) - MAS apenas no final da frase
-  const hourSuffixMatch = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h\b(?!\s*\w)/i);
-  if (hourSuffixMatch && !text.includes('am') && !text.includes('pm')) {
-    const hour = parseInt(hourSuffixMatch[1]);
-    const minute = parseInt(hourSuffixMatch[2] || '0');
-    
+
+  // 1. Padrão completo: "às 20:00", "às 20h", "às 20"
+  let match = text.match(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  if (match) {
+    const hour = parseInt(match[1]);
+    const minute = match[2] ? parseInt(match[2]) : 0;
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      console.log(`🕐 CORREÇÃO - Horário com 'h': "${hourSuffixMatch[0]}" → ${hour}:${minute.toString().padStart(2, '0')}`);
+      console.log(`🕐 PADRÃO EXPLÍCITO: '${match[0]}' → ${hour}:${minute.toString().padStart(2, '0')}`);
       return { hour, minute };
     }
   }
-  
-  // 4. CORREÇÃO: Detecção robusta de números isolados no contexto de hora
-  // Prioriza números após indicadores de tempo como "às", "as", isolados ou com "h"
-  const timeContextPatterns = [
-    // Padrões com indicadores de tempo explícitos
-    /\b(?:às|as)\s+(\d{1,2})(?:\s*h(?:oras?)?)?(?!\d)/gi,     // "às 19", "as 19", "às 19h"
-    /\b(\d{1,2})\s*(?:h|horas?)(?!\d)/gi,                     // "19h", "19 horas"
-    /\b(\d{1,2})(?:\s*:\s*(\d{2}))?\s*(?:h|horas?)(?!\d)/gi   // "19:30h", "19:00 horas"
-  ];
-  
-  for (const pattern of timeContextPatterns) {
-    pattern.lastIndex = 0; // Reset regex global flag
-    const match = pattern.exec(text);
-    if (match && !text.includes('am') && !text.includes('pm')) {
-      const hour = parseInt(match[1]);
-      const minute = parseInt(match[2] || '0');
-      
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        console.log(`🕐 CORREÇÃO - Contexto temporal detectado: "${match[0].trim()}" → ${hour}:${minute.toString().padStart(2, '0')}`);
-        return { hour, minute };
-      }
+
+  // 2. Padrão: "20:00", "20h", "20"
+  match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  if (match) {
+    const hour = parseInt(match[1]);
+    const minute = match[2] ? parseInt(match[2]) : 0;
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      console.log(`🕐 PADRÃO NÚMERO: '${match[0]}' → ${hour}:${minute.toString().padStart(2, '0')}`);
+      return { hour, minute };
     }
   }
-  
-  // 5. Números por extenso com contexto de período
+
+  // 3. AM/PM com minutos (6:30pm, 7:15am)
+  match = text.match(/\b(\d{1,2}):(\d{2})\s*(am|pm)\b/i);
+  if (match) {
+    let hour = parseInt(match[1]);
+    const minute = parseInt(match[2]);
+    const period = match[3].toLowerCase();
+    if (period === 'pm' && hour < 12) hour += 12;
+    if (period === 'am' && hour === 12) hour = 0;
+    console.log(`🕐 AM/PM com minutos: ${match[1]}:${match[2]}${period} → ${hour}:${minute}`);
+    return { hour, minute };
+  }
+
+  // 4. AM/PM simples (6pm, 7am)
+  match = text.match(/\b(\d{1,2})\s*(am|pm)\b/i);
+  if (match) {
+    let hour = parseInt(match[1]);
+    const period = match[2].toLowerCase();
+    if (period === 'pm' && hour < 12) hour += 12;
+    if (period === 'am' && hour === 12) hour = 0;
+    console.log(`🕐 AM/PM simples: ${match[1]}${period} → ${hour}:00`);
+    return { hour, minute: 0 };
+  }
+
+  // 5. Por extenso (vinte, dezenove, etc.)
   const wordNumbers: { [key: string]: number } = {
-    'uma': 1, 'dois': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5,
+    'uma': 1, 'duas': 2, 'dois': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5,
     'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10,
     'onze': 11, 'doze': 12, 'treze': 13, 'catorze': 14, 'quatorze': 14,
     'quinze': 15, 'dezesseis': 16, 'dezessete': 17, 'dezoito': 18,
-    'dezenove': 19, 'vinte': 20, 'vinte e uma': 21, 'vinte e dois': 22,
-    'vinte e três': 23, 'vinte e tres': 23
+    'dezenove': 19, 'vinte': 20, 'vinte e uma': 21, 'vinte e duas': 22, 'vinte e três': 23, 'vinte e tres': 23
   };
-  
   for (const [word, number] of Object.entries(wordNumbers)) {
     if (new RegExp(`\\b${word}\\b`).test(text)) {
       let hour = number;
-      
-      // Ajustar para período da tarde/noite (apenas se < 12)
       if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(text) && hour < 12) {
         hour += 12;
         console.log(`🌙 Ajuste período: ${number} → ${hour} (${word})`);
       }
-      
       console.log(`🕐 Por extenso: ${word} → ${hour}:00`);
       return { hour, minute: 0 };
     }
   }
-  
+
   console.log(`❌ Nenhum horário encontrado em: "${input}"`);
   return null;
+}
+
+/**
+ * Função EXATA do Telegram para extrair o nome do evento
+ */
+export function extractEventTitle(text: string): string {
+  const textLower = text.toLowerCase();
+  // CORREÇÃO COMPLETA: Limpeza robusta conforme solicitado
+  const limparTitulo = (texto: string) =>
+    texto
+      // Remove comandos primeiro
+      .replace(/\b(marque|agende|coloque|anote|lembre|crie|faça|criar|fazer)\b/gi, '')
+      // Remove "me lembre de" completamente
+      .replace(/\b(me\s+lembre\s+de|lembre\s+me\s+de|me\s+lembrar\s+de)\b/gi, '')
+      // Remove "me" isolado que pode sobrar
+      .replace(/\bme\b/gi, '')
+      // Remove TODAS as palavras temporais
+      .replace(/\b(às|as|a|hora|horário|horarios|h|hs|am|pm)\b/gi, '')
+      // Remove TODOS os padrões de horário (com ou sem "às")
+      .replace(/\b(às|as|a)?\s*\d{1,2}(:\d{2})?\s*(h|horas?|pm|am)?\b/gi, '')
+      // Remove TODOS os números isolados que podem ser horários
+      .replace(/\b\d{1,2}\b(?!\s*\/)/g, '')
+      // Remove TODOS os dias da semana
+      .replace(/\b(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
+      // Remove TODOS os períodos do dia
+      .replace(/\b(da\s+manhã|da\s+tarde|da\s+noite|de\s+manhã|de\s+tarde|de\s+noite)\b/gi, '')
+      // Remove TODAS as datas
+      .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '')
+      // Remove "dia" isolado
+      .replace(/\bdia\b/gi, '')
+      // Remove múltiplos espaços e trim
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  let cleanTitle = limparTitulo(text);
+
+  // Limpeza adicional
+  const temporalPatterns = [
+    /\b(próxima|proxima|que\s+vem)\b/gi,
+    /\b(depois|antes|agora|já|ainda)\b/gi
+  ];
+
+  for (const pattern of temporalPatterns) {
+    cleanTitle = cleanTitle.replace(pattern, ' ');
+  }
+
+  // Limpeza final mais rigorosa
+  cleanTitle = cleanTitle
+    .replace(/\s+/g, ' ')
+    .replace(/^\s*(o|a|os|as|um|uma|no|na|em|de|da|do|às|as|para|pra)\s+/i, '')
+    .replace(/\s+(no|na|em|de|da|do|às|as|para|pra)\s*$/i, '')
+    .replace(/^\s*(e|com|sem|por)\s+/i, '')
+    .trim()
+    .replace(/^./, char => char.toUpperCase());
+
+  // Aplicar limpezaFinalNomeEvento duas vezes para garantir remoção de "amanhã"
+  cleanTitle = limpezaFinalNomeEvento(cleanTitle);
+  cleanTitle = limpezaFinalNomeEvento(cleanTitle);
+
+  // Limpeza extra de espaços
+  cleanTitle = cleanTitle.replace(/\s+/g, ' ').trim();
+
+  if (cleanTitle.length > 2) {
+    const finalTitle = limpezaFinalNomeEvento(cleanTitle).replace(/\s+/g, ' ').trim();
+    console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+    return finalTitle;
+  }
+
+  // Se a limpeza não funcionou bem, usar fallbacks específicos
+  const specificPatterns = [
+    { regex: /reunião\s+com\s+([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Reunião com ${match}` },
+    { regex: /consulta\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Consulta Dr. ${match}` },
+    { regex: /aniversário\s+(?:do\s+|da\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Aniversário ${match}` }
+  ];
+
+  for (const pattern of specificPatterns) {
+    const match = textLower.match(pattern.regex);
+    if (match && match[1]) {
+      const result = pattern.format(match[1].trim());
+      const finalTitle = limpezaFinalNomeEvento(result.charAt(0).toUpperCase() + result.slice(1)).replace(/\s+/g, ' ').trim();
+      console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+      return finalTitle;
+    }
+  }
+
+  // Novo padrão genérico para '(.+) com (.+)' (ex: 'jantar com o Gabriel amanhã')
+  const genericWithPattern = /(.+?)\s+com\s+(.+)/i;
+  const genericWithMatch = text.match(genericWithPattern);
+  if (genericWithMatch) {
+    // Extrai a parte antes e depois do 'com'
+    let before = genericWithMatch[1].trim();
+    let after = genericWithMatch[2].trim();
+    // Limpa palavras temporais de ambas as partes
+    before = limpezaFinalNomeEvento(before).replace(/\s+/g, ' ').trim();
+    after = limpezaFinalNomeEvento(after).replace(/\s+/g, ' ').trim();
+    // Reconstrói e faz a limpeza final no resultado completo
+    let finalTitle = `${before} com ${after}`.replace(/\s+/g, ' ').trim();
+    finalTitle = limpezaFinalNomeEvento(finalTitle).replace(/\s+/g, ' ').trim();
+    console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+    return finalTitle;
+  }
+
+  // Extrair após verbos de ação (mais rigoroso)
+  const actionVerbs = [
+    /(?:me\s+)?lembre?\s+de\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /marque?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
+    /agende?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i
+  ];
+
+  for (const verb of actionVerbs) {
+    const match = text.match(verb);
+    if (match && match[1]) {
+      let extracted = match[1].trim();
+      // Limpar novamente o que foi extraído
+      extracted = extracted
+        .replace(/^(um|uma|o|a|os|as)\s+/i, '')
+        .replace(/\b(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
+        .replace(/\b(às|as|a)\s*\d{1,2}(:\d{2})?\s*(h|horas?|pm|am)?\b/gi, '')
+        .replace(/\b\d{1,2}(:\d{2})?\s*(h|horas?|pm|am)?\b/gi, '')
+        .replace(/\b(da\s+manhã|da\s+tarde|da\s+noite|de\s+manhã|de\s+tarde|de\s+noite)\b/gi, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (extracted.length > 2) {
+        const finalTitle = limpezaFinalNomeEvento(extracted.charAt(0).toUpperCase() + extracted.slice(1)).replace(/\s+/g, ' ').trim();
+        console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+        return finalTitle;
+      }
+    }
+  }
+
+  // Palavras-chave diretas
+  const directKeywords = [
+    'jantar', 'almoço', 'almoco', 'academia', 'trabalho', 'escola', 'aula',
+    'compromisso', 'consulta', 'exame', 'reunião', 'reuniao', 'compras'
+  ];
+
+  for (const keyword of directKeywords) {
+    if (textLower.includes(keyword)) {
+      const finalTitle = limpezaFinalNomeEvento(keyword.charAt(0).toUpperCase() + keyword.slice(1)).replace(/\s+/g, ' ').trim();
+      console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+      return finalTitle;
+    }
+  }
+
+  // Fallback final mais rigoroso
+  let cleaned = text
+    .replace(/^(me\s+lembre\s+de\s+|agende\s+|marque\s+|criar?\s+|vou\s+|ir\s+)/i, '')
+    .replace(/^(um|uma|o|a|os|as)\s+/i, '')
+    .replace(/\b(amanhã|amanha|hoje|ontem)\b/gi, '')
+    .replace(/\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
+    .replace(/\b(próxima|proxima|que vem|na|no)\b/gi, '')
+    .replace(/\bàs?\s+\d{1,2}(:\d{2})?h?\b/gi, '')
+    .replace(/\b\d{1,2}(am|pm)\b/gi, '')
+    .replace(/\b(da manhã|da manha|da tarde|da noite)\b/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const finalTitle = limpezaFinalNomeEvento(cleaned.charAt(0).toUpperCase() + cleaned.slice(1) || 'Evento').replace(/\s+/g, ' ').trim();
+  console.log(`[extractEventTitle][FINAL] Título extraído: "${finalTitle}" para input: "${text}"`);
+  return finalTitle;
+}
+
+/**
+ * Capitaliza primeira letra de uma string
+ */
+function capitalizeFirst(str: string): string {
+  if (!str) return '';
+  return str.charAt(0).toUpperCase() + str.slice(1);
+}
+
+/**
+ * Extrai apenas o nome do evento e a data/hora, removendo informações temporais do nome
+ * Formato de resposta: { eventName: string, dateTime: string }
+ * CÓPIA EXATA do Telegram
+ */
+export function extractEventInfo(
+  input: string,
+  userId: string,
+  languageCode?: string
+): { eventName: string; dateTime: string } {
+  try {
+    // Obter fuso horário do usuário
+    const userTimezone = getUserTimezone(userId, languageCode);
+    // Extrair data e hora primeiro
+    const dateTimeResult = parseUserDateTime(input, userId, languageCode);
+    // Extrair nome do evento usando a função exata do Telegram
+    let eventName = extractEventTitle(input);
+    // Se não conseguiu extrair data/hora, retornar apenas o nome limpo
+    if (!dateTimeResult) {
+      return {
+        eventName: eventName,
+        dateTime: "Não especificado"
+      };
+    }
+    // Converter ISO para formato DD/MM/AAAA HH:MM
+    const dateTime = DateTime.fromISO(dateTimeResult.iso, { zone: userTimezone });
+    const formattedDateTime = dateTime.toFormat('dd/MM/yyyy HH:mm');
+    return {
+      eventName: eventName,
+      dateTime: formattedDateTime
+    };
+  } catch (error) {
+    return {
+      eventName: extractEventTitle(input),
+      dateTime: "Não especificado"
+    };
+  }
+}
+
+function limpezaFinalNomeEvento(nome: string): string {
+  let resultado = nome;
+  // MÚLTIPLAS PASSADAS DE LIMPEZA PARA GARANTIR QUE NADA TEMPORAL SOBREVIVA
+  // Passada 0: Remove padrões compostos tipo 'daqui dois sábados', 'daqui 2 sábados', 'daqui a dois dias', 'em 3 dias', etc.
+  resultado = resultado.replace(/\b(daqui\s+(a\s+)?(\d+|um|uma|dois|duas|três|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(dias?|semanas?|meses?|anos?|segundos?|minutos?|horas?|s[áa]bados?|domingos?|segundas?|terças?|tercas?|quartas?|quintas?|sextas?))\b/gi, '');
+  resultado = resultado.replace(/\b(em\s+(\d+|um|uma|dois|duas|três|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(dias?|semanas?|meses?|anos?|segundos?|minutos?|horas?|s[áa]bados?|domingos?|segundas?|terças?|tercas?|quartas?|quintas?|sextas?))\b/gi, '');
+  // Passada 1: Remove TODAS as palavras temporais (incluindo variações)
+  resultado = resultado.replace(/\b(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|de manhã|da manhã|de tarde|da tarde|de noite|da noite|próxima|proxima|que vem|depois|antes|agora|já|ainda|manhã|tarde|noite)\b/gi, '');
+  // Passada extra: Remove palavras temporais no final, início ou entre pontuação
+  resultado = resultado.replace(/(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|de manhã|da manhã|de tarde|da tarde|de noite|da noite|próxima|proxima|que vem|depois|antes|agora|já|ainda|manhã|tarde|noite)[\s,.!?]*$/gi, '');
+  // Passada 2: Remove TODOS os padrões de horário e datas
+  resultado = resultado.replace(/\b(às|as|a|hora|horário|horarios|h|hs|am|pm)\b/gi, '');
+  resultado = resultado.replace(/\b\d{1,2}(:\d{2})?\s*(h|horas?|pm|am)?\b/gi, '');
+  resultado = resultado.replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '');
+  // Passada 3: Remove "dia" isolado e outras palavras temporais
+  resultado = resultado.replace(/\bdia\b/gi, '');
+  // Passada 4: Remove artigos e preposições soltas
+  resultado = resultado.replace(/(^|\s)(o|a|os|as|um|uma|no|na|em|de|da|do|às|as|para|pra)(?=\s|$)/gi, ' ');
+  // Passada 5: Remove pontuações e barras soltas
+  resultado = resultado.replace(/[\/|,.;:]+/g, ' ');
+  // Passada 6: Remove múltiplos espaços e trim
+  resultado = resultado.replace(/\s+/g, ' ').trim();
+  // Passada 7: Primeira letra maiúscula
+  resultado = resultado.replace(/^./, char => char.toUpperCase());
+  return resultado;
 }
 

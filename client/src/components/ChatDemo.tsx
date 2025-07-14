@@ -137,7 +137,7 @@ export default function ChatDemo({ step }: ChatDemoProps) {
               <div 
                 className={`flex-1 max-w-[80%] ${
                   message.type === "user" 
-                    ? "bg-primary-600 text-white rounded-lg rounded-tr-none" 
+                    ? "bg-primary-600 text-black rounded-lg rounded-tr-none" 
                     : "bg-gray-100 text-gray-800 rounded-lg rounded-tl-none"
                 } p-3 mx-2`}
               >

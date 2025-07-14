@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { MessageSquare, Phone } from "lucide-react";
+import { FaTelegram, FaWhatsapp } from "react-icons/fa";
 import ChatDemo from "@/components/ChatDemo";
 
 export default function BotDemoSection() {
@@ -102,20 +102,20 @@ export default function BotDemoSection() {
                   <Button 
                     asChild
                     variant="default"
-                    className="bg-primary hover:bg-secondary text-white font-medium rounded-full flex-1"
+                    className="bg-white text-primary hover:bg-gray-100 font-semibold rounded-full px-8 py-4 text-lg flex-1"
                   >
-                    <a href="https://t.me/zelar_assistente_bot" target="_blank" rel="noopener noreferrer">
-                      <MessageSquare className="w-4 h-4 mr-2" />
+                    <a href="https://t.me/zelar_assistente_bot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+                      <FaTelegram className="mr-3 text-xl" />
                       Usar no Telegram
                     </a>
                   </Button>
                   <Button 
                     asChild
-                    variant="outline"
-                    className="border-primary text-primary hover:bg-primary hover:text-white font-medium rounded-full flex-1"
+                    variant="default"
+                    className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-8 py-4 text-lg border-0 flex-1"
                   >
-                    <a href="https://wa.me/5511999999999?text=Olá,%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" target="_blank" rel="noopener noreferrer">
-                      <Phone className="w-4 h-4 mr-2" />
+                    <a href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+                      <FaWhatsapp className="mr-3 text-xl" />
                       Usar no WhatsApp
                     </a>
                   </Button>

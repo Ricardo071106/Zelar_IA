@@ -6,7 +6,8 @@ import pkg from 'whatsapp-web.js';
 const { Client, LocalAuth, MessageMedia } = pkg;
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { generateCalendarLinks } from '../utils/calendarUtils';
-import qrcode from 'qrcode';
+import { parseUserDateTime, extractEventTitle } from '../telegram/utils/parseDate';
+import qrcode from 'qrcode-terminal';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,7 +20,7 @@ interface WhatsAppBotStatus {
 }
 
 export class WhatsAppBot {
-  private client: Client;
+  private client: any;
   private status: WhatsAppBotStatus = {
     isReady: false,
     isConnected: false
@@ -36,6 +37,7 @@ export class WhatsAppBot {
       }),
       puppeteer: {
         headless: true,
+        executablePath: process.platform === 'darwin' ? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' : undefined,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -56,11 +58,28 @@ export class WhatsAppBot {
           '--hide-scrollbars',
           '--mute-audio',
           '--no-default-browser-check',
-          '--no-first-run',
           '--disable-logging',
           '--disable-permissions-api',
           '--disable-features=VizDisplayCompositor',
-          '--single-process'
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-background-networking',
+          '--disable-background-timer-throttling',
+          '--disable-client-side-phishing-detection',
+          '--disable-component-extensions-with-background-pages',
+          '--disable-default-apps',
+          '--disable-domain-reliability',
+          '--disable-features=AudioServiceOutOfProcess',
+          '--disable-hang-monitor',
+          '--disable-ipc-flooding-protection',
+          '--disable-prompt-on-repost',
+          '--disable-renderer-backgrounding',
+          '--disable-sync',
+          '--force-color-profile=srgb',
+          '--metrics-recording-only',
+          '--no-first-run',
+          '--password-store=basic',
+          '--use-mock-keychain'
         ]
       }
     });
@@ -69,17 +88,19 @@ export class WhatsAppBot {
   }
 
   private setupEventHandlers(): void {
+    console.log('🔧 Configurando event handlers do WhatsApp...');
+    
     // QR Code para autenticação
-    this.client.on('qr', async (qr) => {
+    this.client.on('qr', async (qr: string) => {
+      console.log('🔗 QR Code recebido, gerando no terminal...');
       console.log('\n🔗 CONECTAR WHATSAPP BOT:');
       console.log('Escaneie o QR code abaixo com seu WhatsApp para conectar o bot:\n');
-      qrcode.generate(qr, { small: true });
+      (qrcode as any).generate(qr, { small: true });
       console.log('\n📱 Abra o WhatsApp > Menu > Dispositivos conectados > Conectar dispositivo');
       console.log('🔍 Escaneie o QR code acima para ativar o bot WhatsApp\n');
       
       // Salvar QR code atual
       this.status.qrCode = qr;
-      this.status.qrCodeImage = await qrcode.toDataURL(qr);
       
       // Notificar callbacks
       this.qrCodeCallbacks.forEach(callback => callback(qr));
@@ -94,7 +115,7 @@ export class WhatsAppBot {
     });
 
     // Falha na autenticação
-    this.client.on('auth_failure', (msg) => {
+    this.client.on('auth_failure', (msg: any) => {
       console.error('❌ Falha na autenticação WhatsApp:', msg);
       this.status.isConnected = false;
       this.status.isReady = false;
@@ -119,7 +140,7 @@ export class WhatsAppBot {
     });
 
     // Desconectado
-    this.client.on('disconnected', (reason) => {
+    this.client.on('disconnected', (reason: any) => {
       console.log('📱 WhatsApp desconectado:', reason);
       this.status.isConnected = false;
       this.status.isReady = false;
@@ -127,9 +148,12 @@ export class WhatsAppBot {
     });
 
     // Processar mensagens recebidas
-    this.client.on('message', async (message) => {
+    this.client.on('message', async (message: any) => {
+      console.log('📩 Evento de mensagem disparado');
       await this.handleMessage(message);
     });
+    
+    console.log('✅ Event handlers configurados com sucesso!');
   }
 
   private async handleMessage(message: any): Promise<void> {
@@ -144,32 +168,88 @@ export class WhatsAppBot {
         return;
       }
 
-      console.log(`📩 Mensagem recebida de ${message.from}: ${message.body}`);
+      const text = message.body.trim();
+      console.log(`📩 Mensagem recebida de ${message.from}: ${text}`);
 
-      // Processar mensagem com Claude AI
-      const parseResult = await parseEventWithClaude(message.body);
-      
-      if (parseResult.isValid && parseResult.title) {
-        // Criar evento
-        const eventData = {
-          title: parseResult.title,
-          startDate: new Date(parseResult.date),
-          hour: parseResult.hour,
-          minute: parseResult.minute
-        };
+      // Comando /start ou mensagem de boas-vindas
+      if (text === '/start' || text.toLowerCase().includes('olá, gostaria de usar o zelar para agendar meus compromissos')) {
+        const response =
+          '🤖 *Zelar - Assistente de Agendamento*\n\n' +
+          'Bem-vindo! Eu posso te ajudar a criar eventos e lembretes de forma natural.\n\n' +
+          '💡 *Como usar:*\n' +
+          '• "jantar hoje às 19h"\n' +
+          '• "reunião amanhã às 15h"\n' +
+          '• "consulta sexta às 10h"\n' +
+          '• "almoço com equipe sexta 12h"\n' +
+          '• "marque entrega da semana sexta às 15"\n\n' +
+          '⚙️ *Comandos disponíveis:*\n' +
+          '/start - Mensagem de boas-vindas\n' +
+          '/help - Ver exemplos e instruções\n' +
+          '/fuso - Alterar fuso horário (ex: /fuso America/Sao_Paulo)\n\n' +
+          'Envie qualquer mensagem com data e horário para criar um evento!';
+        await this.sendMessage(message.from, response);
+        return;
+      }
 
-        // Gerar links de calendário
-        const calendarLinks = generateCalendarLinks(eventData);
+      // Comando /fuso
+      if (text.startsWith('/fuso')) {
+        const timezone = text.replace('/fuso', '').trim();
+        if (!timezone) {
+          await this.sendMessage(
+            message.from,
+            '🌍 *Configuração de Fuso Horário*\n\n' +
+              '💡 Para alterar, envie: /fuso America/Sao_Paulo\n' +
+              'Exemplo: /fuso America/Sao_Paulo\n' +
+              'Fusos comuns: America/Sao_Paulo, America/Buenos_Aires, Europe/Lisbon, America/New_York'
+          );
+        } else {
+          // Aqui você pode salvar o fuso horário do usuário em um storage se desejar
+          await this.sendMessage(
+            message.from,
+            `✅ *Fuso horário atualizado!*\n\n🌍 Novo fuso: ${timezone}\nAgora todos os seus eventos serão criados neste fuso horário.`
+          );
+        }
+        return;
+      }
 
-        // Resposta com evento criado
-        let response = `✅ *Evento criado com sucesso!*\n\n`;
-        response += `📅 *${eventData.title}*\n`;
-        response += `🕐 ${this.formatDateTime(eventData.startDate, eventData.hour, eventData.minute)}\n\n`;
+      // Comando /help
+      if (text === '/help') {
+        const response =
+          '🤖 *Assistente Zelar - Ajuda*\n\n' +
+          '📅 *Como usar:*\n' +
+          'Envie mensagens naturais como:\n' +
+          '• "reunião com cliente amanhã às 14h"\n' +
+          '• "jantar com família sexta às 19h30"\n' +
+          '• "consulta médica terça-feira às 10h"\n' +
+          '• "call de projeto quinta às 15h"\n\n' +
+          '⚙️ *Comandos:*\n' +
+          '/fuso - Alterar fuso horário\n' +
+          '/start - Mensagem inicial';
+        await this.sendMessage(message.from, response);
+        return;
+      }
+
+      // Usar parser local primeiro (que funciona melhor para títulos)
+      console.log(`🔍 [DEBUG] Processando mensagem: "${text}"`);
+      const userId = message.from || 'unknown';
+      const result = parseUserDateTime(text, userId);
+      console.log(`🔍 [DEBUG] Resultado do parser:`, result);
+      // EXTRAÇÃO DE TÍTULO COM LOGS DETALHADOS
+      const extractedTitle = extractEventTitle(text);
+      console.log(`🟢 [DEBUG] Texto original recebido: "${text}"`);
+      console.log(`🟢 [DEBUG] Título extraído por extractEventTitle: "${extractedTitle}"`);
+      if (result) {
+        let response = `✅ *Evento criado!*\n\n`;
+        response += `🎯 *${extractedTitle}*\n`;
+        const date = new Date(result.iso);
+        const dateTime = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+        response += `📅 ${dateTime}\n\n`;
         response += `*Adicionar ao calendário:*\n`;
-        response += `🔗 Google Calendar: ${calendarLinks.google}\n`;
-        response += `🔗 Outlook: ${calendarLinks.outlook}\n`;
-        response += `🔗 Apple Calendar: ${calendarLinks.apple}`;
-
+        // Gerar links de calendário
+        const calendarLinks = generateCalendarLinks({ title: extractedTitle, startDate: date, hour: date.getHours(), minute: date.getMinutes() });
+        response += `🔗 Google Calendar: ${calendarLinks.google}\n\n`;
+        response += `🔗 Outlook: ${calendarLinks.outlook}`;
+        console.log(`🟢 [DEBUG] Resposta final enviada ao usuário: \n${response}`);
         await this.sendMessage(message.from, response);
       } else {
         // Resposta para mensagens não reconhecidas como eventos
@@ -178,8 +258,7 @@ export class WhatsAppBot {
           `• "Reunião amanhã às 14h"\n` +
           `• "Consulta médica sexta às 10h30"\n` +
           `• "Jantar com a família domingo às 19h"\n\n` +
-          `Vou processar sua mensagem e criar o evento automaticamente! 🤖`;
-
+          `Ou envie /help para ver exemplos! 🤖`;
         await this.sendMessage(message.from, response);
       }
     } catch (error) {
@@ -201,6 +280,28 @@ export class WhatsAppBot {
     return `${dayName}, ${day} de ${month} às ${hourStr}:${minStr}`;
   }
 
+  /**
+   * Extrai título inteligente do evento focando na ação principal
+   * Inspirado na limpeza avançada do Telegram
+   * DICA: Não apague a pasta whatsapp_session/session-zelar-whatsapp-bot/ para não perder a sessão do WhatsApp!
+   */
+  private extractEventInfo(text: string): { title: string; dateTime: string } {
+    console.log(`🔍 [DEBUG] Extraindo informações de: "${text}"`);
+    // 1. EXTRAIR NOME DO EVENTO USANDO A MESMA LÓGICA DO TELEGRAM
+    const title = extractEventTitle(text);
+    // 2. EXTRAIR DATA E HORA (mantém igual)
+    let dateTime = "Não especificado";
+    const userId = 'whatsapp'; // WhatsApp não tem userId real, mas não afeta parseUserDateTime
+    const result = parseUserDateTime(text, userId);
+    if (result) {
+      const date = new Date(result.iso);
+      dateTime = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    console.log(`🔍 [DEBUG] Título extraído: "${title}"`);
+    console.log(`🔍 [DEBUG] Data/Hora extraída: "${dateTime}"`);
+    return { title, dateTime };
+  }
+
   public async sendMessage(to: string, message: string): Promise<boolean> {
     try {
       if (!this.status.isReady) {
@@ -219,9 +320,51 @@ export class WhatsAppBot {
   public async initialize(): Promise<void> {
     try {
       console.log('🔄 Inicializando WhatsApp Bot...');
-      await this.client.initialize();
+      
+      // Verificar se o Chrome está disponível no macOS
+      if (process.platform === 'darwin') {
+        const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+        if (!fs.existsSync(chromePath)) {
+          console.error('❌ Google Chrome não encontrado em:', chromePath);
+          console.error('💡 Instale o Google Chrome para usar o WhatsApp Bot');
+          throw new Error('Google Chrome não encontrado');
+        }
+        console.log('✅ Google Chrome encontrado:', chromePath);
+      }
+      
+      console.log('📱 Configurações do cliente:', {
+        authStrategy: 'LocalAuth',
+        clientId: 'zelar-whatsapp-bot',
+        dataPath: './whatsapp_session'
+      });
+      
+      // Tentar inicializar com timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout na inicialização do WhatsApp')), 60000);
+      });
+      
+      const initPromise = this.client.initialize();
+      
+      await Promise.race([initPromise, timeoutPromise]);
+      console.log('✅ WhatsApp Bot inicializado com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+      console.error('❌ Detalhes do erro:', error instanceof Error ? error.message : String(error));
+      
+      // Se for erro de protocolo, tentar reinicializar
+      if (error instanceof Error && error.message.includes('Protocol error')) {
+        console.log('🔄 Tentando reinicializar após erro de protocolo...');
+        try {
+          await this.client.destroy();
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          await this.client.initialize();
+          console.log('✅ WhatsApp Bot reinicializado com sucesso!');
+          return;
+        } catch (retryError) {
+          console.error('❌ Falha na reinicialização:', retryError);
+        }
+      }
+      
       throw error;
     }
   }

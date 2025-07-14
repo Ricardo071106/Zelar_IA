@@ -80,6 +80,7 @@ Responda APENAS em JSON:
     const result = JSON.parse(response.data.choices[0].message.content);
     
     console.log(`🤖 Claude interpretou: "${userMessage}" → ${JSON.stringify(result)}`);
+    console.log(`🔍 [CLAUDE DEBUG] Título retornado: "${result.title}"`);
     
     // CORREÇÃO: Garantir que a data seja sempre 2025 ou posterior
     let correctedDate = result.date;

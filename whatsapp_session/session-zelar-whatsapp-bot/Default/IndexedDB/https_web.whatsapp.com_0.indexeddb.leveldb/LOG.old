@@ -1,0 +1,15 @@
+2025/07/11-02:11:48.443 c26e9 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2025/07/11-02:11:48.444 c26e9 Recovering log #347
+2025/07/11-02:11:48.453 c26e9 Reusing old log /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000347.log 
+2025/07/11-02:11:49.909 c26f6 Level-0 table #353: started
+2025/07/11-02:11:49.913 c26f6 Level-0 table #353: 289284 bytes OK
+2025/07/11-02:11:49.916 c26f6 Delete type=0 #347
+2025/07/11-02:11:49.918 c26e9 Manual compaction at level-0 from '\x00l\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00m\x00\x00\x00' @ 0 : 0; will stop at (end)
+2025/07/11-02:11:50.520 c26eb Compacting 1@1 + 2@2 files
+2025/07/11-02:11:50.559 c26eb Generated table #354@1: 78698 keys, 2261834 bytes
+2025/07/11-02:11:50.583 c26eb Generated table #355@1: 39013 keys, 1271956 bytes
+2025/07/11-02:11:50.583 c26eb Compacted 1@1 + 2@2 files => 3533790 bytes
+2025/07/11-02:11:50.585 c26eb compacted to: files[ 0 0 2 0 0 0 0 ]
+2025/07/11-02:11:50.585 c26eb Delete type=2 #349
+2025/07/11-02:11:50.585 c26eb Delete type=2 #350
+2025/07/11-02:11:50.585 c26eb Delete type=2 #353
