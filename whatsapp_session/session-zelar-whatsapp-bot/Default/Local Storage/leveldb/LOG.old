@@ -1,3 +1,11 @@
-2025/07/11-02:11:47.641 c2744 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb/MANIFEST-000001
-2025/07/11-02:11:47.645 c2744 Recovering log #23
-2025/07/11-02:11:47.645 c2744 Reusing old log /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb/000023.log 
+2025/07/14-15:11:03.930 57657 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb/MANIFEST-000001
+2025/07/14-15:11:03.934 57657 Recovering log #23
+2025/07/14-15:11:03.935 57657 Reusing old log /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb/000023.log 
+2025/07/14-15:11:03.935 57659 Compacting 4@0 + 1@1 files
+2025/07/14-15:11:03.941 57659 Generated table #26@0: 73 keys, 7647 bytes
+2025/07/14-15:11:03.941 57659 Compacted 4@0 + 1@1 files => 7647 bytes
+2025/07/14-15:11:03.947 57659 compacted to: files[ 0 1 0 0 0 0 0 ]
+2025/07/14-15:11:03.948 57659 Delete type=2 #15
+2025/07/14-15:11:03.948 57659 Delete type=2 #20
+2025/07/14-15:11:03.948 57659 Delete type=2 #18
+2025/07/14-15:11:03.948 57659 Delete type=2 #24
