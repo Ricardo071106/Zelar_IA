@@ -3,7 +3,7 @@ services:
     name: zelar-ia
     env: node
     plan: starter
-    buildCommand: npm install && npm run build
+    buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: npm run start
     envVars:
       - key: NODE_ENV
@@ -17,4 +17,4 @@ services:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: true
       - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/google-chrome-stable 
+        value: /usr/bin/chromium-browser 
