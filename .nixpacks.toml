@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["chromium", "chromium-sandbox", "nss", "atk", "atk-bridge", "gtk3", "gdk-pixbuf2", "pango", "cairo", "gdk-pixbuf2", "libX11", "libXcomposite", "libXcursor", "libXdamage", "libXext", "libXi", "libXtst", "cups-libs", "libXScrnSaver", "libXrandr", "alsa-lib"]
+nixPkgs = ["chromium", "chromium-sandbox"]
 
 [phases.install]
 cmds = ["npm install"]

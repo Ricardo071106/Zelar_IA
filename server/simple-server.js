@@ -46,12 +46,7 @@ class WhatsAppBot {
           '--safebrowsing-disable-auto-update',
           '--ignore-certificate-errors',
           '--ignore-ssl-errors',
-          '--ignore-certificate-errors-spki-list',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-zygote',
-          '--disable-gpu-sandbox'
+          '--ignore-certificate-errors-spki-list'
         ]
       }
     });
