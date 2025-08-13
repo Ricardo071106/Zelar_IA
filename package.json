@@ -2,7 +2,7 @@
   "name": "zelar-app",
   "version": "1.0.0",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "server/simple-server.js",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
