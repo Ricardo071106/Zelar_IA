@@ -1,3 +1,2 @@
-2025/07/14-15:11:08.642 577de Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/shared_proto_db/metadata/MANIFEST-000001
-2025/07/14-15:11:08.642 577de Recovering log #3
-2025/07/14-15:11:08.642 577de Reusing old log /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/shared_proto_db/metadata/000003.log 
+2025/08/12-14:27:01.579 4e42 Creating DB /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/shared_proto_db/metadata since it was missing.
+2025/08/12-14:27:01.585 4e42 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/shared_proto_db/metadata/MANIFEST-000001

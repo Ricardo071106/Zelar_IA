@@ -7,6 +7,7 @@ import { Telegraf } from 'telegraf';
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { DateTime } from 'luxon';
 import express from 'express';
+import { getUserTimezone, extractEventTitle } from './utils/parseDate';
 
 let bot: Telegraf | null = null;
 
@@ -61,7 +62,12 @@ export function setupTelegramWebhook(app: express.Application): boolean {
         
         if (message.startsWith('/')) return;
 
-        const claudeResult = await parseEventWithClaude(message, 'America/Sao_Paulo');
+        // NOVO: Obter userId e languageCode
+        const userId = ctx.from?.id?.toString() || 'unknown';
+        const languageCode = ctx.from?.language_code;
+        const userTimezone = getUserTimezone(userId, languageCode);
+
+        const claudeResult = await parseEventWithClaude(message, userTimezone);
         
         if (!claudeResult.isValid) {
           await ctx.reply(
@@ -80,12 +86,15 @@ export function setupTelegramWebhook(app: express.Application): boolean {
           day: parseInt(claudeResult.date.split('-')[2]),
           hour: claudeResult.hour,
           minute: claudeResult.minute
-        }, { zone: 'America/Sao_Paulo' });
+        }, { zone: userTimezone });
+
+        // NOVO: Limpar nome do evento se necessário
+        let eventTitle = claudeResult.title && claudeResult.title.length > 2 ? claudeResult.title : extractEventTitle(message);
 
         const event: Event = {
-          title: claudeResult.title,
+          title: eventTitle,
           startDate: eventDate.toISO() || eventDate.toString(),
-          description: claudeResult.title,
+          description: eventTitle,
           displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
         };
 

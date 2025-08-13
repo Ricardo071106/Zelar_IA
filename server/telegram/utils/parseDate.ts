@@ -505,6 +505,32 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     'quinze': 15, 'dezesseis': 16, 'dezessete': 17, 'dezoito': 18,
     'dezenove': 19, 'vinte': 20, 'vinte e uma': 21, 'vinte e duas': 22, 'vinte e três': 23, 'vinte e tres': 23
   };
+
+  // NOVO: Suporte para "oito e meia", "sete e quinze", "nove e quarenta e cinco", etc.
+  const extensoComMinutos = text.match(/\b(uma|duas|dois|três|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|vinte e uma|vinte e duas|vinte e três|vinte e tres)\s+e\s+(meia|quinze|minutos?|vinte|vinte e cinco|trinta|quarenta|quarenta e cinco|cinquenta|cinquenta e cinco)\b/);
+  if (extensoComMinutos) {
+    const horaStr = extensoComMinutos[1];
+    const minStr = extensoComMinutos[2];
+    let hour = wordNumbers[horaStr];
+    let minute = 0;
+    if (minStr.includes('meia')) minute = 30;
+    else if (minStr.includes('quinze')) minute = 15;
+    else if (minStr.includes('vinte e cinco')) minute = 25;
+    else if (minStr.includes('vinte')) minute = 20;
+    else if (minStr.includes('trinta')) minute = 30;
+    else if (minStr.includes('quarenta e cinco')) minute = 45;
+    else if (minStr.includes('quarenta')) minute = 40;
+    else if (minStr.includes('cinquenta e cinco')) minute = 55;
+    else if (minStr.includes('cinquenta')) minute = 50;
+    // Ajuste para "da noite" ou "da tarde"
+    if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(text) && hour < 12) {
+      hour += 12;
+      console.log(`🌙 Ajuste período: ${wordNumbers[horaStr]} → ${hour} (${horaStr})`);
+    }
+    console.log(`🕐 Por extenso com minutos: ${horaStr} e ${minStr} → ${hour}:${minute.toString().padStart(2, '0')}`);
+    return { hour, minute };
+  }
+
   for (const [word, number] of Object.entries(wordNumbers)) {
     if (new RegExp(`\\b${word}\\b`).test(text)) {
       let hour = number;
@@ -541,6 +567,8 @@ export function extractEventTitle(text: string): string {
       .replace(/\b(às|as|a)?\s*\d{1,2}(:\d{2})?\s*(h|horas?|pm|am)?\b/gi, '')
       // Remove TODOS os números isolados que podem ser horários
       .replace(/\b\d{1,2}\b(?!\s*\/)/g, '')
+      // Remove horários por extenso (ex: "oito e meia", "sete e quinze", "nove e quarenta e cinco")
+      .replace(/\b(uma|duas|dois|três|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|vinte e uma|vinte e duas|vinte e três|vinte e tres)\s+e\s+(meia|quinze|minutos?|vinte|vinte e cinco|trinta|quarenta|quarenta e cinco|cinquenta|cinquenta e cinco)\b/gi, '')
       // Remove TODOS os dias da semana
       .replace(/\b(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
       // Remove TODOS os períodos do dia

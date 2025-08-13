@@ -5,6 +5,7 @@
 
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { DateTime } from 'luxon';
+import { getUserTimezone, extractEventTitle } from './utils/parseDate';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -302,7 +303,10 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
   try {
     // Usar Claude para interpretar
-    const claudeResult = await parseEventWithClaude(message, 'America/Sao_Paulo');
+    const userId = update.message?.from?.id?.toString() || 'unknown';
+    // Não há language_code disponível nesse tipo de update
+    const userTimezone = getUserTimezone(userId);
+    const claudeResult = await parseEventWithClaude(message, userTimezone);
     
     if (!claudeResult.isValid) {
       await sendMessage(chatId,
@@ -321,12 +325,14 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       day: parseInt(claudeResult.date.split('-')[2]),
       hour: claudeResult.hour,
       minute: claudeResult.minute
-    }, { zone: 'America/Sao_Paulo' });
+    }, { zone: userTimezone });
 
+    // NOVO: Limpar nome do evento se necessário
+    let eventTitle = claudeResult.title && claudeResult.title.length > 2 ? claudeResult.title : extractEventTitle(message);
     const event: Event = {
-      title: claudeResult.title,
+      title: eventTitle,
       startDate: eventDate.toISO() || eventDate.toString(),
-      description: claudeResult.title,
+      description: eventTitle,
       displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
     };
 

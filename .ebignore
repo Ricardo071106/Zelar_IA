@@ -1,0 +1,242 @@
+# EXCLUIR TUDO DO GIT (muito pesado)
+.git/
+
+# Excluir node_modules e dependências
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Excluir arquivos de build e cache
+dist/
+build/
+.cache/
+.parcel-cache/
+.next/
+.nuxt/
+.vuepress/dist/
+
+# Excluir arquivos de desenvolvimento
+*.log
+*.tsbuildinfo
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Excluir arquivos de teste
+coverage/
+.nyc_output/
+*.test.js
+*.test.ts
+*.spec.js
+*.spec.ts
+__tests__/
+test/
+tests/
+
+# Excluir documentação
+README.md
+*.md
+docs/
+documentation/
+
+# Excluir arquivos de configuração de IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Excluir arquivos temporários
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Excluir arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Excluir arquivos de sessão do WhatsApp
+whatsapp_session/
+.wwebjs_cache/
+.wwebjs_auth/
+*.session
+*.session.json
+
+# Excluir arquivos de deploy
+deploy.zip
+deploy-aws.sh
+
+# Excluir arquivos de exemplo
+env.example
+DEPLOY_GUIDE.md
+
+# Excluir arquivos de configuração local
+.elasticbeanstalk/
+ebextensions/
+
+# Excluir arquivos de backup
+*.bak
+*.backup
+*.old
+
+# Excluir arquivos de mídia pesados
+*.mp4
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.mkv
+*.m4v
+*.3gp
+*.ogv
+*.ts
+*.mts
+*.m2ts
+
+# Excluir arquivos de áudio
+*.mp3
+*.wav
+*.flac
+*.aac
+*.ogg
+*.wma
+*.m4a
+*.opus
+
+# Excluir arquivos de imagem pesados
+*.psd
+*.ai
+*.eps
+*.svg
+*.bmp
+*.tiff
+*.tga
+*.raw
+*.cr2
+*.nef
+*.arw
+*.dng
+
+# Excluir arquivos de arquivo
+*.zip
+*.rar
+*.7z
+*.tar
+*.gz
+*.bz2
+*.xz
+*.lzma
+
+# Excluir arquivos de banco de dados
+*.db
+*.sqlite
+*.sqlite3
+*.mdb
+*.accdb
+
+# Excluir arquivos de backup de banco
+*.dump
+*.sql
+*.bak
+
+# Excluir arquivos de log do sistema
+/var/log/
+*.log.*
+
+# Excluir arquivos de cache do navegador
+Cache/
+cache/
+.cache/
+
+# Excluir arquivos de sessão
+sessions/
+session/
+
+# Excluir arquivos de configuração local
+config.local.*
+settings.local.*
+
+# Excluir arquivos de desenvolvimento específicos
+dev/
+development/
+staging/
+
+# Excluir arquivos de análise
+.nyc_output/
+coverage/
+.coveralls.yml
+
+# Excluir arquivos de CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+azure-pipelines.yml
+
+# Excluir arquivos de dependências específicas
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Excluir arquivos de configuração de ferramentas
+.eslintrc*
+.prettierrc*
+.babelrc*
+tsconfig.json
+webpack.config.*
+rollup.config.*
+vite.config.*
+jest.config.*
+karma.conf.*
+
+# Excluir arquivos de ambiente
+.env*
+!.env.example
+
+# Excluir arquivos de documentação
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Excluir arquivos de projeto específicos
+client/RECURSO JARI - RICO.docx.pdf
+
+# Excluir arquivos de teste específicos
+test-telegram.mjs
+test-telegram.js
+test-whatsapp.html
+test-extract.js
+test_event_extraction.ts
+
+# Excluir arquivos de configuração desnecessários
+components.json
+postcss.config.js
+tailwind.config.ts
+vite.config.ts
+drizzle.config.ts
+
+# Excluir arquivos públicos desnecessários
+public/
+public/auth-solution.html
+public/auth-error.html
+public/google-auth-success.html
+public/index_old.html
+public/assets/
+
+# Excluir arquivos do cliente desnecessários para produção
+client/public/
+client/src/components/ui/
+client/src/hooks/
+client/src/lib/
+client/src/pages/
+
+# Excluir arquivos de exemplo
+env.example 

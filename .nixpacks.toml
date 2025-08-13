@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["chromium", "chromium-sandbox"]
+
+[phases.install]
+cmds = ["npm install"]
+
+[phases.build]
+cmds = ["npm run build"]
+
+[start]
+cmd = "npm run start:simple" 

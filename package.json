@@ -4,11 +4,15 @@
   "type": "module",
   "main": "dist/index.js",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist --minify",
     "start": "NODE_ENV=production node dist/index.js",
     "start:direct": "NODE_ENV=production tsx server/index.ts",
+    "start:simple": "NODE_ENV=production node server/simple-server.js",
     "check": "tsc",
     "db:push": "drizzle-kit push",
     "build:prod": "npm run build"
@@ -60,7 +64,7 @@
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
     "date-fns": "^3.6.0",
-    "dotenv": "^16.5.0",
+    "dotenv": "^16.6.1",
     "drizzle-orm": "^0.39.1",
     "drizzle-zod": "^0.7.0",
     "embla-carousel-react": "^8.6.0",

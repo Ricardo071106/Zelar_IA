@@ -5,11 +5,20 @@ import * as schema from "@shared/schema";
 
 neonConfig.webSocketConstructor = ws;
 
+// Verificar se DATABASE_URL está configurado
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  console.warn("⚠️ DATABASE_URL não configurado - funcionalidades de banco desabilitadas");
+  // Exportar objetos vazios para evitar erros
+  export const pool = null;
+  export const db = null;
+} else {
+  try {
+    export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    export const db = drizzle({ client: pool, schema });
+    console.log("✅ Conexão com banco de dados estabelecida");
+  } catch (error) {
+    console.error("❌ Erro ao conectar com banco:", error);
+    export const pool = null;
+    export const db = null;
+  }
 }
-
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });

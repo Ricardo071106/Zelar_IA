@@ -235,18 +235,18 @@ export class WhatsAppBot {
       const result = parseUserDateTime(text, userId);
       console.log(`🔍 [DEBUG] Resultado do parser:`, result);
       // EXTRAÇÃO DE TÍTULO COM LOGS DETALHADOS
-      const extractedTitle = extractEventTitle(text);
+      const cleanTitle = extractEventTitle(text);
       console.log(`🟢 [DEBUG] Texto original recebido: "${text}"`);
-      console.log(`🟢 [DEBUG] Título extraído por extractEventTitle: "${extractedTitle}"`);
+      console.log(`🟢 [DEBUG] Título limpo por extractEventTitle: "${cleanTitle}"`);
       if (result) {
         let response = `✅ *Evento criado!*\n\n`;
-        response += `🎯 *${extractedTitle}*\n`;
+        response += `🎯 *${cleanTitle}*\n`;
         const date = new Date(result.iso);
         const dateTime = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         response += `📅 ${dateTime}\n\n`;
         response += `*Adicionar ao calendário:*\n`;
         // Gerar links de calendário
-        const calendarLinks = generateCalendarLinks({ title: extractedTitle, startDate: date, hour: date.getHours(), minute: date.getMinutes() });
+        const calendarLinks = generateCalendarLinks({ title: cleanTitle, startDate: date, hour: date.getHours(), minute: date.getMinutes() });
         response += `🔗 Google Calendar: ${calendarLinks.google}\n\n`;
         response += `🔗 Outlook: ${calendarLinks.outlook}`;
         console.log(`🟢 [DEBUG] Resposta final enviada ao usuário: \n${response}`);

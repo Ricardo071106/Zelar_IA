@@ -593,7 +593,7 @@ export async function startZelarBot(): Promise<boolean> {
         
         let event;
         if (claudeResult.isValid) {
-          // Usar resultado do Claude
+          // Usar resultado do Claude, mas limpar o nome do evento SEMPRE
           const eventDate = DateTime.fromObject({
             year: parseInt(claudeResult.date.split('-')[0]),
             month: parseInt(claudeResult.date.split('-')[1]),
@@ -601,28 +601,47 @@ export async function startZelarBot(): Promise<boolean> {
             hour: claudeResult.hour,
             minute: claudeResult.minute
           }, { zone: userTimezone });
-          
           const isoString = eventDate.toISO();
+          // NOVO: Sempre limpar o nome do evento
+          const cleanTitle = extractEventTitle(message);
           event = {
-            title: claudeResult.title,
+            title: cleanTitle,
             startDate: isoString || eventDate.toString(),
-            description: claudeResult.title,
+            description: cleanTitle,
             displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
           };
-          
           // 🧠 APRENDIZADO: Salvar padrão bem-sucedido para melhorar parsing local
-          savePatternForLearning(message.toLowerCase(), claudeResult.title, claudeResult.hour, claudeResult.minute, claudeResult.date);
-          
-          console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
+          savePatternForLearning(message.toLowerCase(), cleanTitle, claudeResult.hour, claudeResult.minute, claudeResult.date);
+          console.log(`✅ Claude interpretou: ${cleanTitle} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
         } else {
           // Fallback melhorado: verificar padrões aprendidos primeiro
           const learnedPattern = checkLearnedPatterns(message);
           if (learnedPattern) {
             console.log(`🎯 Usando padrão aprendido: ${learnedPattern.title}`);
-            event = learnedPattern;
+            // Corrigir para usar o fuso do usuário
+            const eventDate = DateTime.fromObject({
+              year: parseInt(learnedPattern.startDate.split('-')[0]),
+              month: parseInt(learnedPattern.startDate.split('-')[1]),
+              day: parseInt(learnedPattern.startDate.split('-')[2]),
+              hour: DateTime.fromISO(learnedPattern.startDate).hour,
+              minute: DateTime.fromISO(learnedPattern.startDate).minute
+            }, { zone: userTimezone });
+            const isoString = eventDate.toISO();
+            const cleanTitle = extractEventTitle(message);
+            event = {
+              title: cleanTitle,
+              startDate: isoString || eventDate.toString(),
+              description: cleanTitle,
+              displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
+            };
           } else {
             // Usar método anterior como último recurso
             event = processMessage(message, userIdString, ctx.from?.language_code);
+            // Corrigir para limpar o nome do evento
+            if (event) {
+              event.title = extractEventTitle(message);
+              event.description = event.title;
+            }
           }
         }
         
