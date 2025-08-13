@@ -7,7 +7,7 @@ const { Client, LocalAuth, MessageMedia } = pkg;
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { generateCalendarLinks } from '../utils/calendarUtils';
 import { parseUserDateTime, extractEventTitle } from '../telegram/utils/parseDate';
-import qrcode from 'qrcode-terminal';
+import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
 
@@ -92,12 +92,17 @@ export class WhatsAppBot {
     
     // QR Code para autenticação
     this.client.on('qr', async (qr: string) => {
-      console.log('🔗 QR Code recebido, gerando no terminal...');
-      console.log('\n🔗 CONECTAR WHATSAPP BOT:');
-      console.log('Escaneie o QR code abaixo com seu WhatsApp para conectar o bot:\n');
-      (qrcode as any).generate(qr, { small: true });
-      console.log('\n📱 Abra o WhatsApp > Menu > Dispositivos conectados > Conectar dispositivo');
-      console.log('🔍 Escaneie o QR code acima para ativar o bot WhatsApp\n');
+      console.log('🔗 QR Code recebido, gerando...');
+      try {
+        const qrCodeString = await qrcode.toString(qr, { type: 'terminal', small: true });
+        console.log('\n🔗 CONECTAR WHATSAPP BOT:');
+        console.log('Escaneie o QR code abaixo com seu WhatsApp para conectar o bot:\n');
+        console.log(qrCodeString);
+        console.log('\n📱 Abra o WhatsApp > Menu > Dispositivos conectados > Conectar dispositivo');
+        console.log('🔍 Escaneie o QR code acima para ativar o bot WhatsApp\n');
+      } catch (error) {
+        console.error('❌ Erro ao gerar QR code:', error);
+      }
       
       // Salvar QR code atual
       this.status.qrCode = qr;
