@@ -15,8 +15,8 @@ services:
       - key: ENABLE_WHATSAPP_BOT
         value: true
       - key: ENABLE_TELEGRAM_BOT
-        value: false
+        value: true
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: true
       - key: PUPPETEER_EXECUTABLE_PATH
-        value: /usr/bin/chromium-browser 
+        value: /usr/bin/chromium 
