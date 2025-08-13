@@ -20,7 +20,6 @@ class WhatsAppBot {
       }),
       puppeteer: {
         headless: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -42,13 +41,7 @@ class WhatsAppBot {
           '--disable-renderer-backgrounding',
           '--disable-software-rasterizer',
           '--disable-background-networking',
-          '--disable-default-apps',
-          '--disable-sync',
-          '--disable-translate',
-          '--hide-scrollbars',
           '--metrics-recording-only',
-          '--mute-audio',
-          '--no-first-run',
           '--safebrowsing-disable-auto-update',
           '--ignore-certificate-errors',
           '--ignore-ssl-errors',
