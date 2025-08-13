@@ -20,6 +20,7 @@ class WhatsAppBot {
       }),
       puppeteer: {
         headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -45,7 +46,12 @@ class WhatsAppBot {
           '--safebrowsing-disable-auto-update',
           '--ignore-certificate-errors',
           '--ignore-ssl-errors',
-          '--ignore-certificate-errors-spki-list'
+          '--ignore-certificate-errors-spki-list',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--no-zygote',
+          '--disable-gpu-sandbox'
         ]
       }
     });
@@ -103,6 +109,12 @@ class WhatsAppBot {
 
     this.client.on('disconnected', (reason) => {
       console.log('🔌 WhatsApp desconectado:', reason);
+      this.status.isConnected = false;
+      this.status.isReady = false;
+    });
+
+    this.client.on('error', (error) => {
+      console.error('❌ Erro no WhatsApp:', error);
       this.status.isConnected = false;
       this.status.isReady = false;
     });
@@ -274,10 +286,22 @@ class WhatsAppBot {
   async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
+      console.log('🔧 Configuração Puppeteer:', {
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+        headless: true
+      });
       await this.client.initialize();
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+      console.error('🔍 Detalhes do erro:', error.message);
+      this.status.isReady = false;
+      
+      // Tentar reinicializar após 30 segundos
+      setTimeout(() => {
+        console.log('🔄 Tentando reinicializar WhatsApp Bot...');
+        this.initialize();
+      }, 30000);
     }
   }
 
