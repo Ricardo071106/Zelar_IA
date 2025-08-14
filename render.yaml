@@ -5,14 +5,16 @@ services:
     plan: starter
     buildCommand: chmod +x render-build.sh && ./render-build.sh
     startCommand: npm run start
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: DATABASE_URL
-        sync: false
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: ENABLE_WHATSAPP_BOT
-        value: true
-      - key: ENABLE_TELEGRAM_BOT
-        value: true 
+                    envVars:
+                  - key: NODE_ENV
+                    value: production
+                  - key: DATABASE_URL
+                    sync: false
+                  - key: TELEGRAM_BOT_TOKEN
+                    sync: false
+                  - key: ENABLE_WHATSAPP_BOT
+                    value: true
+                  - key: ENABLE_TELEGRAM_BOT
+                    value: true
+                  - key: PUPPETEER_EXECUTABLE_PATH
+                    value: /usr/bin/chromium 
