@@ -47,6 +47,10 @@ class WhatsAppBot {
           '--ignore-ssl-errors',
           '--ignore-certificate-errors-spki-list'
         ]
+      },
+      webVersion: '2.2402.5',
+      webVersionCache: {
+        type: 'none'
       }
     });
 
@@ -283,6 +287,20 @@ class WhatsAppBot {
       console.log('🔧 Configuração Puppeteer:', {
         headless: true
       });
+      
+      // Limpar cache se existir
+      try {
+        const fs = await import('fs');
+        const path = await import('path');
+        const sessionPath = './whatsapp_session';
+        if (fs.existsSync(sessionPath)) {
+          console.log('🧹 Limpando cache anterior...');
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+        }
+      } catch (e) {
+        console.log('⚠️ Erro ao limpar cache:', e.message);
+      }
+      
       await this.client.initialize();
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
     } catch (error) {
@@ -290,11 +308,11 @@ class WhatsAppBot {
       console.error('🔍 Detalhes do erro:', error.message);
       this.status.isReady = false;
       
-      // Tentar reinicializar após 30 segundos
+      // Tentar reinicializar após 60 segundos
       setTimeout(() => {
         console.log('🔄 Tentando reinicializar WhatsApp Bot...');
         this.initialize();
-      }, 30000);
+      }, 60000);
     }
   }
 
