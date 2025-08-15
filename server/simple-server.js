@@ -20,7 +20,7 @@ class WhatsAppBot {
       }),
       puppeteer: {
         headless: true,
-        // executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/chromium-browser',
+        executablePath: '/usr/bin/google-chrome-stable',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',

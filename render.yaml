@@ -16,7 +16,7 @@ services:
                     value: true
                   - key: ENABLE_TELEGRAM_BOT
                     value: true
-                  # - key: PUPPETEER_EXECUTABLE_PATH
-                  #   value: /usr/bin/chromium-browser
+                  - key: PUPPETEER_EXECUTABLE_PATH
+                    value: /usr/bin/google-chrome-stable
                   - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-                    value: false 
+                    value: true 

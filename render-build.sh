@@ -29,6 +29,7 @@ apt-get update
                 libxss1 \
                 fonts-liberation \
                 xdg-utils \
+                google-chrome-stable \
                 chromium-browser \
                 chromium-sandbox
 
