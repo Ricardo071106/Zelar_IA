@@ -248,8 +248,13 @@ class WhatsAppBot {
       const baileysModule = await import('@whiskeysockets/baileys');
       console.log('✅ Baileys carregado!');
       
-      const makeWASocket = baileysModule.default;
+      console.log('🔧 Módulo Baileys:', Object.keys(baileysModule));
+      console.log('🔧 default:', typeof baileysModule.default);
+      
+      const makeWASocket = baileysModule.default || baileysModule.makeWASocket;
       const { DisconnectReason, useMultiFileAuthState } = baileysModule;
+      
+      console.log('🔧 makeWASocket:', typeof makeWASocket);
       
       console.log('📁 Carregando estado de autenticação...');
       console.log('🔧 useMultiFileAuthState disponível:', typeof useMultiFileAuthState);
