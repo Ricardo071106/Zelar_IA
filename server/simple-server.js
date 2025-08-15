@@ -278,7 +278,31 @@ class WhatsAppBot {
         auth: state,
         printQRInTerminal: true,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 25000
+        keepAliveIntervalMs: 25000,
+        retryRequestDelayMs: 2000,
+        maxRetries: 3,
+        shouldIgnoreJid: jid => jid.includes('@broadcast'),
+        patchMessageBeforeSending: (msg) => {
+          const requiresPatch = !!(
+            msg.buttonsMessage ||
+            msg.templateMessage ||
+            msg.listMessage
+          );
+          if (requiresPatch) {
+            msg = {
+              viewOnceMessage: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...msg,
+                },
+              },
+            };
+          }
+          return msg;
+        },
       });
       console.log('✅ Conexão criada!');
 
@@ -374,12 +398,29 @@ class WhatsAppBot {
       const fs = await import('fs');
       const path = await import('path');
       
+      // Limpar diretório de sessão
       const sessionDir = 'whatsapp_session';
       if (fs.existsSync(sessionDir)) {
         fs.rmSync(sessionDir, { recursive: true, force: true });
-        console.log('✅ Sessão limpa!');
+        console.log('✅ Diretório de sessão limpo!');
       }
       
+      // Limpar outros arquivos de sessão
+      const filesToDelete = [
+        'session-zelar-whatsapp-bot',
+        'whatsapp_session',
+        '.wwebjs_auth',
+        '.wwebjs_cache'
+      ];
+      
+      for (const file of filesToDelete) {
+        if (fs.existsSync(file)) {
+          fs.rmSync(file, { recursive: true, force: true });
+          console.log(`✅ ${file} removido!`);
+        }
+      }
+      
+      // Resetar status
       this.status = {
         isReady: false,
         isConnected: false,
@@ -387,6 +428,19 @@ class WhatsAppBot {
         qrCodeImage: null,
         clientInfo: null
       };
+      
+      // Fechar conexão se existir
+      if (this.sock) {
+        try {
+          await this.sock.logout();
+          console.log('✅ Conexão fechada!');
+        } catch (error) {
+          console.log('⚠️ Erro ao fechar conexão:', error.message);
+        }
+        this.sock = null;
+      }
+      
+      console.log('✅ Sessão completamente limpa!');
     } catch (error) {
       console.error('❌ Erro ao limpar sessão:', error);
     }
