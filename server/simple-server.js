@@ -243,13 +243,17 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
+      console.log('📁 Carregando estado de autenticação...');
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+      console.log('✅ Estado carregado com sucesso!');
       
+      console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
         logger: console
       });
+      console.log('✅ Conexão Baileys criada!');
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
