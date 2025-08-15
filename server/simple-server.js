@@ -344,7 +344,7 @@ let whatsappBot = null;
 
 // Inicializar bot do Telegram se o token estiver configurado
 let telegramBot = null;
-if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true') {
+if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false') {
   try {
     telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
     console.log('✅ Bot do Telegram inicializado com sucesso!');
