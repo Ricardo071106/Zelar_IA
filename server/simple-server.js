@@ -20,7 +20,6 @@ class WhatsAppBot {
       }),
       puppeteer: {
         headless: true,
-        executablePath: null,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
