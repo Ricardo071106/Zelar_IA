@@ -290,10 +290,10 @@ class WhatsAppBot {
           
           // Gerar QR code visual
           try {
-            const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 40 });
+            const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 20, small: true });
             console.log('\n📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:\n');
             console.log(qrImage);
-            console.log('\n🔗 Ou acesse: http://localhost:' + (process.env.PORT || 8080) + '/api/whatsapp/qr');
+            console.log('\n🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
             console.log('\n📋 Como conectar:');
             console.log('1. Abra o WhatsApp no seu celular');
             console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
@@ -666,7 +666,14 @@ app.get('/api/whatsapp/qr', async (req, res) => {
 
     if (status.qrCode) {
       // Gerar QR code como imagem
-      const qrImage = await qrcode.toDataURL(status.qrCode);
+      const qrImage = await qrcode.toDataURL(status.qrCode, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF'
+        }
+      });
       return res.json({
         status: 'qr_ready',
         qrCode: status.qrCode,
