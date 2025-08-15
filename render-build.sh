@@ -28,10 +28,7 @@ apt-get update
                 libgbm1 \
                 libxss1 \
                 fonts-liberation \
-                xdg-utils \
-                google-chrome-stable \
-                chromium-browser \
-                chromium-sandbox
+                xdg-utils
 
 # Instalar dependências do Node.js
 echo "📦 Instalando dependências Node.js..."
