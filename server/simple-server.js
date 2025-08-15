@@ -364,6 +364,29 @@ class WhatsAppBot {
       console.error('❌ Erro ao limpar sessão:', error);
     }
   }
+
+  async sendMessage(to, message) {
+    try {
+      if (!this.sock || !this.status.isConnected) {
+        console.log('❌ WhatsApp não está conectado');
+        return false;
+      }
+
+      console.log(`📤 Enviando mensagem para ${to}: ${message}`);
+      
+      // Formatar número
+      const formattedNumber = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
+      
+      // Enviar mensagem
+      await this.sock.sendMessage(formattedNumber, { text: message });
+      
+      console.log('✅ Mensagem enviada com sucesso!');
+      return true;
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem:', error);
+      return false;
+    }
+  }
 }
 
 // Instância global do WhatsApp Bot
