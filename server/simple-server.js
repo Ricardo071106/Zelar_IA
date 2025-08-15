@@ -243,31 +243,18 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
+      // Limpar sessão anterior se houver problemas
+      console.log('🧹 Verificando sessão anterior...');
+      
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
       const baileysModule = await import('@whiskeysockets/baileys');
       console.log('✅ Baileys carregado!');
       
-      console.log('🔧 Módulo Baileys:', Object.keys(baileysModule));
-      console.log('🔧 default:', typeof baileysModule.default);
-      
-      // Tentar diferentes formas de acessar makeWASocket
-      let makeWASocket = baileysModule.default;
-      if (!makeWASocket || typeof makeWASocket !== 'function') {
-        makeWASocket = baileysModule.makeWASocket;
-      }
-      if (!makeWASocket || typeof makeWASocket !== 'function') {
-        makeWASocket = baileysModule.default?.default;
-      }
-      
+      const makeWASocket = baileysModule.default;
       const { DisconnectReason, useMultiFileAuthState } = baileysModule;
       
-      console.log('🔧 makeWASocket final:', typeof makeWASocket);
-      console.log('🔧 makeWASocket disponível:', !!makeWASocket);
-      
       console.log('📁 Carregando estado de autenticação...');
-      console.log('🔧 useMultiFileAuthState disponível:', typeof useMultiFileAuthState);
-      
       const authResult = await useMultiFileAuthState('whatsapp_session');
       const { state, saveCreds } = authResult;
       console.log('✅ Estado carregado!');
@@ -275,7 +262,9 @@ class WhatsAppBot {
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        printQRInTerminal: true,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 25000
       });
       console.log('✅ Conexão criada!');
 
@@ -336,6 +325,30 @@ class WhatsAppBot {
 
   getStatus() {
     return this.status;
+  }
+
+  async clearSession() {
+    try {
+      console.log('🧹 Limpando sessão WhatsApp...');
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const sessionDir = 'whatsapp_session';
+      if (fs.existsSync(sessionDir)) {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+        console.log('✅ Sessão limpa!');
+      }
+      
+      this.status = {
+        isReady: false,
+        isConnected: false,
+        qrCode: null,
+        qrCodeImage: null,
+        clientInfo: null
+      };
+    } catch (error) {
+      console.error('❌ Erro ao limpar sessão:', error);
+    }
   }
 }
 
@@ -703,6 +716,23 @@ app.get('/api/whatsapp/status', async (req, res) => {
     res.json(status);
   } catch (error) {
     console.error('Erro ao obter status do WhatsApp:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para limpar sessão WhatsApp
+app.post('/api/whatsapp/clear', async (req, res) => {
+  try {
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+
+    await whatsappBot.clearSession();
+    await whatsappBot.initialize();
+    
+    res.json({ success: true, message: 'Sessão limpa e bot reiniciado' });
+  } catch (error) {
+    console.error('Erro ao limpar sessão:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
