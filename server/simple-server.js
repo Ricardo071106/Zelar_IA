@@ -245,20 +245,44 @@ class WhatsAppBot {
       
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
-      const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('@whiskeysockets/baileys');
-      console.log('✅ Baileys carregado com sucesso!');
+      try {
+        const baileysModule = await import('@whiskeysockets/baileys');
+        console.log('📦 Módulo Baileys carregado:', Object.keys(baileysModule));
+        
+        const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = baileysModule;
+        console.log('✅ Baileys carregado com sucesso!');
+        console.log('🔧 makeWASocket:', typeof makeWASocket);
+        console.log('🔧 DisconnectReason:', typeof DisconnectReason);
+        console.log('🔧 useMultiFileAuthState:', typeof useMultiFileAuthState);
+      } catch (importError) {
+        console.error('❌ Erro ao importar Baileys:', importError);
+        throw importError;
+      }
       
       console.log('📁 Carregando estado de autenticação...');
-      const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
-      console.log('✅ Estado carregado com sucesso!');
+      try {
+        const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+        console.log('✅ Estado carregado com sucesso!');
+        console.log('🔧 state:', typeof state);
+        console.log('🔧 saveCreds:', typeof saveCreds);
+      } catch (authError) {
+        console.error('❌ Erro ao carregar estado de autenticação:', authError);
+        throw authError;
+      }
       
       console.log('🔗 Criando conexão Baileys...');
-      this.sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        logger: console
-      });
-      console.log('✅ Conexão Baileys criada!');
+      try {
+        this.sock = makeWASocket({
+          auth: state,
+          printQRInTerminal: true,
+          logger: console
+        });
+        console.log('✅ Conexão Baileys criada!');
+        console.log('🔧 sock:', typeof this.sock);
+      } catch (socketError) {
+        console.error('❌ Erro ao criar conexão Baileys:', socketError);
+        throw socketError;
+      }
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
