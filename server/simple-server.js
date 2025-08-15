@@ -275,14 +275,7 @@ class WhatsAppBot {
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true,
-        logger: {
-          level: 'info',
-          child: () => ({ info: () => {}, error: () => {}, warn: () => {} }),
-          info: () => {},
-          error: () => {},
-          warn: () => {}
-        }
+        printQRInTerminal: true
       });
       console.log('✅ Conexão criada!');
 
