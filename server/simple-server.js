@@ -472,6 +472,8 @@ class WhatsAppBot {
   async processSchedulingCommand(message, chatId) {
     try {
       console.log(`🤖 Processando comando WhatsApp: ${message}`);
+      console.log(`🔍 Chat ID: ${chatId}`);
+      console.log(`📝 Mensagem original: "${message}"`);
       
       // Comandos básicos
       if (message === '/start') {
@@ -531,6 +533,7 @@ class WhatsAppBot {
       
       // Detectar "com" para adicionar pessoa - MELHORADO
       const comMatch = message.match(/(.+?)\s+com\s+([^0-9\s]+(?:\s+[^0-9\s]+)*)/i);
+      console.log(`🔍 ComMatch encontrado:`, comMatch);
       
       // Extrair título básico - MELHORADO
       let baseTitle = 'Evento';
@@ -541,26 +544,37 @@ class WhatsAppBot {
       else if (lowerText.includes('academia')) baseTitle = 'Academia';
       else if (lowerText.includes('trabalho')) baseTitle = 'Trabalho';
       
+      console.log(`🎯 Título base: ${baseTitle}`);
+      
       // Se não encontrou "com", usar o título básico
       if (!comMatch) {
         eventTitle = baseTitle;
+        console.log(`📝 Título final (sem "com"): ${eventTitle}`);
       }
       if (comMatch) {
         const beforeCom = comMatch[1].trim();
         const afterCom = comMatch[2].trim();
         
+        console.log(`🔍 Antes do "com": "${beforeCom}"`);
+        console.log(`🔍 Depois do "com": "${afterCom}"`);
+        
         // Extrair apenas a palavra principal antes do "com"
         const mainWord = beforeCom.split(' ').pop(); // Pega a última palavra
         eventTitle = `${mainWord} com ${afterCom}`;
+        
+        console.log(`📝 Palavra principal: "${mainWord}"`);
+        console.log(`📝 Título final (com "com"): ${eventTitle}`);
       }
       
       // Detectar horário básico
       const timeMatch = message.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+      console.log(`🕐 TimeMatch encontrado:`, timeMatch);
       if (timeMatch) {
         const hour = parseInt(timeMatch[1]);
         const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
         eventDate.setHours(hour, minute, 0, 0);
         isValidEvent = true;
+        console.log(`🕐 Horário definido: ${hour}:${minute}`);
       }
       
       // Detectar dia da semana
@@ -586,7 +600,11 @@ class WhatsAppBot {
         isValidEvent = true;
       }
       
+      console.log(`✅ Evento válido: ${isValidEvent}`);
+      console.log(`📅 Data final: ${eventDate.toLocaleString('pt-BR')}`);
+      
       if (!isValidEvent) {
+        console.log(`❌ Evento inválido - retornando erro`);
         return '❌ *Não consegui entender a data/hora*\n\n' +
                '💡 *Tente algo como:*\n' +
                '• "jantar hoje às 19h"\n' +
@@ -610,15 +628,23 @@ class WhatsAppBot {
         minute: '2-digit'
       });
 
-      return '✅ *Evento criado!*\n\n' +
+      const finalResponse = '✅ *Evento criado!*\n\n' +
              `🎯 *${eventTitle}*\n` +
              `📅 ${displayDate}\n\n` +
              '📅 *Links do Calendário:*\n' +
              `• Google Calendar: ${googleUrl}\n` +
              `• Outlook: ${outlookUrl}`;
+      
+      console.log(`🎉 Resposta final gerada com sucesso!`);
+      console.log(`📝 Título do evento: ${eventTitle}`);
+      console.log(`📅 Data de exibição: ${displayDate}`);
+      
+      return finalResponse;
 
     } catch (error) {
       console.error('❌ Erro ao processar WhatsApp:', error);
+      console.error('❌ Stack trace:', error.stack);
+      console.error('❌ Mensagem que causou erro:', message);
       return '❌ Erro interno. Tente novamente.';
     }
   }
