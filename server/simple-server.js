@@ -251,10 +251,19 @@ class WhatsAppBot {
       console.log('🔧 Módulo Baileys:', Object.keys(baileysModule));
       console.log('🔧 default:', typeof baileysModule.default);
       
-      const makeWASocket = baileysModule.default || baileysModule.makeWASocket;
+      // Tentar diferentes formas de acessar makeWASocket
+      let makeWASocket = baileysModule.default;
+      if (!makeWASocket || typeof makeWASocket !== 'function') {
+        makeWASocket = baileysModule.makeWASocket;
+      }
+      if (!makeWASocket || typeof makeWASocket !== 'function') {
+        makeWASocket = baileysModule.default?.default;
+      }
+      
       const { DisconnectReason, useMultiFileAuthState } = baileysModule;
       
-      console.log('🔧 makeWASocket:', typeof makeWASocket);
+      console.log('🔧 makeWASocket final:', typeof makeWASocket);
+      console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
       console.log('📁 Carregando estado de autenticação...');
       console.log('🔧 useMultiFileAuthState disponível:', typeof useMultiFileAuthState);
