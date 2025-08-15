@@ -529,6 +529,9 @@ class WhatsAppBot {
       let eventDate = new Date();
       let isValidEvent = false;
       
+      // Detectar "com" para adicionar pessoa - MELHORADO
+      const comMatch = message.match(/(.+?)\s+com\s+([^0-9\s]+(?:\s+[^0-9\s]+)*)/i);
+      
       // Extrair título básico - MELHORADO
       let baseTitle = 'Evento';
       if (lowerText.includes('jantar')) baseTitle = 'Jantar';
@@ -542,9 +545,6 @@ class WhatsAppBot {
       if (!comMatch) {
         eventTitle = baseTitle;
       }
-      
-      // Detectar "com" para adicionar pessoa - MELHORADO
-      const comMatch = message.match(/(.+?)\s+com\s+([^0-9\s]+(?:\s+[^0-9\s]+)*)/i);
       if (comMatch) {
         const beforeCom = comMatch[1].trim();
         const afterCom = comMatch[2].trim();
