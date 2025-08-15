@@ -46,7 +46,8 @@ class WhatsAppBot {
           '--ignore-certificate-errors',
           '--ignore-ssl-errors',
           '--ignore-certificate-errors-spki-list'
-        ]
+        ],
+        ignoreDefaultArgs: ['--disable-extensions']
       },
       webVersion: '2.2402.5',
       webVersionCache: {

@@ -17,6 +17,4 @@ services:
                   - key: ENABLE_TELEGRAM_BOT
                     value: false
                   - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-                    value: false
-                  - key: PUPPETEER_EXECUTABLE_PATH
-                    value: "" 
+                    value: false 
