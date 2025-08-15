@@ -249,19 +249,28 @@ class WhatsAppBot {
         const baileysModule = await import('@whiskeysockets/baileys');
         console.log('📦 Módulo Baileys carregado:', Object.keys(baileysModule));
         
-        const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = baileysModule;
+        const makeWASocket = baileysModule.default;
+        const { DisconnectReason, useMultiFileAuthState } = baileysModule;
         console.log('✅ Baileys carregado com sucesso!');
         console.log('🔧 makeWASocket:', typeof makeWASocket);
         console.log('🔧 DisconnectReason:', typeof DisconnectReason);
         console.log('🔧 useMultiFileAuthState:', typeof useMultiFileAuthState);
+        
+        // Verificar se as funções estão disponíveis
+        if (!makeWASocket) throw new Error('makeWASocket não encontrado');
+        if (!useMultiFileAuthState) throw new Error('useMultiFileAuthState não encontrado');
+        if (!DisconnectReason) throw new Error('DisconnectReason não encontrado');
       } catch (importError) {
         console.error('❌ Erro ao importar Baileys:', importError);
         throw importError;
       }
       
       console.log('📁 Carregando estado de autenticação...');
+      let state, saveCreds;
       try {
-        const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+        const authResult = await useMultiFileAuthState('whatsapp_session');
+        state = authResult.state;
+        saveCreds = authResult.saveCreds;
         console.log('✅ Estado carregado com sucesso!');
         console.log('🔧 state:', typeof state);
         console.log('🔧 saveCreds:', typeof saveCreds);
