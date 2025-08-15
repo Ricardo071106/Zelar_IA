@@ -1,8 +1,8 @@
 import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
-import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
-import { Boom } from '@hapi/boom';
+// import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+// import { Boom } from '@hapi/boom';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -242,6 +242,11 @@ class WhatsAppBot {
   async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
+      
+      // Import dinâmico do Baileys
+      console.log('📦 Carregando Baileys...');
+      const { default: makeWASocket, DisconnectReason, useMultiFileAuthState } = await import('@whiskeysockets/baileys');
+      console.log('✅ Baileys carregado com sucesso!');
       
       console.log('📁 Carregando estado de autenticação...');
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
