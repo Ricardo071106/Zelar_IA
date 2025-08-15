@@ -529,19 +529,29 @@ class WhatsAppBot {
       let eventDate = new Date();
       let isValidEvent = false;
       
-      // Extrair título básico
-      if (lowerText.includes('jantar')) eventTitle = 'Jantar';
-      else if (lowerText.includes('almoço') || lowerText.includes('almoco')) eventTitle = 'Almoço';
-      else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) eventTitle = 'Reunião';
-      else if (lowerText.includes('consulta')) eventTitle = 'Consulta';
-      else if (lowerText.includes('academia')) eventTitle = 'Academia';
-      else if (lowerText.includes('trabalho')) eventTitle = 'Trabalho';
-      else eventTitle = 'Evento';
+      // Extrair título básico - MELHORADO
+      let baseTitle = 'Evento';
+      if (lowerText.includes('jantar')) baseTitle = 'Jantar';
+      else if (lowerText.includes('almoço') || lowerText.includes('almoco')) baseTitle = 'Almoço';
+      else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) baseTitle = 'Reunião';
+      else if (lowerText.includes('consulta')) baseTitle = 'Consulta';
+      else if (lowerText.includes('academia')) baseTitle = 'Academia';
+      else if (lowerText.includes('trabalho')) baseTitle = 'Trabalho';
       
-      // Detectar "com" para adicionar pessoa
-      const comMatch = message.match(/(.+?)\s+com\s+(.+)/i);
+      // Se não encontrou "com", usar o título básico
+      if (!comMatch) {
+        eventTitle = baseTitle;
+      }
+      
+      // Detectar "com" para adicionar pessoa - MELHORADO
+      const comMatch = message.match(/(.+?)\s+com\s+([^0-9\s]+(?:\s+[^0-9\s]+)*)/i);
       if (comMatch) {
-        eventTitle = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
+        const beforeCom = comMatch[1].trim();
+        const afterCom = comMatch[2].trim();
+        
+        // Extrair apenas a palavra principal antes do "com"
+        const mainWord = beforeCom.split(' ').pop(); // Pega a última palavra
+        eventTitle = `${mainWord} com ${afterCom}`;
       }
       
       // Detectar horário básico

@@ -317,3 +317,14 @@
 2025/08/15-19:25:59.428 1ae17 Delete type=2 #100
 2025/08/15-19:25:59.429 1ae17 Delete type=2 #98
 2025/08/15-19:25:59.429 1ae17 Delete type=2 #97
+2025/08/15-20:29:33.681 edc7 Level-0 table #104: started
+2025/08/15-20:29:33.710 edc7 Level-0 table #104: 928960 bytes OK
+2025/08/15-20:29:33.717 edc7 Delete type=0 #99
+2025/08/15-20:32:10.821 1b2cf Compacting 1@1 + 2@2 files
+2025/08/15-20:32:10.920 1b2cf Generated table #105@1: 44527 keys, 2932278 bytes
+2025/08/15-20:32:11.022 1b2cf Generated table #106@1: 2502 keys, 3550932 bytes
+2025/08/15-20:32:11.022 1b2cf Compacted 1@1 + 2@2 files => 6483210 bytes
+2025/08/15-20:32:11.027 1b2cf compacted to: files[ 0 0 2 0 0 0 0 ]
+2025/08/15-20:32:11.027 1b2cf Delete type=2 #102
+2025/08/15-20:32:11.028 1b2cf Delete type=2 #101
+2025/08/15-20:32:11.028 1b2cf Delete type=2 #104
