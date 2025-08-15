@@ -252,7 +252,10 @@ class WhatsAppBot {
       const { DisconnectReason, useMultiFileAuthState } = baileysModule;
       
       console.log('📁 Carregando estado de autenticação...');
-      const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+      console.log('🔧 useMultiFileAuthState disponível:', typeof useMultiFileAuthState);
+      
+      const authResult = await useMultiFileAuthState('whatsapp_session');
+      const { state, saveCreds } = authResult;
       console.log('✅ Estado carregado!');
       
       console.log('🔗 Criando conexão Baileys...');
