@@ -15,6 +15,8 @@ services:
                   - key: ENABLE_WHATSAPP_BOT
                     value: true
                   - key: ENABLE_TELEGRAM_BOT
-                    value: true
+                    value: false
                   - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-                    value: false 
+                    value: false
+                  - key: PUPPETEER_EXECUTABLE_PATH
+                    value: "" 
