@@ -29,7 +29,7 @@ apt-get update
                 libxss1 \
                 fonts-liberation \
                 xdg-utils \
-                chromium \
+                chromium-browser \
                 chromium-sandbox
 
 # Instalar dependências do Node.js
