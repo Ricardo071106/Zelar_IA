@@ -276,7 +276,13 @@ class WhatsAppBot {
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
-        logger: console
+        logger: {
+          level: 'info',
+          child: () => ({ info: () => {}, error: () => {}, warn: () => {} }),
+          info: () => {},
+          error: () => {},
+          warn: () => {}
+        }
       });
       console.log('✅ Conexão criada!');
 
