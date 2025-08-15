@@ -309,3 +309,11 @@
 2025/08/15-19:23:22.358 29757 Level-0 table #100: started
 2025/08/15-19:23:22.389 29757 Level-0 table #100: 1044433 bytes OK
 2025/08/15-19:23:22.397 29757 Delete type=0 #95
+2025/08/15-19:25:59.225 1ae17 Compacting 1@1 + 2@2 files
+2025/08/15-19:25:59.322 1ae17 Generated table #101@1: 42095 keys, 2990274 bytes
+2025/08/15-19:25:59.420 1ae17 Generated table #102@1: 2405 keys, 3223239 bytes
+2025/08/15-19:25:59.420 1ae17 Compacted 1@1 + 2@2 files => 6213513 bytes
+2025/08/15-19:25:59.428 1ae17 compacted to: files[ 0 0 2 0 0 0 0 ]
+2025/08/15-19:25:59.428 1ae17 Delete type=2 #100
+2025/08/15-19:25:59.429 1ae17 Delete type=2 #98
+2025/08/15-19:25:59.429 1ae17 Delete type=2 #97

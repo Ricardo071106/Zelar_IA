@@ -471,108 +471,145 @@ class WhatsAppBot {
 
   async processSchedulingCommand(message, chatId) {
     try {
-      console.log(`🤖 Processando comando: ${message}`);
+      console.log(`🤖 Processando comando WhatsApp: ${message}`);
       
       // Comandos básicos
-      if (message.toLowerCase().includes('/start') || message.toLowerCase().includes('oi') || message.toLowerCase().includes('olá')) {
-        return `🤖 *Zelar AI - Assistente de Agendamento*\n\n` +
-               `📅 *Como usar:*\n` +
-               `• "reunião amanhã às 15h"\n` +
-               `• "jantar hoje às 19h"\n` +
-               `• "consulta sexta às 10h"\n\n` +
-               `🌍 *Fuso horário:* Brasil (UTC-3)\n\n` +
-               `📝 *Comandos:*\n` +
-               `/help - Ajuda completa\n` +
-               `/list - Listar eventos\n` +
-               `/clear - Limpar eventos\n\n` +
-               `Envie qualquer mensagem com data e horário!`;
+      if (message === '/start') {
+        return '🤖 *Zelar - Assistente de Agendamento*\n\n' +
+               '💡 *Como usar:*\n' +
+               '• "jantar hoje às 19h"\n' +
+               '• "reunião amanhã às 15h"\n' +
+               '• "consulta sexta às 10h"\n\n' +
+               '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
+               'Use /timezone para alterar\n\n' +
+               '📝 *Comandos:*\n' +
+               '/timezone - Alterar fuso horário\n' +
+               '/help - Ajuda completa\n\n' +
+               'Envie qualquer mensagem com data e horário!';
       }
 
-      if (message.toLowerCase().includes('/help')) {
-        return `🤖 *Assistente Zelar - Ajuda*\n\n` +
-               `📅 *Como usar:*\n` +
-               `Envie mensagens naturais como:\n` +
-               `• "reunião com cliente amanhã às 14h"\n` +
-               `• "jantar com família sexta às 19h30"\n` +
-               `• "consulta médica terça-feira às 10h"\n` +
-               `• "call de projeto quinta às 15h"\n\n` +
-               `⚙️ *Comandos:*\n` +
-               `/list - Listar eventos agendados\n` +
-               `/clear - Limpar todos os eventos\n` +
-               `/start - Mensagem inicial\n\n` +
-               `🌍 *Fuso atual:* Brasil (UTC-3)\n\n` +
-               `✨ Processamento com IA!`;
+      if (message === '/help') {
+        return '🤖 *Assistente Zelar - Ajuda*\n\n' +
+               '📅 *Como usar:*\n' +
+               'Envie mensagens naturais como:\n' +
+               '• "reunião com cliente amanhã às 14h"\n' +
+               '• "jantar com família sexta às 19h30"\n' +
+               '• "consulta médica terça-feira às 10h"\n' +
+               '• "call de projeto quinta às 15h"\n\n' +
+               '⚙️ *Comandos:*\n' +
+               '/timezone - Alterar fuso horário\n' +
+               '/start - Mensagem inicial\n\n' +
+               '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
+               '✨ Processamento com IA Claude!';
       }
 
-      if (message.toLowerCase().includes('/list')) {
-        return `📋 *Eventos Agendados:*\n\n` +
-               `Nenhum evento encontrado.\n\n` +
-               `Para agendar, envie uma mensagem com data e horário!`;
+      if (message === '/timezone') {
+        return '🌍 *Selecione seu fuso horário:*\n\n' +
+               '🇧🇷 Brasil/Argentina: UTC-3\n' +
+               '🇺🇸 EUA Leste/Canadá: UTC-5\n' +
+               '🇺🇸 EUA Central/México: UTC-6\n' +
+               '🇺🇸 EUA Oeste: UTC-8\n' +
+               '🇬🇧 Londres/Dublin: UTC+0\n' +
+               '🇪🇺 Europa Central (Alemanha, França, Itália, Espanha): UTC+1\n' +
+               '🇷🇺 Moscou/Turquia: UTC+3\n' +
+               '🇮🇳 Índia: UTC+5:30\n' +
+               '🇨🇳 China/Singapura: UTC+8\n' +
+               '🇯🇵 Japão/Coreia: UTC+9\n' +
+               '🇦🇺 Austrália Leste: UTC+10\n' +
+               '🇳🇿 Nova Zelândia: UTC+12';
       }
 
-      if (message.toLowerCase().includes('/clear')) {
-        return `🧹 *Eventos Limpos*\n\n` +
-               `Todos os eventos foram removidos.\n\n` +
-               `Para agendar novos eventos, envie uma mensagem com data e horário!`;
-      }
+      if (message.startsWith('/')) return '';
 
-      // Processar agendamento
-      const schedulingResponse = await this.processScheduling(message);
-      return schedulingResponse;
-
-    } catch (error) {
-      console.error('❌ Erro ao processar comando:', error);
-      return `❌ Erro ao processar comando. Tente novamente.`;
-    }
-  }
-
-  async processScheduling(message) {
-    try {
-      // Simular processamento de agendamento
-      const lowerMessage = message.toLowerCase();
+      // Processamento igual ao Telegram
+      const lowerText = message.toLowerCase();
       
-      // Detectar padrões de data/hora
-      const timePatterns = [
-        { pattern: /amanhã|tomorrow/i, date: 'tomorrow' },
-        { pattern: /hoje|today/i, date: 'today' },
-        { pattern: /segunda|monday/i, date: 'monday' },
-        { pattern: /terça|tuesday/i, date: 'tuesday' },
-        { pattern: /quarta|wednesday/i, date: 'wednesday' },
-        { pattern: /quinta|thursday/i, date: 'thursday' },
-        { pattern: /sexta|friday/i, date: 'friday' },
-        { pattern: /sábado|saturday/i, date: 'saturday' },
-        { pattern: /domingo|sunday/i, date: 'sunday' }
-      ];
-
-      const timePattern = timePatterns.find(tp => tp.pattern.test(lowerMessage));
-      const hourPattern = /(\d{1,2})[h:](\d{2})?/i;
-      const hourMatch = message.match(hourPattern);
-
-      if (timePattern && hourMatch) {
-        const hour = hourMatch[1];
-        const minute = hourMatch[2] || '00';
-        const date = timePattern.date;
-        
-        return `✅ *Evento Agendado!*\n\n` +
-               `📅 **Data:** ${date}\n` +
-               `⏰ **Horário:** ${hour}:${minute}\n` +
-               `📝 **Descrição:** ${message}\n\n` +
-               `🎉 Evento salvo com sucesso!\n\n` +
-               `Use /list para ver todos os eventos.`;
+      // Detectar padrões básicos
+      let eventTitle = 'Evento';
+      let eventDate = new Date();
+      let isValidEvent = false;
+      
+      // Extrair título básico
+      if (lowerText.includes('jantar')) eventTitle = 'Jantar';
+      else if (lowerText.includes('almoço') || lowerText.includes('almoco')) eventTitle = 'Almoço';
+      else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) eventTitle = 'Reunião';
+      else if (lowerText.includes('consulta')) eventTitle = 'Consulta';
+      else if (lowerText.includes('academia')) eventTitle = 'Academia';
+      else if (lowerText.includes('trabalho')) eventTitle = 'Trabalho';
+      else eventTitle = 'Evento';
+      
+      // Detectar "com" para adicionar pessoa
+      const comMatch = message.match(/(.+?)\s+com\s+(.+)/i);
+      if (comMatch) {
+        eventTitle = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
       }
+      
+      // Detectar horário básico
+      const timeMatch = message.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+      if (timeMatch) {
+        const hour = parseInt(timeMatch[1]);
+        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+        eventDate.setHours(hour, minute, 0, 0);
+        isValidEvent = true;
+      }
+      
+      // Detectar dia da semana
+      const weekdays = {
+        'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
+      };
+      
+      for (const [day, dayNum] of Object.entries(weekdays)) {
+        if (lowerText.includes(day)) {
+          const today = new Date();
+          const currentDay = today.getDay();
+          let daysToAdd = (dayNum - currentDay + 7) % 7;
+          if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
+          eventDate.setDate(today.getDate() + daysToAdd);
+          isValidEvent = true;
+          break;
+        }
+      }
+      
+      // Detectar "amanhã"
+      if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
+        eventDate.setDate(eventDate.getDate() + 1);
+        isValidEvent = true;
+      }
+      
+      if (!isValidEvent) {
+        return '❌ *Não consegui entender a data/hora*\n\n' +
+               '💡 *Tente algo como:*\n' +
+               '• "jantar hoje às 19h"\n' +
+               '• "reunião quarta às 15h"';
+      }
+      
+      // Gerar links do calendário
+      const startDate = new Date(eventDate);
+      const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
+      
+      const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      
+      const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
+      const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
 
-      // Se não encontrou padrão de data/hora
-      return `🤖 *Zelar AI*\n\n` +
-             `Recebi sua mensagem: "${message}"\n\n` +
-             `Para agendar um evento, inclua data e horário:\n` +
-             `• "reunião amanhã às 15h"\n` +
-             `• "jantar hoje às 19h30"\n` +
-             `• "consulta sexta às 10h"\n\n` +
-             `Use /help para mais informações.`;
+      const displayDate = startDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+
+      return '✅ *Evento criado!*\n\n' +
+             `🎯 *${eventTitle}*\n` +
+             `📅 ${displayDate}\n\n` +
+             '📅 *Links do Calendário:*\n' +
+             `• Google Calendar: ${googleUrl}\n` +
+             `• Outlook: ${outlookUrl}`;
 
     } catch (error) {
-      console.error('❌ Erro ao processar agendamento:', error);
-      return `❌ Erro ao processar agendamento. Tente novamente.`;
+      console.error('❌ Erro ao processar WhatsApp:', error);
+      return '❌ Erro interno. Tente novamente.';
     }
   }
 }
