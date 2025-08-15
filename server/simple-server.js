@@ -245,53 +245,23 @@ class WhatsAppBot {
       
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
-      try {
-        const baileysModule = await import('@whiskeysockets/baileys');
-        console.log('📦 Módulo Baileys carregado:', Object.keys(baileysModule));
-        
-        const makeWASocket = baileysModule.default;
-        const { DisconnectReason, useMultiFileAuthState } = baileysModule;
-        console.log('✅ Baileys carregado com sucesso!');
-        console.log('🔧 makeWASocket:', typeof makeWASocket);
-        console.log('🔧 DisconnectReason:', typeof DisconnectReason);
-        console.log('🔧 useMultiFileAuthState:', typeof useMultiFileAuthState);
-        
-        // Verificar se as funções estão disponíveis
-        if (!makeWASocket) throw new Error('makeWASocket não encontrado');
-        if (!useMultiFileAuthState) throw new Error('useMultiFileAuthState não encontrado');
-        if (!DisconnectReason) throw new Error('DisconnectReason não encontrado');
-      } catch (importError) {
-        console.error('❌ Erro ao importar Baileys:', importError);
-        throw importError;
-      }
+      const baileysModule = await import('@whiskeysockets/baileys');
+      console.log('✅ Baileys carregado!');
+      
+      const makeWASocket = baileysModule.default;
+      const { DisconnectReason, useMultiFileAuthState } = baileysModule;
       
       console.log('📁 Carregando estado de autenticação...');
-      let state, saveCreds;
-      try {
-        const authResult = await useMultiFileAuthState('whatsapp_session');
-        state = authResult.state;
-        saveCreds = authResult.saveCreds;
-        console.log('✅ Estado carregado com sucesso!');
-        console.log('🔧 state:', typeof state);
-        console.log('🔧 saveCreds:', typeof saveCreds);
-      } catch (authError) {
-        console.error('❌ Erro ao carregar estado de autenticação:', authError);
-        throw authError;
-      }
+      const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+      console.log('✅ Estado carregado!');
       
       console.log('🔗 Criando conexão Baileys...');
-      try {
-        this.sock = makeWASocket({
-          auth: state,
-          printQRInTerminal: true,
-          logger: console
-        });
-        console.log('✅ Conexão Baileys criada!');
-        console.log('🔧 sock:', typeof this.sock);
-      } catch (socketError) {
-        console.error('❌ Erro ao criar conexão Baileys:', socketError);
-        throw socketError;
-      }
+      this.sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true,
+        logger: console
+      });
+      console.log('✅ Conexão criada!');
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
@@ -320,7 +290,7 @@ class WhatsAppBot {
         
         if (connection === 'close') {
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
-          console.log('❌ Conexão fechada devido a:', lastDisconnect?.error, ', reconectando:', shouldReconnect);
+          console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
           if (shouldReconnect) {
             this.initialize();
           }
