@@ -321,6 +321,33 @@ class WhatsAppBot {
         }
       });
 
+      // Listener para mensagens recebidas
+      this.sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0];
+        
+        if (!msg.key.fromMe && msg.message) {
+          console.log('📨 Mensagem recebida:', msg.message);
+          
+          const chatId = msg.key.remoteJid;
+          const messageText = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
+          
+          if (messageText) {
+            console.log(`💬 De: ${chatId}`);
+            console.log(`📝 Mensagem: ${messageText}`);
+            
+            // Resposta automática
+            const response = `🤖 Olá! Sou o Zelar AI.\n\nSua mensagem: "${messageText}"\n\nEstou funcionando perfeitamente! 🎉`;
+            
+            try {
+              await this.sock.sendMessage(chatId, { text: response });
+              console.log('✅ Resposta enviada!');
+            } catch (error) {
+              console.error('❌ Erro ao enviar resposta:', error);
+            }
+          }
+        }
+      });
+
       this.sock.ev.on('creds.update', saveCreds);
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
