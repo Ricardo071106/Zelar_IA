@@ -738,7 +738,11 @@ class WhatsAppBot {
         const second = String(date.getSeconds()).padStart(2, '0');
         
         // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
-        return `${year}${month}${day}T${hour}${minute}${second}Z`;
+        // Adicionar 3h para compensar UTC-3 (Brasil)
+        const localHour = (date.getHours() + 3) % 24;
+        const adjustedHour = String(localHour).padStart(2, '0');
+        
+        return `${year}${month}${day}T${adjustedHour}${minute}${second}Z`;
       };
       
       const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
@@ -1036,7 +1040,11 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           const second = String(date.getSeconds()).padStart(2, '0');
           
           // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
-          return `${year}${month}${day}T${hour}${minute}${second}Z`;
+          // Adicionar 3h para compensar UTC-3 (Brasil)
+          const localHour = (date.getHours() + 3) % 24;
+          const adjustedHour = String(localHour).padStart(2, '0');
+          
+          return `${year}${month}${day}T${adjustedHour}${minute}${second}Z`;
         };
         
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
