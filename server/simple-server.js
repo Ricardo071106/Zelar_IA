@@ -729,9 +729,8 @@ class WhatsAppBot {
       
       // Converter para UTC-3 (Brasil) para o Google Calendar
       const formatDateForGoogle = (date) => {
-        // Ajustar para UTC-3 (Brasil) - subtrair 3h para compensar
-        const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
-        return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        // Manter o horário local - não ajustar fuso horário
+        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       };
       
       const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
@@ -1020,9 +1019,8 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
         
         const formatDate = (date) => {
-          // Ajustar para UTC-3 (Brasil) - subtrair 3h para compensar
-          const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
-          return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+          // Manter o horário local - não ajustar fuso horário
+          return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
         };
         
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
