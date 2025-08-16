@@ -727,10 +727,18 @@ class WhatsAppBot {
       const startDate = new Date(eventDate);
       const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       
-      // Converter para UTC-3 (Brasil) para o Google Calendar
+      // Converter para Google Calendar com fuso horário correto
       const formatDateForGoogle = (date) => {
-        // Manter o horário local - não ajustar fuso horário
-        return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        // Criar data no fuso horário local (Brasil UTC-3)
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const hour = String(date.getHours()).padStart(2, '0');
+        const minute = String(date.getMinutes()).padStart(2, '0');
+        const second = String(date.getSeconds()).padStart(2, '0');
+        
+        // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
+        return `${year}${month}${day}T${hour}${minute}${second}Z`;
       };
       
       const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
@@ -1019,8 +1027,16 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
         
         const formatDate = (date) => {
-          // Manter o horário local - não ajustar fuso horário
-          return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+          // Criar data no fuso horário local (Brasil UTC-3)
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const hour = String(date.getHours()).padStart(2, '0');
+          const minute = String(date.getMinutes()).padStart(2, '0');
+          const second = String(date.getSeconds()).padStart(2, '0');
+          
+          // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
+          return `${year}${month}${day}T${hour}${minute}${second}Z`;
         };
         
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
