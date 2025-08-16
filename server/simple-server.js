@@ -1,6 +1,7 @@
 import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
+import analytics from './analytics.js';
 // import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 // import { Boom } from '@hapi/boom';
 
@@ -365,6 +366,9 @@ class WhatsAppBot {
             try {
               await this.sock.sendMessage(chatId, { text: response });
               console.log('✅ Resposta enviada!');
+              
+              // Log analytics
+              analytics.logMessage('whatsapp', chatId, messageText, response, this.extractEventTitle(messageText));
             } catch (error) {
               console.error('❌ Erro ao enviar resposta:', error);
             }
@@ -467,6 +471,44 @@ class WhatsAppBot {
       console.error('❌ Erro ao enviar mensagem:', error);
       return false;
     }
+  }
+
+  extractEventTitle(message) {
+    const lowerText = message.toLowerCase();
+    
+    // Detectar tipos de eventos
+    if (lowerText.includes('jantar')) return 'Jantar';
+    if (lowerText.includes('almoço') || lowerText.includes('almoco')) return 'Almoço';
+    if (lowerText.includes('reunião') || lowerText.includes('reuniao')) return 'Reunião';
+    if (lowerText.includes('consulta')) return 'Consulta';
+    if (lowerText.includes('cirurgia')) return 'Cirurgia';
+    if (lowerText.includes('exame')) return 'Exame';
+    if (lowerText.includes('prova')) return 'Prova';
+    if (lowerText.includes('teste')) return 'Teste';
+    if (lowerText.includes('avaliação') || lowerText.includes('avaliacao')) return 'Avaliação';
+    if (lowerText.includes('academia')) return 'Academia';
+    if (lowerText.includes('trabalho')) return 'Trabalho';
+    if (lowerText.includes('call') || lowerText.includes('telefonema')) return 'Call';
+    if (lowerText.includes('encontro')) return 'Encontro';
+    if (lowerText.includes('apresentação') || lowerText.includes('apresentacao')) return 'Apresentação';
+    if (lowerText.includes('entrevista')) return 'Entrevista';
+    if (lowerText.includes('aula')) return 'Aula';
+    if (lowerText.includes('curso')) return 'Curso';
+    if (lowerText.includes('viagem')) return 'Viagem';
+    if (lowerText.includes('festa')) return 'Festa';
+    if (lowerText.includes('aniversário') || lowerText.includes('aniversario')) return 'Aniversário';
+    if (lowerText.includes('casamento')) return 'Casamento';
+    if (lowerText.includes('dentista')) return 'Consulta Dentista';
+    if (lowerText.includes('psicólogo') || lowerText.includes('psicologo')) return 'Consulta Psicólogo';
+    if (lowerText.includes('fisioterapia')) return 'Fisioterapia';
+    if (lowerText.includes('massagem')) return 'Massagem';
+    if (lowerText.includes('corte')) return 'Corte de Cabelo';
+    if (lowerText.includes('manicure')) return 'Manicure';
+    if (lowerText.includes('pedicure')) return 'Pedicure';
+    if (lowerText.includes('tatuagem')) return 'Tatuagem';
+    if (lowerText.includes('piercing')) return 'Piercing';
+    
+    return 'Evento';
   }
 
   async processSchedulingCommand(message, chatId) {
@@ -1071,6 +1113,9 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           `📅 ${displayDate}`,
           { parse_mode: 'Markdown', reply_markup: replyMarkup }
         );
+        
+        // Log analytics
+        analytics.logMessage('telegram', chatId.toString(), text, true, eventTitle);
 
         console.log(`✅ Evento criado: ${eventTitle}`);
 
@@ -1273,6 +1318,143 @@ app.post('/api/whatsapp/send', async (req, res) => {
     console.error('Erro ao enviar mensagem WhatsApp:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
+});
+
+// Rota para analytics
+app.get('/api/analytics', (req, res) => {
+  try {
+    const data = analytics.getDashboardData();
+    res.json(data);
+  } catch (error) {
+    console.error('❌ Erro ao obter analytics:', error);
+    res.status(500).json({ error: 'Erro ao obter analytics' });
+  }
+});
+
+// Rota para visualizar analytics no navegador
+app.get('/analytics', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Zelar Analytics</title>
+      <meta charset="UTF-8">
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .card { background: white; padding: 20px; margin: 10px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin: 20px 0; }
+        .stat { text-align: center; padding: 15px; background: #f8f9fa; border-radius: 6px; }
+        .stat h3 { margin: 0; color: #007bff; }
+        .stat p { margin: 5px 0; font-size: 24px; font-weight: bold; }
+        .list { max-height: 300px; overflow-y: auto; }
+        .list-item { padding: 8px; border-bottom: 1px solid #eee; }
+        .refresh { background: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; }
+        .refresh:hover { background: #0056b3; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>📊 Zelar Analytics</h1>
+        <button class="refresh" onclick="loadAnalytics()">🔄 Atualizar</button>
+        
+        <div class="stats" id="summary"></div>
+        
+        <div class="card">
+          <h2>📈 Top Eventos</h2>
+          <div class="list" id="topEvents"></div>
+        </div>
+        
+        <div class="card">
+          <h2>💬 Top Prompts</h2>
+          <div class="list" id="topPrompts"></div>
+        </div>
+        
+        <div class="card">
+          <h2>🕐 Uso por Hora</h2>
+          <div class="list" id="hourlyUsage"></div>
+        </div>
+        
+        <div class="card">
+          <h2>📅 Últimos 7 Dias</h2>
+          <div class="list" id="dailyUsage"></div>
+        </div>
+        
+        <div class="card">
+          <h2>🆕 Atividade Recente</h2>
+          <div class="list" id="recentActivity"></div>
+        </div>
+      </div>
+      
+      <script>
+        async function loadAnalytics() {
+          try {
+            const response = await fetch('/api/analytics');
+            const data = await response.json();
+            
+            // Summary
+            document.getElementById('summary').innerHTML = \`
+              <div class="stat">
+                <h3>Total Mensagens</h3>
+                <p>\${data.summary.totalMessages}</p>
+              </div>
+              <div class="stat">
+                <h3>Usuários Únicos</h3>
+                <p>\${data.summary.uniqueUsers}</p>
+              </div>
+              <div class="stat">
+                <h3>WhatsApp</h3>
+                <p>\${data.summary.whatsappMessages}</p>
+              </div>
+              <div class="stat">
+                <h3>Telegram</h3>
+                <p>\${data.summary.telegramMessages}</p>
+              </div>
+            \`;
+            
+            // Top Events
+            document.getElementById('topEvents').innerHTML = data.topEvents.map(item => 
+              \`<div class="list-item"><strong>\${item.item}</strong> - \${item.count} vezes</div>\`
+            ).join('');
+            
+            // Top Prompts
+            document.getElementById('topPrompts').innerHTML = data.topPrompts.map(item => 
+              \`<div class="list-item"><strong>"\${item.item}"</strong> - \${item.count} vezes</div>\`
+            ).join('');
+            
+            // Hourly Usage
+            document.getElementById('hourlyUsage').innerHTML = Object.entries(data.hourlyUsage)
+              .sort(([a], [b]) => a - b)
+              .map(([hour, count]) => \`<div class="list-item"><strong>\${hour}h</strong> - \${count} mensagens</div>\`)
+              .join('');
+            
+            // Daily Usage
+            document.getElementById('dailyUsage').innerHTML = Object.entries(data.dailyUsage)
+              .map(([day, count]) => \`<div class="list-item"><strong>\${day}</strong> - \${count} mensagens</div>\`)
+              .join('');
+            
+            // Recent Activity
+            document.getElementById('recentActivity').innerHTML = data.recentActivity.map(activity => 
+              \`<div class="list-item">
+                <strong>\${activity.platform}</strong> - \${activity.userId} - "\${activity.message}" 
+                <small>(\${new Date(activity.timestamp).toLocaleString()})</small>
+              </div>\`
+            ).join('');
+            
+          } catch (error) {
+            console.error('Erro ao carregar analytics:', error);
+          }
+        }
+        
+        // Carregar na página inicial
+        loadAnalytics();
+        
+        // Atualizar a cada 30 segundos
+        setInterval(loadAnalytics, 30000);
+      </script>
+    </body>
+    </html>
+  `);
 });
 
 // Start server

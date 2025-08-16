@@ -29,6 +29,6 @@ while true; do
     echo "[$TIMESTAMP] ⏳ Aguardando 10 minutos..." | tee -a "$LOG_FILE"
     echo ""
     
-    # Aguardar 10 minutos (600 segundos)
-    sleep 600
+    # Aguardar 5 minutos (300 segundos) - mais frequente para evitar hibernação
+    sleep 300
 done 
