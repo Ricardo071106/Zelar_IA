@@ -1,5 +1,5 @@
 import { Mail, Globe, Heart } from "lucide-react";
-import { FaTelegram, FaWhatsapp } from "react-icons/fa";
+import { FaTelegram, FaWhatsapp, FaInstagram } from "react-icons/fa";
 import { Button } from "@/components/ui/button";
 
 export default function Footer() {
@@ -35,6 +35,16 @@ export default function Footer() {
                   WhatsApp
                 </a>
               </Button>
+              <Button 
+                asChild
+                variant="default"
+                className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-semibold rounded-full px-6 py-2 border-0"
+              >
+                <a href="https://www.instagram.com/zelar_ai?igsh=YmNqZzhtc2FldTc0&utm_source=qr" target="_blank" rel="noopener noreferrer" className="inline-flex items-center">
+                  <FaInstagram className="mr-2 text-lg" />
+                  Instagram
+                </a>
+              </Button>
             </div>
           </div>
 
@@ -61,6 +71,10 @@ export default function Footer() {
               <div className="flex items-center">
                 <FaWhatsapp className="w-4 h-4 mr-2" />
                 <span>WhatsApp Bot</span>
+              </div>
+              <div className="flex items-center">
+                <FaInstagram className="w-4 h-4 mr-2" />
+                <span>@zelar_ai</span>
               </div>
               <div className="flex items-center">
                 <Globe className="w-4 h-4 mr-2" />
