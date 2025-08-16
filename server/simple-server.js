@@ -1361,23 +1361,38 @@ app.get('/analytics', (req, res) => {
         <div class="stats" id="summary"></div>
         
         <div class="card">
-          <h2>📈 Top Eventos</h2>
-          <div class="list" id="topEvents"></div>
+          <h2>📊 Performance</h2>
+          <div class="stats" id="performance"></div>
         </div>
         
         <div class="card">
-          <h2>💬 Top Prompts</h2>
-          <div class="list" id="topPrompts"></div>
+          <h2>👥 Engajamento</h2>
+          <div class="stats" id="engagement"></div>
         </div>
         
         <div class="card">
-          <h2>🕐 Uso por Hora</h2>
-          <div class="list" id="hourlyUsage"></div>
+          <h2>📈 Categorias de Eventos</h2>
+          <div class="list" id="eventTypes"></div>
+        </div>
+        
+        <div class="card">
+          <h2>⏰ Tipos de Interação</h2>
+          <div class="list" id="interactionTypes"></div>
+        </div>
+        
+        <div class="card">
+          <h2>📝 Comprimento das Mensagens</h2>
+          <div class="list" id="messageLengths"></div>
+        </div>
+        
+        <div class="card">
+          <h2>🕐 Distribuição por Hora</h2>
+          <div class="list" id="hourlyDistribution"></div>
         </div>
         
         <div class="card">
           <h2>📅 Últimos 7 Dias</h2>
-          <div class="list" id="dailyUsage"></div>
+          <div class="list" id="dailyDistribution"></div>
         </div>
         
         <div class="card">
@@ -1412,24 +1427,65 @@ app.get('/analytics', (req, res) => {
               </div>
             \`;
             
-            // Top Events
-            document.getElementById('topEvents').innerHTML = data.topEvents.map(item => 
-              \`<div class="list-item"><strong>\${item.item}</strong> - \${item.count} vezes</div>\`
+            // Performance
+            document.getElementById('performance').innerHTML = \`
+              <div class="stat">
+                <h3>Taxa de Sucesso</h3>
+                <p>\${data.performance.successRate}%</p>
+              </div>
+              <div class="stat">
+                <h3>Taxa de Erro</h3>
+                <p>\${data.performance.errorRate}%</p>
+              </div>
+              <div class="stat">
+                <h3>Uptime</h3>
+                <p>\${data.performance.uptime}%</p>
+              </div>
+            \`;
+            
+            // Engagement
+            const todayDAU = Object.values(data.engagement.dailyActiveUsers).pop() || 0;
+            const thisWeekWAU = Object.values(data.engagement.weeklyActiveUsers).pop() || 0;
+            const thisMonthMAU = Object.values(data.engagement.monthlyActiveUsers).pop() || 0;
+            
+            document.getElementById('engagement').innerHTML = \`
+              <div class="stat">
+                <h3>Usuários Ativos Hoje</h3>
+                <p>\${todayDAU}</p>
+              </div>
+              <div class="stat">
+                <h3>Usuários Ativos Esta Semana</h3>
+                <p>\${thisWeekWAU}</p>
+              </div>
+              <div class="stat">
+                <h3>Usuários Ativos Este Mês</h3>
+                <p>\${thisMonthMAU}</p>
+              </div>
+            \`;
+            
+            // Event Types
+            document.getElementById('eventTypes').innerHTML = data.categories.eventTypes.map(item => 
+              \`<div class="list-item"><strong>\${item.item}</strong> - \${item.count} eventos</div>\`
             ).join('');
             
-            // Top Prompts
-            document.getElementById('topPrompts').innerHTML = data.topPrompts.map(item => 
-              \`<div class="list-item"><strong>"\${item.item}"</strong> - \${item.count} vezes</div>\`
+            // Interaction Types
+            document.getElementById('interactionTypes').innerHTML = data.categories.interactionTypes.map(item => 
+              \`<div class="list-item"><strong>\${item.item}</strong> - \${item.count} interações</div>\`
             ).join('');
             
-            // Hourly Usage
-            document.getElementById('hourlyUsage').innerHTML = Object.entries(data.hourlyUsage)
+            // Message Lengths
+            document.getElementById('messageLengths').innerHTML = data.categories.messageLengths.map(item => 
+              \`<div class="list-item"><strong>\${item.item}</strong> - \${item.count} mensagens</div>\`
+            ).join('');
+            
+            // Hourly Distribution
+            document.getElementById('hourlyDistribution').innerHTML = Object.entries(data.usage.hourlyDistribution)
               .sort(([a], [b]) => a - b)
               .map(([hour, count]) => \`<div class="list-item"><strong>\${hour}h</strong> - \${count} mensagens</div>\`)
               .join('');
             
-            // Daily Usage
-            document.getElementById('dailyUsage').innerHTML = Object.entries(data.dailyUsage)
+            // Daily Distribution
+            document.getElementById('dailyDistribution').innerHTML = Object.entries(data.usage.dailyDistribution)
               .map(([day, count]) => \`<div class="list-item"><strong>\${day}</strong> - \${count} mensagens</div>\`)
               .join('');
             
