@@ -676,8 +676,8 @@ class WhatsAppBot {
       
       // Converter para UTC-3 (Brasil) para o Google Calendar
       const formatDateForGoogle = (date) => {
-        // Ajustar para UTC-3 (Brasil)
-        const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
+        // Ajustar para UTC-3 (Brasil) - somar 3h para compensar
+        const utcDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
         return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       };
       
