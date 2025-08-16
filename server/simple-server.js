@@ -634,6 +634,10 @@ class WhatsAppBot {
         eventDate.setHours(hour, minute, 0, 0);
         isValidEvent = true;
         console.log(`🕐 Horário definido: ${hour}:${minute}`);
+      } else {
+        // Horário padrão: 22h (10 da noite) se não especificado
+        eventDate.setHours(22, 0, 0, 0);
+        console.log(`🕐 Horário padrão definido: 22:00`);
       }
       
       // Detectar dia da semana
@@ -659,6 +663,31 @@ class WhatsAppBot {
         isValidEvent = true;
       }
       
+      // Detectar datas específicas (ex: "30 de agosto")
+      const dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+      if (dateMatch) {
+        const day = parseInt(dateMatch[1]);
+        const monthName = dateMatch[2].toLowerCase();
+        const months = {
+          'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+          'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+        };
+        const month = months[monthName];
+        const currentYear = new Date().getFullYear();
+        
+        // Se a data já passou este ano, usar próximo ano
+        const targetDate = new Date(currentYear, month, day);
+        if (targetDate < new Date()) {
+          targetDate.setFullYear(currentYear + 1);
+        }
+        
+        eventDate.setFullYear(targetDate.getFullYear());
+        eventDate.setMonth(targetDate.getMonth());
+        eventDate.setDate(targetDate.getDate());
+        isValidEvent = true;
+        console.log(`📅 Data específica detectada: ${day}/${month + 1}/${targetDate.getFullYear()}`);
+      }
+      
       console.log(`✅ Evento válido: ${isValidEvent}`);
       console.log(`📅 Data final: ${eventDate.toLocaleString('pt-BR')}`);
       
@@ -676,8 +705,8 @@ class WhatsAppBot {
       
       // Converter para UTC-3 (Brasil) para o Google Calendar
       const formatDateForGoogle = (date) => {
-        // Ajustar para UTC-3 (Brasil) - somar 3h para compensar
-        const utcDate = new Date(date.getTime() + (3 * 60 * 60 * 1000));
+        // Ajustar para UTC-3 (Brasil) - subtrair 3h para compensar
+        const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
         return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
       };
       
@@ -874,6 +903,9 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
           eventDate.setHours(hour, minute, 0, 0);
           isValidEvent = true;
+        } else {
+          // Horário padrão: 22h (10 da noite) se não especificado
+          eventDate.setHours(22, 0, 0, 0);
         }
         
         // Detectar dia da semana
@@ -899,6 +931,30 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           isValidEvent = true;
         }
         
+        // Detectar datas específicas (ex: "30 de agosto")
+        const dateMatch = text.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+        if (dateMatch) {
+          const day = parseInt(dateMatch[1]);
+          const monthName = dateMatch[2].toLowerCase();
+          const months = {
+            'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+            'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+          };
+          const month = months[monthName];
+          const currentYear = new Date().getFullYear();
+          
+          // Se a data já passou este ano, usar próximo ano
+          const targetDate = new Date(currentYear, month, day);
+          if (targetDate < new Date()) {
+            targetDate.setFullYear(currentYear + 1);
+          }
+          
+          eventDate.setFullYear(targetDate.getFullYear());
+          eventDate.setMonth(targetDate.getMonth());
+          eventDate.setDate(targetDate.getDate());
+          isValidEvent = true;
+        }
+        
         if (!isValidEvent) {
           await telegramBot.sendMessage(chatId,
             '❌ *Não consegui entender a data/hora*\n\n' +
@@ -914,7 +970,11 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         const startDate = new Date(eventDate);
         const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
         
-        const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        const formatDate = (date) => {
+          // Ajustar para UTC-3 (Brasil) - subtrair 3h para compensar
+          const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
+          return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+        };
         
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
         const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
