@@ -541,8 +541,29 @@ class WhatsAppBot {
       else if (lowerText.includes('almoço') || lowerText.includes('almoco')) baseTitle = 'Almoço';
       else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) baseTitle = 'Reunião';
       else if (lowerText.includes('consulta')) baseTitle = 'Consulta';
+      else if (lowerText.includes('cirurgia')) baseTitle = 'Cirurgia';
+      else if (lowerText.includes('exame')) baseTitle = 'Exame';
       else if (lowerText.includes('academia')) baseTitle = 'Academia';
       else if (lowerText.includes('trabalho')) baseTitle = 'Trabalho';
+      else if (lowerText.includes('call') || lowerText.includes('telefonema')) baseTitle = 'Call';
+      else if (lowerText.includes('encontro')) baseTitle = 'Encontro';
+      else if (lowerText.includes('apresentação') || lowerText.includes('apresentacao')) baseTitle = 'Apresentação';
+      else if (lowerText.includes('entrevista')) baseTitle = 'Entrevista';
+      else if (lowerText.includes('aula')) baseTitle = 'Aula';
+      else if (lowerText.includes('curso')) baseTitle = 'Curso';
+      else if (lowerText.includes('viagem')) baseTitle = 'Viagem';
+      else if (lowerText.includes('festa')) baseTitle = 'Festa';
+      else if (lowerText.includes('aniversário') || lowerText.includes('aniversario')) baseTitle = 'Aniversário';
+      else if (lowerText.includes('casamento')) baseTitle = 'Casamento';
+      else if (lowerText.includes('dentista')) baseTitle = 'Consulta Dentista';
+      else if (lowerText.includes('psicólogo') || lowerText.includes('psicologo')) baseTitle = 'Consulta Psicólogo';
+      else if (lowerText.includes('fisioterapia')) baseTitle = 'Fisioterapia';
+      else if (lowerText.includes('massagem')) baseTitle = 'Massagem';
+      else if (lowerText.includes('corte')) baseTitle = 'Corte de Cabelo';
+      else if (lowerText.includes('manicure')) baseTitle = 'Manicure';
+      else if (lowerText.includes('pedicure')) baseTitle = 'Pedicure';
+      else if (lowerText.includes('tatuagem')) baseTitle = 'Tatuagem';
+      else if (lowerText.includes('piercing')) baseTitle = 'Piercing';
       
       console.log(`🎯 Título base: ${baseTitle}`);
       
