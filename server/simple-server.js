@@ -564,6 +564,9 @@ class WhatsAppBot {
       else if (lowerText.includes('pedicure')) baseTitle = 'Pedicure';
       else if (lowerText.includes('tatuagem')) baseTitle = 'Tatuagem';
       else if (lowerText.includes('piercing')) baseTitle = 'Piercing';
+      else if (lowerText.includes('prova')) baseTitle = 'Prova';
+      else if (lowerText.includes('teste')) baseTitle = 'Teste';
+      else if (lowerText.includes('avaliação') || lowerText.includes('avaliacao')) baseTitle = 'Avaliação';
       
       console.log(`🎯 Título base: ${baseTitle}`);
       
@@ -651,8 +654,9 @@ class WhatsAppBot {
       // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08")
       console.log(`🔍 Procurando data na mensagem: "${message}"`);
       
-      // Padrão 1: "29 de agosto"
+      // Padrão 1: "29 de agosto" ou "2 de setembro"
       let dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+      console.log(`🔍 DateMatch encontrado:`, dateMatch);
       
       // Padrão 2: "29/08" ou "29-08"
       if (!dateMatch) {
@@ -738,11 +742,8 @@ class WhatsAppBot {
         const second = String(date.getSeconds()).padStart(2, '0');
         
         // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
-        // Adicionar 3h para compensar UTC-3 (Brasil)
-        const localHour = (date.getHours() + 3) % 24;
-        const adjustedHour = String(localHour).padStart(2, '0');
-        
-        return `${year}${month}${day}T${adjustedHour}${minute}${second}Z`;
+        // Manter horário local sem ajuste
+        return `${year}${month}${day}T${hour}${minute}${second}Z`;
       };
       
       const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
@@ -1040,11 +1041,8 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           const second = String(date.getSeconds()).padStart(2, '0');
           
           // Formato: YYYYMMDDTHHMMSSZ (sem conversão UTC)
-          // Adicionar 3h para compensar UTC-3 (Brasil)
-          const localHour = (date.getHours() + 3) % 24;
-          const adjustedHour = String(localHour).padStart(2, '0');
-          
-          return `${year}${month}${day}T${adjustedHour}${minute}${second}Z`;
+          // Manter horário local sem ajuste
+          return `${year}${month}${day}T${hour}${minute}${second}Z`;
         };
         
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
