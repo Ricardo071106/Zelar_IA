@@ -698,7 +698,7 @@ class WhatsAppBot {
       }
       
       // Detectar horário básico - DEPOIS de definir a data
-      const timeMatch = message.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+      const timeMatch = message.match(/(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
       console.log(`🕐 TimeMatch encontrado:`, timeMatch);
       if (timeMatch) {
         const hour = parseInt(timeMatch[1]);
@@ -1004,7 +1004,7 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         }
         
         // Detectar horário básico - DEPOIS de definir a data
-        const timeMatch = text.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+        const timeMatch = text.match(/(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
         if (timeMatch) {
           const hour = parseInt(timeMatch[1]);
           const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
