@@ -670,13 +670,18 @@ class WhatsAppBot {
                '• "reunião quarta às 15h"';
       }
       
-      // Gerar links do calendário
+      // Gerar links do calendário com fuso horário correto
       const startDate = new Date(eventDate);
       const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
       
-      const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      // Converter para UTC-3 (Brasil) para o Google Calendar
+      const formatDateForGoogle = (date) => {
+        // Ajustar para UTC-3 (Brasil)
+        const utcDate = new Date(date.getTime() - (3 * 60 * 60 * 1000));
+        return utcDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+      };
       
-      const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
+      const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
       const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
 
       const displayDate = startDate.toLocaleDateString('pt-BR', {
