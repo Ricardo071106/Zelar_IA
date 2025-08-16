@@ -552,13 +552,31 @@ class WhatsAppBot {
         console.log(`📝 Título final (sem "com"): ${eventTitle}`);
       } else {
         const beforeCom = comMatch[1].trim();
-        const afterCom = comMatch[2].trim();
+        let afterCom = comMatch[2].trim();
         
         console.log(`🔍 Antes do "com": "${beforeCom}"`);
         console.log(`🔍 Depois do "com": "${afterCom}"`);
         
+        // Limpar artigos do nome após "com"
+        const nameWordsToRemove = ['às', 'as', 'a', 'o', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas'];
+        const nameWords = afterCom.split(' ');
+        
+        // Remover artigos do início do nome
+        while (nameWords.length > 0 && nameWordsToRemove.includes(nameWords[0].toLowerCase())) {
+          nameWords.shift();
+        }
+        
+        // Remover artigos do final do nome
+        while (nameWords.length > 0 && nameWordsToRemove.includes(nameWords[nameWords.length - 1].toLowerCase())) {
+          nameWords.pop();
+        }
+        
+        afterCom = nameWords.join(' ');
+        
+        console.log(`🔍 Nome limpo: "${afterCom}"`);
+        
         // Limpar artigos e palavras desnecessárias antes do "com"
-        const wordsToRemove = ['às', 'as', 'a', 'o', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas'];
+        const wordsToRemove = ['às', 'as', 'a', 'o', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas', 'marque', 'marcar', 'agendar', 'agende', 'fazer', 'tenho', 'vou', 'quero'];
         let cleanBeforeCom = beforeCom;
         
         // Remover artigos do final
@@ -571,8 +589,13 @@ class WhatsAppBot {
         // Se ainda tem muitas palavras, pegar apenas a principal
         if (cleanBeforeCom.split(' ').length > 2) {
           const mainWords = cleanBeforeCom.split(' ');
-          // Pega as últimas 2 palavras se houver mais de 2
-          cleanBeforeCom = mainWords.slice(-2).join(' ');
+          // Pega apenas a última palavra se houver mais de 2
+          cleanBeforeCom = mainWords[mainWords.length - 1];
+        }
+        
+        // Se ficou vazio, usar o título base
+        if (!cleanBeforeCom || cleanBeforeCom.trim() === '') {
+          cleanBeforeCom = baseTitle;
         }
         
         eventTitle = `${cleanBeforeCom} com ${afterCom}`;
