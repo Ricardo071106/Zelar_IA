@@ -625,21 +625,6 @@ class WhatsAppBot {
         console.log(`📝 Título final (com "com"): ${eventTitle}`);
       }
       
-      // Detectar horário básico
-      const timeMatch = message.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
-      console.log(`🕐 TimeMatch encontrado:`, timeMatch);
-      if (timeMatch) {
-        const hour = parseInt(timeMatch[1]);
-        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-        eventDate.setHours(hour, minute, 0, 0);
-        isValidEvent = true;
-        console.log(`🕐 Horário definido: ${hour}:${minute}`);
-      } else {
-        // Horário padrão: 22h (10 da noite) se não especificado
-        eventDate.setHours(22, 0, 0, 0);
-        console.log(`🕐 Horário padrão definido: 22:00`);
-      }
-      
       // Detectar dia da semana
       const weekdays = {
         'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
@@ -710,6 +695,21 @@ class WhatsAppBot {
         eventDate.setDate(targetDate.getDate());
         isValidEvent = true;
         console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+      }
+      
+      // Detectar horário básico - DEPOIS de definir a data
+      const timeMatch = message.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+      console.log(`🕐 TimeMatch encontrado:`, timeMatch);
+      if (timeMatch) {
+        const hour = parseInt(timeMatch[1]);
+        const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+        eventDate.setHours(hour, minute, 0, 0);
+        isValidEvent = true;
+        console.log(`🕐 Horário definido: ${hour}:${minute}`);
+      } else {
+        // Horário padrão: 22h (10 da noite) se não especificado
+        eventDate.setHours(22, 0, 0, 0);
+        console.log(`🕐 Horário padrão definido: 22:00`);
       }
       
       console.log(`✅ Evento válido: ${isValidEvent}`);
@@ -919,18 +919,6 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           eventTitle = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
         }
         
-        // Detectar horário básico
-        const timeMatch = text.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
-        if (timeMatch) {
-          const hour = parseInt(timeMatch[1]);
-          const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-          eventDate.setHours(hour, minute, 0, 0);
-          isValidEvent = true;
-        } else {
-          // Horário padrão: 22h (10 da noite) se não especificado
-          eventDate.setHours(22, 0, 0, 0);
-        }
-        
         // Detectar dia da semana
         const weekdays = {
           'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
@@ -1001,6 +989,18 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           eventDate.setDate(targetDate.getDate());
           isValidEvent = true;
           console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+        }
+        
+        // Detectar horário básico - DEPOIS de definir a data
+        const timeMatch = text.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
+        if (timeMatch) {
+          const hour = parseInt(timeMatch[1]);
+          const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+          eventDate.setHours(hour, minute, 0, 0);
+          isValidEvent = true;
+        } else {
+          // Horário padrão: 22h (10 da noite) se não especificado
+          eventDate.setHours(22, 0, 0, 0);
         }
         
         if (!isValidEvent) {

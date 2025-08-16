@@ -380,3 +380,13 @@
 2025/08/15-23:56:28.618 8b1b Level-0 table #127: started
 2025/08/15-23:56:28.643 8b1b Level-0 table #127: 837187 bytes OK
 2025/08/15-23:56:28.671 8b1b Delete type=0 #121
+2025/08/15-23:59:05.726 1ac23 Compacting 1@1 + 3@2 files
+2025/08/15-23:59:05.813 1ac23 Generated table #128@1: 53011 keys, 2773203 bytes
+2025/08/15-23:59:05.896 1ac23 Generated table #129@1: 227 keys, 4046963 bytes
+2025/08/15-23:59:05.933 1ac23 Generated table #130@1: 2607 keys, 1095229 bytes
+2025/08/15-23:59:05.933 1ac23 Compacted 1@1 + 3@2 files => 7915395 bytes
+2025/08/15-23:59:05.939 1ac23 compacted to: files[ 0 0 3 0 0 0 0 ]
+2025/08/15-23:59:05.939 1ac23 Delete type=2 #123
+2025/08/15-23:59:05.939 1ac23 Delete type=2 #125
+2025/08/15-23:59:05.940 1ac23 Delete type=2 #124
+2025/08/15-23:59:05.940 1ac23 Delete type=2 #127
