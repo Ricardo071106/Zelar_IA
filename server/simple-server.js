@@ -550,19 +550,34 @@ class WhatsAppBot {
       if (!comMatch) {
         eventTitle = baseTitle;
         console.log(`📝 Título final (sem "com"): ${eventTitle}`);
-      }
-      if (comMatch) {
+      } else {
         const beforeCom = comMatch[1].trim();
         const afterCom = comMatch[2].trim();
         
         console.log(`🔍 Antes do "com": "${beforeCom}"`);
         console.log(`🔍 Depois do "com": "${afterCom}"`);
         
-        // Extrair apenas a palavra principal antes do "com"
-        const mainWord = beforeCom.split(' ').pop(); // Pega a última palavra
-        eventTitle = `${mainWord} com ${afterCom}`;
+        // Limpar artigos e palavras desnecessárias antes do "com"
+        const wordsToRemove = ['às', 'as', 'a', 'o', 'um', 'uma', 'de', 'da', 'do', 'das', 'dos', 'para', 'com', 'em', 'no', 'na', 'nos', 'nas'];
+        let cleanBeforeCom = beforeCom;
         
-        console.log(`📝 Palavra principal: "${mainWord}"`);
+        // Remover artigos do final
+        const words = cleanBeforeCom.split(' ');
+        while (words.length > 0 && wordsToRemove.includes(words[words.length - 1].toLowerCase())) {
+          words.pop();
+        }
+        cleanBeforeCom = words.join(' ');
+        
+        // Se ainda tem muitas palavras, pegar apenas a principal
+        if (cleanBeforeCom.split(' ').length > 2) {
+          const mainWords = cleanBeforeCom.split(' ');
+          // Pega as últimas 2 palavras se houver mais de 2
+          cleanBeforeCom = mainWords.slice(-2).join(' ');
+        }
+        
+        eventTitle = `${cleanBeforeCom} com ${afterCom}`;
+        
+        console.log(`📝 Antes do "com" limpo: "${cleanBeforeCom}"`);
         console.log(`📝 Título final (com "com"): ${eventTitle}`);
       }
       
