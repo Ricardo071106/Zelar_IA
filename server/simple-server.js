@@ -831,13 +831,34 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         let eventDate = new Date();
         let isValidEvent = false;
         
-        // Extrair título básico
+        // Extrair título básico - ATUALIZADO
         if (lowerText.includes('jantar')) eventTitle = 'Jantar';
         else if (lowerText.includes('almoço') || lowerText.includes('almoco')) eventTitle = 'Almoço';
         else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) eventTitle = 'Reunião';
         else if (lowerText.includes('consulta')) eventTitle = 'Consulta';
+        else if (lowerText.includes('cirurgia')) eventTitle = 'Cirurgia';
+        else if (lowerText.includes('exame')) eventTitle = 'Exame';
         else if (lowerText.includes('academia')) eventTitle = 'Academia';
         else if (lowerText.includes('trabalho')) eventTitle = 'Trabalho';
+        else if (lowerText.includes('call') || lowerText.includes('telefonema')) eventTitle = 'Call';
+        else if (lowerText.includes('encontro')) eventTitle = 'Encontro';
+        else if (lowerText.includes('apresentação') || lowerText.includes('apresentacao')) eventTitle = 'Apresentação';
+        else if (lowerText.includes('entrevista')) eventTitle = 'Entrevista';
+        else if (lowerText.includes('aula')) eventTitle = 'Aula';
+        else if (lowerText.includes('curso')) eventTitle = 'Curso';
+        else if (lowerText.includes('viagem')) eventTitle = 'Viagem';
+        else if (lowerText.includes('festa')) eventTitle = 'Festa';
+        else if (lowerText.includes('aniversário') || lowerText.includes('aniversario')) eventTitle = 'Aniversário';
+        else if (lowerText.includes('casamento')) eventTitle = 'Casamento';
+        else if (lowerText.includes('dentista')) eventTitle = 'Consulta Dentista';
+        else if (lowerText.includes('psicólogo') || lowerText.includes('psicologo')) eventTitle = 'Consulta Psicólogo';
+        else if (lowerText.includes('fisioterapia')) eventTitle = 'Fisioterapia';
+        else if (lowerText.includes('massagem')) eventTitle = 'Massagem';
+        else if (lowerText.includes('corte')) eventTitle = 'Corte de Cabelo';
+        else if (lowerText.includes('manicure')) eventTitle = 'Manicure';
+        else if (lowerText.includes('pedicure')) eventTitle = 'Pedicure';
+        else if (lowerText.includes('tatuagem')) eventTitle = 'Tatuagem';
+        else if (lowerText.includes('piercing')) eventTitle = 'Piercing';
         else eventTitle = 'Evento';
         
         // Detectar "com" para adicionar pessoa
