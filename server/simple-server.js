@@ -663,9 +663,33 @@ class WhatsAppBot {
         isValidEvent = true;
       }
       
-      // Detectar datas específicas (ex: "30 de agosto")
-      const dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
-      if (dateMatch) {
+      // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08")
+      console.log(`🔍 Procurando data na mensagem: "${message}"`);
+      
+      // Padrão 1: "29 de agosto"
+      let dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+      
+      // Padrão 2: "29/08" ou "29-08"
+      if (!dateMatch) {
+        dateMatch = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
+        if (dateMatch) {
+          const day = parseInt(dateMatch[1]);
+          const month = parseInt(dateMatch[2]) - 1; // JavaScript meses são 0-11
+          const currentYear = new Date().getFullYear();
+          
+          // Se a data já passou este ano, usar próximo ano
+          const targetDate = new Date(currentYear, month, day);
+          if (targetDate < new Date()) {
+            targetDate.setFullYear(currentYear + 1);
+          }
+          
+          eventDate.setFullYear(targetDate.getFullYear());
+          eventDate.setMonth(targetDate.getMonth());
+          eventDate.setDate(targetDate.getDate());
+          isValidEvent = true;
+          console.log(`📅 Data específica detectada (formato DD/MM): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+        }
+      } else {
         const day = parseInt(dateMatch[1]);
         const monthName = dateMatch[2].toLowerCase();
         const months = {
@@ -685,7 +709,7 @@ class WhatsAppBot {
         eventDate.setMonth(targetDate.getMonth());
         eventDate.setDate(targetDate.getDate());
         isValidEvent = true;
-        console.log(`📅 Data específica detectada: ${day}/${month + 1}/${targetDate.getFullYear()}`);
+        console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
       }
       
       console.log(`✅ Evento válido: ${isValidEvent}`);
@@ -931,9 +955,33 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           isValidEvent = true;
         }
         
-        // Detectar datas específicas (ex: "30 de agosto")
-        const dateMatch = text.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
-        if (dateMatch) {
+        // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08")
+        console.log(`🔍 Procurando data na mensagem: "${text}"`);
+        
+        // Padrão 1: "29 de agosto"
+        let dateMatch = text.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+        
+        // Padrão 2: "29/08" ou "29-08"
+        if (!dateMatch) {
+          dateMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})/);
+          if (dateMatch) {
+            const day = parseInt(dateMatch[1]);
+            const month = parseInt(dateMatch[2]) - 1; // JavaScript meses são 0-11
+            const currentYear = new Date().getFullYear();
+            
+            // Se a data já passou este ano, usar próximo ano
+            const targetDate = new Date(currentYear, month, day);
+            if (targetDate < new Date()) {
+              targetDate.setFullYear(currentYear + 1);
+            }
+            
+            eventDate.setFullYear(targetDate.getFullYear());
+            eventDate.setMonth(targetDate.getMonth());
+            eventDate.setDate(targetDate.getDate());
+            isValidEvent = true;
+            console.log(`📅 Data específica detectada (formato DD/MM): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+          }
+        } else {
           const day = parseInt(dateMatch[1]);
           const monthName = dateMatch[2].toLowerCase();
           const months = {
@@ -953,6 +1001,7 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           eventDate.setMonth(targetDate.getMonth());
           eventDate.setDate(targetDate.getDate());
           isValidEvent = true;
+          console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
         }
         
         if (!isValidEvent) {
