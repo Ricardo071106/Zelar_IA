@@ -45,13 +45,13 @@ export default function FeaturesSection() {
     },
     {
       icon: <Bot className="text-primary text-2xl" />,
-      title: "IA Avançada com OpenRouter",
+      title: "IA Avançada",
       description: "Tecnologia de ponta para entender suas mensagens em português de forma natural e precisa."
     },
     {
       icon: <Trash2 className="text-primary text-2xl" />,
-      title: "Cancelar Eventos",
-      description: "Cancele compromissos facilmente dizendo 'cancelar reunião de amanhã' - o bot entenderá qual evento você quer remover."
+      title: "Gerenciar Eventos",
+      description: "Visualize, edite e gerencie todos os seus compromissos de forma simples e intuitiva."
     },
     {
       icon: <Twitter className="text-primary text-2xl" />,
