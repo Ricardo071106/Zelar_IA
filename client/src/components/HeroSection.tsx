@@ -14,10 +14,10 @@ export default function HeroSection() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-              Seu Assistente de Agenda Inteligente no Telegram
+              Seu Assistente de Agenda Inteligente no Telegram e WhatsApp
             </h1>
             <p className="text-lg md:text-xl mb-8 text-white/90">
-              Agende compromissos e gerencie eventos através de mensagens naturais em português. O Zelar entende o que você diz e cria eventos automaticamente.
+              Agende compromissos e gerencie eventos através de mensagens naturais em português. O Zelar entende o que você diz e cria eventos automaticamente no Telegram e WhatsApp.
             </p>
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <Button 
@@ -43,7 +43,7 @@ export default function HeroSection() {
                 className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full px-8 py-4 text-lg border-0"
               >
                 <a 
-                  href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" 
+                  href="https://wa.me/5511988049268?text=%2Fstart" 
                   target="_blank" 
                   rel="noopener noreferrer"
                   className="inline-flex items-center"

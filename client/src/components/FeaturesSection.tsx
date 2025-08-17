@@ -55,8 +55,8 @@ export default function FeaturesSection() {
     },
     {
       icon: <Twitter className="text-primary text-2xl" />,
-      title: "100% no Telegram",
-      description: "Nenhum app para baixar - o Zelar funciona completamente dentro do Telegram que você já usa todos os dias."
+      title: "100% no Telegram e WhatsApp",
+      description: "Nenhum app para baixar - o Zelar funciona completamente dentro do Telegram e WhatsApp que você já usa todos os dias."
     }
   ];
 

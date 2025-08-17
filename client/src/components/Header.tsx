@@ -85,7 +85,7 @@ export default function Header() {
             className="bg-green-500 hover:bg-green-600 text-white font-semibold rounded-full w-full border-0"
           >
             <a 
-              href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos" 
+              href="https://wa.me/5511988049268?text=%2Fstart" 
               target="_blank" 
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}
