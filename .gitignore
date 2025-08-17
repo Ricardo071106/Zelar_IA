@@ -1,9 +1,13 @@
-node_modules
+node_modules/
+.env
+.env.local
+.env.production
+dist/
+build/
+*.log
 .DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
-# Elastic Beanstalk Files
-.elasticbeanstalk/*
-!.elasticbeanstalk/*.cfg.yml
-!.elasticbeanstalk/*.global.yml
+whatsapp_session/
+*.session
+*.session.json
+.cache/
+.temp/
