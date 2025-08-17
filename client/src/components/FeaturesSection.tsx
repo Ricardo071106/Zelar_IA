@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Calendar, Bot, Trash2, Eye, Twitter } from "lucide-react";
+import { MessageSquare, Calendar, Bot, Settings, Zap, Twitter } from "lucide-react";
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -39,19 +39,19 @@ export default function FeaturesSection() {
       description: "Receba links prontos para adicionar eventos ao Google Calendar, Outlook ou Apple Calendar com apenas um clique."
     },
     {
-      icon: <Eye className="text-primary text-2xl" />,
-      title: "Visualizar Eventos",
-      description: "Diga 'mostrar meus eventos' ou use o comando /eventos para ver todos os seus compromissos agendados."
-    },
-    {
       icon: <Bot className="text-primary text-2xl" />,
       title: "IA Avançada",
       description: "Tecnologia de ponta para entender suas mensagens em português de forma natural e precisa."
     },
     {
-      icon: <Trash2 className="text-primary text-2xl" />,
-      title: "Gerenciar Eventos",
-      description: "Visualize, edite e gerencie todos os seus compromissos de forma simples e intuitiva."
+      icon: <Settings className="text-primary text-2xl" />,
+      title: "Configuração Inteligente",
+      description: "O Zelar se adapta ao seu estilo de comunicação e aprende com suas preferências."
+    },
+    {
+      icon: <Zap className="text-primary text-2xl" />,
+      title: "Resposta Rápida",
+      description: "Receba confirmações e links para calendário instantaneamente após enviar sua mensagem."
     },
     {
       icon: <Twitter className="text-primary text-2xl" />,
