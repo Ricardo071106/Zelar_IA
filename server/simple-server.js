@@ -850,14 +850,25 @@ class WhatsAppBot {
       console.log(`🔍 startDate UTC: ${startDate.toISOString()}`);
       console.log(`🔍 startDate local: ${startDate.toString()}`);
       
-      // Criar data no fuso horário do Brasil sem converter
-      const displayDate = startDate.toLocaleDateString('pt-BR', {
+      // Criar data interpretando como se fosse no fuso do Brasil (UTC-3)
+      // Extrair componentes da data UTC
+      const year = startDate.getUTCFullYear();
+      const month = startDate.getUTCMonth();
+      const day = startDate.getUTCDate();
+      const hour = startDate.getUTCHours();
+      const minute = startDate.getUTCMinutes();
+      
+      // Criar nova data interpretando como se fosse no fuso do Brasil
+      const brazilDate = new Date(year, month, day, hour, minute, 0, 0);
+      
+      console.log(`🔍 brazilDate criada: ${brazilDate.toString()}`);
+      
+      const displayDate = brazilDate.toLocaleDateString('pt-BR', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
         hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'America/Sao_Paulo'
+        minute: '2-digit'
       });
 
       const finalResponse = '✅ *Evento criado!*\n\n' +
@@ -1165,14 +1176,23 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           ]
         };
 
-              // Criar data no fuso horário do Brasil sem converter
-      const displayDate = startDate.toLocaleDateString('pt-BR', {
+              // Criar data interpretando como se fosse no fuso do Brasil (UTC-3)
+      // Extrair componentes da data UTC
+      const year = startDate.getUTCFullYear();
+      const month = startDate.getUTCMonth();
+      const day = startDate.getUTCDate();
+      const hour = startDate.getUTCHours();
+      const minute = startDate.getUTCMinutes();
+      
+      // Criar nova data interpretando como se fosse no fuso do Brasil
+      const brazilDate = new Date(year, month, day, hour, minute, 0, 0);
+      
+      const displayDate = brazilDate.toLocaleDateString('pt-BR', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
         hour: '2-digit',
-        minute: '2-digit',
-        timeZone: 'America/Sao_Paulo'
+        minute: '2-digit'
       });
 
         await telegramBot.sendMessage(chatId,
