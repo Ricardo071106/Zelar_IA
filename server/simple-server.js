@@ -742,7 +742,9 @@ class WhatsAppBot {
       
       // Detectar "amanhã"
       if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
+        console.log(`📅 Detectado "amanhã" - data atual: ${eventDate.toLocaleString('pt-BR')}`);
         eventDate.setDate(eventDate.getDate() + 1);
+        console.log(`📅 Data após adicionar 1 dia: ${eventDate.toLocaleString('pt-BR')}`);
         isValidEvent = true;
       }
       
@@ -1049,7 +1051,9 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         
         // Detectar "amanhã"
         if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
+          console.log(`📅 Detectado "amanhã" - data atual: ${eventDate.toLocaleString('pt-BR')}`);
           eventDate.setDate(eventDate.getDate() + 1);
+          console.log(`📅 Data após adicionar 1 dia: ${eventDate.toLocaleString('pt-BR')}`);
           isValidEvent = true;
         }
         
