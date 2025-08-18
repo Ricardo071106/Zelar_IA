@@ -720,19 +720,22 @@ class WhatsAppBot {
         console.log(`📝 Título final (com "com"): ${eventTitle}`);
       }
       
-      // Detectar dia da semana
+      // Detectar dia da semana - MELHORADO para evitar falsos positivos
       const weekdays = {
         'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
       };
       
       for (const [day, dayNum] of Object.entries(weekdays)) {
-        if (lowerText.includes(day)) {
+        // Usar regex para detectar apenas palavras completas
+        const dayRegex = new RegExp(`\\b${day}\\b`, 'i');
+        if (dayRegex.test(message)) {
           const today = new Date();
           const currentDay = today.getDay();
           let daysToAdd = (dayNum - currentDay + 7) % 7;
           if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
           eventDate.setDate(today.getDate() + daysToAdd);
           isValidEvent = true;
+          console.log(`📅 Dia da semana detectado: ${day} (${daysToAdd} dias à frente)`);
           break;
         }
       }
@@ -1024,19 +1027,22 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           eventTitle = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
         }
         
-        // Detectar dia da semana
+        // Detectar dia da semana - MELHORADO para evitar falsos positivos
         const weekdays = {
           'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
         };
         
         for (const [day, dayNum] of Object.entries(weekdays)) {
-          if (lowerText.includes(day)) {
+          // Usar regex para detectar apenas palavras completas
+          const dayRegex = new RegExp(`\\b${day}\\b`, 'i');
+          if (dayRegex.test(text)) {
             const today = new Date();
             const currentDay = today.getDay();
             let daysToAdd = (dayNum - currentDay + 7) % 7;
             if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
             eventDate.setDate(today.getDate() + daysToAdd);
             isValidEvent = true;
+            console.log(`📅 Dia da semana detectado: ${day} (${daysToAdd} dias à frente)`);
             break;
           }
         }
