@@ -846,6 +846,10 @@ class WhatsAppBot {
       const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}`;
       const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
 
+      // Debug: Verificar fuso horário
+      console.log(`🔍 startDate UTC: ${startDate.toISOString()}`);
+      console.log(`🔍 startDate local: ${startDate.toString()}`);
+      
       const displayDate = startDate.toLocaleDateString('pt-BR', {
         weekday: 'long',
         day: 'numeric',
