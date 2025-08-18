@@ -216,7 +216,7 @@ export default function DocumentationSection() {
                       <h4 className="font-semibold text-green-900 mb-2">Configuração Automática</h4>
                       <p className="text-green-800 text-sm">
                         O sistema detecta automaticamente seu fuso horário baseado no idioma do dispositivo. 
-                        Para configurar manualmente, use o comando <code className="bg-green-100 px-1 rounded">/timezone [fuso]</code> 
+                        Para configurar manualmente, use o comando <code className="bg-green-100 px-1 rounded">/fuso</code> 
                         no Telegram ou WhatsApp.
                       </p>
                     </div>

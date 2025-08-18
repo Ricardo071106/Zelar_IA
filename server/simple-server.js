@@ -22,6 +22,7 @@ class WhatsAppBot {
       qrCodeImage: null,
       clientInfo: null
     };
+    this.userStates = new Map(); // Para controlar estados dos usuários
   }
 
   setupEventHandlers() {
@@ -99,10 +100,11 @@ class WhatsAppBot {
           '• "reunião amanhã às 15h"\n' +
           '• "consulta sexta às 10h"\n' +
           '• "almoço com equipe sexta 12h"\n\n' +
-          '⚙️ *Comandos:*\n' +
-          '/start - Mensagem de boas-vindas\n' +
-          '/help - Ver exemplos e instruções\n\n' +
-          'Envie qualquer mensagem com data e horário para criar um evento!';
+                         '⚙️ *Comandos:*\n' +
+               '/start - Mensagem de boas-vindas\n' +
+               '/help - Ver exemplos e instruções\n' +
+               '/fuso - Configurar fuso horário\n\n' +
+               'Envie qualquer mensagem com data e horário para criar um evento!';
         await this.sendMessage(message.from, response);
         return;
       }
@@ -525,9 +527,9 @@ class WhatsAppBot {
                '• "reunião amanhã às 15h"\n' +
                '• "consulta sexta às 10h"\n\n' +
                '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
-               'Use /timezone para alterar\n\n' +
+               'Use /fuso para alterar\n\n' +
                '📝 *Comandos:*\n' +
-               '/timezone - Alterar fuso horário\n' +
+               '/fuso - Alterar fuso horário\n' +
                '/help - Ajuda completa\n\n' +
                'Envie qualquer mensagem com data e horário!';
       }
@@ -541,29 +543,77 @@ class WhatsAppBot {
                '• "consulta médica terça-feira às 10h"\n' +
                '• "call de projeto quinta às 15h"\n\n' +
                '⚙️ *Comandos:*\n' +
-               '/timezone - Alterar fuso horário\n' +
+               '/fuso - Alterar fuso horário\n' +
                '/start - Mensagem inicial\n\n' +
                '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
                '✨ Processamento com IA Claude!';
       }
 
-      if (message === '/timezone') {
-        return '🌍 *Selecione seu fuso horário:*\n\n' +
-               '🇧🇷 Brasil/Argentina: UTC-3\n' +
-               '🇺🇸 EUA Leste/Canadá: UTC-5\n' +
-               '🇺🇸 EUA Central/México: UTC-6\n' +
-               '🇺🇸 EUA Oeste: UTC-8\n' +
-               '🇬🇧 Londres/Dublin: UTC+0\n' +
-               '🇪🇺 Europa Central (Alemanha, França, Itália, Espanha): UTC+1\n' +
-               '🇷🇺 Moscou/Turquia: UTC+3\n' +
-               '🇮🇳 Índia: UTC+5:30\n' +
-               '🇨🇳 China/Singapura: UTC+8\n' +
-               '🇯🇵 Japão/Coreia: UTC+9\n' +
-               '🇦🇺 Austrália Leste: UTC+10\n' +
-               '🇳🇿 Nova Zelândia: UTC+12';
+      // Comando /fuso
+      if (message === '/fuso') {
+        // Definir estado do usuário para aguardar fuso horário
+        this.userStates.set(message.from, { state: 'waitingForTimezone' });
+        
+        return '🌍 *Configurar Fuso Horário*\n\n' +
+               'Digite o nome do seu país ou região:\n\n' +
+               '🇧🇷 Brasil/Argentina\n' +
+               '🇺🇸 EUA Leste/Canadá\n' +
+               '🇺🇸 EUA Central/México\n' +
+               '🇺🇸 EUA Oeste\n' +
+               '🇬🇧 Londres/Dublin\n' +
+               '🇪🇺 Europa Central\n' +
+               '🇷🇺 Moscou/Turquia\n' +
+               '🇮🇳 Índia\n' +
+               '🇨🇳 China/Singapura\n' +
+               '🇯🇵 Japão/Coreia\n' +
+               '🇦🇺 Austrália Leste\n' +
+               '🇳🇿 Nova Zelândia\n\n' +
+               'Exemplo: "Brasil" ou "EUA Leste"';
       }
 
       if (message.startsWith('/')) return '';
+
+      // Verificar se usuário está aguardando fuso horário
+      const userState = this.userStates.get(message.from);
+      if (userState && userState.state === 'waitingForTimezone') {
+        // Processar seleção de fuso horário
+        const timezoneInput = message.toLowerCase();
+        let timezone = null;
+        
+        if (timezoneInput.includes('brasil') || timezoneInput.includes('argentina')) {
+          timezone = 'UTC-3';
+        } else if (timezoneInput.includes('eua leste') || timezoneInput.includes('canadá') || timezoneInput.includes('canada')) {
+          timezone = 'UTC-5';
+        } else if (timezoneInput.includes('eua central') || timezoneInput.includes('méxico') || timezoneInput.includes('mexico')) {
+          timezone = 'UTC-6';
+        } else if (timezoneInput.includes('eua oeste')) {
+          timezone = 'UTC-8';
+        } else if (timezoneInput.includes('londres') || timezoneInput.includes('dublin')) {
+          timezone = 'UTC+0';
+        } else if (timezoneInput.includes('europa central') || timezoneInput.includes('alemanha') || timezoneInput.includes('frança') || timezoneInput.includes('franca') || timezoneInput.includes('itália') || timezoneInput.includes('italia') || timezoneInput.includes('espanha')) {
+          timezone = 'UTC+1';
+        } else if (timezoneInput.includes('moscou') || timezoneInput.includes('turquia')) {
+          timezone = 'UTC+3';
+        } else if (timezoneInput.includes('índia') || timezoneInput.includes('india')) {
+          timezone = 'UTC+5:30';
+        } else if (timezoneInput.includes('china') || timezoneInput.includes('singapura')) {
+          timezone = 'UTC+8';
+        } else if (timezoneInput.includes('japão') || timezoneInput.includes('japao') || timezoneInput.includes('coreia') || timezoneInput.includes('corea')) {
+          timezone = 'UTC+9';
+        } else if (timezoneInput.includes('austrália') || timezoneInput.includes('australia') || timezoneInput.includes('sydney')) {
+          timezone = 'UTC+10';
+        } else if (timezoneInput.includes('nova zelândia') || timezoneInput.includes('nova zelandia')) {
+          timezone = 'UTC+12';
+        }
+        
+        if (timezone) {
+          // Limpar estado do usuário
+          this.userStates.delete(message.from);
+          return `✅ *Fuso horário configurado!*\n\n🌍 Seu fuso: ${timezone}\n\nAgora você pode agendar eventos normalmente!`;
+        } else {
+          return '❌ *Fuso horário não reconhecido*\n\nDigite um dos países/regiões listados:\n\n🇧🇷 Brasil/Argentina\n🇺🇸 EUA Leste/Canadá\n🇺🇸 EUA Central/México\n🇺🇸 EUA Oeste\n🇬🇧 Londres/Dublin\n🇪🇺 Europa Central\n🇷🇺 Moscou/Turquia\n🇮🇳 Índia\n🇨🇳 China/Singapura\n🇯🇵 Japão/Coreia\n🇦🇺 Austrália Leste\n🇳🇿 Nova Zelândia';
+        }
+      }
 
       // Processamento igual ao Telegram
       const lowerText = message.toLowerCase();
@@ -846,10 +896,10 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           '• "jantar hoje às 19h"\n' +
           '• "reunião amanhã às 15h"\n' +
           '• "consulta sexta às 10h"\n\n' +
-          '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
-          'Use /timezone para alterar\n\n' +
+                         '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
+               'Use /fuso para alterar\n\n' +
           '📝 *Comandos:*\n' +
-          '/timezone - Alterar fuso horário\n' +
+          '/fuso - Alterar fuso horário\n' +
           '/help - Ajuda completa\n\n' +
           'Envie qualquer mensagem com data e horário!',
           { parse_mode: 'Markdown' }
@@ -868,7 +918,7 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           '• "consulta médica terça-feira às 10h"\n' +
           '• "call de projeto quinta às 15h"\n\n' +
           '⚙️ *Comandos:*\n' +
-          '/timezone - Alterar fuso horário\n' +
+          '/fuso - Alterar fuso horário\n' +
           '/start - Mensagem inicial\n\n' +
           '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
           '✨ Processamento com IA Claude!',
@@ -877,8 +927,8 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         return;
       }
 
-      // Comando /timezone
-      if (text === '/timezone') {
+      // Comando /fuso
+      if (text === '/fuso') {
         const replyMarkup = {
           inline_keyboard: [
             [
