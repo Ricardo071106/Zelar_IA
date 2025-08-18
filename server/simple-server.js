@@ -850,12 +850,14 @@ class WhatsAppBot {
       console.log(`🔍 startDate UTC: ${startDate.toISOString()}`);
       console.log(`🔍 startDate local: ${startDate.toString()}`);
       
+      // Forçar fuso horário do Brasil (UTC-3) na formatação
       const displayDate = startDate.toLocaleDateString('pt-BR', {
         weekday: 'long',
         day: 'numeric',
         month: 'long',
         hour: '2-digit',
-        minute: '2-digit'
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
       });
 
       const finalResponse = '✅ *Evento criado!*\n\n' +
@@ -1163,13 +1165,15 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           ]
         };
 
-        const displayDate = startDate.toLocaleDateString('pt-BR', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+              // Forçar fuso horário do Brasil (UTC-3) na formatação
+      const displayDate = startDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
+      });
 
         await telegramBot.sendMessage(chatId,
           '✅ *Evento criado!*\n\n' +
