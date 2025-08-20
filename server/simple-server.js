@@ -312,6 +312,28 @@ class WhatsAppBot {
     }
   }
 
+  clearSession() {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Limpar diretórios de sessão
+      const sessionPaths = [
+        'whatsapp_session',
+        'whatsapp_session/session-zelar-whatsapp-bot'
+      ];
+      
+      sessionPaths.forEach(sessionPath => {
+        if (fs.existsSync(sessionPath)) {
+          fs.rmSync(sessionPath, { recursive: true, force: true });
+          console.log(`🧹 Sessão limpa: ${sessionPath}`);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Erro ao limpar sessão:', error);
+    }
+  }
+
   async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
@@ -342,9 +364,19 @@ class WhatsAppBot {
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
       console.log('📁 Carregando estado de autenticação...');
-      const authResult = await useMultiFileAuthState('whatsapp_session/session-zelar-whatsapp-bot');
+      
+      // Tentar carregar a sessão existente
+      let authResult;
+      try {
+        authResult = await useMultiFileAuthState('whatsapp_session/session-zelar-whatsapp-bot');
+        console.log('✅ Estado carregado da sessão existente!');
+      } catch (error) {
+        console.log('⚠️ Sessão não encontrada, criando nova...');
+        // Se não conseguir carregar, criar nova sessão
+        authResult = await useMultiFileAuthState('whatsapp_session');
+      }
+      
       const { state, saveCreds } = authResult;
-      console.log('✅ Estado carregado!');
       
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
@@ -411,6 +443,13 @@ class WhatsAppBot {
         if (connection === 'close') {
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
           console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
+          
+          // Se for erro de autenticação, limpar sessão
+          if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
+            console.log('🧹 Sessão expirada, limpando...');
+            this.clearSession();
+          }
+          
           if (shouldReconnect) {
             // Parar heartbeat antes de reconectar
             this.stopHeartbeat();
