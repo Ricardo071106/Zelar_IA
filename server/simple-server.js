@@ -341,8 +341,9 @@ class WhatsAppBot {
       // Verificar sessão anterior
       console.log('🧹 Verificando sessão anterior...');
       
-      // Limpar sessão apenas se houver problemas específicos
-      // this.clearSession(); // Comentado para permitir sessão existente
+      // Forçar limpeza da sessão para resolver problemas persistentes
+      console.log('🧹 Limpando sessão anterior...');
+      this.clearSession();
       
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
@@ -366,21 +367,13 @@ class WhatsAppBot {
       console.log('🔧 makeWASocket final:', typeof makeWASocket);
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
-      console.log('📁 Carregando estado de autenticação...');
+      console.log('📁 Criando nova sessão de autenticação...');
       
-      // Tentar carregar a sessão existente primeiro
-      let authResult;
-      try {
-        authResult = await useMultiFileAuthState('whatsapp_session');
-        console.log('✅ Estado carregado da sessão existente!');
-      } catch (error) {
-        console.log('⚠️ Sessão não encontrada, criando nova...');
-        // Se não conseguir carregar, criar nova sessão
-        authResult = await useMultiFileAuthState('whatsapp_session');
-        console.log('✅ Nova sessão criada!');
-      }
-      
+      // Sempre criar uma nova sessão após limpeza
+      const authResult = await useMultiFileAuthState('whatsapp_session');
       const { state, saveCreds } = authResult;
+      
+      console.log('✅ Nova sessão criada!');
       
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
