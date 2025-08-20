@@ -241,6 +241,34 @@ class WhatsAppBot {
       return false;
     }
   }
+  
+  startHeartbeat() {
+    // Manter conexão ativa enviando ping a cada 30 segundos
+    this.heartbeatInterval = setInterval(async () => {
+      try {
+        if (this.sock && this.status.isConnected) {
+          // Enviar um ping para manter a conexão ativa
+          await this.sock.sendPresenceUpdate('available');
+          console.log('💓 Heartbeat enviado');
+        }
+      } catch (error) {
+        console.error('❌ Erro no heartbeat:', error);
+        // Se o heartbeat falhar, tentar reconectar
+        clearInterval(this.heartbeatInterval);
+        setTimeout(() => {
+          console.log('🔄 Reconectando após falha no heartbeat...');
+          this.initialize();
+        }, 5000);
+      }
+    }, 30000); // 30 segundos
+  }
+  
+  stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
 
   async initialize() {
     try {
@@ -281,10 +309,14 @@ class WhatsAppBot {
         auth: state,
         printQRInTerminal: true,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 25000,
-        retryRequestDelayMs: 2000,
-        maxRetries: 3,
+        keepAliveIntervalMs: 15000, // Reduzido para manter conexão mais ativa
+        retryRequestDelayMs: 1000, // Reduzido para respostas mais rápidas
+        maxRetries: 5, // Aumentado para mais tentativas
         shouldIgnoreJid: jid => jid.includes('@broadcast'),
+        // Configurações para melhor estabilidade
+        markOnlineOnConnect: true,
+        syncFullHistory: false,
+        fireInitQueries: true,
         patchMessageBeforeSending: (msg) => {
           const requiresPatch = !!(
             msg.buttonsMessage ||
@@ -338,13 +370,45 @@ class WhatsAppBot {
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
           console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
           if (shouldReconnect) {
-            this.initialize();
+            // Aguardar um pouco antes de reconectar
+            setTimeout(() => {
+              console.log('🔄 Tentando reconectar...');
+              this.initialize();
+            }, 5000);
           }
         } else if (connection === 'open') {
           console.log('✅ WhatsApp Bot está pronto!');
           this.status.isConnected = true;
           this.status.isReady = true;
           this.status.qrCode = null;
+          
+          // Iniciar heartbeat para manter conexão ativa
+          this.startHeartbeat();
+        }
+      });
+      
+      // Adicionar handler para erros de criptografia
+      this.sock.ev.on('creds.update', saveCreds);
+      
+      // Handler para mensagens com erro de criptografia
+      this.sock.ev.on('messages.upsert', async (m) => {
+        if (m.messages && m.messages.length > 0) {
+          const message = m.messages[0];
+          if (message.key && message.key.remoteJid && !message.key.fromMe) {
+            try {
+              // Processar mensagem normalmente
+              await this.handleMessage(message);
+            } catch (error) {
+              console.error('❌ Erro ao processar mensagem:', error);
+              // Se for erro de criptografia, tentar reconectar
+              if (error.message && error.message.includes('Bad MAC')) {
+                console.log('🔄 Erro de criptografia detectado, reconectando...');
+                setTimeout(() => {
+                  this.initialize();
+                }, 3000);
+              }
+            }
+          }
         }
       });
 
