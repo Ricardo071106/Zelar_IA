@@ -5,7 +5,7 @@ import analytics from './analytics.js';
 import AudioService from './audioService.js';
 import EmailService from './emailService.js';
 import multer from 'multer';
-import { Client, LocalAuth } from 'whatsapp-web.js';
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -13,10 +13,10 @@ const port = process.env.PORT || 8080;
 app.use(express.json());
 app.use(express.static('dist/public'));
 
-// Classe WhatsAppBot usando whatsapp-web.js
+// Classe WhatsAppBot usando Baileys
 class WhatsAppBot {
   constructor() {
-    this.client = null;
+    this.sock = null;
     this.status = {
       isReady: false,
       isConnected: false,
@@ -27,81 +27,114 @@ class WhatsAppBot {
     this.userStates = new Map(); // Para controlar estados dos usuários
   }
 
-  setupEventHandlers() {
+  async initialize() {
+    try {
+      console.log('🚀 Inicializando WhatsApp Bot...');
+      
+      // Limpar sessão anterior
+      await this.clearSession();
+      
+      // Configurar autenticação
+      const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+      
+      // Criar socket
+      this.sock = makeWASocket({
+        auth: state,
+        printQRInTerminal: true,
+        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+        keepAliveIntervalMs: 30000,
+        retryRequestDelayMs: 2000,
+        maxRetries: 3,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        fireInitQueries: false
+      });
+      
+      // Configurar event handlers
+      this.setupEventHandlers(saveCreds);
+      
+      console.log('✅ WhatsApp Bot inicializado com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+      throw error;
+    }
+  }
+
+  setupEventHandlers(saveCreds) {
     console.log('🔧 Configurando event handlers do WhatsApp...');
     
-    this.client.on('qr', async (qr) => {
-      console.log('🔗 QR Code recebido!');
-      this.status.qrCode = qr;
-      this.status.isConnected = false;
-      this.status.isReady = true;
+    this.sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
       
-      // Gerar QR code visual no terminal
-      try {
-        const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 40 });
-        console.log('\n📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:\n');
-        console.log(qrImage);
-        console.log('\n🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
-        console.log('\n📋 Como conectar:');
-        console.log('1. Abra o WhatsApp no seu celular');
-        console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
-        console.log('3. Toque em Conectar dispositivo');
-        console.log('4. Aponte a câmera para o QR code acima\n');
+      if (qr) {
+        console.log('🔗 QR Code recebido!');
+        this.status.qrCode = qr;
+        this.status.isConnected = false;
+        this.status.isReady = true;
         
-        // Também gerar QR code como imagem base64
+        // Gerar QR code visual no terminal
         try {
-          const qrDataURL = await qrcode.toDataURL(qr, {
-            width: 300,
-            margin: 2,
-            color: {
-              dark: '#25D366',
-              light: '#FFFFFF'
-            }
-          });
-          this.status.qrCodeImage = qrDataURL;
+          const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 20, small: true });
+          console.log('\n📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:\n');
+          console.log(qrImage);
+          console.log('\n🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
+          console.log('\n📋 Como conectar:');
+          console.log('1. Abra o WhatsApp no seu celular');
+          console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
+          console.log('3. Toque em Conectar dispositivo');
+          console.log('4. Aponte a câmera para o QR code acima\n');
+          
+          // Também gerar QR code como imagem base64
+          try {
+            const qrDataURL = await qrcode.toDataURL(qr, {
+              width: 300,
+              margin: 2,
+              color: {
+                dark: '#25D366',
+                light: '#FFFFFF'
+              }
+            });
+            this.status.qrCodeImage = qrDataURL;
+          } catch (error) {
+            console.log('❌ Erro ao gerar QR code como imagem:', error);
+          }
         } catch (error) {
-          console.log('❌ Erro ao gerar QR code como imagem:', error);
+          console.log('❌ Erro ao gerar QR code visual:', error);
         }
-      } catch (error) {
-        console.log('❌ Erro ao gerar QR code visual:', error);
+      }
+      
+      if (connection === 'close') {
+        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+        console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
+        
+        if (shouldReconnect) {
+          setTimeout(() => {
+            console.log('🔄 Reconectando...');
+            this.initialize();
+          }, 5000);
+        }
+      } else if (connection === 'open') {
+        console.log('✅ WhatsApp Bot está pronto!');
+        this.status.isConnected = true;
+        this.status.isReady = true;
+        this.status.qrCode = null;
       }
     });
-
-    this.client.on('ready', () => {
-      console.log('✅ WhatsApp Bot está pronto!');
-      this.status.isConnected = true;
-      this.status.isReady = true;
-      this.status.qrCode = null;
-    });
-
-    this.client.on('authenticated', () => {
-      console.log('🔐 WhatsApp autenticado!');
-    });
-
-    this.client.on('auth_failure', (msg) => {
-      console.error('❌ Falha na autenticação WhatsApp:', msg);
-    });
-
-    this.client.on('disconnected', (reason) => {
-      console.log('🔌 WhatsApp desconectado:', reason);
-      this.status.isConnected = false;
-      this.status.isReady = false;
-    });
-
-    this.client.on('error', (error) => {
-      console.error('❌ Erro no WhatsApp:', error);
-      this.status.isConnected = false;
-      this.status.isReady = false;
-    });
-
-    this.client.on('message', async (message) => {
-      await this.handleMessage(message);
-    });
-
-    // Handler para mensagens de áudio
-    this.client.on('message', async (message) => {
-      if (message.type === 'ptt' || message.type === 'audio') {
-        await this.handleAudioMessage(message);
+    
+    // Handler para credenciais
+    this.sock.ev.on('creds.update', saveCreds);
+    
+    // Handler para mensagens
+    this.sock.ev.on('messages.upsert', async (m) => {
+      if (m.messages && m.messages.length > 0) {
+        const message = m.messages[0];
+        if (message.key && message.key.remoteJid && !message.key.fromMe) {
+          try {
+            await this.handleMessage(message);
+          } catch (error) {
+            console.error('❌ Erro ao processar mensagem:', error);
+          }
+        }
       }
     });
   }
@@ -112,8 +145,8 @@ class WhatsAppBot {
         return;
       }
 
-      const chatId = message.from;
-      const messageText = message.body || '';
+      const chatId = message.key.remoteJid;
+      const messageText = message.message.conversation || message.message.extendedTextMessage?.text || '';
 
       if (messageText) {
         console.log(`💬 De: ${chatId}`);
@@ -123,7 +156,7 @@ class WhatsAppBot {
         const response = await this.processSchedulingCommand(messageText, chatId);
 
         try {
-          await message.reply(response);
+          await this.sock.sendMessage(chatId, { text: response });
           console.log('✅ Resposta enviada!');
 
           // Log analytics
@@ -134,92 +167,6 @@ class WhatsAppBot {
       }
     } catch (error) {
       console.error('❌ Erro ao processar mensagem:', error);
-    }
-  }
-
-  async handleAudioMessage(message) {
-    try {
-      console.log('🎵 Mensagem de áudio recebida!');
-      
-      const chatId = message.from;
-      
-      // Verificar se o serviço de áudio está disponível
-      if (!audioService) {
-        await message.reply('❌ Serviço de áudio não está disponível no momento.');
-        return;
-      }
-
-      // Baixar o áudio
-      const media = await message.downloadMedia();
-      
-      if (!media) {
-        await message.reply('❌ Não foi possível baixar o áudio.');
-        return;
-      }
-
-      // Converter base64 para buffer
-      const audioBuffer = Buffer.from(media.data, 'base64');
-      
-      // Transcrever áudio
-      const transcription = await audioService.transcribeAudio(audioBuffer);
-      
-      if (transcription) {
-        await message.reply(`🎵 *Transcrição do áudio:*\n\n${transcription}`);
-        
-        // Log analytics
-        analytics.logMessage('whatsapp', chatId, '[AUDIO]', transcription, 'audio_transcription');
-      } else {
-        await message.reply('❌ Não foi possível transcrever o áudio.');
-      }
-    } catch (error) {
-      console.error('❌ Erro ao processar áudio:', error);
-      await message.reply('❌ Erro ao processar o áudio.');
-    }
-  }
-
-  async initialize() {
-    try {
-      console.log('🚀 Inicializando WhatsApp Bot...');
-      
-      // Forçar limpeza da sessão para garantir QR code
-      await this.clearSession();
-      
-      // Criar cliente WhatsApp Web
-      this.client = new Client({
-        authStrategy: new LocalAuth({
-          clientId: 'zelar-whatsapp-bot'
-        }),
-        puppeteer: {
-          headless: true,
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-accelerated-2d-canvas',
-            '--no-first-run',
-            '--no-zygote',
-            '--single-process',
-            '--disable-gpu',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
-          ]
-        },
-        qrMaxRetries: 5,
-        authTimeoutMs: 60000,
-        takeoverOnConflict: true,
-        takeoverTimeoutMs: 10000
-      });
-      
-      // Configurar event handlers
-      this.setupEventHandlers();
-      
-      // Inicializar cliente
-      await this.client.initialize();
-      
-      console.log('✅ WhatsApp Bot inicializado com sucesso!');
-    } catch (error) {
-      console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
-      throw error;
     }
   }
 
@@ -264,11 +211,11 @@ class WhatsAppBot {
 
   async sendMessage(chatId, message) {
     try {
-      if (!this.client || !this.status.isConnected) {
+      if (!this.sock || !this.status.isConnected) {
         throw new Error('WhatsApp não está conectado');
       }
       
-      await this.client.sendMessage(chatId, message);
+      await this.sock.sendMessage(chatId, { text: message });
       return true;
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);
