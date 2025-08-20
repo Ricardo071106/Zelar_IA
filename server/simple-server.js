@@ -1763,6 +1763,33 @@ app.post('/api/whatsapp/force-qr', async (req, res) => {
   }
 });
 
+// Endpoint para testar geração de QR code
+app.get('/api/whatsapp/test-qr', async (req, res) => {
+  try {
+    console.log('🧪 Testando geração de QR code...');
+    
+    // Gerar um QR code de teste
+    const testQR = await qrcode.toDataURL('https://zelar-ia.onrender.com', {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#000000',
+        light: '#FFFFFF'
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: 'QR code de teste gerado com sucesso',
+      qrImage: testQR,
+      qrCode: 'https://zelar-ia.onrender.com'
+    });
+  } catch (error) {
+    console.error('Erro ao gerar QR code de teste:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para enviar mensagem via WhatsApp
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
