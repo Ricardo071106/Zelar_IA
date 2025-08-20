@@ -74,6 +74,11 @@ class WhatsAppBot {
           }
           return msg;
         },
+        // Forçar geração de QR code
+        qrTimeout: 60000,
+        authTimeoutMs: 60000,
+        takeoverOnConflict: true,
+        takeoverTimeoutMs: 10000
       });
       
       // Configurar event handlers
