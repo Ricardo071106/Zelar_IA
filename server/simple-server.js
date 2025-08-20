@@ -34,20 +34,35 @@ class WhatsAppBot {
       // Limpar sessão anterior para forçar QR code
       await this.clearSession();
       
+      // Aguardar um pouco para garantir que a limpeza foi processada
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       // Configurar autenticação
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
       
-      // Criar socket com configuração simples
+      console.log('🔧 Criando socket Baileys...');
+      
+      // Criar socket com configuração que força QR code
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
-        browser: ['Zelar Bot', 'Chrome', '1.0.0']
+        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 15000,
+        retryRequestDelayMs: 1000,
+        maxRetries: 5,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        fireInitQueries: false
       });
+      
+      console.log('🔧 Socket criado, configurando event handlers...');
       
       // Configurar event handlers
       this.setupEventHandlers(saveCreds);
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
+      console.log('🔍 Aguardando QR code...');
     } catch (error) {
       console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
       throw error;
@@ -59,6 +74,8 @@ class WhatsAppBot {
     
     this.sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
+      
+      console.log('🔄 Connection update:', { connection, hasQR: !!qr, qrLength: qr ? qr.length : 0 });
       
       if (qr) {
         console.log('🔗 QR Code recebido!');
@@ -821,6 +838,11 @@ app.post('/api/whatsapp/force-qr', async (req, res) => {
     setTimeout(async () => {
       const status = whatsappBot.getStatus();
       console.log('📊 Status após forçar QR:', status);
+      if (status.qrCode) {
+        console.log('✅ QR code gerado com sucesso!');
+      } else {
+        console.log('⚠️ QR code não foi gerado, tentando novamente...');
+      }
     }, 5000);
     
     res.json({ success: true, message: 'Forçando geração de QR code...' });
