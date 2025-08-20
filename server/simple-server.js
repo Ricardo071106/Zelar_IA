@@ -417,11 +417,18 @@ class WhatsAppBot {
       // Aguardar um pouco para garantir que a conexão seja estabelecida
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Forçar geração de QR code se não houver credenciais
-      if (!state.creds.me) {
-        console.log('🔗 Forçando geração de QR code...');
-        this.status.isReady = true;
-        this.status.isConnected = false;
+      // SEMPRE forçar geração de QR code
+      console.log('🔗 Forçando geração de QR code...');
+      this.status.isReady = true;
+      this.status.isConnected = false;
+      
+      // Forçar desconexão para gerar QR code
+      if (this.sock) {
+        try {
+          await this.sock.logout();
+        } catch (error) {
+          console.log('⚠️ Erro ao fazer logout:', error);
+        }
       }
 
       this.sock.ev.on('connection.update', async (update) => {
@@ -1881,6 +1888,29 @@ app.get('/api/whatsapp/force-real-qr', async (req, res) => {
     }
   } catch (error) {
     console.error('Erro ao forçar QR code real:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para verificar logs em tempo real
+app.get('/api/whatsapp/logs', async (req, res) => {
+  try {
+    console.log('📋 Verificando logs do WhatsApp...');
+    
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+    
+    const status = whatsappBot.getStatus();
+    
+    res.json({
+      success: true,
+      status: status,
+      message: 'Status atual do bot do WhatsApp',
+      instructions: 'Verifique os logs do servidor para ver o QR code'
+    });
+  } catch (error) {
+    console.error('Erro ao verificar logs:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
