@@ -7,8 +7,25 @@ class AudioService {
     this.openai = null;
     this.isAvailable = false;
     
-    // Só inicializar se tiver a chave da OpenAI
-    if (process.env.OPENAI_API_KEY) {
+    // Tentar OpenRouter primeiro (mais barato)
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        this.openai = new OpenAI({
+          apiKey: process.env.OPENROUTER_API_KEY,
+          baseURL: 'https://openrouter.ai/api/v1',
+          defaultHeaders: {
+            'HTTP-Referer': 'https://zelar-ia.onrender.com',
+            'X-Title': 'Zelar - Assistente de Agendamento'
+          }
+        });
+        this.isAvailable = true;
+        console.log('✅ AudioService inicializado com OpenRouter');
+      } catch (error) {
+        console.log('⚠️ AudioService não disponível - OpenRouter não configurado');
+      }
+    }
+    // Fallback para OpenAI direto
+    else if (process.env.OPENAI_API_KEY) {
       try {
         this.openai = new OpenAI({
           apiKey: process.env.OPENAI_API_KEY,
@@ -19,13 +36,13 @@ class AudioService {
         console.log('⚠️ AudioService não disponível - OpenAI não configurado');
       }
     } else {
-      console.log('⚠️ AudioService não disponível - OPENAI_API_KEY não configurada');
+      console.log('⚠️ AudioService não disponível - OPENROUTER_API_KEY ou OPENAI_API_KEY não configuradas');
     }
   }
 
   async transcribeAudio(audioBuffer, filename = 'audio.ogg') {
     if (!this.isAvailable || !this.openai) {
-      throw new Error('AudioService não está disponível - OpenAI não configurado');
+      throw new Error('AudioService não está disponível - OpenAI/OpenRouter não configurado');
     }
     
     try {
@@ -41,10 +58,16 @@ class AudioService {
       
       fs.writeFileSync(tempPath, audioBuffer);
       
-      // Transcrever com OpenAI Whisper
+      // Determinar qual modelo usar baseado na configuração
+      const isOpenRouter = process.env.OPENROUTER_API_KEY;
+      const model = isOpenRouter ? "openai/whisper-1" : "whisper-1";
+      
+      console.log(`🔧 Usando modelo: ${model}`);
+      
+      // Transcrever com Whisper
       const transcription = await this.openai.audio.transcriptions.create({
         file: fs.createReadStream(tempPath),
-        model: "whisper-1",
+        model: model,
         language: "pt",
         response_format: "text"
       });
@@ -57,6 +80,28 @@ class AudioService {
       
     } catch (error) {
       console.error('❌ Erro ao transcrever áudio:', error);
+      
+      // Se for erro de modelo no OpenRouter, tentar com modelo alternativo
+      if (process.env.OPENROUTER_API_KEY && error.message.includes('model')) {
+        console.log('🔄 Tentando com modelo alternativo...');
+        try {
+          const tempPath = path.join(process.cwd(), 'temp', filename);
+          const transcription = await this.openai.audio.transcriptions.create({
+            file: fs.createReadStream(tempPath),
+            model: "whisper-1", // Modelo padrão
+            language: "pt",
+            response_format: "text"
+          });
+          
+          fs.unlinkSync(tempPath);
+          console.log('✅ Áudio transcrito (modelo alternativo):', transcription);
+          return transcription;
+        } catch (retryError) {
+          console.error('❌ Erro no retry:', retryError);
+          throw retryError;
+        }
+      }
+      
       throw error;
     }
   }
