@@ -58,16 +58,12 @@ class AudioService {
       
       fs.writeFileSync(tempPath, audioBuffer);
       
-      // Determinar qual modelo usar baseado na configuração
-      const isOpenRouter = process.env.OPENROUTER_API_KEY;
-      const model = isOpenRouter ? "openai/whisper-1" : "whisper-1";
+      console.log('🔧 Usando Whisper para transcrição...');
       
-      console.log(`🔧 Usando modelo: ${model}`);
-      
-      // Transcrever com Whisper
+      // Transcrever com Whisper (funciona tanto no OpenRouter quanto OpenAI)
       const transcription = await this.openai.audio.transcriptions.create({
         file: fs.createReadStream(tempPath),
-        model: model,
+        model: "whisper-1",
         language: "pt",
         response_format: "text"
       });
@@ -80,28 +76,6 @@ class AudioService {
       
     } catch (error) {
       console.error('❌ Erro ao transcrever áudio:', error);
-      
-      // Se for erro de modelo no OpenRouter, tentar com modelo alternativo
-      if (process.env.OPENROUTER_API_KEY && error.message.includes('model')) {
-        console.log('🔄 Tentando com modelo alternativo...');
-        try {
-          const tempPath = path.join(process.cwd(), 'temp', filename);
-          const transcription = await this.openai.audio.transcriptions.create({
-            file: fs.createReadStream(tempPath),
-            model: "whisper-1", // Modelo padrão
-            language: "pt",
-            response_format: "text"
-          });
-          
-          fs.unlinkSync(tempPath);
-          console.log('✅ Áudio transcrito (modelo alternativo):', transcription);
-          return transcription;
-        } catch (retryError) {
-          console.error('❌ Erro no retry:', retryError);
-          throw retryError;
-        }
-      }
-      
       throw error;
     }
   }
