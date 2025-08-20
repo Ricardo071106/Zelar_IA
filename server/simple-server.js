@@ -31,11 +31,13 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
-      // Limpar sessão anterior para forçar QR code
+      // Forçar limpeza da sessão para garantir QR code
       await this.clearSession();
       
-      // Aguardar um pouco para garantir que a limpeza foi processada
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Aguardar mais tempo para garantir que a limpeza foi processada
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      console.log('🔧 Configurando autenticação...');
       
       // Configurar autenticação
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
@@ -83,6 +85,17 @@ class WhatsAppBot {
       
       // Configurar event handlers
       this.setupEventHandlers(saveCreds);
+      
+      // Forçar desconexão para gerar QR code
+      console.log('🔗 Forçando desconexão para gerar QR code...');
+      if (this.sock) {
+        try {
+          await this.sock.logout();
+          console.log('✅ Logout forçado realizado!');
+        } catch (error) {
+          console.log('⚠️ Erro ao fazer logout:', error.message);
+        }
+      }
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
       console.log('🔍 Aguardando QR code...');
@@ -873,6 +886,11 @@ app.post('/api/whatsapp/force-qr', async (req, res) => {
         console.log('✅ QR code gerado com sucesso!');
       } else {
         console.log('⚠️ QR code não foi gerado, tentando novamente...');
+        // Tentar novamente após mais tempo
+        setTimeout(async () => {
+          const status2 = whatsappBot.getStatus();
+          console.log('📊 Status após segunda tentativa:', status2);
+        }, 10000);
       }
     }, 5000);
     
