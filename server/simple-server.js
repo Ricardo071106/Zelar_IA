@@ -238,13 +238,30 @@ class WhatsAppBot {
       const sessionDirs = [
         'whatsapp_session',
         '.wwebjs_auth',
-        '.wwebjs_cache'
+        '.wwebjs_cache',
+        'sessions',
+        'session'
       ];
       
       for (const dir of sessionDirs) {
         if (fs.existsSync(dir)) {
           fs.rmSync(dir, { recursive: true, force: true });
           console.log(`✅ ${dir} removido!`);
+        }
+      }
+      
+      // Remover também arquivos individuais de sessão
+      const sessionFiles = [
+        'whatsapp_session.json',
+        'session.json',
+        'auth_info.json',
+        'auth_info_baileys.json'
+      ];
+      
+      for (const file of sessionFiles) {
+        if (fs.existsSync(file)) {
+          fs.unlinkSync(file);
+          console.log(`✅ ${file} removido!`);
         }
       }
       
@@ -257,7 +274,7 @@ class WhatsAppBot {
         clientInfo: null
       };
       
-      console.log('✅ Sessão limpa!');
+      console.log('✅ Sessão limpa completamente!');
     } catch (error) {
       console.error('❌ Erro ao limpar sessão:', error);
     }
