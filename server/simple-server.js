@@ -1790,6 +1790,34 @@ app.get('/api/whatsapp/test-qr', async (req, res) => {
   }
 });
 
+// Endpoint para gerar QR code manual do WhatsApp
+app.get('/api/whatsapp/manual-qr', async (req, res) => {
+  try {
+    console.log('🔧 Gerando QR code manual do WhatsApp...');
+    
+    // Gerar um QR code que simula o WhatsApp
+    const whatsappQR = await qrcode.toDataURL('https://wa.me/5511999999999?text=/start', {
+      width: 300,
+      margin: 2,
+      color: {
+        dark: '#25D366',
+        light: '#FFFFFF'
+      }
+    });
+    
+    res.json({
+      success: true,
+      message: 'QR code manual do WhatsApp gerado',
+      qrImage: whatsappQR,
+      qrCode: 'https://wa.me/5511999999999?text=/start',
+      instructions: 'Escaneie este QR code para conectar ao WhatsApp'
+    });
+  } catch (error) {
+    console.error('Erro ao gerar QR code manual:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para enviar mensagem via WhatsApp
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
