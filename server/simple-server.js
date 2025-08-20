@@ -361,7 +361,7 @@ class WhatsAppBot {
         makeWASocket = baileysModule.default?.default;
       }
       
-      const { DisconnectReason, useMultiFileAuthState } = baileysModule;
+      const { DisconnectReason, useMultiFileAuthState, makeCacheableSignalKeyStore } = baileysModule;
       
       console.log('🔧 makeWASocket final:', typeof makeWASocket);
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
@@ -379,14 +379,14 @@ class WhatsAppBot {
         auth: state,
         printQRInTerminal: true,
         connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 15000, // Reduzido para manter conexão mais ativa
-        retryRequestDelayMs: 1000, // Reduzido para respostas mais rápidas
-        maxRetries: 5, // Aumentado para mais tentativas
+        keepAliveIntervalMs: 15000,
+        retryRequestDelayMs: 1000,
+        maxRetries: 5,
         shouldIgnoreJid: jid => jid.includes('@broadcast'),
-        // Configurações para melhor estabilidade
-        markOnlineOnConnect: true,
+        // Configurações para forçar QR code
+        markOnlineOnConnect: false,
         syncFullHistory: false,
-        fireInitQueries: true,
+        fireInitQueries: false,
         patchMessageBeforeSending: (msg) => {
           const requiresPatch = !!(
             msg.buttonsMessage ||
