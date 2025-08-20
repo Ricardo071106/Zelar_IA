@@ -41,12 +41,27 @@ class WhatsAppBot {
         const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 40 });
         console.log('\n📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:\n');
         console.log(qrImage);
-        console.log('\n🔗 Ou acesse: http://localhost:' + (process.env.PORT || 8080) + '/api/whatsapp/qr');
+        console.log('\n🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
         console.log('\n📋 Como conectar:');
         console.log('1. Abra o WhatsApp no seu celular');
         console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
         console.log('3. Toque em Conectar dispositivo');
         console.log('4. Aponte a câmera para o QR code acima\n');
+        
+        // Também gerar QR code como imagem base64
+        try {
+          const qrDataURL = await qrcode.toDataURL(qr, {
+            width: 300,
+            margin: 2,
+            color: {
+              dark: '#25D366',
+              light: '#FFFFFF'
+            }
+          });
+          this.status.qrCodeImage = qrDataURL;
+        } catch (error) {
+          console.log('❌ Erro ao gerar QR code como imagem:', error);
+        }
       } catch (error) {
         console.log('❌ Erro ao gerar QR code visual:', error);
       }
@@ -166,6 +181,9 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
+      // Forçar limpeza da sessão para garantir QR code
+      await this.clearSession();
+      
       // Criar cliente WhatsApp Web
       this.client = new Client({
         authStrategy: new LocalAuth({
@@ -181,9 +199,15 @@ class WhatsAppBot {
             '--no-first-run',
             '--no-zygote',
             '--single-process',
-            '--disable-gpu'
+            '--disable-gpu',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
           ]
-        }
+        },
+        qrMaxRetries: 5,
+        authTimeoutMs: 60000,
+        takeoverOnConflict: true,
+        takeoverTimeoutMs: 10000
       });
       
       // Configurar event handlers
@@ -768,15 +792,20 @@ app.get('/api/whatsapp/qr', async (req, res) => {
     }
 
     if (status.qrCode) {
-      // Gerar QR code como imagem
-      const qrImage = await qrcode.toDataURL(status.qrCode, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
+      // Usar QR code já gerado ou gerar novo
+      let qrImage = status.qrCodeImage;
+      
+      if (!qrImage) {
+        qrImage = await qrcode.toDataURL(status.qrCode, {
+          width: 300,
+          margin: 2,
+          color: {
+            dark: '#25D366',
+            light: '#FFFFFF'
+          }
+        });
+      }
+      
       return res.json({
         status: 'qr_ready',
         qrCode: status.qrCode,
