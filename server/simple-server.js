@@ -417,18 +417,15 @@ class WhatsAppBot {
       // Aguardar um pouco para garantir que a conexão seja estabelecida
       await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // SEMPRE forçar geração de QR code
-      console.log('🔗 Forçando geração de QR code...');
-      this.status.isReady = true;
-      this.status.isConnected = false;
-      
-      // Forçar desconexão para gerar QR code
-      if (this.sock) {
-        try {
-          await this.sock.logout();
-        } catch (error) {
-          console.log('⚠️ Erro ao fazer logout:', error);
-        }
+      // Verificar se precisa gerar QR code
+      if (!state.creds.me) {
+        console.log('🔗 Aguardando geração de QR code...');
+        this.status.isReady = true;
+        this.status.isConnected = false;
+      } else {
+        console.log('✅ WhatsApp já autenticado!');
+        this.status.isReady = true;
+        this.status.isConnected = true;
       }
 
       this.sock.ev.on('connection.update', async (update) => {
