@@ -687,6 +687,133 @@ class WhatsAppBot {
       let eventDate = new Date();
       let isValidEvent = false;
       
+      // DETECTAR DATAS PRIMEIRO (antes de processar "com")
+      console.log(`🔍 Procurando data na mensagem: "${message}"`);
+      
+      // Padrão 1: "dia 29" ou "dia 15"
+      let dateMatch = message.match(/dia\s+(\d{1,2})/i);
+      if (dateMatch) {
+        const day = parseInt(dateMatch[1]);
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        
+        // Criar data para o dia especificado no mês atual
+        let targetDate = new Date(currentYear, currentMonth, day);
+        
+        // Se a data já passou este mês, usar próximo mês
+        if (targetDate < currentDate) {
+          targetDate = new Date(currentYear, currentMonth + 1, day);
+          // Se passou do ano, usar próximo ano
+          if (targetDate.getMonth() !== (currentMonth + 1) % 12) {
+            targetDate = new Date(currentYear + 1, 0, day);
+          }
+        }
+        
+        eventDate.setFullYear(targetDate.getFullYear());
+        eventDate.setMonth(targetDate.getMonth());
+        eventDate.setDate(targetDate.getDate());
+        isValidEvent = true;
+        console.log(`📅 Data específica detectada (dia ${day}): ${targetDate.toLocaleDateString('pt-BR')}`);
+      }
+      
+      // Padrão 2: "29 de agosto" ou "2 de setembro"
+      if (!dateMatch) {
+        dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+        console.log(`🔍 DateMatch encontrado:`, dateMatch);
+        
+        if (dateMatch) {
+          const day = parseInt(dateMatch[1]);
+          const monthName = dateMatch[2].toLowerCase();
+          const months = {
+            'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+            'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+          };
+          const month = months[monthName];
+          const currentYear = new Date().getFullYear();
+          
+          // Se a data já passou este ano, usar próximo ano
+          const targetDate = new Date(currentYear, month, day);
+          if (targetDate < new Date()) {
+            targetDate.setFullYear(currentYear + 1);
+          }
+          
+          eventDate.setFullYear(targetDate.getFullYear());
+          eventDate.setMonth(targetDate.getMonth());
+          eventDate.setDate(targetDate.getDate());
+          isValidEvent = true;
+          console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+        }
+      }
+      
+      // Padrão 3: "29/08" ou "29-08"
+      if (!dateMatch) {
+        dateMatch = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
+        if (dateMatch) {
+          const day = parseInt(dateMatch[1]);
+          const month = parseInt(dateMatch[2]) - 1; // JavaScript meses são 0-11
+          const currentYear = new Date().getFullYear();
+          
+          // Se a data já passou este ano, usar próximo ano
+          const targetDate = new Date(currentYear, month, day);
+          if (targetDate < new Date()) {
+            targetDate.setFullYear(currentYear + 1);
+          }
+          
+          eventDate.setFullYear(targetDate.getFullYear());
+          eventDate.setMonth(targetDate.getMonth());
+          eventDate.setDate(targetDate.getDate());
+          isValidEvent = true;
+          console.log(`📅 Data específica detectada (formato DD/MM): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+        }
+      }
+      
+      // Padrão 4: "próxima sexta", "essa sexta", "daqui 3 domingos"
+      if (!dateMatch) {
+        // "próxima sexta" ou "essa sexta"
+        const proximaMatch = message.match(/(?:próxima|proxima|essa)\s+(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)/i);
+        if (proximaMatch) {
+          const weekdays = {
+            'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
+          };
+          const targetDay = weekdays[proximaMatch[1].toLowerCase()];
+          const today = new Date();
+          const currentDay = today.getDay();
+          let daysToAdd = (targetDay - currentDay + 7) % 7;
+          if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
+          
+          eventDate.setDate(today.getDate() + daysToAdd);
+          isValidEvent = true;
+          console.log(`📅 Próxima ${proximaMatch[1]} detectada (${daysToAdd} dias à frente)`);
+        }
+        
+        // "daqui X domingos"
+        const daquiMatch = message.match(/daqui\s+(\d+)\s+(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)/i);
+        if (daquiMatch) {
+          const weekdays = {
+            'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
+          };
+          const weeks = parseInt(daquiMatch[1]);
+          const targetDay = weekdays[daquiMatch[2].toLowerCase()];
+          const today = new Date();
+          const currentDay = today.getDay();
+          let daysToAdd = (targetDay - currentDay + 7) % 7;
+          daysToAdd += (weeks - 1) * 7; // Adicionar semanas completas
+          
+          eventDate.setDate(today.getDate() + daysToAdd);
+          isValidEvent = true;
+          console.log(`📅 Daqui ${weeks} ${daquiMatch[2]} detectado (${daysToAdd} dias à frente)`);
+        }
+      }
+      
+      // Detectar "amanhã"
+      if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
+        console.log(`📅 Detectado "amanhã" - data atual: ${eventDate.toLocaleString('pt-BR')}`);
+        eventDate.setDate(eventDate.getDate() + 1);
+        console.log(`📅 Data após adicionar 1 dia: ${eventDate.toLocaleString('pt-BR')}`);
+        isValidEvent = true;
+      }
+      
       // Detectar "com" para adicionar pessoa - MELHORADO
       const comMatch = message.match(/(.+?)\s+com\s+([^0-9\s]+(?:\s+[^0-9\s]+)*)/i);
       console.log(`🔍 ComMatch encontrado:`, comMatch);
@@ -778,6 +905,9 @@ class WhatsAppBot {
           cleanBeforeCom = baseTitle;
         }
         
+        // Limpar "dia" do final do nome após "com"
+        afterCom = afterCom.replace(/\s+dia\s*$/i, '').trim();
+        
         eventTitle = `${cleanBeforeCom} com ${afterCom}`;
         
         console.log(`📝 Antes do "com" limpo: "${cleanBeforeCom}"`);
@@ -802,64 +932,6 @@ class WhatsAppBot {
           console.log(`📅 Dia da semana detectado: ${day} (${daysToAdd} dias à frente)`);
           break;
         }
-      }
-      
-      // Detectar "amanhã"
-      if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
-        console.log(`📅 Detectado "amanhã" - data atual: ${eventDate.toLocaleString('pt-BR')}`);
-        eventDate.setDate(eventDate.getDate() + 1);
-        console.log(`📅 Data após adicionar 1 dia: ${eventDate.toLocaleString('pt-BR')}`);
-        isValidEvent = true;
-      }
-      
-      // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08")
-      console.log(`🔍 Procurando data na mensagem: "${message}"`);
-      
-      // Padrão 1: "29 de agosto" ou "2 de setembro"
-      let dateMatch = message.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
-      console.log(`🔍 DateMatch encontrado:`, dateMatch);
-      
-      // Padrão 2: "29/08" ou "29-08"
-      if (!dateMatch) {
-        dateMatch = message.match(/(\d{1,2})[\/\-](\d{1,2})/);
-        if (dateMatch) {
-          const day = parseInt(dateMatch[1]);
-          const month = parseInt(dateMatch[2]) - 1; // JavaScript meses são 0-11
-          const currentYear = new Date().getFullYear();
-          
-          // Se a data já passou este ano, usar próximo ano
-          const targetDate = new Date(currentYear, month, day);
-          if (targetDate < new Date()) {
-            targetDate.setFullYear(currentYear + 1);
-          }
-          
-          eventDate.setFullYear(targetDate.getFullYear());
-          eventDate.setMonth(targetDate.getMonth());
-          eventDate.setDate(targetDate.getDate());
-          isValidEvent = true;
-          console.log(`📅 Data específica detectada (formato DD/MM): ${day}/${month + 1}/${targetDate.getFullYear()}`);
-        }
-      } else {
-        const day = parseInt(dateMatch[1]);
-        const monthName = dateMatch[2].toLowerCase();
-        const months = {
-          'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
-          'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
-        };
-        const month = months[monthName];
-        const currentYear = new Date().getFullYear();
-        
-        // Se a data já passou este ano, usar próximo ano
-        const targetDate = new Date(currentYear, month, day);
-        if (targetDate < new Date()) {
-          targetDate.setFullYear(currentYear + 1);
-        }
-        
-        eventDate.setFullYear(targetDate.getFullYear());
-        eventDate.setMonth(targetDate.getMonth());
-        eventDate.setDate(targetDate.getDate());
-        isValidEvent = true;
-        console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
       }
       
       // Detectar horário básico - DEPOIS de definir a data
@@ -1138,13 +1210,65 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           isValidEvent = true;
         }
         
-        // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08")
+        // Detectar datas específicas (ex: "30 de agosto", "29/08", "29-08", "dia 29")
         console.log(`🔍 Procurando data na mensagem: "${text}"`);
         
-        // Padrão 1: "29 de agosto"
-        let dateMatch = text.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+        // Padrão 1: "dia 29" ou "dia 15"
+        let dateMatch = text.match(/dia\s+(\d{1,2})/i);
+        if (dateMatch) {
+          const day = parseInt(dateMatch[1]);
+          const currentDate = new Date();
+          const currentMonth = currentDate.getMonth();
+          const currentYear = currentDate.getFullYear();
+          
+          // Criar data para o dia especificado no mês atual
+          let targetDate = new Date(currentYear, currentMonth, day);
+          
+          // Se a data já passou este mês, usar próximo mês
+          if (targetDate < currentDate) {
+            targetDate = new Date(currentYear, currentMonth + 1, day);
+            // Se passou do ano, usar próximo ano
+            if (targetDate.getMonth() !== (currentMonth + 1) % 12) {
+              targetDate = new Date(currentYear + 1, 0, day);
+            }
+          }
+          
+          eventDate.setFullYear(targetDate.getFullYear());
+          eventDate.setMonth(targetDate.getMonth());
+          eventDate.setDate(targetDate.getDate());
+          isValidEvent = true;
+          console.log(`📅 Data específica detectada (dia ${day}): ${targetDate.toLocaleDateString('pt-BR')}`);
+        }
         
-        // Padrão 2: "29/08" ou "29-08"
+        // Padrão 2: "29 de agosto" ou "2 de setembro"
+        if (!dateMatch) {
+          dateMatch = text.match(/(\d{1,2})\s+(?:de\s+)?(janeiro|fevereiro|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)/i);
+          
+          if (dateMatch) {
+            const day = parseInt(dateMatch[1]);
+            const monthName = dateMatch[2].toLowerCase();
+            const months = {
+              'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
+              'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
+            };
+            const month = months[monthName];
+            const currentYear = new Date().getFullYear();
+            
+            // Se a data já passou este ano, usar próximo ano
+            const targetDate = new Date(currentYear, month, day);
+            if (targetDate < new Date()) {
+              targetDate.setFullYear(currentYear + 1);
+            }
+            
+            eventDate.setFullYear(targetDate.getFullYear());
+            eventDate.setMonth(targetDate.getMonth());
+            eventDate.setDate(targetDate.getDate());
+            isValidEvent = true;
+            console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+          }
+        }
+        
+        // Padrão 3: "29/08" ou "29-08"
         if (!dateMatch) {
           dateMatch = text.match(/(\d{1,2})[\/\-](\d{1,2})/);
           if (dateMatch) {
@@ -1164,27 +1288,44 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
             isValidEvent = true;
             console.log(`📅 Data específica detectada (formato DD/MM): ${day}/${month + 1}/${targetDate.getFullYear()}`);
           }
-        } else {
-          const day = parseInt(dateMatch[1]);
-          const monthName = dateMatch[2].toLowerCase();
-          const months = {
-            'janeiro': 0, 'fevereiro': 1, 'março': 2, 'abril': 3, 'maio': 4, 'junho': 5,
-            'julho': 6, 'agosto': 7, 'setembro': 8, 'outubro': 9, 'novembro': 10, 'dezembro': 11
-          };
-          const month = months[monthName];
-          const currentYear = new Date().getFullYear();
-          
-          // Se a data já passou este ano, usar próximo ano
-          const targetDate = new Date(currentYear, month, day);
-          if (targetDate < new Date()) {
-            targetDate.setFullYear(currentYear + 1);
+        }
+        
+        // Padrão 4: "próxima sexta", "essa sexta", "daqui 3 domingos"
+        if (!dateMatch) {
+          // "próxima sexta" ou "essa sexta"
+          const proximaMatch = text.match(/(?:próxima|proxima|essa)\s+(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)/i);
+          if (proximaMatch) {
+            const weekdays = {
+              'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
+            };
+            const targetDay = weekdays[proximaMatch[1].toLowerCase()];
+            const today = new Date();
+            const currentDay = today.getDay();
+            let daysToAdd = (targetDay - currentDay + 7) % 7;
+            if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
+            
+            eventDate.setDate(today.getDate() + daysToAdd);
+            isValidEvent = true;
+            console.log(`📅 Próxima ${proximaMatch[1]} detectada (${daysToAdd} dias à frente)`);
           }
           
-          eventDate.setFullYear(targetDate.getFullYear());
-          eventDate.setMonth(targetDate.getMonth());
-          eventDate.setDate(targetDate.getDate());
-          isValidEvent = true;
-          console.log(`📅 Data específica detectada (formato texto): ${day}/${month + 1}/${targetDate.getFullYear()}`);
+          // "daqui X domingos"
+          const daquiMatch = text.match(/daqui\s+(\d+)\s+(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)/i);
+          if (daquiMatch) {
+            const weekdays = {
+              'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
+            };
+            const weeks = parseInt(daquiMatch[1]);
+            const targetDay = weekdays[daquiMatch[2].toLowerCase()];
+            const today = new Date();
+            const currentDay = today.getDay();
+            let daysToAdd = (targetDay - currentDay + 7) % 7;
+            daysToAdd += (weeks - 1) * 7; // Adicionar semanas completas
+            
+            eventDate.setDate(today.getDate() + daysToAdd);
+            isValidEvent = true;
+            console.log(`📅 Daqui ${weeks} ${daquiMatch[2]} detectado (${daysToAdd} dias à frente)`);
+          }
         }
         
         // Detectar horário básico - DEPOIS de definir a data
