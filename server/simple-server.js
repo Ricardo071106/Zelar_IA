@@ -53,7 +53,30 @@ class WhatsAppBot {
         maxRetries: 5,
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        fireInitQueries: false
+        fireInitQueries: false,
+        // Forçar geração de QR code
+        shouldIgnoreJid: jid => jid.includes('@broadcast'),
+        patchMessageBeforeSending: (msg) => {
+          const requiresPatch = !!(
+            msg.buttonsMessage ||
+            msg.templateMessage ||
+            msg.listMessage
+          );
+          if (requiresPatch) {
+            msg = {
+              viewOnceMessage: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...msg,
+                },
+              },
+            };
+          }
+          return msg;
+        }
       });
       
       console.log('🔧 Socket criado, configurando event handlers...');
