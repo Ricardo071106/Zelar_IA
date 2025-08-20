@@ -430,6 +430,9 @@ class WhatsAppBot {
           console.log('⚠️ Erro ao fazer logout:', error);
         }
       }
+      
+      // Aguardar um pouco mais para garantir que o logout foi processado
+      await new Promise(resolve => setTimeout(resolve, 3000));
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
