@@ -4,12 +4,30 @@ import path from 'path';
 
 class AudioService {
   constructor() {
-    this.openai = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+    this.openai = null;
+    this.isAvailable = false;
+    
+    // Só inicializar se tiver a chave da OpenAI
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        this.openai = new OpenAI({
+          apiKey: process.env.OPENAI_API_KEY,
+        });
+        this.isAvailable = true;
+        console.log('✅ AudioService inicializado com OpenAI');
+      } catch (error) {
+        console.log('⚠️ AudioService não disponível - OpenAI não configurado');
+      }
+    } else {
+      console.log('⚠️ AudioService não disponível - OPENAI_API_KEY não configurada');
+    }
   }
 
   async transcribeAudio(audioBuffer, filename = 'audio.ogg') {
+    if (!this.isAvailable || !this.openai) {
+      throw new Error('AudioService não está disponível - OpenAI não configurado');
+    }
+    
     try {
       console.log('🎤 Processando áudio...');
       
@@ -44,6 +62,15 @@ class AudioService {
   }
 
   async processVoiceMessage(audioBuffer, platform = 'whatsapp') {
+    if (!this.isAvailable) {
+      return {
+        original: 'Serviço de áudio não disponível',
+        processed: 'Serviço de áudio não disponível',
+        platform: platform,
+        error: 'AudioService não configurado'
+      };
+    }
+    
     try {
       const transcription = await this.transcribeAudio(audioBuffer);
       
@@ -58,7 +85,12 @@ class AudioService {
       
     } catch (error) {
       console.error('❌ Erro ao processar mensagem de voz:', error);
-      throw error;
+      return {
+        original: 'Erro ao processar áudio',
+        processed: 'Erro ao processar áudio',
+        platform: platform,
+        error: error.message
+      };
     }
   }
 

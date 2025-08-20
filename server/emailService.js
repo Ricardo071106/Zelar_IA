@@ -2,13 +2,27 @@ import nodemailer from 'nodemailer';
 
 class EmailService {
   constructor() {
-    this.transporter = nodemailer.createTransporter({
-      service: 'gmail',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+    this.transporter = null;
+    this.isAvailable = false;
+    
+    // Só inicializar se tiver as credenciais de email
+    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
+      try {
+        this.transporter = nodemailer.createTransporter({
+          service: 'gmail',
+          auth: {
+            user: process.env.EMAIL_USER,
+            pass: process.env.EMAIL_PASS
+          }
+        });
+        this.isAvailable = true;
+        console.log('✅ EmailService inicializado com Nodemailer');
+      } catch (error) {
+        console.log('⚠️ EmailService não disponível - credenciais de email não configuradas');
       }
-    });
+    } else {
+      console.log('⚠️ EmailService não disponível - EMAIL_USER/EMAIL_PASS não configuradas');
+    }
   }
 
   generateEventInvite(eventData) {
@@ -151,6 +165,10 @@ Gerado pelo Zelar - Assistente de Agendamento
   }
 
   async sendInvite(eventData, recipientEmail) {
+    if (!this.isAvailable || !this.transporter) {
+      throw new Error('EmailService não está disponível - credenciais não configuradas');
+    }
+    
     try {
       const invite = this.generateEventInvite(eventData);
       
