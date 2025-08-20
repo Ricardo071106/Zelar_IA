@@ -388,6 +388,8 @@ class WhatsAppBot {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         fireInitQueries: false,
+        // Forçar modo de registro
+        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
         patchMessageBeforeSending: (msg) => {
           const requiresPatch = !!(
             msg.buttonsMessage ||
@@ -414,6 +416,13 @@ class WhatsAppBot {
       
       // Aguardar um pouco para garantir que a conexão seja estabelecida
       await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Forçar geração de QR code se não houver credenciais
+      if (!state.creds.me) {
+        console.log('🔗 Forçando geração de QR code...');
+        this.status.isReady = true;
+        this.status.isConnected = false;
+      }
 
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
