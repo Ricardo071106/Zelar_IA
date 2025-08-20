@@ -47,7 +47,30 @@ class WhatsAppBot {
         maxRetries: 3,
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        fireInitQueries: false
+        fireInitQueries: false,
+        connectTimeoutMs: 60000,
+        shouldIgnoreJid: jid => jid.includes('@broadcast'),
+        patchMessageBeforeSending: (msg) => {
+          const requiresPatch = !!(
+            msg.buttonsMessage ||
+            msg.templateMessage ||
+            msg.listMessage
+          );
+          if (requiresPatch) {
+            msg = {
+              viewOnceMessage: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...msg,
+                },
+              },
+            };
+          }
+          return msg;
+        },
       });
       
       // Configurar event handlers
