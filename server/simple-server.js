@@ -384,10 +384,10 @@ class WhatsAppBot {
         retryRequestDelayMs: 1000,
         maxRetries: 5,
         shouldIgnoreJid: jid => jid.includes('@broadcast'),
-        // Configurações para estabilidade
-        markOnlineOnConnect: true,
+        // Configurações para forçar QR code
+        markOnlineOnConnect: false,
         syncFullHistory: false,
-        fireInitQueries: true,
+        fireInitQueries: false,
         patchMessageBeforeSending: (msg) => {
           const requiresPatch = !!(
             msg.buttonsMessage ||
