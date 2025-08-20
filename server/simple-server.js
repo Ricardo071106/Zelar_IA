@@ -2,6 +2,9 @@ import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import analytics from './analytics.js';
+import AudioService from './audioService.js';
+import EmailService from './emailService.js';
+import multer from 'multer';
 // import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 // import { Boom } from '@hapi/boom';
 
@@ -79,6 +82,13 @@ class WhatsAppBot {
 
     this.client.on('message', async (message) => {
       await this.handleMessage(message);
+    });
+
+    // Handler para mensagens de áudio
+    this.client.on('message', async (message) => {
+      if (message.type === 'ptt' || message.type === 'audio') {
+        await this.handleAudioMessage(message);
+      }
     });
   }
 
@@ -239,6 +249,38 @@ class WhatsAppBot {
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);
       return false;
+    }
+  }
+
+  async handleAudioMessage(message) {
+    try {
+      console.log('🎤 Mensagem de áudio recebida');
+      
+      // Baixar o áudio
+      const media = await this.sock.downloadMediaMessage(message);
+      
+      if (!media) {
+        await this.sendMessage(message.key.remoteJid, '❌ Não consegui processar o áudio. Tente novamente.');
+        return;
+      }
+
+      // Processar áudio com OpenAI Whisper
+      const transcription = await audioService.processVoiceMessage(media, 'audio.ogg');
+      
+      console.log('✅ Áudio transcrito:', transcription.original);
+      
+      // Processar o texto transcrito como uma mensagem normal
+      const processedMessage = {
+        ...message,
+        message: { conversation: transcription.original },
+        type: 'text'
+      };
+      
+      await this.handleMessage(processedMessage);
+      
+    } catch (error) {
+      console.error('❌ Erro ao processar áudio:', error);
+      await this.sendMessage(message.key.remoteJid, '❌ Erro ao processar áudio. Tente enviar uma mensagem de texto.');
     }
   }
   
@@ -1046,6 +1088,12 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
       
       console.log(`📱 Mensagem recebida: ${text}`);
       
+      // Processar mensagens de áudio
+      if (msg.voice || msg.audio) {
+        await handleTelegramAudio(msg);
+        return;
+      }
+      
       // Comando /start
       if (text === '/start') {
         await telegramBot.sendMessage(chatId, 
@@ -1806,6 +1854,121 @@ app.get('/analytics', (req, res) => {
   `);
 });
 
+// Configurar multer para upload de áudio
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
+// Inicializar serviços
+const audioService = new AudioService();
+const emailService = new EmailService();
+
+// Função para processar áudio do Telegram
+async function handleTelegramAudio(msg) {
+  try {
+    console.log('🎤 Áudio recebido no Telegram');
+    
+    const chatId = msg.chat.id;
+    const fileId = msg.voice ? msg.voice.file_id : msg.audio.file_id;
+    
+    // Baixar o arquivo de áudio
+    const file = await telegramBot.getFile(fileId);
+    const audioBuffer = await fetch(file.file_path).then(res => res.arrayBuffer());
+    
+    // Processar áudio com OpenAI Whisper
+    const transcription = await audioService.processVoiceMessage(Buffer.from(audioBuffer), 'telegram_audio.ogg');
+    
+    console.log('✅ Áudio transcrito:', transcription.original);
+    
+    // Enviar confirmação
+    await telegramBot.sendMessage(chatId, 
+      `🎤 *Áudio transcrito:*\n"${transcription.original}"\n\nProcessando comando...`,
+      { parse_mode: 'Markdown' }
+    );
+    
+    // Processar o texto transcrito como uma mensagem normal
+    const processedMsg = {
+      ...msg,
+      text: transcription.original
+    };
+    
+    // Simular o processamento normal da mensagem
+    await processTelegramMessage(processedMsg);
+    
+  } catch (error) {
+    console.error('❌ Erro ao processar áudio do Telegram:', error);
+    await telegramBot.sendMessage(msg.chat.id, '❌ Erro ao processar áudio. Tente enviar uma mensagem de texto.');
+  }
+}
+
+// Função para processar mensagens do Telegram (extraída da lógica existente)
+async function processTelegramMessage(msg) {
+  const chatId = msg.chat.id;
+  const text = msg.text;
+  
+  // Aqui você pode reutilizar a lógica existente de processamento
+  // Por enquanto, vou apenas processar como uma mensagem normal
+  // TODO: Integrar com a lógica de agendamento existente
+}
+
+// Rota para processar áudio
+app.post('/api/audio/transcribe', upload.single('audio'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo de áudio enviado' });
+    }
+
+    console.log('🎤 Processando áudio...');
+    const transcription = await audioService.processVoiceMessage(req.file.buffer);
+    
+    res.json({
+      success: true,
+      transcription: transcription.original,
+      processed: transcription.processed
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao processar áudio:', error);
+    res.status(500).json({ error: 'Erro ao processar áudio' });
+  }
+});
+
+// Rota para gerar preview de convite
+app.post('/api/email/preview', async (req, res) => {
+  try {
+    const eventData = req.body;
+    const preview = emailService.generateInvitePreview(eventData);
+    
+    res.json(preview);
+    
+  } catch (error) {
+    console.error('❌ Erro ao gerar preview:', error);
+    res.status(500).json({ error: 'Erro ao gerar preview' });
+  }
+});
+
+// Rota para enviar convite
+app.post('/api/email/send', async (req, res) => {
+  try {
+    const { eventData, recipientEmail } = req.body;
+    const result = await emailService.sendInvite(eventData, recipientEmail);
+    
+    res.json(result);
+    
+  } catch (error) {
+    console.error('❌ Erro ao enviar email:', error);
+    res.status(500).json({ error: 'Erro ao enviar email' });
+  }
+});
+
+// Rota para página de convites
+app.get('/email-invite', (req, res) => {
+  res.sendFile(join(__dirname, '../client/src/pages/EmailInvite.tsx'));
+});
+
 // Start server
 app.listen(port, async () => {
   console.log(`🚀 Server running on port ${port}`);
@@ -1814,6 +1977,7 @@ app.listen(port, async () => {
   console.log(`🤖 Telegram Bot: ${process.env.TELEGRAM_BOT_TOKEN ? 'Configured' : 'Not configured'}`);
   console.log(`🗄️ Database: ${process.env.DATABASE_URL ? 'Configured' : 'Not configured'}`);
   console.log(`📱 WhatsApp QR: http://localhost:${port}/api/whatsapp/qr`);
+  console.log(`📧 Email Invites: http://localhost:${port}/email-invite`);
   
   // Inicializar WhatsApp Bot
   try {
