@@ -74,11 +74,11 @@ const EmailInvite: React.FC = () => {
     }
   };
 
-  const sendInvite = async () => {
-    if (!recipientEmail) {
+  const generateMailtoLink = async () => {
+    if (!eventData.title || !eventData.date || !eventData.time) {
       toast({
-        title: "Email necessário",
-        description: "Digite o email do destinatário",
+        title: "Dados incompletos",
+        description: "Preencha pelo menos título, data e horário",
         variant: "destructive"
       });
       return;
@@ -86,7 +86,7 @@ const EmailInvite: React.FC = () => {
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/email/send', {
+      const response = await fetch('/api/email/mailto', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,18 +96,22 @@ const EmailInvite: React.FC = () => {
       });
       
       if (response.ok) {
+        const result = await response.json();
+        
+        // Abrir o cliente de email
+        window.open(result.mailtoLink, '_self');
+        
         toast({
-          title: "Convite enviado!",
-          description: `Email enviado para ${recipientEmail}`
+          title: "Email aberto!",
+          description: "Seu cliente de email foi aberto com o convite pronto"
         });
-        setRecipientEmail('');
       } else {
-        throw new Error('Erro ao enviar email');
+        throw new Error('Erro ao gerar link');
       }
     } catch (error) {
       toast({
         title: "Erro",
-        description: "Não foi possível enviar o email",
+        description: "Não foi possível abrir o email",
         variant: "destructive"
       });
     } finally {
@@ -212,20 +216,24 @@ const EmailInvite: React.FC = () => {
               <Separator />
 
               <div>
-                <Label htmlFor="email">Email do Destinatário</Label>
+                <Label htmlFor="email">Email do Destinatário (opcional)</Label>
                 <Input
                   id="email"
                   type="email"
                   value={recipientEmail}
                   onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="exemplo@email.com"
+                  placeholder="exemplo@email.com (deixe vazio para preencher depois)"
                 />
+                <p className="text-sm text-gray-500 mt-1">
+                  💡 Funciona como os links de calendário - sem necessidade de configuração!
+                </p>
               </div>
 
               <div className="flex gap-2">
                 <Button 
                   onClick={generatePreview}
                   disabled={isLoading}
+                  variant="outline"
                   className="flex-1"
                 >
                   <Eye className="w-4 h-4 mr-2" />
@@ -233,13 +241,13 @@ const EmailInvite: React.FC = () => {
                 </Button>
                 
                 <Button 
-                  onClick={sendInvite}
-                  disabled={isLoading || !recipientEmail}
+                  onClick={generateMailtoLink}
+                  disabled={isLoading}
                   variant="default"
                   className="flex-1"
                 >
-                  <Send className="w-4 h-4 mr-2" />
-                  Enviar Convite
+                  <Mail className="w-4 h-4 mr-2" />
+                  Abrir Email
                 </Button>
               </div>
             </CardContent>

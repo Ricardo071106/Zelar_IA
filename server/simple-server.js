@@ -110,11 +110,11 @@ class WhatsAppBot {
           '• "reunião amanhã às 15h"\n' +
           '• "consulta sexta às 10h"\n' +
           '• "almoço com equipe sexta 12h"\n\n' +
-                         '⚙️ *Comandos:*\n' +
-               '/start - Mensagem de boas-vindas\n' +
+          '⚙️ *Comandos:*\n' +
+          '/start - Mensagem de boas-vindas\n' +
                '/help - Ver exemplos e instruções\n' +
                '/fuso - Configurar fuso horário\n\n' +
-               'Envie qualquer mensagem com data e horário para criar um evento!';
+          'Envie qualquer mensagem com data e horário para criar um evento!';
         await this.sendMessage(message.from, response);
         return;
       }
@@ -1049,12 +1049,27 @@ class WhatsAppBot {
         minute: '2-digit'
       });
 
+      // Gerar link de convite por email
+      const inviteData = {
+        title: eventTitle,
+        date: startDate.toISOString(),
+        time: `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`,
+        location: '',
+        description: `Evento criado via Zelar`,
+        organizer: 'Zelar'
+      };
+      
+      const emailInviteLink = emailService.generateMailtoLink(inviteData);
+
       const finalResponse = '✅ *Evento criado!*\n\n' +
              `🎯 *${eventTitle}*\n` +
              `📅 ${displayDate}\n\n` +
              '📅 *Links do Calendário:*\n' +
              `• Google Calendar: ${googleUrl}\n` +
-             `• Outlook: ${outlookUrl}`;
+             `• Outlook: ${outlookUrl}\n\n` +
+             '📧 *Enviar Convite:*\n' +
+             `• [Abrir Email](${emailInviteLink})\n\n` +
+             '💡 *O link de email abre seu cliente com o convite pronto!*';
       
       console.log(`🎉 Resposta final gerada com sucesso!`);
       console.log(`📝 Título do evento: ${eventTitle}`);
@@ -1102,7 +1117,7 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           '• "jantar hoje às 19h"\n' +
           '• "reunião amanhã às 15h"\n' +
           '• "consulta sexta às 10h"\n\n' +
-                         '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
+          '🌍 *Fuso horário:* Brasil (UTC-3)\n' +
                'Use /fuso para alterar\n\n' +
           '📝 *Comandos:*\n' +
           '/fuso - Alterar fuso horário\n' +
@@ -1420,11 +1435,26 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
         const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
         const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
 
+        // Gerar link de convite por email
+        const inviteData = {
+          title: eventTitle,
+          date: startDate.toISOString(),
+          time: `${String(startDate.getUTCHours()).padStart(2, '0')}:${String(startDate.getUTCMinutes()).padStart(2, '0')}`,
+          location: '',
+          description: `Evento criado via Zelar`,
+          organizer: 'Zelar'
+        };
+        
+        const emailInviteLink = emailService.generateMailtoLink(inviteData);
+
         const replyMarkup = {
           inline_keyboard: [
             [
               { text: '📅 Google Calendar', url: googleUrl },
               { text: '📅 Outlook', url: outlookUrl }
+            ],
+            [
+              { text: '📧 Enviar Convite', url: emailInviteLink }
             ]
           ]
         };
@@ -1441,17 +1471,18 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
       const brazilDate = new Date(year, month, day, hour, minute, 0, 0);
       
       const displayDate = brazilDate.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
 
         await telegramBot.sendMessage(chatId,
           '✅ *Evento criado!*\n\n' +
           `🎯 *${eventTitle}*\n` +
-          `📅 ${displayDate}`,
+          `📅 ${displayDate}\n\n` +
+          '💡 *Use os botões abaixo para adicionar ao calendário ou enviar convite!*',
           { parse_mode: 'Markdown', reply_markup: replyMarkup }
         );
         
@@ -1947,6 +1978,42 @@ app.post('/api/email/preview', async (req, res) => {
   } catch (error) {
     console.error('❌ Erro ao gerar preview:', error);
     res.status(500).json({ error: 'Erro ao gerar preview' });
+  }
+});
+
+// Rota para gerar link mailto
+app.post('/api/email/mailto', async (req, res) => {
+  try {
+    const { eventData, recipientEmail } = req.body;
+    const mailtoLink = emailService.generateMailtoLink(eventData, recipientEmail);
+    
+    res.json({
+      success: true,
+      mailtoLink,
+      preview: emailService.generateInvitePreview(eventData)
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao gerar link mailto:', error);
+    res.status(500).json({ error: 'Erro ao gerar link mailto' });
+  }
+});
+
+// Rota para gerar múltiplos links mailto
+app.post('/api/email/mailto-bulk', async (req, res) => {
+  try {
+    const { eventData, recipientEmails } = req.body;
+    const links = emailService.generateMultipleMailtoLinks(eventData, recipientEmails);
+    
+    res.json({
+      success: true,
+      links,
+      preview: emailService.generateInvitePreview(eventData)
+    });
+    
+  } catch (error) {
+    console.error('❌ Erro ao gerar links mailto:', error);
+    res.status(500).json({ error: 'Erro ao gerar links mailto' });
   }
 });
 

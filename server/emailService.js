@@ -34,6 +34,23 @@ class EmailService {
       minute: '2-digit'
     });
 
+    // Texto simples para mailto
+    const textInvite = `🎉 CONVITE PARA EVENTO
+
+📅 ${title}
+
+📆 Data: ${formattedDate}
+🕐 Horário: ${formattedTime}
+${location ? `📍 Local: ${location}` : ''}
+${description ? `📝 Descrição: ${description}` : ''}
+👤 Organizador: ${organizer}
+
+Para confirmar sua presença, responda este email.
+
+---
+Gerado pelo Zelar - Assistente de Agendamento
+📱 Disponível no WhatsApp e Telegram`;
+
     const htmlTemplate = `
       <!DOCTYPE html>
       <html lang="pt-BR">
@@ -105,8 +122,31 @@ Gerado pelo Zelar - Assistente de Agendamento
 
     return {
       html: htmlTemplate,
-      text: textTemplate,
-      subject: `Convite: ${title} - ${formattedDate} às ${formattedTime}`
+      text: textInvite,
+      subject: `Convite: ${title} - ${formattedDate} às ${formattedTime}`,
+      textInvite: textInvite
+    };
+  }
+
+  generateMailtoLink(eventData, recipientEmail = '') {
+    const invite = this.generateEventInvite(eventData);
+    
+    const subject = encodeURIComponent(invite.subject);
+    const body = encodeURIComponent(invite.textInvite);
+    const to = recipientEmail ? encodeURIComponent(recipientEmail) : '';
+    
+    return `mailto:${to}?subject=${subject}&body=${body}`;
+  }
+
+  generateMultipleMailtoLinks(eventData, recipientEmails = []) {
+    const links = recipientEmails.map(email => ({
+      email,
+      link: this.generateMailtoLink(eventData, email)
+    }));
+    
+    return {
+      individual: links,
+      single: this.generateMailtoLink(eventData) // Link sem destinatário
     };
   }
 
