@@ -97,6 +97,55 @@ class WhatsAppBot {
         }
       }
       
+      // Aguardar um pouco e forçar nova inicialização
+      console.log('⏳ Aguardando para nova inicialização...');
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Forçar nova inicialização sem sessão
+      console.log('🔄 Forçando nova inicialização...');
+      await this.clearSession();
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Recriar socket forçando QR code
+      const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState('whatsapp_session');
+      
+      this.sock = makeWASocket({
+        auth: newState,
+        printQRInTerminal: true,
+        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 15000,
+        retryRequestDelayMs: 1000,
+        maxRetries: 5,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        fireInitQueries: false,
+        shouldIgnoreJid: jid => jid.includes('@broadcast'),
+        patchMessageBeforeSending: (msg) => {
+          const requiresPatch = !!(
+            msg.buttonsMessage ||
+            msg.templateMessage ||
+            msg.listMessage
+          );
+          if (requiresPatch) {
+            msg = {
+              viewOnceMessage: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...msg,
+                },
+              },
+            };
+          }
+          return msg;
+        }
+      });
+      
+      this.setupEventHandlers(newSaveCreds);
+      
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
       console.log('🔍 Aguardando QR code...');
     } catch (error) {
