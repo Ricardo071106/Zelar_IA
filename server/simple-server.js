@@ -1818,6 +1818,73 @@ app.get('/api/whatsapp/manual-qr', async (req, res) => {
   }
 });
 
+// Endpoint para forçar geração de QR code real
+app.get('/api/whatsapp/force-real-qr', async (req, res) => {
+  try {
+    console.log('🔧 Forçando geração de QR code real...');
+    
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+
+    // Limpar sessão e reinicializar
+    await whatsappBot.clearSession();
+    
+    // Aguardar um pouco
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Reinicializar o bot
+    await whatsappBot.initialize();
+    
+    // Aguardar mais tempo para o QR code aparecer
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    
+    // Verificar se o QR code foi gerado
+    const status = whatsappBot.getStatus();
+    
+    if (status.qrCode) {
+      console.log('✅ QR code real gerado com sucesso!');
+      res.json({
+        success: true,
+        message: 'QR code real gerado com sucesso',
+        qrCode: status.qrCode,
+        qrImage: status.qrCodeImage,
+        instructions: 'Escaneie este QR code no WhatsApp'
+      });
+    } else {
+      console.log('⚠️ QR code não foi gerado, tentando novamente...');
+      
+      // Tentar mais uma vez
+      await whatsappBot.clearSession();
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      await whatsappBot.initialize();
+      await new Promise(resolve => setTimeout(resolve, 15000));
+      
+      const newStatus = whatsappBot.getStatus();
+      
+      if (newStatus.qrCode) {
+        res.json({
+          success: true,
+          message: 'QR code real gerado na segunda tentativa',
+          qrCode: newStatus.qrCode,
+          qrImage: newStatus.qrCodeImage,
+          instructions: 'Escaneie este QR code no WhatsApp'
+        });
+      } else {
+        res.json({
+          success: false,
+          message: 'Não foi possível gerar o QR code real',
+          error: 'O Baileys não está gerando QR code. Tente novamente em alguns minutos.',
+          status: newStatus
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao forçar QR code real:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para enviar mensagem via WhatsApp
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
