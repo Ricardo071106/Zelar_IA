@@ -285,7 +285,15 @@ let whatsappBot = null;
 let telegramBot = null;
 if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true') { // REATIVADO
   try {
-    telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+    telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
+      polling: {
+        interval: 300,
+        autoStart: false
+      }
+    });
+    
+    // Iniciar polling manualmente
+    telegramBot.startPolling();
     console.log('✅ Bot do Telegram inicializado com sucesso!');
     
     // Configurar comandos completos
