@@ -31,8 +31,11 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
-      // Limpar sessão anterior
+      // Forçar limpeza da sessão para garantir QR code
       await this.clearSession();
+      
+      // Aguardar um pouco para garantir que a limpeza foi processada
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Configurar autenticação
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
