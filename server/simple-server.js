@@ -35,7 +35,7 @@ class WhatsAppBot {
       await this.clearSession();
       
       // Aguardar um pouco para garantir que a limpeza foi processada
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       // Configurar autenticação
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
