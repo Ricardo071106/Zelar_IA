@@ -5,7 +5,7 @@ import analytics from './analytics.js';
 import AudioService from './audioService.js';
 import EmailService from './emailService.js';
 import multer from 'multer';
-import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from 'baileys';
 
 const app = express();
 const port = process.env.PORT || 8080;
