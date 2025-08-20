@@ -342,7 +342,7 @@ class WhatsAppBot {
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
       console.log('📁 Carregando estado de autenticação...');
-      const authResult = await useMultiFileAuthState('whatsapp_session');
+      const authResult = await useMultiFileAuthState('whatsapp_session/session-zelar-whatsapp-bot');
       const { state, saveCreds } = authResult;
       console.log('✅ Estado carregado!');
       
@@ -412,11 +412,13 @@ class WhatsAppBot {
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
           console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
           if (shouldReconnect) {
+            // Parar heartbeat antes de reconectar
+            this.stopHeartbeat();
             // Aguardar um pouco antes de reconectar
             setTimeout(() => {
               console.log('🔄 Tentando reconectar...');
               this.initialize();
-            }, 5000);
+            }, 3000);
           }
         } else if (connection === 'open') {
           console.log('✅ WhatsApp Bot está pronto!');
