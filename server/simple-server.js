@@ -338,11 +338,11 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
-      // Limpar sessão anterior se houver problemas
+      // Verificar sessão anterior
       console.log('🧹 Verificando sessão anterior...');
       
-      // Forçar limpeza da sessão para resolver problemas de autenticação
-      this.clearSession();
+      // Limpar sessão apenas se houver problemas específicos
+      // this.clearSession(); // Comentado para permitir sessão existente
       
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
@@ -366,13 +366,21 @@ class WhatsAppBot {
       console.log('🔧 makeWASocket final:', typeof makeWASocket);
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
-      console.log('📁 Criando nova sessão de autenticação...');
+      console.log('📁 Carregando estado de autenticação...');
       
-      // Sempre criar uma nova sessão para evitar problemas
-      const authResult = await useMultiFileAuthState('whatsapp_session');
+      // Tentar carregar a sessão existente primeiro
+      let authResult;
+      try {
+        authResult = await useMultiFileAuthState('whatsapp_session');
+        console.log('✅ Estado carregado da sessão existente!');
+      } catch (error) {
+        console.log('⚠️ Sessão não encontrada, criando nova...');
+        // Se não conseguir carregar, criar nova sessão
+        authResult = await useMultiFileAuthState('whatsapp_session');
+        console.log('✅ Nova sessão criada!');
+      }
+      
       const { state, saveCreds } = authResult;
-      
-      console.log('✅ Nova sessão criada!');
       
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
@@ -383,10 +391,10 @@ class WhatsAppBot {
         retryRequestDelayMs: 1000,
         maxRetries: 5,
         shouldIgnoreJid: jid => jid.includes('@broadcast'),
-        // Configurações para forçar QR code
-        markOnlineOnConnect: false,
+        // Configurações para estabilidade
+        markOnlineOnConnect: true,
         syncFullHistory: false,
-        fireInitQueries: false,
+        fireInitQueries: true,
         patchMessageBeforeSending: (msg) => {
           const requiresPatch = !!(
             msg.buttonsMessage ||
