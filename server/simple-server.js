@@ -1737,6 +1737,32 @@ app.post('/api/whatsapp/clear', async (req, res) => {
   }
 });
 
+// Endpoint para forçar geração de QR code
+app.post('/api/whatsapp/force-qr', async (req, res) => {
+  try {
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+
+    console.log('🔄 Forçando geração de QR code...');
+    
+    // Limpar sessão e reinicializar
+    await whatsappBot.clearSession();
+    await whatsappBot.initialize();
+    
+    // Aguardar um pouco para o QR code ser gerado
+    setTimeout(async () => {
+      const status = whatsappBot.getStatus();
+      console.log('📊 Status após forçar QR:', status);
+    }, 5000);
+    
+    res.json({ success: true, message: 'Forçando geração de QR code...' });
+  } catch (error) {
+    console.error('Erro ao forçar QR code:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para enviar mensagem via WhatsApp
 app.post('/api/whatsapp/send', async (req, res) => {
   try {
