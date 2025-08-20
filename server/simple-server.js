@@ -341,6 +341,9 @@ class WhatsAppBot {
       // Limpar sessão anterior se houver problemas
       console.log('🧹 Verificando sessão anterior...');
       
+      // Forçar limpeza da sessão para resolver problemas de autenticação
+      this.clearSession();
+      
       // Import dinâmico do Baileys
       console.log('📦 Carregando Baileys...');
       const baileysModule = await import('@whiskeysockets/baileys');
@@ -363,20 +366,13 @@ class WhatsAppBot {
       console.log('🔧 makeWASocket final:', typeof makeWASocket);
       console.log('🔧 makeWASocket disponível:', !!makeWASocket);
       
-      console.log('📁 Carregando estado de autenticação...');
+      console.log('📁 Criando nova sessão de autenticação...');
       
-      // Tentar carregar a sessão existente
-      let authResult;
-      try {
-        authResult = await useMultiFileAuthState('whatsapp_session/session-zelar-whatsapp-bot');
-        console.log('✅ Estado carregado da sessão existente!');
-      } catch (error) {
-        console.log('⚠️ Sessão não encontrada, criando nova...');
-        // Se não conseguir carregar, criar nova sessão
-        authResult = await useMultiFileAuthState('whatsapp_session');
-      }
-      
+      // Sempre criar uma nova sessão para evitar problemas
+      const authResult = await useMultiFileAuthState('whatsapp_session');
       const { state, saveCreds } = authResult;
+      
+      console.log('✅ Nova sessão criada!');
       
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
@@ -444,26 +440,40 @@ class WhatsAppBot {
           const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
           console.log('❌ Conexão fechada, reconectando:', shouldReconnect);
           
-          // Se for erro de autenticação, limpar sessão
-          if (lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut) {
-            console.log('🧹 Sessão expirada, limpando...');
-            this.clearSession();
+          // Limitar tentativas de reconexão para evitar loops infinitos
+          if (!this.reconnectAttempts) {
+            this.reconnectAttempts = 0;
           }
+          
+          if (this.reconnectAttempts >= 3) {
+            console.log('❌ Máximo de tentativas de reconexão atingido. Aguardando 30 segundos...');
+            this.reconnectAttempts = 0;
+            setTimeout(() => {
+              console.log('🔄 Reiniciando após pausa...');
+              this.initialize();
+            }, 30000);
+            return;
+          }
+          
+          this.reconnectAttempts++;
           
           if (shouldReconnect) {
             // Parar heartbeat antes de reconectar
             this.stopHeartbeat();
             // Aguardar um pouco antes de reconectar
             setTimeout(() => {
-              console.log('🔄 Tentando reconectar...');
+              console.log(`🔄 Tentativa ${this.reconnectAttempts}/3 de reconexão...`);
               this.initialize();
-            }, 3000);
+            }, 5000);
           }
         } else if (connection === 'open') {
           console.log('✅ WhatsApp Bot está pronto!');
           this.status.isConnected = true;
           this.status.isReady = true;
           this.status.qrCode = null;
+          
+          // Reset contador de tentativas
+          this.reconnectAttempts = 0;
           
           // Iniciar heartbeat para manter conexão ativa
           this.startHeartbeat();
