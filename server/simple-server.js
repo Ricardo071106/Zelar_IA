@@ -30,6 +30,9 @@ class WhatsAppBot {
   async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
+      console.log('🔍 Verificando imports...');
+      console.log('makeWASocket:', typeof makeWASocket);
+      console.log('useMultiFileAuthState:', typeof useMultiFileAuthState);
       
       // Forçar limpeza da sessão para garantir QR code
       await this.clearSession();
@@ -364,6 +367,15 @@ let whatsappBot = null;
 let telegramBot = null;
 if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true') { // REATIVADO
   try {
+    // Parar qualquer instância anterior
+    if (telegramBot) {
+      try {
+        telegramBot.stopPolling();
+      } catch (error) {
+        console.log('⚠️ Erro ao parar polling anterior:', error.message);
+      }
+    }
+    
     telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
       polling: {
         interval: 300,
