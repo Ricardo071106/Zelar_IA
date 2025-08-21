@@ -8,6 +8,9 @@ import multer from 'multer';
 // Importação estática do Baileys
 import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 
+// Importar fetch para Node.js
+import fetch from 'node-fetch';
+
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -1414,9 +1417,9 @@ const upload = multer({
   }
 });
 
-// Inicializar serviços
-const audioService = new AudioService();
-const emailService = new EmailService();
+// Variáveis para serviços (serão inicializadas no servidor)
+let audioService = null;
+let emailService = null;
 
 // Função para processar áudio do Telegram
 async function handleTelegramAudio(msg) {
@@ -1473,6 +1476,10 @@ app.post('/api/audio/transcribe', upload.single('audio'), async (req, res) => {
       return res.status(400).json({ error: 'Nenhum arquivo de áudio enviado' });
     }
 
+    if (!audioService) {
+      return res.status(503).json({ error: 'Serviço de áudio não disponível' });
+    }
+
     console.log('🎤 Processando áudio...');
     const transcription = await audioService.processVoiceMessage(req.file.buffer);
     
@@ -1491,6 +1498,10 @@ app.post('/api/audio/transcribe', upload.single('audio'), async (req, res) => {
 // Rota para gerar preview de convite
 app.post('/api/email/preview', async (req, res) => {
   try {
+    if (!emailService) {
+      return res.status(503).json({ error: 'Serviço de email não disponível' });
+    }
+
     const eventData = req.body;
     const preview = emailService.generateInvitePreview(eventData);
     
@@ -1567,8 +1578,19 @@ app.listen(port, async () => {
   console.log(`📱 WhatsApp QR: http://localhost:${port}/api/whatsapp/qr`);
   console.log(`📧 Email Invites: http://localhost:${port}/email-invite`);
   
+  // Inicializar serviços de forma segura
+  try {
+    console.log('🔧 Inicializando serviços...');
+    audioService = new AudioService();
+    emailService = new EmailService();
+    console.log('✅ Serviços inicializados!');
+  } catch (error) {
+    console.error('⚠️ Erro ao inicializar serviços:', error);
+  }
+  
   // Inicializar WhatsApp Bot
   try {
+    console.log('🤖 Inicializando WhatsApp Bot...');
     whatsappBot = new WhatsAppBot();
     await whatsappBot.initialize();
     console.log('✅ WhatsApp Bot inicializado!');
