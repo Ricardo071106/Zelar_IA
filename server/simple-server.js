@@ -5,38 +5,8 @@ import analytics from './analytics.js';
 import AudioService from './audioService.js';
 import EmailService from './emailService.js';
 import multer from 'multer';
-// Importação dinâmica do Baileys para evitar problemas de módulos
-let makeWASocket, DisconnectReason, useMultiFileAuthState;
-
-// Função para carregar o Baileys
-async function loadBaileys() {
-  try {
-    // Tentar importação dinâmica
-    const baileys = await import('@whiskeysockets/baileys');
-    console.log('🔍 Baileys importado:', Object.keys(baileys));
-    
-    // Verificar se as funções existem
-    if (baileys.default) {
-      makeWASocket = baileys.default;
-      console.log('✅ makeWASocket carregado');
-    } else if (baileys.makeWASocket) {
-      makeWASocket = baileys.makeWASocket;
-      console.log('✅ makeWASocket carregado (alternativo)');
-    } else {
-      throw new Error('makeWASocket não encontrado no módulo Baileys');
-    }
-    
-    DisconnectReason = baileys.DisconnectReason;
-    useMultiFileAuthState = baileys.useMultiFileAuthState;
-    
-    console.log('✅ Baileys carregado com sucesso!');
-    console.log('makeWASocket type:', typeof makeWASocket);
-    console.log('useMultiFileAuthState type:', typeof useMultiFileAuthState);
-  } catch (error) {
-    console.error('❌ Erro ao carregar Baileys:', error);
-    throw error;
-  }
-}
+// Importação estática do Baileys
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 
 const app = express();
 const port = process.env.PORT || 8080;
@@ -61,9 +31,6 @@ class WhatsAppBot {
   async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
-      
-      // Carregar Baileys primeiro
-      await loadBaileys();
       
       console.log('🔍 Verificando imports...');
       console.log('makeWASocket:', typeof makeWASocket);
