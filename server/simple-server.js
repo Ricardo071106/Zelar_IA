@@ -11,11 +11,27 @@ let makeWASocket, DisconnectReason, useMultiFileAuthState;
 // Função para carregar o Baileys
 async function loadBaileys() {
   try {
+    // Tentar importação dinâmica
     const baileys = await import('@whiskeysockets/baileys');
-    makeWASocket = baileys.default;
+    console.log('🔍 Baileys importado:', Object.keys(baileys));
+    
+    // Verificar se as funções existem
+    if (baileys.default) {
+      makeWASocket = baileys.default;
+      console.log('✅ makeWASocket carregado');
+    } else if (baileys.makeWASocket) {
+      makeWASocket = baileys.makeWASocket;
+      console.log('✅ makeWASocket carregado (alternativo)');
+    } else {
+      throw new Error('makeWASocket não encontrado no módulo Baileys');
+    }
+    
     DisconnectReason = baileys.DisconnectReason;
     useMultiFileAuthState = baileys.useMultiFileAuthState;
+    
     console.log('✅ Baileys carregado com sucesso!');
+    console.log('makeWASocket type:', typeof makeWASocket);
+    console.log('useMultiFileAuthState type:', typeof useMultiFileAuthState);
   } catch (error) {
     console.error('❌ Erro ao carregar Baileys:', error);
     throw error;
