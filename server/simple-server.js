@@ -153,6 +153,19 @@ class WhatsAppBot {
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
       console.log('🔍 Aguardando QR code...');
+      
+      // Forçar geração de QR code após 5 segundos se não aparecer
+      setTimeout(async () => {
+        if (!this.status.qrCode && !this.status.isConnected) {
+          console.log('⏰ Timeout - forçando geração de QR code...');
+          try {
+            await this.sock.logout();
+            console.log('✅ Logout forçado por timeout!');
+          } catch (error) {
+            console.log('⚠️ Erro no logout por timeout:', error.message);
+          }
+        }
+      }, 10000);
     } catch (error) {
       console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
       throw error;
