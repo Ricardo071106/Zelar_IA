@@ -660,7 +660,18 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           organizer: 'Zelar'
         };
         
-        const emailInviteLink = emailService.generateMailtoLink(inviteData);
+        let emailInviteLink = '';
+        if (emailService) {
+          try {
+            emailInviteLink = emailService.generateMailtoLink(inviteData);
+          } catch (error) {
+            console.log('⚠️ Erro ao gerar link de email:', error.message);
+            emailInviteLink = `mailto:?subject=${encodeURIComponent(eventTitle)}&body=${encodeURIComponent(`Evento: ${eventTitle}\nData: ${eventDate.toLocaleString('pt-BR')}`)}`;
+          }
+        } else {
+          // Fallback se emailService não estiver disponível
+          emailInviteLink = `mailto:?subject=${encodeURIComponent(eventTitle)}&body=${encodeURIComponent(`Evento: ${eventTitle}\nData: ${eventDate.toLocaleString('pt-BR')}`)}`;
+        }
 
         const replyMarkup = {
           inline_keyboard: [
