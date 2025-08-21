@@ -226,6 +226,20 @@ class WhatsAppBot {
         this.status.isConnected = true;
         this.status.isReady = true;
         this.status.qrCode = null;
+      } else if (connection === 'connecting') {
+        console.log('🔄 Conectando...');
+        // Se está conectando mas não tem QR code, forçar logout para gerar QR
+        if (!qr && !this.status.isConnected) {
+          setTimeout(async () => {
+            try {
+              console.log('🔗 Forçando logout para gerar QR code...');
+              await this.sock.logout();
+              console.log('✅ Logout forçado realizado!');
+            } catch (error) {
+              console.log('⚠️ Erro ao fazer logout:', error.message);
+            }
+          }, 10000); // Aguardar 10 segundos
+        }
       }
     });
     
@@ -977,6 +991,40 @@ app.post('/api/whatsapp/force-qr', async (req, res) => {
     res.json({ success: true, message: 'Forçando geração de QR code...' });
   } catch (error) {
     console.error('Erro ao forçar QR code:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para forçar logout e gerar QR code
+app.post('/api/whatsapp/force-logout', async (req, res) => {
+  try {
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+
+    console.log('🔗 Forçando logout para gerar QR code...');
+    
+    if (whatsappBot.sock) {
+      try {
+        await whatsappBot.sock.logout();
+        console.log('✅ Logout forçado realizado!');
+        
+        // Aguardar e reinicializar
+        setTimeout(async () => {
+          await whatsappBot.clearSession();
+          await whatsappBot.initialize();
+        }, 3000);
+        
+        res.json({ success: true, message: 'Logout forçado realizado!' });
+      } catch (error) {
+        console.log('⚠️ Erro ao fazer logout:', error.message);
+        res.status(500).json({ error: 'Erro ao fazer logout' });
+      }
+    } else {
+      res.status(400).json({ error: 'Socket não inicializado' });
+    }
+  } catch (error) {
+    console.error('Erro ao forçar logout:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });
