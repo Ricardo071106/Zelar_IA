@@ -992,6 +992,41 @@ app.post('/api/whatsapp/force-logout', async (req, res) => {
   }
 });
 
+// Endpoint para forçar geração manual de QR code
+app.post('/api/whatsapp/force-qr-manual', async (req, res) => {
+  try {
+    if (!whatsappBot) {
+      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
+    }
+
+    console.log('🔗 Forçando geração manual de QR code...');
+    
+    // Limpar sessão completamente
+    await whatsappBot.clearSession();
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Recriar autenticação
+    const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+    
+    // Recriar socket com configuração mínima
+    whatsappBot.sock = makeWASocket({
+      auth: state,
+      printQRInTerminal: true,
+      browser: ['Zelar Bot', 'Chrome', '1.0.0']
+    });
+    
+    // Configurar event handlers
+    whatsappBot.setupEventHandlers(saveCreds);
+    
+    console.log('✅ QR code forçado manualmente!');
+    
+    res.json({ success: true, message: 'QR code forçado manualmente!' });
+  } catch (error) {
+    console.error('Erro ao forçar QR code:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para testar geração de QR code
 app.get('/api/whatsapp/test-qr', async (req, res) => {
   try {
