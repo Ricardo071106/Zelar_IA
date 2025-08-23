@@ -11,6 +11,9 @@ import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from
 // Importar fetch para Node.js
 import fetch from 'node-fetch';
 
+// Importar qrcode-terminal para mostrar QR code visual no terminal
+import qrcodeTerminal from 'qrcode-terminal';
+
 const app = express();
 const port = process.env.PORT || 8080;
 
@@ -125,13 +128,17 @@ class WhatsAppBot {
         this.status.isConnected = false;
         this.status.isReady = true;
         
-        // Gerar QR code visual no terminal
+        // Gerar QR code visual no terminal usando qrcode-terminal
         try {
-          const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 40 });
-          console.log('\n='.repeat(60));
+          console.log('\n' + '='.repeat(60));
           console.log('📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:');
           console.log('='.repeat(60));
-          console.log(qrImage);
+          
+          // Usar qrcode-terminal para mostrar QR code visual
+          qrcodeTerminal.generate(qr, { small: true }, (qrcode) => {
+            console.log(qrcode);
+          });
+          
           console.log('='.repeat(60));
           console.log('🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
           console.log('📋 Como conectar:');
@@ -1070,6 +1077,80 @@ app.get('/api/whatsapp/test-qr', async (req, res) => {
   } catch (error) {
     console.error('Erro ao gerar QR code de teste:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Endpoint para mostrar QR code diretamente no navegador
+app.get('/qr', async (req, res) => {
+  try {
+    const qrCode = await qrcode.toDataURL('https://zelar-ia.onrender.com', {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#25D366',
+        light: '#FFFFFF'
+      }
+    });
+    
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Zelar - QR Code</title>
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: #f5f5f5;
+          }
+          .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            max-width: 500px;
+            margin: 0 auto;
+          }
+          h1 {
+            color: #25D366;
+            margin-bottom: 20px;
+          }
+          img {
+            border: 2px solid #25D366;
+            border-radius: 10px;
+            margin: 20px 0;
+          }
+          .link {
+            color: #25D366;
+            text-decoration: none;
+            font-weight: bold;
+          }
+          .link:hover {
+            text-decoration: underline;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>🤖 Zelar - QR Code</h1>
+          <p>Escaneie este QR code com seu WhatsApp ou clique no link abaixo:</p>
+          <img src="${qrCode}" alt="QR Code Zelar">
+          <br>
+          <a href="https://zelar-ia.onrender.com" class="link" target="_blank">
+            🌐 Acessar Zelar
+          </a>
+          <br><br>
+          <p><strong>Status:</strong> Sistema funcionando! ✅</p>
+        </div>
+      </body>
+      </html>
+    `;
+    
+    res.send(html);
+  } catch (error) {
+    console.error('Erro ao gerar página QR:', error);
+    res.status(500).send('Erro interno do servidor');
   }
 });
 
