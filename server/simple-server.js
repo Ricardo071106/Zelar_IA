@@ -6,7 +6,7 @@ import AudioService from './audioService.js';
 import EmailService from './emailService.js';
 import multer from 'multer';
 // Importação do Baileys
-import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys/lib/index.js';
 
 // Importar fetch para Node.js
 import fetch from 'node-fetch';
