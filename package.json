@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server/simple-server.js",
-    "start:prod": "NODE_ENV=production node server/simple-server.js"
+    "start:prod": "NODE_ENV=production node server/simple-server.js",
+    "railway:start": "node server/simple-server.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "6.4.0",

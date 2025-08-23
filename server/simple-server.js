@@ -513,14 +513,24 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     port: process.env.PORT || 3000,
     telegramBot: !!telegramBot,
-    database: !!pool
+    database: !!pool,
+    uptime: process.uptime()
   });
 });
 
-// Rota para servir o frontend
+// Rota simples para testar se o servidor está rodando
 app.get('/', (req, res) => {
-  res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
+  res.json({
+    status: 'ok',
+    message: 'Zelar Bot API is running!',
+    timestamp: new Date().toISOString()
+  });
 });
+
+// Rota para servir o frontend (removida para Railway)
+// app.get('/', (req, res) => {
+//   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
+// });
 
 // API WhatsApp
 app.get('/api/whatsapp/status', (req, res) => {
