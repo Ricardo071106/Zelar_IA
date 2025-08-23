@@ -116,6 +116,20 @@ class WhatsAppBot {
 
       this.sock.ev.on('creds.update', saveCreds);
       
+      // Handler para mensagens
+      this.sock.ev.on('messages.upsert', async (m) => {
+        if (m.messages && m.messages.length > 0) {
+          const message = m.messages[0];
+          if (message.key && message.key.remoteJid && !message.key.fromMe) {
+            try {
+              await this.handleMessage(message);
+            } catch (error) {
+              console.error('❌ Erro ao processar mensagem:', error);
+            }
+          }
+        }
+      });
+      
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
       
     } catch (error) {
@@ -187,6 +201,34 @@ class WhatsAppBot {
     }
     
     return null;
+  }
+
+  async handleMessage(message) {
+    try {
+      if (message.isStatus || message.from.includes('@g.us') || message.fromMe) {
+        return;
+      }
+
+      const chatId = message.key.remoteJid;
+      const messageText = message.message.conversation || message.message.extendedTextMessage?.text || '';
+
+      if (messageText) {
+        console.log(`💬 WhatsApp - De: ${chatId}`);
+        console.log(`📝 Mensagem: ${messageText}`);
+
+        // Processar mensagem
+        const response = await processMessage(messageText, 'whatsapp');
+
+        try {
+          await this.sock.sendMessage(chatId, { text: response });
+          console.log('✅ Resposta enviada no WhatsApp!');
+        } catch (error) {
+          console.error('❌ Erro ao enviar resposta WhatsApp:', error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Erro ao processar mensagem WhatsApp:', error);
+    }
   }
 }
 
