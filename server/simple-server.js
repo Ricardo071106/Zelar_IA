@@ -66,7 +66,10 @@ class WhatsAppBot {
         syncFullHistory: false,
         fireInitQueries: false,
         logger: console,
-        version: [2, 2323, 4]
+        version: [2, 2323, 4],
+        getMessage: async () => {
+          return { conversation: 'hello' }
+        }
       });
 
       // Configurar handlers
