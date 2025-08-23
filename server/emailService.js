@@ -1,28 +1,6 @@
-import nodemailer from 'nodemailer';
-
 class EmailService {
   constructor() {
-    this.transporter = null;
-    this.isAvailable = false;
-    
-    // Só inicializar se tiver as credenciais de email
-    if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-      try {
-        this.transporter = nodemailer.createTransporter({
-          service: 'gmail',
-          auth: {
-            user: process.env.EMAIL_USER,
-            pass: process.env.EMAIL_PASS
-          }
-        });
-        this.isAvailable = true;
-        console.log('✅ EmailService inicializado com Nodemailer');
-      } catch (error) {
-        console.log('⚠️ EmailService não disponível - credenciais de email não configuradas');
-      }
-    } else {
-      console.log('⚠️ EmailService não disponível - EMAIL_USER/EMAIL_PASS não configuradas');
-    }
+    console.log('✅ EmailService inicializado - funcionalidade mailto automática');
   }
 
   generateEventInvite(eventData) {
@@ -164,36 +142,7 @@ Gerado pelo Zelar - Assistente de Agendamento
     };
   }
 
-  async sendInvite(eventData, recipientEmail) {
-    if (!this.isAvailable || !this.transporter) {
-      throw new Error('EmailService não está disponível - credenciais não configuradas');
-    }
-    
-    try {
-      const invite = this.generateEventInvite(eventData);
-      
-      const mailOptions = {
-        from: process.env.EMAIL_USER,
-        to: recipientEmail,
-        subject: invite.subject,
-        text: invite.text,
-        html: invite.html
-      };
 
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log('✅ Email enviado:', result.messageId);
-      
-      return {
-        success: true,
-        messageId: result.messageId,
-        preview: invite.html
-      };
-      
-    } catch (error) {
-      console.error('❌ Erro ao enviar email:', error);
-      throw error;
-    }
-  }
 
   generateInvitePreview(eventData) {
     const invite = this.generateEventInvite(eventData);
@@ -205,20 +154,7 @@ Gerado pelo Zelar - Assistente de Agendamento
     };
   }
 
-  async sendBulkInvites(eventData, recipientEmails) {
-    const results = [];
-    
-    for (const email of recipientEmails) {
-      try {
-        const result = await this.sendInvite(eventData, email);
-        results.push({ email, success: true, messageId: result.messageId });
-      } catch (error) {
-        results.push({ email, success: false, error: error.message });
-      }
-    }
-    
-    return results;
-  }
+
 }
 
 export default EmailService; 

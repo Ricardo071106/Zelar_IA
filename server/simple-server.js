@@ -1641,19 +1641,7 @@ app.post('/api/email/mailto-bulk', async (req, res) => {
   }
 });
 
-// Rota para enviar convite
-app.post('/api/email/send', async (req, res) => {
-  try {
-    const { eventData, recipientEmail } = req.body;
-    const result = await emailService.sendInvite(eventData, recipientEmail);
-    
-    res.json(result);
-    
-  } catch (error) {
-    console.error('❌ Erro ao enviar email:', error);
-    res.status(500).json({ error: 'Erro ao enviar email' });
-  }
-});
+
 
 // Rota para página de convites
 app.get('/email-invite', (req, res) => {
