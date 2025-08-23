@@ -58,13 +58,14 @@ class WhatsAppBot {
         auth: state,
         printQRInTerminal: true,
         browser: ['Zelar Bot', 'Chrome', '1.0.0'],
-        connectTimeoutMs: 30000,
-        keepAliveIntervalMs: 10000,
-        retryRequestDelayMs: 500,
-        maxRetries: 3,
+        connectTimeoutMs: 60000,
+        keepAliveIntervalMs: 15000,
+        retryRequestDelayMs: 1000,
+        maxRetries: 5,
         markOnlineOnConnect: false,
         syncFullHistory: false,
-        fireInitQueries: false
+        fireInitQueries: false,
+        logger: console
       });
 
       // Configurar handlers
