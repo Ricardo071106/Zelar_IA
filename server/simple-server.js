@@ -107,9 +107,9 @@ class WhatsAppBot {
           console.log('📱 QR CODE RECEBIDO - ACESSE:');
           console.log('🔗 https://zelar-ia.onrender.com/api/whatsapp/qr');
           console.log('📋 Como conectar:');
-          console.log('1. Abra o WhatsApp no seu celular');
-          console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
-          console.log('3. Toque em Conectar dispositivo');
+        console.log('1. Abra o WhatsApp no seu celular');
+        console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
+        console.log('3. Toque em Conectar dispositivo');
           console.log('4. Acesse o link acima para ver o QR code');
           console.log('='.repeat(60));
         }
@@ -350,10 +350,10 @@ function extractEventInfo(message) {
     const match = message.match(pattern);
     if (match && match[1]) {
       title = match[1].trim();
-      break;
-    }
-  }
-  
+            break;
+          }
+        }
+        
   if (!title) return null;
   
   // Extrair data
@@ -423,17 +423,17 @@ function extractEventInfo(message) {
   
   // Formatação
   const formattedDate = date.toLocaleDateString('pt-BR', {
-    weekday: 'long',
+          weekday: 'long',
     year: 'numeric',
-    month: 'long',
+          month: 'long',
     day: 'numeric'
   });
   
   const formattedTime = date.toLocaleTimeString('pt-BR', {
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-  
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+
   return {
     title,
     date,
@@ -528,8 +528,8 @@ app.get('/api/whatsapp/status', (req, res) => {
 });
 
 app.get('/api/whatsapp/qr', async (req, res) => {
-  const status = whatsappBot.getStatus();
-  
+    const status = whatsappBot.getStatus();
+    
   if (status.qrCode) {
     try {
       const qrImage = await qrcode.toDataURL(status.qrCode, {
