@@ -139,10 +139,20 @@ class WhatsAppBot {
       if (fs.existsSync(sessionDir)) {
         const files = fs.readdirSync(sessionDir);
         for (const file of files) {
-          fs.unlinkSync(path.join(sessionDir, file));
+          try {
+            fs.unlinkSync(path.join(sessionDir, file));
+          } catch (fileError) {
+            console.log(`⚠️ Erro ao deletar arquivo ${file}:`, fileError.message);
+          }
         }
-        fs.rmdirSync(sessionDir);
-        console.log('🗑️ Sessão anterior limpa');
+        try {
+          fs.rmdirSync(sessionDir);
+          console.log('🗑️ Sessão anterior limpa');
+        } catch (dirError) {
+          console.log('⚠️ Erro ao deletar diretório:', dirError.message);
+        }
+      } else {
+        console.log('ℹ️ Diretório de sessão não existe');
       }
     } catch (error) {
       console.log('⚠️ Erro ao limpar sessão:', error.message);
