@@ -562,13 +562,25 @@ io.on('connection', (socket) => {
 async function initializeBots() {
   console.log('🚀 Inicializando bots...');
   
-  // Inicializar WhatsApp
-  await whatsappBot.initialize();
+  try {
+    // Inicializar WhatsApp
+    console.log('📱 Inicializando WhatsApp Bot...');
+    await whatsappBot.initialize();
+    console.log('✅ WhatsApp Bot inicializado!');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+  }
   
-  // Inicializar Telegram
-  await initializeTelegramBot();
+  try {
+    // Inicializar Telegram
+    console.log('📱 Inicializando Telegram Bot...');
+    await initializeTelegramBot();
+    console.log('✅ Telegram Bot inicializado!');
+  } catch (error) {
+    console.error('❌ Erro ao inicializar Telegram Bot:', error);
+  }
   
-  console.log('✅ Todos os bots inicializados!');
+  console.log('✅ Inicialização dos bots concluída!');
 }
 
 // Inicializar servidor
