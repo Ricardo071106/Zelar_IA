@@ -75,30 +75,16 @@ class WhatsAppBot {
           console.log('📱 QR Code recebido!');
           this.qrCode = qr;
           
-          // Gerar QR code visual no terminal
-          try {
-            console.log('\n' + '='.repeat(60));
-            console.log('📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:');
-            console.log('='.repeat(60));
-            
-            // Gerar QR code como texto simples
-            const qrText = await qrcode.toString(qr, { 
-              type: 'terminal',
-              small: true 
-            });
-            console.log(qrText);
-            
-            console.log('='.repeat(60));
-            console.log('🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
-            console.log('📋 Como conectar:');
-            console.log('1. Abra o WhatsApp no seu celular');
-            console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
-            console.log('3. Toque em Conectar dispositivo');
-            console.log('4. Aponte a câmera para o QR code acima');
-            console.log('='.repeat(60));
-          } catch (error) {
-            console.error('⚠️ Erro ao gerar QR code visual:', error.message);
-          }
+          // Log simples do QR code
+          console.log('\n' + '='.repeat(60));
+          console.log('📱 QR CODE RECEBIDO - ACESSE:');
+          console.log('🔗 https://zelar-ia.onrender.com/api/whatsapp/qr');
+          console.log('📋 Como conectar:');
+          console.log('1. Abra o WhatsApp no seu celular');
+          console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
+          console.log('3. Toque em Conectar dispositivo');
+          console.log('4. Acesse o link acima para ver o QR code');
+          console.log('='.repeat(60));
         }
 
         if (connection === 'close') {
