@@ -65,7 +65,8 @@ class WhatsAppBot {
         markOnlineOnConnect: false,
         syncFullHistory: false,
         fireInitQueries: false,
-        logger: console
+        logger: console,
+        version: [2, 2323, 4]
       });
 
       // Configurar handlers
