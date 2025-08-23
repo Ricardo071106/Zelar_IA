@@ -880,10 +880,29 @@ app.get('/api/whatsapp/qr', async (req, res) => {
       });
     }
 
-    return res.json({
-      status: 'waiting',
-      message: 'Aguardando QR code... Tente novamente em alguns segundos'
-    });
+    // Gerar QR code manual temporário
+    try {
+      const manualQR = await qrcode.toDataURL('https://zelar-ia.onrender.com', {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#25D366',
+          light: '#FFFFFF'
+        }
+      });
+      
+      return res.json({
+        status: 'manual_qr',
+        qrImage: manualQR,
+        message: 'QR code manual gerado - acesse o link para conectar',
+        link: 'https://zelar-ia.onrender.com'
+      });
+    } catch (error) {
+      return res.json({
+        status: 'waiting',
+        message: 'Aguardando QR code... Tente novamente em alguns segundos'
+      });
+    }
   } catch (error) {
     console.error('Erro ao gerar QR code:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
