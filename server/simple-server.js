@@ -69,7 +69,29 @@ class WhatsAppBot {
         version: [2, 2323, 4],
         getMessage: async () => {
           return { conversation: 'hello' }
-        }
+        },
+        shouldIgnoreJid: jid => isJidBroadcast(jid),
+        patchMessageBeforeSending: (msg) => {
+          const requiresPatch = !!(
+            msg.buttonsMessage
+            || msg.templateMessage
+            || msg.listMessage
+          );
+          if (requiresPatch) {
+            msg = {
+              viewOnceMessage: {
+                message: {
+                  messageContextInfo: {
+                    deviceListMetadataVersion: 2,
+                    deviceListMetadata: {},
+                  },
+                  ...msg,
+                },
+              },
+            };
+          }
+          return msg;
+        },
       });
 
       // Configurar handlers
