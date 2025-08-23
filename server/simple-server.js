@@ -35,9 +35,9 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
-      // Limpeza simples da sessão
+      // Limpeza agressiva da sessão
       await this.clearSession();
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       console.log('🔧 Configurando autenticação...');
       
@@ -46,17 +46,61 @@ class WhatsAppBot {
       
       console.log('🔧 Criando socket Baileys...');
       
-      // Criar socket com configuração simples
+      // Criar socket com configuração que força QR code
       this.sock = makeWASocket({
         auth: state,
         printQRInTerminal: true,
-        browser: ['Zelar Bot', 'Chrome', '1.0.0']
+        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 30000,
+        keepAliveIntervalMs: 10000,
+        retryRequestDelayMs: 500,
+        maxRetries: 3,
+        markOnlineOnConnect: false,
+        syncFullHistory: false,
+        fireInitQueries: false
       });
       
       console.log('🔧 Socket criado, configurando event handlers...');
       
       // Configurar event handlers
       this.setupEventHandlers(saveCreds);
+      
+      // Forçar geração de QR code após 5 segundos
+      setTimeout(async () => {
+        if (!this.status.qrCode && !this.status.isConnected) {
+          console.log('⏰ Forçando geração de QR code...');
+          try {
+            // Forçar logout para gerar novo QR
+            await this.sock.logout();
+            console.log('✅ Logout forçado realizado!');
+            
+            // Aguardar e recriar socket
+            setTimeout(async () => {
+              try {
+                const { state: newState, saveCreds: newSaveCreds } = await useMultiFileAuthState('whatsapp_session');
+                this.sock = makeWASocket({
+                  auth: newState,
+                  printQRInTerminal: true,
+                  browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+                  connectTimeoutMs: 30000,
+                  keepAliveIntervalMs: 10000,
+                  retryRequestDelayMs: 500,
+                  maxRetries: 3,
+                  markOnlineOnConnect: false,
+                  syncFullHistory: false,
+                  fireInitQueries: false
+                });
+                this.setupEventHandlers(newSaveCreds);
+                console.log('🔄 Socket recriado para forçar QR code!');
+              } catch (error) {
+                console.log('❌ Erro ao recriar socket:', error.message);
+              }
+            }, 2000);
+          } catch (error) {
+            console.log('❌ Erro ao forçar logout:', error.message);
+          }
+        }
+      }, 5000);
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
       console.log('🔍 Aguardando QR code...');
