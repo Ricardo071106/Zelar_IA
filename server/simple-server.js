@@ -240,8 +240,8 @@ class WhatsAppBot {
           await this.sock.sendMessage(chatId, { text: response });
           console.log('✅ Resposta enviada!');
 
-          // Log analytics
-          analytics.logMessage('whatsapp', chatId, messageText, response, this.extractEventTitle(messageText));
+                  // Log analytics (comentado temporariamente)
+        // analytics.logMessage('whatsapp', chatId, messageText, response, this.extractEventTitle(messageText));
         } catch (error) {
           console.error('❌ Erro ao enviar resposta:', error);
         }
@@ -754,8 +754,8 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
           { parse_mode: 'Markdown', reply_markup: replyMarkup }
         );
         
-        // Log analytics
-        analytics.logMessage('telegram', chatId.toString(), text, true, eventTitle);
+        // Log analytics (comentado temporariamente)
+        // analytics.logMessage('telegram', chatId.toString(), text, true, eventTitle);
 
         console.log(`✅ Evento criado: ${eventTitle}`);
 
@@ -1658,15 +1658,15 @@ app.listen(port, async () => {
   console.log(`📱 WhatsApp QR: http://localhost:${port}/api/whatsapp/qr`);
   console.log(`📧 Email Invites: http://localhost:${port}/email-invite`);
   
-  // Inicializar serviços de forma segura
-  try {
-    console.log('🔧 Inicializando serviços...');
-    audioService = new AudioService();
-    emailService = new EmailService();
-    console.log('✅ Serviços inicializados!');
-  } catch (error) {
-    console.error('⚠️ Erro ao inicializar serviços:', error);
-  }
+  // Inicializar serviços de forma segura (comentado temporariamente)
+  // try {
+  //   console.log('🔧 Inicializando serviços...');
+  //   audioService = new AudioService();
+  //   emailService = new EmailService();
+  //   console.log('✅ Serviços inicializados!');
+  // } catch (error) {
+  //   console.error('⚠️ Erro ao inicializar serviços:', error);
+  // }
   
   // Inicializar WhatsApp Bot
   try {
