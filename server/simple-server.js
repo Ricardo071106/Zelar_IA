@@ -6,7 +6,7 @@ import { Server } from 'socket.io';
 import TelegramBot from 'node-telegram-bot-api';
 import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode';
-import qrcodeTerminal from 'qrcode-terminal';
+
 import fetch from 'node-fetch';
 import multer from 'multer';
 import { Pool } from 'pg';
@@ -80,9 +80,14 @@ class WhatsAppBot {
             console.log('\n' + '='.repeat(60));
             console.log('📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:');
             console.log('='.repeat(60));
-            qrcodeTerminal.generate(qr, { small: true }, (qrCode) => {
-              console.log(qrCode);
+            
+            // Gerar QR code como texto simples
+            const qrText = await qrcode.toString(qr, { 
+              type: 'terminal',
+              small: true 
             });
+            console.log(qrText);
+            
             console.log('='.repeat(60));
             console.log('🔗 Ou acesse: https://zelar-ia.onrender.com/api/whatsapp/qr');
             console.log('📋 Como conectar:');
