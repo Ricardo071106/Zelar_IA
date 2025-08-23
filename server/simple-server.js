@@ -5,7 +5,7 @@ import analytics from './analytics.js';
 import AudioService from './audioService.js';
 import EmailService from './emailService.js';
 import multer from 'multer';
-// Importação estática do Baileys
+// Importação do Baileys
 import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 
 // Importar fetch para Node.js
@@ -346,6 +346,16 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT === 'true'
     if (telegramBot) {
       try {
         telegramBot.stopPolling();
+      } catch (error) {
+        console.log('⚠️ Erro ao parar polling anterior:', error.message);
+      }
+    }
+    
+    // Parar polling anterior se existir
+    if (telegramBot) {
+      try {
+        await telegramBot.stopPolling();
+        console.log('🛑 Polling anterior parado');
       } catch (error) {
         console.log('⚠️ Erro ao parar polling anterior:', error.message);
       }
