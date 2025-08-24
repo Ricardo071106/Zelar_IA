@@ -285,9 +285,16 @@ async function initializeTelegramBot() {
       
       if (!text) return;
       
+      console.log(`💬 Telegram - De: ${msg.from.first_name} (${msg.from.id})`);
+      console.log(`📝 Mensagem: ${text}`);
+      
       try {
         const response = await processMessage(text, 'telegram');
-        await telegramBot.sendMessage(chatId, response);
+        console.log(`🤖 Resposta: ${response}`);
+        
+        // Enviar com HTML parsing para links clicáveis
+        await telegramBot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+        console.log('✅ Resposta enviada no Telegram!');
       } catch (error) {
         console.error('❌ Erro ao processar mensagem Telegram:', error);
         await telegramBot.sendMessage(chatId, 'Desculpe, ocorreu um erro interno.');
@@ -302,12 +309,23 @@ async function initializeTelegramBot() {
 // Função para processar mensagens
 async function processMessage(message, platform) {
   try {
+    console.log(`🔍 Processando mensagem: "${message}"`);
+    console.log(`📱 Plataforma: ${platform}`);
+    
     // Extrair informações do evento
     const eventInfo = extractEventInfo(message);
     
     if (!eventInfo) {
+      console.log('❌ Não foi possível extrair informações do evento');
       return 'Por favor, forneça informações sobre o evento (data, hora, título).\n\nExemplo: "Marcar reunião amanhã às 14h"';
     }
+    
+    console.log(`✅ Informações extraídas:`, {
+      title: eventInfo.title,
+      date: eventInfo.date,
+      formattedDate: eventInfo.formattedDate,
+      formattedTime: eventInfo.formattedTime
+    });
 
     // Gerar links de calendário
     const calendarLinks = generateCalendarLinks(eventInfo);
@@ -318,14 +336,14 @@ async function processMessage(message, platform) {
     // Salvar no banco de dados
     await saveEvent(eventInfo, platform);
     
-    return `✅ **Evento Agendado!**\n\n` +
-           `📅 **Data:** ${eventInfo.formattedDate}\n` +
-           `⏰ **Hora:** ${eventInfo.formattedTime}\n` +
-           `📝 **Título:** ${eventInfo.title}\n\n` +
-           `📱 **Adicionar ao calendário:**\n` +
-           `• Google Calendar: ${calendarLinks.google}\n` +
-           `• Outlook: ${calendarLinks.outlook}\n\n` +
-           `📧 **Enviar convite por email:** ${emailLink}`;
+    return `✅ <b>Evento Agendado!</b>\n\n` +
+           `📅 <b>Data:</b> ${eventInfo.formattedDate}\n` +
+           `⏰ <b>Hora:</b> ${eventInfo.formattedTime}\n` +
+           `📝 <b>Título:</b> ${eventInfo.title}\n\n` +
+           `📱 <b>Adicionar ao calendário:</b>\n` +
+           `• <a href="${calendarLinks.google}">Google Calendar</a>\n` +
+           `• <a href="${calendarLinks.outlook}">Outlook</a>\n\n` +
+           `📧 <b>Enviar convite por email:</b> <a href="${emailLink}">Clique aqui</a>`;
            
   } catch (error) {
     console.error('❌ Erro ao processar mensagem:', error);
@@ -362,19 +380,26 @@ function extractEventInfo(message) {
     date.setDate(date.getDate() + 1);
   } else if (lowerMessage.includes('hoje')) {
     // Mantém a data atual
-  } else if (lowerMessage.includes('próximo') || lowerMessage.includes('próxima')) {
+  } else {
+    // Verificar dias da semana (com ou sem "próximo/próxima")
     const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
     for (let i = 0; i < weekdays.length; i++) {
       if (lowerMessage.includes(weekdays[i])) {
         const currentDay = date.getDay();
         const targetDay = i;
         let daysToAdd = targetDay - currentDay;
+        
+        // Se for hoje, vai para próxima semana
         if (daysToAdd <= 0) daysToAdd += 7;
+        
         date.setDate(date.getDate() + daysToAdd);
+        console.log(`📅 Data calculada: ${weekdays[i]} = +${daysToAdd} dias`);
         break;
       }
     }
-  } else if (lowerMessage.includes('dia')) {
+  }
+  
+  if (lowerMessage.includes('dia')) {
     const dayMatch = message.match(/dia\s+(\d{1,2})/i);
     if (dayMatch) {
       const day = parseInt(dayMatch[1]);
