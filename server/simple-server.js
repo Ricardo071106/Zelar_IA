@@ -9,7 +9,8 @@ import qrcode from 'qrcode';
 
 import fetch from 'node-fetch';
 import multer from 'multer';
-import { Pool } from 'pg';
+import pkg from 'pg';
+const { Pool } = pkg;
 import { config } from 'dotenv';
 
 // Configurar variáveis de ambiente
