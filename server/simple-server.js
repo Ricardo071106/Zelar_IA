@@ -73,6 +73,8 @@ class WhatsAppBot {
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
+        console.log('🔄 Connection update:', { connection, hasQR: !!qr });
+        
         if (qr) {
           console.log('📱 QR Code recebido!');
           this.qrCode = qr;
@@ -82,9 +84,9 @@ class WhatsAppBot {
           console.log('📱 QR CODE RECEBIDO - ACESSE:');
           console.log('🔗 https://zelar-ia.onrender.com/api/whatsapp/qr');
           console.log('📋 Como conectar:');
-        console.log('1. Abra o WhatsApp no seu celular');
-        console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
-        console.log('3. Toque em Conectar dispositivo');
+          console.log('1. Abra o WhatsApp no seu celular');
+          console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
+          console.log('3. Toque em Conectar dispositivo');
           console.log('4. Acesse o link acima para ver o QR code');
           console.log('='.repeat(60));
         }
