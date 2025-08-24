@@ -4,10 +4,11 @@ services:
     env: node
     plan: free
     buildCommand: npm install --omit=dev
-    startCommand: npm run start
+    startCommand: node server/simple-server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
-        value: 10000 
+        value: 10000
+    autoDeploy: true 
