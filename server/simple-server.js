@@ -4,7 +4,7 @@ import { dirname, join } from 'path';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import TelegramBot from 'node-telegram-bot-api';
-import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import { default as makeWASocket, DisconnectReason, useMultiFileAuthState, isJidBroadcast } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode';
 
 import fetch from 'node-fetch';
