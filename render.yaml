@@ -1,20 +1,13 @@
 services:
   - type: web
-    name: zelar-ia
+    name: telegram-scheduler-bot
     env: node
-    plan: starter
-    buildCommand: chmod +x render-build.sh && ./render-build.sh
+    plan: free
+    buildCommand: npm install --omit=dev
     startCommand: npm run start
-                    envVars:
-                  - key: NODE_ENV
-                    value: production
-                  - key: DATABASE_URL
-                    sync: false
-                  - key: TELEGRAM_BOT_TOKEN
-                    sync: false
-                  - key: ENABLE_WHATSAPP_BOT
-                    value: true
-                  - key: ENABLE_TELEGRAM_BOT
-                    value: false
-                  - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
-                    value: false 
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000 
