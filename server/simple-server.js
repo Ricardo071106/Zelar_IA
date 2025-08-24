@@ -60,40 +60,8 @@ class WhatsAppBot {
           auth: state,
           printQRInTerminal: true,
           browser: ['Zelar Bot', 'Chrome', '1.0.0'],
-          connectTimeoutMs: 60000,
-          keepAliveIntervalMs: 15000,
-          retryRequestDelayMs: 1000,
-          maxRetries: 5,
-          markOnlineOnConnect: false,
-          syncFullHistory: false,
-          fireInitQueries: false,
           logger: console,
           version: [2, 2323, 4],
-          getMessage: async () => {
-            return { conversation: 'hello' }
-          },
-          shouldIgnoreJid: jid => isJidBroadcast(jid),
-          patchMessageBeforeSending: (msg) => {
-            const requiresPatch = !!(
-              msg.buttonsMessage
-              || msg.templateMessage
-              || msg.listMessage
-            );
-            if (requiresPatch) {
-              msg = {
-                viewOnceMessage: {
-                  message: {
-                    messageContextInfo: {
-                      deviceListMetadataVersion: 2,
-                      deviceListMetadata: {},
-                    },
-                    ...msg,
-                  },
-                },
-              };
-            }
-            return msg;
-          },
         });
         console.log('✅ Socket Baileys criado com sucesso!');
       } catch (error) {
