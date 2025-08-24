@@ -102,11 +102,7 @@ class WhatsAppBot {
           console.log('='.repeat(60));
         }
         
-        // Simular QR code para teste
-        if (!this.qrCode && connection === 'close') {
-          console.log('🧪 Simulando QR code para teste...');
-          this.qrCode = 'test-qr-code-123';
-        }
+
 
         if (connection === 'close') {
           const shouldReconnect = (lastDisconnect?.error)?.output?.statusCode !== DisconnectReason.loggedOut;
