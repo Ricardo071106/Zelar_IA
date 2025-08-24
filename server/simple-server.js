@@ -67,13 +67,21 @@ class WhatsAppBot {
         });
         console.log('✅ Socket Baileys criado com sucesso!');
         
-        // Forçar reconexão após 5 segundos
-        setTimeout(() => {
-          console.log('🔄 Forçando reconexão...');
-          if (this.sock) {
-            this.sock.end();
-          }
-        }, 5000);
+              // Forçar reconexão após 5 segundos
+      setTimeout(() => {
+        console.log('🔄 Forçando reconexão...');
+        if (this.sock) {
+          this.sock.end();
+        }
+      }, 5000);
+      
+      // Forçar QR code após 10 segundos se não aparecer
+      setTimeout(() => {
+        if (!this.qrCode) {
+          console.log('🔄 Forçando geração de QR code...');
+          this.initialize();
+        }
+      }, 10000);
         
       } catch (error) {
         console.error('❌ Erro ao criar socket Baileys:', error);
