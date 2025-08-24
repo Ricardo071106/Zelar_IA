@@ -55,45 +55,51 @@ class WhatsAppBot {
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
       
       console.log('🔧 Criando socket Baileys...');
-      this.sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: true,
-        browser: ['Zelar Bot', 'Chrome', '1.0.0'],
-        connectTimeoutMs: 60000,
-        keepAliveIntervalMs: 15000,
-        retryRequestDelayMs: 1000,
-        maxRetries: 5,
-        markOnlineOnConnect: false,
-        syncFullHistory: false,
-        fireInitQueries: false,
-        logger: console,
-        version: [2, 2323, 4],
-        getMessage: async () => {
-          return { conversation: 'hello' }
-        },
-        shouldIgnoreJid: jid => isJidBroadcast(jid),
-        patchMessageBeforeSending: (msg) => {
-          const requiresPatch = !!(
-            msg.buttonsMessage
-            || msg.templateMessage
-            || msg.listMessage
-          );
-          if (requiresPatch) {
-            msg = {
-              viewOnceMessage: {
-                message: {
-                  messageContextInfo: {
-                    deviceListMetadataVersion: 2,
-                    deviceListMetadata: {},
+            try {
+        this.sock = makeWASocket({
+          auth: state,
+          printQRInTerminal: true,
+          browser: ['Zelar Bot', 'Chrome', '1.0.0'],
+          connectTimeoutMs: 60000,
+          keepAliveIntervalMs: 15000,
+          retryRequestDelayMs: 1000,
+          maxRetries: 5,
+          markOnlineOnConnect: false,
+          syncFullHistory: false,
+          fireInitQueries: false,
+          logger: console,
+          version: [2, 2323, 4],
+          getMessage: async () => {
+            return { conversation: 'hello' }
+          },
+          shouldIgnoreJid: jid => isJidBroadcast(jid),
+          patchMessageBeforeSending: (msg) => {
+            const requiresPatch = !!(
+              msg.buttonsMessage
+              || msg.templateMessage
+              || msg.listMessage
+            );
+            if (requiresPatch) {
+              msg = {
+                viewOnceMessage: {
+                  message: {
+                    messageContextInfo: {
+                      deviceListMetadataVersion: 2,
+                      deviceListMetadata: {},
+                    },
+                    ...msg,
                   },
-                  ...msg,
                 },
-              },
-            };
-          }
-          return msg;
-        },
-      });
+              };
+            }
+            return msg;
+          },
+        });
+        console.log('✅ Socket Baileys criado com sucesso!');
+      } catch (error) {
+        console.error('❌ Erro ao criar socket Baileys:', error);
+        throw error;
+      }
 
       // Configurar handlers
       this.sock.ev.on('connection.update', async (update) => {
