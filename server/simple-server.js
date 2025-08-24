@@ -44,7 +44,7 @@ class WhatsAppBot {
     this.clientInfo = null;
   }
 
-  async initialize() {
+    async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       
@@ -55,15 +55,26 @@ class WhatsAppBot {
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
       
       console.log('🔧 Criando socket Baileys...');
-            try {
+      try {
         this.sock = makeWASocket({
           auth: state,
           printQRInTerminal: true,
           browser: ['Zelar Bot', 'Chrome', '1.0.0'],
           logger: console,
           version: [2, 2323, 4],
+          connectTimeoutMs: 30000,
+          keepAliveIntervalMs: 10000,
         });
         console.log('✅ Socket Baileys criado com sucesso!');
+        
+        // Forçar reconexão após 5 segundos
+        setTimeout(() => {
+          console.log('🔄 Forçando reconexão...');
+          if (this.sock) {
+            this.sock.end();
+          }
+        }, 5000);
+        
       } catch (error) {
         console.error('❌ Erro ao criar socket Baileys:', error);
         throw error;
