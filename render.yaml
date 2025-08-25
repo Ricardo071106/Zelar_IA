@@ -3,7 +3,7 @@ services:
     name: telegram-scheduler-bot
     env: node
     plan: free
-    buildCommand: npm install --omit=dev
+    buildCommand: npm install && npm run build
     startCommand: node server/simple-server.js
     healthCheckPath: /health
     envVars:

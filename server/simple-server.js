@@ -285,16 +285,19 @@ async function initializeTelegramBot() {
       
       if (!text) return;
       
-      console.log(`💬 Telegram - De: ${msg.from.first_name} (${msg.from.id})`);
-      console.log(`📝 Mensagem: ${text}`);
+      console.log(`\n💬 Telegram - De: ${msg.from.first_name} (${msg.from.id})`);
+      console.log(`📝 Mensagem: "${text}"`);
+      console.log(`🕐 Timestamp: ${new Date().toLocaleString('pt-BR')}`);
       
       try {
         const response = await processMessage(text, 'telegram');
-        console.log(`🤖 Resposta: ${response}`);
+        console.log(`🤖 Resposta gerada com sucesso!`);
+        console.log(`📤 Enviando resposta para ${msg.from.first_name}...`);
         
         // Enviar com HTML parsing para links clicáveis
         await telegramBot.sendMessage(chatId, response, { parse_mode: 'HTML' });
         console.log('✅ Resposta enviada no Telegram!');
+        console.log('─'.repeat(50));
       } catch (error) {
         console.error('❌ Erro ao processar mensagem Telegram:', error);
         await telegramBot.sendMessage(chatId, 'Desculpe, ocorreu um erro interno.');
@@ -312,38 +315,72 @@ async function processMessage(message, platform) {
     console.log(`🔍 Processando mensagem: "${message}"`);
     console.log(`📱 Plataforma: ${platform}`);
     
+    // Extrair email da mensagem
+    const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    const recipientEmail = emailMatch ? emailMatch[0] : '';
+    
+    console.log(`📧 Email extraído: "${recipientEmail}"`);
+    console.log(`📧 Email encontrado: ${!!recipientEmail}`);
+    
     // Extrair informações do evento
-    const eventInfo = extractEventInfo(message);
+    const eventInfo = await extractEventInfo(message);
     
     if (!eventInfo) {
       console.log('❌ Não foi possível extrair informações do evento');
-      return 'Por favor, forneça informações sobre o evento (data, hora, título).\n\nExemplo: "Marcar reunião amanhã às 14h"';
+      return 'Por favor, forneça informações sobre o evento (data, hora, título).\n\nExemplo: "Marcar reunião amanhã às 14h para joao@email.com"';
     }
     
     console.log(`✅ Informações extraídas:`, {
       title: eventInfo.title,
       date: eventInfo.date,
       formattedDate: eventInfo.formattedDate,
-      formattedTime: eventInfo.formattedTime
+      formattedTime: eventInfo.formattedTime,
+      recipientEmail
     });
 
     // Gerar links de calendário
     const calendarLinks = generateCalendarLinks(eventInfo);
+    console.log(`🔗 Google Calendar link: ${calendarLinks.google}`);
+    console.log(`🔗 Outlook link: ${calendarLinks.outlook}`);
     
-    // Gerar link de email
-    const emailLink = generateEmailLink(eventInfo);
+    // Gerar links de email
+    let emailLinks = '';
+    
+    if (recipientEmail) {
+      const gmailLink = generateGmailInviteLink(eventInfo, recipientEmail);
+      const mailtoLink = generateEmailLink(eventInfo, recipientEmail);
+      
+      console.log(`🔗 Link Gmail gerado: ${gmailLink}`);
+      console.log(`🔗 Link Mailto gerado: ${mailtoLink}`);
+      
+      emailLinks = `📧 <b>Enviar convite por email:</b>\n` +
+                   `• <a href="${gmailLink}">Gmail (link pronto)</a>\n` +
+                   `• <a href="${mailtoLink}">Cliente de email</a>`;
+    } else {
+      const mailtoLink = generateEmailLink(eventInfo);
+      console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
+      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">Clique aqui</a>`;
+    }
     
     // Salvar no banco de dados
     await saveEvent(eventInfo, platform);
     
-    return `✅ <b>Evento Agendado!</b>\n\n` +
+    const finalResponse = `✅ <b>Evento Agendado!</b>\n\n` +
            `📅 <b>Data:</b> ${eventInfo.formattedDate}\n` +
            `⏰ <b>Hora:</b> ${eventInfo.formattedTime}\n` +
-           `📝 <b>Título:</b> ${eventInfo.title}\n\n` +
+           `📝 <b>Título:</b> ${eventInfo.title}\n` +
+           `${recipientEmail ? `📧 <b>Para:</b> ${recipientEmail}\n` : ''}\n` +
            `📱 <b>Adicionar ao calendário:</b>\n` +
            `• <a href="${calendarLinks.google}">Google Calendar</a>\n` +
            `• <a href="${calendarLinks.outlook}">Outlook</a>\n\n` +
-           `📧 <b>Enviar convite por email:</b> <a href="${emailLink}">Clique aqui</a>`;
+           emailLinks;
+    
+    console.log(`🤖 Resposta final gerada:`);
+    console.log(`📧 Contém Gmail link: ${finalResponse.includes('Gmail (link pronto)')}`);
+    console.log(`📧 Contém mailto link: ${finalResponse.includes('mailto:')}`);
+    console.log(`📧 Contém Google Calendar: ${finalResponse.includes('Google Calendar')}`);
+    
+    return finalResponse;
            
   } catch (error) {
     console.error('❌ Erro ao processar mensagem:', error);
@@ -352,54 +389,104 @@ async function processMessage(message, platform) {
 }
 
 // Função para extrair informações do evento
-function extractEventInfo(message) {
+async function extractEventInfo(message) {
   const lowerMessage = message.toLowerCase();
   
-  // Extrair título
+  // Extrair título com melhor lógica
   let title = '';
-  const titlePatterns = [
-    /(?:marcar|agendar|reunião|encontro|consulta|cirurgia|evento|compromisso)\s+(.+?)(?:\s+(?:para|no|em|às|dia|amanhã|hoje|próximo|próxima|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}|\d{1,2}\/\d{1,2}))?/i,
-    /(.+?)(?:\s+(?:para|no|em|às|dia|amanhã|hoje|próximo|próxima|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}|\d{1,2}\/\d{1,2}))/i
-  ];
   
-  for (const pattern of titlePatterns) {
-    const match = message.match(pattern);
-    if (match && match[1]) {
-      title = match[1].trim();
-            break;
-          }
-        }
-        
+  // Remover email da mensagem para extrair título
+  const messageWithoutEmail = message.replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g, '').trim();
+  
+  // Verificar se contém palavras-chave específicas
+  if (messageWithoutEmail.toLowerCase().includes('almoço')) {
+    // Extrair "almoço com [nome]" se existir
+    const almocoMatch = messageWithoutEmail.match(/almoço\s+com\s+(?:o\s+)?([a-zA-ZÀ-ÿ]+)/i);
+    if (almocoMatch && almocoMatch[1]) {
+      title = `Almoço com ${almocoMatch[1]}`;
+    } else {
+      title = 'Almoço';
+    }
+  } else if (messageWithoutEmail.toLowerCase().includes('reunião')) {
+    title = 'Reunião';
+  } else if (messageWithoutEmail.toLowerCase().includes('consulta')) {
+    title = 'Consulta';
+  } else if (messageWithoutEmail.toLowerCase().includes('encontro')) {
+    title = 'Encontro';
+  } else if (messageWithoutEmail.toLowerCase().includes('evento')) {
+    title = 'Evento';
+  } else if (messageWithoutEmail.toLowerCase().includes('compromisso')) {
+    title = 'Compromisso';
+  } else {
+    // Tentar extrair com padrões mais específicos
+    const titlePatterns = [
+      /(?:marcar|agendar|marque)\s+(.+?)(?:\s+(?:para|no|em|às|dia|amanhã|hoje|próximo|próxima|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}|\d{1,2}\/\d{1,2}))?/i,
+      /(?:um\s+)(.+?)(?:\s+(?:para|no|em|às|dia|amanhã|hoje|próximo|próxima|segunda|terça|quarta|quinta|sexta|sábado|domingo|\d{1,2}|\d{1,2}\/\d{1,2}))?/i
+    ];
+    
+    for (const pattern of titlePatterns) {
+      const match = messageWithoutEmail.match(pattern);
+      if (match && match[1]) {
+        title = match[1].trim();
+        // Limpar o título de palavras desnecessárias
+        title = title.replace(/\s+(?:para|no|em|às|dia|amanhã|hoje|próximo|próxima|segunda|terça|quarta|quinta|sexta|sábado|domingo)\s*$/i, '').trim();
+        break;
+      }
+    }
+    
+    // Se ainda não tem título, usar "Evento"
+    if (!title) {
+      title = "Evento";
+    }
+  }
+  
   if (!title) return null;
   
-  // Extrair data
+  // Extrair data usando chrono-node para melhor precisão
   let date = new Date();
   
-  // Padrões de data
+  // Verificar se há dias da semana na mensagem
+  const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+  let weekdayFound = false;
+  
+  for (let i = 0; i < weekdays.length; i++) {
+    if (lowerMessage.includes(weekdays[i])) {
+      const currentDay = new Date().getDay();
+      const targetDay = i;
+      let daysToAdd = targetDay - currentDay;
+      
+      // Se for hoje, vai para próxima semana
+      if (daysToAdd <= 0) daysToAdd += 7;
+      
+      // Calcular a data corretamente
+      date.setDate(date.getDate() + daysToAdd);
+      console.log(`📅 Data calculada para ${weekdays[i]}: +${daysToAdd} dias`);
+      weekdayFound = true;
+      break;
+    }
+  }
+  
+  // Se não encontrou dia da semana, usar chrono
+  if (!weekdayFound) {
+    try {
+      const chrono = await import('chrono-node');
+      const parsed = chrono.parse(message, new Date(), { forwardDate: true });
+      
+      if (parsed && parsed.length > 0) {
+        date = parsed[0].start.date();
+        console.log(`📅 Data extraída pelo chrono: ${date.toISOString()}`);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao usar chrono:', error);
+    }
+  }
+  
+  // Fallback para outros padrões de data
   if (lowerMessage.includes('amanhã')) {
     date.setDate(date.getDate() + 1);
   } else if (lowerMessage.includes('hoje')) {
     // Mantém a data atual
-  } else {
-    // Verificar dias da semana (com ou sem "próximo/próxima")
-    const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
-    for (let i = 0; i < weekdays.length; i++) {
-      if (lowerMessage.includes(weekdays[i])) {
-        const currentDay = date.getDay();
-        const targetDay = i;
-        let daysToAdd = targetDay - currentDay;
-        
-        // Se for hoje, vai para próxima semana
-        if (daysToAdd <= 0) daysToAdd += 7;
-        
-        date.setDate(date.getDate() + daysToAdd);
-        console.log(`📅 Data calculada: ${weekdays[i]} = +${daysToAdd} dias`);
-        break;
-      }
-    }
-  }
-  
-  if (lowerMessage.includes('dia')) {
+  } else if (lowerMessage.includes('dia')) {
     const dayMatch = message.match(/dia\s+(\d{1,2})/i);
     if (dayMatch) {
       const day = parseInt(dayMatch[1]);
@@ -446,16 +533,16 @@ function extractEventInfo(message) {
   
   // Formatação
   const formattedDate = date.toLocaleDateString('pt-BR', {
-          weekday: 'long',
+    weekday: 'long',
     year: 'numeric',
-          month: 'long',
+    month: 'long',
     day: 'numeric'
   });
   
   const formattedTime = date.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit'
-        });
+    hour: '2-digit',
+    minute: '2-digit'
+  });
 
   return {
     title,
@@ -471,19 +558,28 @@ function generateCalendarLinks(eventInfo) {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000)); // +1 hora
   
-  const formatDate = (date) => {
-    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  // CORREÇÃO: Usar UTC para Google Calendar (Google interpreta como local)
+  const formatDateForGoogle = (date) => {
+    // Usar diretamente os componentes da data local
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
+    
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
   };
   
-  const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventInfo.title)}&dates=${formatDate(startDate)}/${formatDate(endDate)}&ctz=America/Sao_Paulo`;
+  const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventInfo.title)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}&ctz=America/Sao_Paulo`;
   
   const outlookLink = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventInfo.title)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}&timezone=America/Sao_Paulo`;
   
   return { google: googleLink, outlook: outlookLink };
 }
 
-// Função para gerar link de email
-function generateEmailLink(eventInfo) {
+// Função para gerar link de email com destinatário
+function generateEmailLink(eventInfo, recipientEmail = '') {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
   
@@ -498,7 +594,38 @@ function generateEmailLink(eventInfo) {
     `Atenciosamente,\nZelar Bot`
   );
   
-  return `mailto:?subject=${subject}&body=${body}`;
+  if (recipientEmail) {
+    return `mailto:${encodeURIComponent(recipientEmail)}?subject=${subject}&body=${body}`;
+  } else {
+    return `mailto:?subject=${subject}&body=${body}`;
+  }
+}
+
+// Função para gerar link de convite pronto para Gmail
+function generateGmailInviteLink(eventInfo, recipientEmail) {
+  const startDate = new Date(eventInfo.date);
+  const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
+  
+  const formatDate = (date) => {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  };
+  
+  // Usar formato mais confiável do Gmail
+  const subject = encodeURIComponent(`Convite: ${eventInfo.title}`);
+  const body = encodeURIComponent(
+    `Olá!\n\n` +
+    `Você está convidado para:\n\n` +
+    `📅 ${eventInfo.title}\n` +
+    `📆 ${eventInfo.formattedDate}\n` +
+    `⏰ ${eventInfo.formattedTime}\n\n` +
+    `Aguardo sua confirmação!\n\n` +
+    `Atenciosamente,\nZelar Bot`
+  );
+  
+  // Formato alternativo que funciona melhor
+  const gmailLink = `https://mail.google.com/mail/u/0/#compose?to=${encodeURIComponent(recipientEmail)}&subject=${subject}&body=${body}`;
+  
+  return gmailLink;
 }
 
 // Função para salvar evento no banco
@@ -541,23 +668,142 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Rota simples para testar se o servidor está rodando
+// Servir arquivos estáticos do frontend
+app.use(express.static(join(__dirname, '..', 'dist', 'public')));
+
+// Rota para servir o frontend
 app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'Zelar Bot API is running!',
-    timestamp: new Date().toISOString()
-  });
+  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
 });
 
-// Rota para servir o frontend (removida para Railway)
-// app.get('/', (req, res) => {
-//   res.sendFile(join(__dirname, '..', 'dist', 'index.html'));
-// });
+// Rota de fallback para SPA
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
+});
 
 // API WhatsApp
 app.get('/api/whatsapp/status', (req, res) => {
   res.json(whatsappBot.getStatus());
+});
+
+// API Email
+app.post('/api/email/preview', async (req, res) => {
+  try {
+    const { title, date, time, location, description, organizer } = req.body;
+    
+    if (!title || !date || !time) {
+      return res.status(400).json({ error: 'Título, data e hora são obrigatórios' });
+    }
+    
+    // Criar evento temporário para gerar preview
+    const eventInfo = {
+      title,
+      date: new Date(`${date}T${time}`),
+      formattedDate: new Date(`${date}T${time}`).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      formattedTime: new Date(`${date}T${time}`).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+    
+    const subject = `Convite: ${title}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #333;">📅 ${title}</h2>
+        <p><strong>Data:</strong> ${eventInfo.formattedDate}</p>
+        <p><strong>Hora:</strong> ${eventInfo.formattedTime}</p>
+        ${location ? `<p><strong>Local:</strong> ${location}</p>` : ''}
+        ${description ? `<p><strong>Descrição:</strong> ${description}</p>` : ''}
+        <p style="margin-top: 30px;">Aguardo sua confirmação!</p>
+        <p>Atenciosamente,<br>${organizer || 'Zelar Bot'}</p>
+      </div>
+    `;
+    
+    res.json({ subject, html });
+  } catch (error) {
+    console.error('❌ Erro ao gerar preview:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+app.post('/api/email/mailto', async (req, res) => {
+  try {
+    const { eventData, recipientEmail } = req.body;
+    
+    if (!eventData.title || !eventData.date || !eventData.time) {
+      return res.status(400).json({ error: 'Dados do evento incompletos' });
+    }
+    
+    // Criar evento temporário
+    const eventInfo = {
+      title: eventData.title,
+      date: new Date(`${eventData.date}T${eventData.time}`),
+      formattedDate: new Date(`${eventData.date}T${eventData.time}`).toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }),
+      formattedTime: new Date(`${eventData.date}T${eventData.time}`).toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit'
+      })
+    };
+    
+    let mailtoLink;
+    
+    if (recipientEmail) {
+      mailtoLink = generateEmailLink(eventInfo, recipientEmail);
+    } else {
+      mailtoLink = generateEmailLink(eventInfo);
+    }
+    
+    res.json({ mailtoLink });
+  } catch (error) {
+    console.error('❌ Erro ao gerar mailto link:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rota de teste para verificar as correções
+app.post('/api/test-message', async (req, res) => {
+  try {
+    const { message, platform } = req.body;
+    
+    // Extrair email da mensagem
+    const emailMatch = message.match(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/);
+    const recipientEmail = emailMatch ? emailMatch[0] : '';
+    
+    // Extrair informações do evento
+    const eventInfo = await extractEventInfo(message);
+    
+    if (!eventInfo) {
+      return res.status(400).json({ error: 'Não foi possível extrair informações do evento' });
+    }
+    
+    // Gerar links de email
+    let gmailLink = null;
+    if (recipientEmail) {
+      gmailLink = generateGmailInviteLink(eventInfo, recipientEmail);
+    }
+    
+    res.json({
+      title: eventInfo.title,
+      date: eventInfo.date,
+      formattedDate: eventInfo.formattedDate,
+      formattedTime: eventInfo.formattedTime,
+      recipientEmail,
+      gmailLink
+    });
+  } catch (error) {
+    console.error('❌ Erro no teste:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
 });
 
 app.get('/api/whatsapp/qr', async (req, res) => {
