@@ -355,11 +355,11 @@ async function processMessage(message, platform) {
       
       emailLinks = `📧 <b>Enviar convite por email:</b>\n` +
                    `• <a href="${gmailLink}">📨 Gmail (com convite)</a>\n` +
-                   `• <a href="${mailtoLink}">📧 Cliente de email</a>`;
+                   `• <a href="${mailtoLink}">📧 Mailto (cliente padrão)</a>`;
     } else {
       const mailtoLink = generateEmailLink(eventInfo);
       console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
-      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Clique aqui</a>`;
+      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Mailto (cliente padrão)</a>`;
     }
     
     // Salvar no banco de dados
@@ -376,9 +376,10 @@ async function processMessage(message, platform) {
            emailLinks;
     
     console.log(`🤖 Resposta final gerada:`);
-    console.log(`📧 Contém Gmail link: ${finalResponse.includes('Gmail (link pronto)')}`);
+    console.log(`📧 Contém Gmail link: ${finalResponse.includes('Gmail (com convite)')}`);
     console.log(`📧 Contém mailto link: ${finalResponse.includes('mailto:')}`);
     console.log(`📧 Contém Google Calendar: ${finalResponse.includes('Google Calendar')}`);
+    console.log(`📧 Link mailto completo: ${mailtoLink}`);
     
     return finalResponse;
            
@@ -583,22 +584,6 @@ function generateEmailLink(eventInfo, recipientEmail = '') {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
   
-  // Criar um convite de calendário em formato iCal
-  const icalContent = [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//Zelar Bot//Calendar Event//PT',
-    'BEGIN:VEVENT',
-    `UID:${Date.now()}@zelar-bot.com`,
-    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
-    `DTSTART:${startDate.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
-    `DTEND:${endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
-    `SUMMARY:${eventInfo.title}`,
-    `DESCRIPTION:Convite para ${eventInfo.title} em ${eventInfo.formattedDate} às ${eventInfo.formattedTime}`,
-    'END:VEVENT',
-    'END:VCALENDAR'
-  ].join('\r\n');
-  
   const subject = encodeURIComponent(`Convite de Calendário: ${eventInfo.title}`);
   const body = encodeURIComponent(
     `Olá!\n\n` +
@@ -611,7 +596,7 @@ function generateEmailLink(eventInfo, recipientEmail = '') {
   );
   
   if (recipientEmail) {
-    return `mailto:${encodeURIComponent(recipientEmail)}?subject=${subject}&body=${body}`;
+    return `mailto:${recipientEmail}?subject=${subject}&body=${body}`;
   } else {
     return `mailto:?subject=${subject}&body=${body}`;
   }
