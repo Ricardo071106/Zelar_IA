@@ -355,11 +355,12 @@ async function processMessage(message, platform) {
       
       emailLinks = `📧 <b>Enviar convite por email:</b>\n` +
                    `• <a href="${gmailLink}">📨 Gmail (com convite)</a>\n` +
-                   `• <a href="${mailtoLink}">📧 Mailto (cliente padrão)</a>`;
+                   `• <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n` +
+                   `• <code>${mailtoLink}</code>`;
     } else {
       const mailtoLink = generateEmailLink(eventInfo);
       console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
-      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Mailto (cliente padrão)</a>`;
+      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n<code>${mailtoLink}</code>`;
     }
     
     // Salvar no banco de dados
