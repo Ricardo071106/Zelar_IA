@@ -354,12 +354,12 @@ async function processMessage(message, platform) {
       console.log(`🔗 Link Mailto gerado: ${mailtoLink}`);
       
       emailLinks = `📧 <b>Enviar convite por email:</b>\n` +
-                   `• <a href="${gmailLink}">Gmail (link pronto)</a>\n` +
-                   `• <a href="${mailtoLink}">Cliente de email</a>`;
+                   `• <a href="${gmailLink}">📨 Gmail (com convite)</a>\n` +
+                   `• <a href="${mailtoLink}">📧 Cliente de email</a>`;
     } else {
       const mailtoLink = generateEmailLink(eventInfo);
       console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
-      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">Clique aqui</a>`;
+      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Clique aqui</a>`;
     }
     
     // Salvar no banco de dados
@@ -371,8 +371,8 @@ async function processMessage(message, platform) {
            `📝 <b>Título:</b> ${eventInfo.title}\n` +
            `${recipientEmail ? `📧 <b>Para:</b> ${recipientEmail}\n` : ''}\n` +
            `📱 <b>Adicionar ao calendário:</b>\n` +
-           `• <a href="${calendarLinks.google}">Google Calendar</a>\n` +
-           `• <a href="${calendarLinks.outlook}">Outlook</a>\n\n` +
+           `• <a href="${calendarLinks.google}">📅 Google Calendar</a>\n` +
+           `• <a href="${calendarLinks.outlook}">📅 Outlook</a>\n\n` +
            emailLinks;
     
     console.log(`🤖 Resposta final gerada:`);
@@ -558,9 +558,8 @@ function generateCalendarLinks(eventInfo) {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000)); // +1 hora
   
-  // CORREÇÃO: Usar UTC para Google Calendar (Google interpreta como local)
+  // CORREÇÃO: Formato correto para Google Calendar (sem Z para horário local)
   const formatDateForGoogle = (date) => {
-    // Usar diretamente os componentes da data local
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
@@ -568,7 +567,8 @@ function generateCalendarLinks(eventInfo) {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const seconds = String(date.getSeconds()).padStart(2, '0');
     
-    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+    // Remover o Z para que o Google Calendar interprete como horário local
+    return `${year}${month}${day}T${hours}${minutes}${seconds}`;
   };
   
   const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventInfo.title)}&dates=${formatDateForGoogle(startDate)}/${formatDateForGoogle(endDate)}&ctz=America/Sao_Paulo`;
@@ -583,14 +583,30 @@ function generateEmailLink(eventInfo, recipientEmail = '') {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
   
-  const subject = encodeURIComponent(`Convite: ${eventInfo.title}`);
+  // Criar um convite de calendário em formato iCal
+  const icalContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Zelar Bot//Calendar Event//PT',
+    'BEGIN:VEVENT',
+    `UID:${Date.now()}@zelar-bot.com`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
+    `DTSTART:${startDate.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
+    `DTEND:${endDate.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')}Z`,
+    `SUMMARY:${eventInfo.title}`,
+    `DESCRIPTION:Convite para ${eventInfo.title} em ${eventInfo.formattedDate} às ${eventInfo.formattedTime}`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n');
+  
+  const subject = encodeURIComponent(`Convite de Calendário: ${eventInfo.title}`);
   const body = encodeURIComponent(
     `Olá!\n\n` +
     `Você está convidado para:\n\n` +
     `📅 ${eventInfo.title}\n` +
     `📆 ${eventInfo.formattedDate}\n` +
     `⏰ ${eventInfo.formattedTime}\n\n` +
-    `Aguardo sua confirmação!\n\n` +
+    `Este é um convite de calendário que pode ser adicionado diretamente ao seu calendário.\n\n` +
     `Atenciosamente,\nZelar Bot`
   );
   
@@ -606,23 +622,31 @@ function generateGmailInviteLink(eventInfo, recipientEmail) {
   const startDate = new Date(eventInfo.date);
   const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
   
-  const formatDate = (date) => {
+  // Criar link de convite de calendário do Gmail
+  const eventTitle = encodeURIComponent(eventInfo.title);
+  const eventDescription = encodeURIComponent(`Convite para ${eventInfo.title} em ${eventInfo.formattedDate} às ${eventInfo.formattedTime}`);
+  
+  // Formato de data para Gmail Calendar
+  const formatDateForGmail = (date) => {
     return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   };
   
-  // Usar formato mais confiável do Gmail
-  const subject = encodeURIComponent(`Convite: ${eventInfo.title}`);
+  // Link direto para criar evento no Gmail Calendar
+  const gmailCalendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&dates=${formatDateForGmail(startDate)}/${formatDateForGmail(endDate)}&details=${eventDescription}&ctz=America/Sao_Paulo`;
+  
+  // Link para Gmail com convite
+  const subject = encodeURIComponent(`Convite de Calendário: ${eventInfo.title}`);
   const body = encodeURIComponent(
     `Olá!\n\n` +
     `Você está convidado para:\n\n` +
     `📅 ${eventInfo.title}\n` +
     `📆 ${eventInfo.formattedDate}\n` +
     `⏰ ${eventInfo.formattedTime}\n\n` +
-    `Aguardo sua confirmação!\n\n` +
+    `Para adicionar ao seu calendário, clique no link abaixo:\n` +
+    `${gmailCalendarLink}\n\n` +
     `Atenciosamente,\nZelar Bot`
   );
   
-  // Formato alternativo que funciona melhor
   const gmailLink = `https://mail.google.com/mail/u/0/#compose?to=${encodeURIComponent(recipientEmail)}&subject=${subject}&body=${body}`;
   
   return gmailLink;
