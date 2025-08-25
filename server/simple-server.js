@@ -348,19 +348,22 @@ async function processMessage(message, platform) {
     
     if (recipientEmail) {
       const gmailLink = generateGmailInviteLink(eventInfo, recipientEmail);
+      const alternativeLink = generateAlternativeEmailLink(eventInfo, recipientEmail);
       const mailtoLink = generateEmailLink(eventInfo, recipientEmail);
       
       console.log(`🔗 Link Gmail gerado: ${gmailLink}`);
+      console.log(`🔗 Link Alternativo gerado: ${alternativeLink}`);
       console.log(`🔗 Link Mailto gerado: ${mailtoLink}`);
       
       emailLinks = `📧 <b>Enviar convite por email:</b>\n` +
                    `• <a href="${gmailLink}">📨 Gmail (com convite)</a>\n` +
+                   `• <a href="${alternativeLink}">📧 Gmail (alternativo)</a>\n` +
                    `• <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n` +
-                   `• <code>${mailtoLink}</code>`;
+                   `• <b>Link mailto para copiar:</b>\n<code>${mailtoLink}</code>`;
     } else {
       const mailtoLink = generateEmailLink(eventInfo);
       console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
-      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n<code>${mailtoLink}</code>`;
+      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n<b>Link para copiar:</b>\n<code>${mailtoLink}</code>`;
     }
     
     // Salvar no banco de dados
@@ -636,6 +639,35 @@ function generateGmailInviteLink(eventInfo, recipientEmail) {
   const gmailLink = `https://mail.google.com/mail/u/0/#compose?to=${encodeURIComponent(recipientEmail)}&subject=${subject}&body=${body}`;
   
   return gmailLink;
+}
+
+// Função para gerar link alternativo de email (mais compatível com Telegram)
+function generateAlternativeEmailLink(eventInfo, recipientEmail) {
+  const startDate = new Date(eventInfo.date);
+  const endDate = new Date(startDate.getTime() + (60 * 60 * 1000));
+  
+  // Criar link direto para o Google Calendar
+  const eventTitle = encodeURIComponent(eventInfo.title);
+  const formatDateForCalendar = (date) => {
+    return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  };
+  
+  const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&dates=${formatDateForCalendar(startDate)}/${formatDateForCalendar(endDate)}&ctz=America/Sao_Paulo`;
+  
+  // Link para Gmail com instruções claras
+  const subject = encodeURIComponent(`Convite: ${eventInfo.title}`);
+  const body = encodeURIComponent(
+    `Olá!\n\n` +
+    `Você está convidado para:\n\n` +
+    `📅 ${eventInfo.title}\n` +
+    `📆 ${eventInfo.formattedDate}\n` +
+    `⏰ ${eventInfo.formattedTime}\n\n` +
+    `Para adicionar ao seu calendário:\n` +
+    `${calendarLink}\n\n` +
+    `Atenciosamente,\nZelar Bot`
+  );
+  
+  return `https://mail.google.com/mail/u/0/#compose?to=${encodeURIComponent(recipientEmail)}&subject=${subject}&body=${body}`;
 }
 
 // Função para salvar evento no banco
