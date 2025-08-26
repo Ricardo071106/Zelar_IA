@@ -345,11 +345,12 @@ async function processMessage(message, platform) {
     
     // Gerar links de email
     let emailLinks = '';
+    let mailtoLink = '';
     
     if (recipientEmail) {
       const gmailLink = generateGmailInviteLink(eventInfo, recipientEmail);
       const alternativeLink = generateAlternativeEmailLink(eventInfo, recipientEmail);
-      const mailtoLink = generateEmailLink(eventInfo, recipientEmail);
+      mailtoLink = generateEmailLink(eventInfo, recipientEmail);
       
       console.log(`🔗 Link Gmail gerado: ${gmailLink}`);
       console.log(`🔗 Link Alternativo gerado: ${alternativeLink}`);
@@ -361,9 +362,9 @@ async function processMessage(message, platform) {
                    `• <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n` +
                    `• <b>Link mailto para copiar:</b>\n<code>${mailtoLink}</code>`;
     } else {
-      const mailtoLink = generateEmailLink(eventInfo);
-      console.log(`🔗 Link Mailto gerado (sem email): ${mailtoLink}`);
-      emailLinks = `📧 <b>Enviar convite por email:</b> <a href="${mailtoLink}">📧 Email (cliente padrão)</a>\n<b>Link para copiar:</b>\n<code>${mailtoLink}</code>`;
+      // Se não há email, é um compromisso pessoal - não mostrar links de email
+      console.log(`📝 Compromisso pessoal detectado - sem links de email`);
+      emailLinks = `📝 <b>Compromisso pessoal agendado</b>`;
     }
     
     // Salvar no banco de dados
@@ -383,7 +384,9 @@ async function processMessage(message, platform) {
     console.log(`📧 Contém Gmail link: ${finalResponse.includes('Gmail (com convite)')}`);
     console.log(`📧 Contém mailto link: ${finalResponse.includes('mailto:')}`);
     console.log(`📧 Contém Google Calendar: ${finalResponse.includes('Google Calendar')}`);
-    console.log(`📧 Link mailto completo: ${mailtoLink}`);
+    if (mailtoLink) {
+      console.log(`📧 Link mailto completo: ${mailtoLink}`);
+    }
     
     return finalResponse;
            
