@@ -321,6 +321,8 @@ async function processMessage(message, platform) {
     
     console.log(`📧 Email extraído: "${recipientEmail}"`);
     console.log(`📧 Email encontrado: ${!!recipientEmail}`);
+    console.log(`📧 Email match: ${emailMatch ? emailMatch[0] : 'null'}`);
+    console.log(`📧 Mensagem original: "${message}"`);
     
     // Extrair informações do evento
     const eventInfo = await extractEventInfo(message);
@@ -384,6 +386,7 @@ async function processMessage(message, platform) {
     console.log(`📧 Contém Gmail link: ${finalResponse.includes('Gmail (com convite)')}`);
     console.log(`📧 Contém mailto link: ${finalResponse.includes('mailto:')}`);
     console.log(`📧 Contém Google Calendar: ${finalResponse.includes('Google Calendar')}`);
+    console.log(`📧 Tipo de evento: ${recipientEmail ? 'Com email' : 'Compromisso pessoal'}`);
     if (mailtoLink) {
       console.log(`📧 Link mailto completo: ${mailtoLink}`);
     }
