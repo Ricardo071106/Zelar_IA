@@ -304,8 +304,15 @@ async function initializeTelegramBot() {
         let shouldSendAudio = false;
         
         // Processar mensagem de voz
+        console.log(`🔍 Verificando tipo de mensagem:`);
+        console.log(`📝 Text: ${!!text}`);
+        console.log(`🎤 Voice: ${!!voice}`);
+        console.log(`🎵 Audio: ${!!audio}`);
+        console.log(`🎤 AudioService disponível: ${audioService.isAvailable()}`);
+        
         if (voice && audioService.isAvailable()) {
           console.log(`🎤 Mensagem de voz recebida`);
+          console.log(`📁 Voice file_id: ${voice.file_id}`);
           try {
             messageText = await audioService.processVoiceMessage(telegramBot, chatId, voice.file_id);
             shouldSendAudio = true;
@@ -317,6 +324,7 @@ async function initializeTelegramBot() {
           }
         } else if (audio && audioService.isAvailable()) {
           console.log(`🎵 Arquivo de áudio recebido`);
+          console.log(`📁 Audio file_id: ${audio.file_id}`);
           try {
             messageText = await audioService.processVoiceMessage(telegramBot, chatId, audio.file_id);
             shouldSendAudio = true;
@@ -328,6 +336,10 @@ async function initializeTelegramBot() {
           }
         } else if (!text) {
           console.log(`❌ Mensagem sem texto e sem áudio`);
+          if (voice && !audioService.isAvailable()) {
+            console.log(`⚠️ Mensagem de voz recebida, mas AudioService não disponível`);
+            await telegramBot.sendMessage(chatId, 'Funcionalidade de áudio não está configurada. Configure OPENROUTER_API_KEY ou OPENAI_API_KEY.');
+          }
           return;
         }
         

@@ -109,26 +109,37 @@ class AudioService {
   async processVoiceMessage(telegramBot, chatId, fileId) {
     try {
       console.log('🎤 Processando mensagem de voz...');
+      console.log(`📁 File ID: ${fileId}`);
       
       // Baixar o arquivo de áudio
+      console.log('📥 Baixando arquivo de áudio...');
       const file = await telegramBot.getFile(fileId);
+      console.log(`📁 File info:`, file);
+      
       const audioUrl = `https://api.telegram.org/file/bot${process.env.TELEGRAM_BOT_TOKEN}/${file.file_path}`;
+      console.log(`🔗 Audio URL: ${audioUrl}`);
       
       // Fazer download do arquivo
+      console.log('⬇️ Fazendo download do arquivo...');
       const response = await fetch(audioUrl);
+      console.log(`📊 Response status: ${response.status}`);
+      
       if (!response.ok) {
         throw new Error(`Erro ao baixar arquivo: ${response.status}`);
       }
       
       const audioBuffer = await response.arrayBuffer();
+      console.log(`📦 Audio buffer size: ${audioBuffer.byteLength} bytes`);
       
       // Transcrever o áudio
+      console.log('🎵 Iniciando transcrição...');
       const transcription = await this.transcribeAudio(Buffer.from(audioBuffer), `voice_${Date.now()}.ogg`);
       
       return transcription;
       
     } catch (error) {
       console.error('❌ Erro ao processar mensagem de voz:', error);
+      console.error('❌ Error details:', error.message);
       throw error;
     }
   }
