@@ -12,6 +12,7 @@ import multer from 'multer';
 import pkg from 'pg';
 const { Pool } = pkg;
 import { config } from 'dotenv';
+import AudioService from './audio-service.js';
 
 // Configurar variáveis de ambiente
 config();
@@ -32,6 +33,9 @@ const pool = new Pool({
 
 // Configuração do Telegram Bot
 let telegramBot = null;
+
+// Configuração do Audio Service
+const audioService = new AudioService();
 
 // Configuração do WhatsApp Bot
 class WhatsAppBot {
@@ -278,24 +282,70 @@ async function initializeTelegramBot() {
     telegramBot.startPolling();
     console.log('✅ Telegram Bot inicializado!');
     
+    // Verificar serviço de áudio
+    if (audioService.isAvailable()) {
+      console.log('🎤 AudioService inicializado com sucesso');
+    } else {
+      console.log('⚠️ AudioService não disponível - configure OPENROUTER_API_KEY ou OPENAI_API_KEY');
+    }
+    
     // Configurar handlers do Telegram
     telegramBot.on('message', async (msg) => {
       const chatId = msg.chat.id;
       const text = msg.text || '';
-      
-      if (!text) return;
+      const voice = msg.voice;
+      const audio = msg.audio;
       
       console.log(`\n💬 Telegram - De: ${msg.from.first_name} (${msg.from.id})`);
-      console.log(`📝 Mensagem: "${text}"`);
       console.log(`🕐 Timestamp: ${new Date().toLocaleString('pt-BR')}`);
       
       try {
-        const response = await processMessage(text, 'telegram');
+        let messageText = text;
+        let shouldSendAudio = false;
+        
+        // Processar mensagem de voz
+        if (voice && audioService.isAvailable()) {
+          console.log(`🎤 Mensagem de voz recebida`);
+          try {
+            messageText = await audioService.processVoiceMessage(telegramBot, chatId, voice.file_id);
+            shouldSendAudio = true;
+            console.log(`📝 Transcrição: "${messageText}"`);
+          } catch (error) {
+            console.error('❌ Erro ao processar voz:', error);
+            await telegramBot.sendMessage(chatId, 'Desculpe, não consegui entender a mensagem de voz. Pode enviar como texto?');
+            return;
+          }
+        } else if (audio && audioService.isAvailable()) {
+          console.log(`🎵 Arquivo de áudio recebido`);
+          try {
+            messageText = await audioService.processVoiceMessage(telegramBot, chatId, audio.file_id);
+            shouldSendAudio = true;
+            console.log(`📝 Transcrição: "${messageText}"`);
+          } catch (error) {
+            console.error('❌ Erro ao processar áudio:', error);
+            await telegramBot.sendMessage(chatId, 'Desculpe, não consegui entender o arquivo de áudio. Pode enviar como texto?');
+            return;
+          }
+        } else if (!text) {
+          console.log(`❌ Mensagem sem texto e sem áudio`);
+          return;
+        }
+        
+        console.log(`📝 Mensagem processada: "${messageText}"`);
+        
+        const response = await processMessage(messageText, 'telegram');
         console.log(`🤖 Resposta gerada com sucesso!`);
         console.log(`📤 Enviando resposta para ${msg.from.first_name}...`);
         
-        // Enviar com HTML parsing para links clicáveis
-        await telegramBot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+        // Enviar resposta
+        if (shouldSendAudio && audioService.isAvailable()) {
+          // Enviar resposta em áudio
+          await audioService.sendAudioResponse(telegramBot, chatId, response);
+        } else {
+          // Enviar resposta em texto
+          await telegramBot.sendMessage(chatId, response, { parse_mode: 'HTML' });
+        }
+        
         console.log('✅ Resposta enviada no Telegram!');
         console.log('─'.repeat(50));
       } catch (error) {
