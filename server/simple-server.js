@@ -243,21 +243,47 @@ class WhatsAppBot {
       const messageText = message.message.conversation || message.message.extendedTextMessage?.text || '';
 
       if (messageText) {
-        console.log(`💬 WhatsApp - De: ${chatId}`);
-        console.log(`📝 Mensagem: ${messageText}`);
-
-        // Processar mensagem
-        const response = await processMessage(messageText, 'whatsapp');
+        console.log(`\n💬 WhatsApp - De: ${chatId}`);
+        console.log(`📝 Mensagem: "${messageText}"`);
+        console.log(`🕐 Timestamp: ${new Date().toLocaleString('pt-BR')}`);
 
         try {
-          await this.sock.sendMessage(chatId, { text: response });
+          // Processar mensagem
+          const response = await processMessage(messageText, 'whatsapp');
+          console.log(`🤖 Resposta gerada com sucesso!`);
+          console.log(`📤 Enviando resposta para WhatsApp...`);
+
+          // Enviar resposta formatada para WhatsApp
+          await this.sendFormattedMessage(chatId, response);
           console.log('✅ Resposta enviada no WhatsApp!');
+          console.log('─'.repeat(50));
         } catch (error) {
-          console.error('❌ Erro ao enviar resposta WhatsApp:', error);
+          console.error('❌ Erro ao processar mensagem WhatsApp:', error);
+          await this.sock.sendMessage(chatId, { text: 'Desculpe, ocorreu um erro interno.' });
         }
       }
     } catch (error) {
       console.error('❌ Erro ao processar mensagem WhatsApp:', error);
+    }
+  }
+
+  async sendFormattedMessage(chatId, response) {
+    try {
+      // Dividir a resposta em partes para melhor formatação no WhatsApp
+      const lines = response.split('\n');
+      const formattedResponse = lines.map(line => {
+        // Converter tags HTML para formatação do WhatsApp
+        return line
+          .replace(/<b>(.*?)<\/b>/g, '*$1*') // Negrito
+          .replace(/<code>(.*?)<\/code>/g, '`$1`') // Código
+          .replace(/<a href="(.*?)">(.*?)<\/a>/g, '$2\n$1'); // Links
+      }).join('\n');
+
+      await this.sock.sendMessage(chatId, { text: formattedResponse });
+    } catch (error) {
+      console.error('❌ Erro ao enviar mensagem formatada:', error);
+      // Fallback: enviar como texto simples
+      await this.sock.sendMessage(chatId, { text: response });
     }
   }
 }
@@ -793,7 +819,15 @@ app.get('*', (req, res) => {
 
 // API WhatsApp
 app.get('/api/whatsapp/status', (req, res) => {
-  res.json(whatsappBot.getStatus());
+  const status = whatsappBot.getStatus();
+  res.json({
+    ...status,
+    message: status.isConnected 
+      ? 'WhatsApp conectado e pronto para uso!' 
+      : status.qrCode 
+        ? 'QR Code disponível para escaneamento' 
+        : 'Aguardando inicialização...'
+  });
 });
 
 // API Email
