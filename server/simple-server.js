@@ -812,11 +812,6 @@ app.get('/', (req, res) => {
   res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
 });
 
-// Rota de fallback para SPA
-app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
-});
-
 // API WhatsApp
 app.get('/api/whatsapp/status', (req, res) => {
   const status = whatsappBot.getStatus();
@@ -828,6 +823,11 @@ app.get('/api/whatsapp/status', (req, res) => {
         ? 'QR Code disponível para escaneamento' 
         : 'Aguardando inicialização...'
   });
+});
+
+// Rota de fallback para SPA (deve ser a última)
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
 });
 
 // API Email
