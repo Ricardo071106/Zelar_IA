@@ -1033,10 +1033,12 @@ async function initializeBots() {
   try {
     // Inicializar WhatsApp
     console.log('📱 Inicializando WhatsApp Bot...');
+    console.log('⏰ Timestamp de inicialização:', new Date().toISOString());
     await whatsappBot.initialize();
     console.log('✅ WhatsApp Bot inicializado!');
   } catch (error) {
     console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+    console.error('❌ Stack trace:', error.stack);
   }
   
   try {
