@@ -66,7 +66,6 @@ class WhatsAppBot {
           auth: state,
           printQRInTerminal: true,
           browser: ['Zelar Bot', 'Chrome', '1.0.0'],
-          logger: console,
           version: [2, 2323, 4],
           connectTimeoutMs: 30000,
           keepAliveIntervalMs: 10000,
