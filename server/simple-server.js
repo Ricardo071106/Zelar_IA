@@ -51,12 +51,14 @@ class WhatsAppBot {
     async initialize() {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
+      console.log('📁 Diretório atual:', process.cwd());
       
       // Limpar sessão anterior
       await this.clearSession();
       
       console.log('🔧 Configurando autenticação...');
       const { state, saveCreds } = await useMultiFileAuthState('whatsapp_session');
+      console.log('✅ Autenticação configurada');
       
       console.log('🔧 Criando socket Baileys...');
       try {
@@ -71,21 +73,21 @@ class WhatsAppBot {
         });
         console.log('✅ Socket Baileys criado com sucesso!');
         
-              // Forçar reconexão após 5 segundos
-      setTimeout(() => {
-        console.log('🔄 Forçando reconexão...');
-        if (this.sock) {
-          this.sock.end();
-        }
-      }, 5000);
-      
-      // Forçar QR code após 10 segundos se não aparecer
-      setTimeout(() => {
-        if (!this.qrCode) {
-          console.log('🔄 Forçando geração de QR code...');
-          this.initialize();
-        }
-      }, 10000);
+        // Forçar reconexão após 5 segundos
+        setTimeout(() => {
+          console.log('🔄 Forçando reconexão...');
+          if (this.sock) {
+            this.sock.end();
+          }
+        }, 5000);
+        
+        // Forçar QR code após 10 segundos se não aparecer
+        setTimeout(() => {
+          if (!this.qrCode) {
+            console.log('🔄 Forçando geração de QR code...');
+            this.initialize();
+          }
+        }, 10000);
         
       } catch (error) {
         console.error('❌ Erro ao criar socket Baileys:', error);
@@ -96,10 +98,16 @@ class WhatsAppBot {
       this.sock.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect, qr } = update;
         
-        console.log('🔄 Connection update:', { connection, hasQR: !!qr });
+        console.log('🔄 Connection update:', { 
+          connection, 
+          hasQR: !!qr, 
+          qrLength: qr ? qr.length : 0,
+          timestamp: new Date().toISOString()
+        });
         
         if (qr) {
           console.log('📱 QR Code recebido!');
+          console.log('📏 Tamanho do QR:', qr.length);
           this.qrCode = qr;
           
           // Log simples do QR code
@@ -154,6 +162,7 @@ class WhatsAppBot {
       
     } catch (error) {
       console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
+      console.error('❌ Stack trace:', error.stack);
       this.isReady = false;
       this.isConnected = false;
     }
