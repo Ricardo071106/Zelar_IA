@@ -825,11 +825,6 @@ app.get('/api/whatsapp/status', (req, res) => {
   });
 });
 
-// Rota de fallback para SPA (deve ser a última)
-app.get('*', (req, res) => {
-  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
-});
-
 // API Email
 app.post('/api/email/preview', async (req, res) => {
   try {
@@ -1016,6 +1011,11 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     console.log('🔌 Cliente desconectado');
   });
+});
+
+// Rota de fallback para SPA (deve ser a última)
+app.get('*', (req, res) => {
+  res.sendFile(join(__dirname, '..', 'dist', 'public', 'index.html'));
 });
 
 // Inicializar bots
