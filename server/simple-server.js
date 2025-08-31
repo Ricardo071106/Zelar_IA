@@ -1031,6 +1031,9 @@ app.get('*', (req, res) => {
 // Inicializar bots
 async function initializeBots() {
   console.log('🚀 Inicializando bots...');
+  console.log('🆔 Process ID:', process.pid);
+  console.log('📁 Diretório:', process.cwd());
+  console.log('⏰ Timestamp:', new Date().toISOString());
   
   try {
     // Inicializar WhatsApp
