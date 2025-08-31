@@ -52,6 +52,8 @@ class WhatsAppBot {
     try {
       console.log('🚀 Inicializando WhatsApp Bot...');
       console.log('📁 Diretório atual:', process.cwd());
+      console.log('🆔 Process ID:', process.pid);
+      console.log('⏰ Timestamp:', new Date().toISOString());
       
       // Limpar sessão anterior
       await this.clearSession();
@@ -80,13 +82,13 @@ class WhatsAppBot {
           }
         }, 5000);
         
-        // Forçar QR code após 10 segundos se não aparecer
+        // Forçar QR code após 30 segundos se não aparecer
         setTimeout(() => {
           if (!this.qrCode) {
             console.log('🔄 Forçando geração de QR code...');
             this.initialize();
           }
-        }, 10000);
+        }, 30000);
         
       } catch (error) {
         console.error('❌ Erro ao criar socket Baileys:', error);
@@ -1058,7 +1060,12 @@ const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  initializeBots();
+  console.log('🔄 Chamando initializeBots...');
+  initializeBots().then(() => {
+    console.log('✅ initializeBots concluído');
+  }).catch((error) => {
+    console.error('❌ Erro em initializeBots:', error);
+  });
 });
 
 // Tratamento de erros não capturados
