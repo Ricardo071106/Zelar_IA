@@ -103,12 +103,14 @@ class WhatsAppBot {
           connection, 
           hasQR: !!qr, 
           qrLength: qr ? qr.length : 0,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          updateKeys: Object.keys(update)
         });
         
         if (qr) {
           console.log('📱 QR Code recebido!');
           console.log('📏 Tamanho do QR:', qr.length);
+          console.log('🔗 QR Code (primeiros 50 chars):', qr.substring(0, 50));
           this.qrCode = qr;
           
           // Log simples do QR code
