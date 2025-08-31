@@ -1003,6 +1003,30 @@ app.post('/api/whatsapp/clear', async (req, res) => {
   }
 });
 
+// Rota de teste para verificar inicialização
+app.get('/api/whatsapp/test', async (req, res) => {
+  try {
+    console.log('🧪 Teste de inicialização solicitado');
+    console.log('📱 Status atual:', whatsappBot.getStatus());
+    
+    // Tentar inicializar novamente
+    await whatsappBot.initialize();
+    
+    res.json({
+      status: 'success',
+      message: 'Teste de inicialização executado',
+      botStatus: whatsappBot.getStatus()
+    });
+  } catch (error) {
+    console.error('❌ Erro no teste:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Erro no teste de inicialização',
+      error: error.message
+    });
+  }
+});
+
 // API para processar mensagens
 app.post('/api/process-message', async (req, res) => {
   try {
