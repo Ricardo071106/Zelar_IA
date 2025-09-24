@@ -62,8 +62,10 @@ function extractEventTitle(text) {
     cleanTitle = cleanTitle.replace(pattern, ' ');
   }
 
-  cleanTitle = cleanTitle
-    .replace(/\s+/g, ' ')
+  cleanTitle = removeTemporalExpressions(cleanTitle)
+    .replace(/\s*,?\s*às?\s+\d{1,2}(?::\d{2})?(?:\s*(?:da|de)?\s*(?:manhã|manha|tarde|noite))?/gi, '')
+    .replace(/\s*,?\s*\d{1,2}(?::\d{2})?(?:\s*(?:da|de)?\s*(?:manhã|manha|tarde|noite))?/gi, '')
+    .replace(/\s*,?\s*(?:manhã|manha|tarde|noite)\b/gi, '')
     .replace(/^\s*(o|a|os|as|um|uma|no|na|em|de|da|do|às|as|para|pra)\s+/i, '')
     .replace(/\s+(no|na|em|de|da|do|às|as|para|pra)\s*$/i, '')
     .replace(/^\s*(e|com|sem|por)\s+/i, '')

@@ -78,44 +78,47 @@ function extractDateInfo(input) {
 function extractTimeInfo(input) {
   console.log(`🕰️ Extraindo horário de: "${input}"`);
 
-  const timeMatch1 = input.match(/\b(\d{1,2}):(\d{2})\b/);
+  const timeMatch1 = input.match(/(?:^|\s)(\d{1,2})[:\.](\d{2})(?:\s|$)/);
   if (timeMatch1) {
-    const hour = parseInt(timeMatch1[1]);
-    const minute = parseInt(timeMatch1[2]);
-    console.log(`🕰️ Formato HH:MM encontrado: ${hour}:${minute}`);
+    const hour = parseInt(timeMatch1[1], 10);
+    const minute = parseInt(timeMatch1[2], 10);
+    console.log(`🕰️ Formato HH[:.]MM encontrado: ${hour}:${minute}`);
     return { hour, minute };
   }
 
-  const timeMatch2 = input.match(/\b(\d{1,2})h(\d{2})?\b/);
+  const timeMatch2 = input.match(/(?:^|\s)(\d{1,2})h(\d{2})?(?:\s|$)/);
   if (timeMatch2) {
-    const hour = parseInt(timeMatch2[1]);
-    const minute = parseInt(timeMatch2[2] || '0');
+    const hour = parseInt(timeMatch2[1], 10);
+    const minute = timeMatch2[2] ? parseInt(timeMatch2[2], 10) : 0;
     console.log(`🕰️ Formato HHh encontrado: ${hour}:${minute}`);
     return { hour, minute };
   }
 
-  const timeMatch3 = input.match(/\b(?:às|as|a)\s*(\d{1,2})\b/);
+  const timeMatch3 = input.match(/(?:^|\s)(?:às|ás|as|a)\s*(\d{1,2})(?:[:\.](\d{2}))?(?:\s|$)/);
   if (timeMatch3) {
-    const hour = parseInt(timeMatch3[1]);
-    console.log(`🕰️ Formato "às/as X" encontrado: ${hour}:00`);
-    return { hour, minute: 0 };
+    const hour = parseInt(timeMatch3[1], 10);
+    const minute = timeMatch3[2] ? parseInt(timeMatch3[2], 10) : 0;
+    console.log(`🕰️ Formato "às/as X" encontrado: ${hour}:${minute}`);
+    return { hour, minute };
   }
 
-  const timeMatchExtra = input.match(/\b(\d{1,2})\s*(?:da|de)?\s*(manhã|manha|tarde|noite)\b/);
-  if (timeMatchExtra) {
-    let hour = parseInt(timeMatchExtra[1], 10);
-    const period = timeMatchExtra[2];
+  const timeMatchPeriod = input.match(/(?:^|\s)(\d{1,2})\s*(?:da|de)?\s*(manhã|manha|tarde|noite)(?:\s|$)/);
+  if (timeMatchPeriod) {
+    let hour = parseInt(timeMatchPeriod[1], 10);
+    const period = timeMatchPeriod[2];
     if ((period === 'tarde' || period === 'noite') && hour < 12) {
       hour += 12;
+    } else if ((period === 'manhã' || period === 'manha') && hour === 12) {
+      hour = 0;
     }
-    console.log(`🕰️ Formato "${timeMatchExtra[0]}" encontrado: ${hour}:00`);
+    console.log(`🕰️ Formato "${timeMatchPeriod[0].trim()}" encontrado: ${hour}:00`);
     return { hour, minute: 0 };
   }
 
-  const timeMatch4 = input.match(/\b(\d{1,2})\s*$/);
+  const timeMatch4 = input.match(/(?:^|\s)(\d{1,2})(?:\s|$)/);
   if (timeMatch4) {
-    const hour = parseInt(timeMatch4[1]);
-    console.log(`🕰️ Número no final encontrado: ${hour}:00`);
+    const hour = parseInt(timeMatch4[1], 10);
+    console.log(`🕰️ Número isolado encontrado: ${hour}:00`);
     return { hour, minute: 0 };
   }
 
@@ -200,18 +203,3 @@ export function parseBrazilianDateTime(input) {
     return null;
   }
 }
-
-export function parseBrazilianDateTimeISO(input) {
-  const result = parseBrazilianDateTime(input);
-  return result ? result.iso : null;
-}
-
-export function formatBrazilianDateTime(isoString) {
-  try {
-    const dt = DateTime.fromISO(isoString);
-    return dt.setLocale('pt-BR').toFormat("cccc, dd 'de' LLLL 'às' HH:mm");
-  } catch (error) {
-    return isoString;
-  }
-}
-
