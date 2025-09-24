@@ -94,10 +94,10 @@ function extractTimeInfo(input) {
     return { hour, minute };
   }
 
-  const timeMatch3 = input.match(/\bàs?\s+(\d{1,2})\b/);
+  const timeMatch3 = input.match(/\b(?:às|as|a)\s*(\d{1,2})\b/);
   if (timeMatch3) {
     const hour = parseInt(timeMatch3[1]);
-    console.log(`🕰️ Formato "às X" encontrado: ${hour}:00`);
+    console.log(`🕰️ Formato "às/as X" encontrado: ${hour}:00`);
     return { hour, minute: 0 };
   }
 

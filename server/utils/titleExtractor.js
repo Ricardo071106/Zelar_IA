@@ -6,9 +6,10 @@ function capitalizeFirst(str) {
 }
 
 function extractEventTitle(text) {
-  const textLower = text.toLowerCase();
+  const sanitizedText = stripEmails(text);
+  const textLower = sanitizedText.toLowerCase();
 
-  let cleanTitle = stripEmails(text);
+  let cleanTitle = sanitizedText;
 
   const limparTitulo = (texto) =>
     texto
