@@ -1,9 +1,9 @@
-export function capitalizeFirst(str) {
+function capitalizeFirst(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
-export function extractEventTitle(text) {
+function extractEventTitle(text) {
   const textLower = text.toLowerCase();
 
   let cleanTitle = text;
@@ -101,5 +101,5 @@ export function extractEventTitle(text) {
 
   return capitalizeFirst(cleaned) || 'Evento';
 }
-
-
+export { extractEventTitle, capitalizeFirst };
+export default extractEventTitle;

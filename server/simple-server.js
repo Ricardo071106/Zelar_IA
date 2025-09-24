@@ -2,10 +2,10 @@ import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import { webcrypto } from 'crypto';
-import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateParser';
-import { extractEventTitle } from './utils/titleExtractor';
-import { generateCalendarLinks } from './utils/calendarUtils';
-import { parseEventWithClaude } from './utils/claudeParser';
+import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateParser.js';
+import { extractEventTitle } from './utils/titleExtractor.js';
+import { generateCalendarLinks } from './utils/calendarUtils.js';
+import { parseEventWithClaude } from './utils/claudeParser.js';
 
 // Polyfill para crypto global
 if (!globalThis.crypto) {
