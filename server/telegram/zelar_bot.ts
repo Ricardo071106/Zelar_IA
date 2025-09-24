@@ -6,6 +6,7 @@
 import { Telegraf } from 'telegraf';
 import { parseUserDateTime, setUserTimezone, getUserTimezone, COMMON_TIMEZONES } from './utils/parseDate';
 import { parseEventWithClaude } from '../utils/claudeParser';
+import { extractEmails, stripEmails } from '../utils/attendeeExtractor';
 import { DateTime, IANAZone } from 'luxon';
 
 // =================== SISTEMA DE APRENDIZADO SIMPLES ===================
@@ -165,6 +166,7 @@ interface Event {
   startDate: string; // ISO string for Google Calendar
   description: string;
   displayDate: string; // Formatted date for display
+  attendees?: string[]; // Adicionado para armazenar e-mails de convidados
 }
 
 /**
@@ -322,7 +324,7 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
     return null;
   }
   
-  const title = extractEventTitle(text);
+  const title = extractEventTitle(stripEmails(text));
   
   console.log(`📝 Título extraído: "${title}"`);
   console.log(`📅 Data interpretada: ${result.readable}`);
@@ -330,8 +332,9 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
   return {
     title,
     startDate: result.iso,
-    description: text,
-    displayDate: result.readable
+    description: stripEmails(text),
+    displayDate: result.readable,
+    attendees: extractEmails(text)
   };
 }
 
@@ -359,10 +362,20 @@ function generateLinks(event: Event) {
   console.log(`📅 Google UTC: ${startFormatted}/${endFormatted}`);
   console.log(`📅 Outlook: ${startISO} → ${endISO}`);
   
-  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}`;
-  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}`;
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}${serializeGoogleAttendees(event.attendees)}`;
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}${serializeOutlookAttendees(event.attendees)}`;
   
   return { google, outlook };
+}
+
+function serializeGoogleAttendees(attendees?: string[]): string {
+  if (!attendees?.length) return '';
+  return attendees.map((email) => `&add=${encodeURIComponent(email)}`).join('');
+}
+
+function serializeOutlookAttendees(attendees?: string[]): string {
+  if (!attendees?.length) return '';
+  return attendees.map((email) => `&to=${encodeURIComponent(email)}`).join('');
 }
 
 /**
@@ -664,9 +677,10 @@ export async function startZelarBot(): Promise<boolean> {
         await ctx.reply(
           '✅ *Evento criado com sucesso!*\n\n' +
           `🎯 *${event.title}*\n` +
-          `📅 ${event.displayDate}\n\n` +
-          '📅 *Adicionar ao calendário:*',
-          { 
+          `📅 ${event.displayDate}` +
+          formatAttendees(event.attendees) +
+          '\n\n📅 *Adicionar ao calendário:*',
+          {
             parse_mode: 'Markdown',
             reply_markup: {
               inline_keyboard: [
@@ -789,4 +803,9 @@ export async function stopZelarBot(): Promise<void> {
     bot = null;
     isInitializing = false;
   }
+}
+
+function formatAttendees(attendees?: string[]): string {
+  if (!attendees?.length) return '';
+  return `\n\n👥 Convidados: ${attendees.join(', ')}`;
 }

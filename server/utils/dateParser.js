@@ -11,6 +11,22 @@ function getNextWeekday(baseDate, targetWeekday, isNext = false) {
   return baseDate.plus({ days: daysToAdd });
 }
 
+const MONTH_MAP = {
+  'janeiro': 0,
+  'fevereiro': 1,
+  'março': 2,
+  'marco': 2,
+  'abril': 3,
+  'maio': 4,
+  'junho': 5,
+  'julho': 6,
+  'agosto': 7,
+  'setembro': 8,
+  'outubro': 9,
+  'novembro': 10,
+  'dezembro': 11
+};
+
 function extractDateInfo(input) {
   if (/\b(hoje)\b/.test(input)) {
     return { type: 'relative', daysOffset: 0 };
@@ -34,6 +50,26 @@ function extractDateInfo(input) {
       const isNext = /\b(próxima|proxima|que vem)\b/.test(input);
       return { type: 'weekday', weekday, isNext };
     }
+  }
+
+  const dayOfMonthMatch =
+    input.match(/dia\s*(\d{1,2})(?:\s+de\s+([a-zçã]+))?(?:\s+de\s*(\d{4}))?/i) ||
+    input.match(/\b(\d{1,2})\s+de\s+([a-zçã]+)(?:\s+de\s*(\d{4}))?/i);
+  if (dayOfMonthMatch) {
+    const day = parseInt(dayOfMonthMatch[1], 10);
+    const monthName = dayOfMonthMatch[2] ? dayOfMonthMatch[2].toLowerCase() : null;
+    const year = dayOfMonthMatch[3] ? parseInt(dayOfMonthMatch[3], 10) : null;
+
+    return { type: 'dayMonth', day, monthName, year };
+  }
+
+  const numericDateMatch = input.match(/\b(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?\b/);
+  if (numericDateMatch) {
+    const day = parseInt(numericDateMatch[1], 10);
+    const month = parseInt(numericDateMatch[2], 10) - 1;
+    const year = numericDateMatch[3] ? parseInt(numericDateMatch[3], 10) : null;
+
+    return { type: 'numeric', day, month, year };
   }
 
   return null;
@@ -62,6 +98,17 @@ function extractTimeInfo(input) {
   if (timeMatch3) {
     const hour = parseInt(timeMatch3[1]);
     console.log(`🕰️ Formato "às X" encontrado: ${hour}:00`);
+    return { hour, minute: 0 };
+  }
+
+  const timeMatchExtra = input.match(/\b(\d{1,2})\s*(?:da|de)?\s*(manhã|manha|tarde|noite)\b/);
+  if (timeMatchExtra) {
+    let hour = parseInt(timeMatchExtra[1], 10);
+    const period = timeMatchExtra[2];
+    if ((period === 'tarde' || period === 'noite') && hour < 12) {
+      hour += 12;
+    }
+    console.log(`🕰️ Formato "${timeMatchExtra[0]}" encontrado: ${hour}:00`);
     return { hour, minute: 0 };
   }
 
@@ -112,6 +159,25 @@ export function parseBrazilianDateTime(input) {
       baseDateTime = baseDateTime.plus({ days: dateInfo.daysOffset });
     } else if (dateInfo.type === 'weekday' && dateInfo.weekday !== undefined) {
       baseDateTime = getNextWeekday(baseDateTime, dateInfo.weekday, dateInfo.isNext);
+    } else if (dateInfo.type === 'dayMonth') {
+      const current = baseDateTime;
+      let month = dateInfo.monthName ? MONTH_MAP[dateInfo.monthName] : current.month - 1;
+      if (month === undefined || month === null) {
+        month = current.month - 1;
+      }
+      let targetYear = dateInfo.year || current.year;
+      let candidate = DateTime.fromObject({ year: targetYear, month: month + 1, day: dateInfo.day }, { zone: 'America/Sao_Paulo' });
+      if (!candidate.isValid || candidate < current.startOf('day')) {
+        candidate = candidate.plus({ months: 1 });
+      }
+      baseDateTime = candidate;
+    } else if (dateInfo.type === 'numeric') {
+      const targetYear = dateInfo.year ? (dateInfo.year < 100 ? 2000 + dateInfo.year : dateInfo.year) : baseDateTime.year;
+      let candidate = DateTime.fromObject({ year: targetYear, month: dateInfo.month + 1, day: dateInfo.day }, { zone: 'America/Sao_Paulo' });
+      if (!candidate.isValid || candidate < baseDateTime.startOf('day')) {
+        candidate = candidate.plus({ years: 1 });
+      }
+      baseDateTime = candidate;
     }
 
     const hour = timeInfo?.hour ?? 9;

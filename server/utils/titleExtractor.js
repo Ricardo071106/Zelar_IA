@@ -1,3 +1,5 @@
+import { stripEmails } from './attendeeExtractor.js';
+
 function capitalizeFirst(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -6,7 +8,7 @@ function capitalizeFirst(str) {
 function extractEventTitle(text) {
   const textLower = text.toLowerCase();
 
-  let cleanTitle = text;
+  let cleanTitle = stripEmails(text);
 
   const limparTitulo = (texto) =>
     texto
@@ -87,7 +89,7 @@ function extractEventTitle(text) {
     }
   }
 
-  let cleaned = text
+  let cleaned = stripEmails(text)
     .replace(/^(me\s+lembre\s+de\s+|agende\s+|marque\s+|criar?\s+|vou\s+|ir\s+)/i, '')
     .replace(/^(um|uma|o|a|os|as)\s+/i, '')
     .replace(/\b(amanhã|amanha|hoje|ontem)\b/gi, '')

@@ -6,6 +6,7 @@ import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateP
 import { extractEventTitle } from './utils/titleExtractor.js';
 import { generateCalendarLinks } from './utils/calendarUtils.js';
 import { parseEventWithClaude } from './utils/claudeParser.js';
+import { extractEmails, stripEmails } from './utils/attendeeExtractor.js';
 
 // Polyfill para crypto global
 if (!globalThis.crypto) {
@@ -102,10 +103,12 @@ class WhatsAppBot {
     // 1. Tentar parser avançado local (Luxon + heurísticas)
     const primaryResult = parseBrazilianDateTime(text);
     if (primaryResult) {
+      const attendees = extractEmails(text);
       const eventMessage = this.formatEventMessage({
-        title: extractEventTitle(text),
+        title: extractEventTitle(stripEmails(text)),
         iso: primaryResult.iso,
-        readable: primaryResult.readable
+        readable: primaryResult.readable,
+        attendees
       });
       if (eventMessage) {
         console.log('✅ Evento interpretado via parser local');
@@ -121,8 +124,9 @@ class WhatsAppBot {
 
         if (claudeResult?.isValid && claudeResult.date) {
           const eventDate = new Date(`${claudeResult.date}T${(claudeResult.hour ?? 9).toString().padStart(2, '0')}:${(claudeResult.minute ?? 0).toString().padStart(2, '0')}:00`);
+          const attendees = extractEmails(text);
           const eventMessage = this.formatEventMessage({
-            title: claudeResult.title || extractEventTitle(text),
+            title: claudeResult.title || extractEventTitle(stripEmails(text)),
             iso: eventDate.toISOString(),
             readable: primaryResult?.readable || eventDate.toLocaleString('pt-BR', {
               weekday: 'long',
@@ -130,7 +134,8 @@ class WhatsAppBot {
               month: 'long',
               hour: '2-digit',
               minute: '2-digit'
-            })
+            }),
+            attendees
           });
           if (eventMessage) {
             console.log('✅ Evento interpretado via Claude');
@@ -162,7 +167,8 @@ class WhatsAppBot {
         title,
         startDate: eventDate,
         hour: eventDate.getHours(),
-        minute: eventDate.getMinutes()
+        minute: eventDate.getMinutes(),
+        attendees: eventData.attendees
       });
 
       const readableDate = eventData.readable || eventDate.toLocaleDateString('pt-BR', {
@@ -174,12 +180,18 @@ class WhatsAppBot {
         timeZone: 'America/Sao_Paulo'
       });
 
-      return `✅ *Evento criado!*\n\n` +
+      let message = `✅ *Evento criado!*\n\n` +
         `🎯 *${title}*\n` +
         `📅 ${readableDate}\n\n` +
         `*Adicionar ao calendário:*\n` +
         `🔗 Google Calendar: ${calendarLinks.google}\n\n` +
         `🔗 Outlook: ${calendarLinks.outlook}`;
+
+      if (eventData.attendees?.length) {
+        message += `\n\n👥 Convidados: ${eventData.attendees.join(', ')}`;
+      }
+
+      return message;
     } catch (error) {
       console.error('❌ Erro ao formatar mensagem de evento:', error);
       return null;
