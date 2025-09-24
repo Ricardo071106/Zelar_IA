@@ -41,7 +41,7 @@ class WhatsAppBot {
       console.log(`📩 Mensagem recebida de ${message.from}: ${text}`);
 
       // Comando /start
-      if (text === '/start' || text.toLowerCase().includes('olá, gostaria de usar o zelar')) {
+      if (text === '/start') {
         const response = '🤖 *Zelar - Assistente de Agendamento*\n\n' +
           'Bem-vindo! Eu posso te ajudar a criar eventos e lembretes de forma natural.\n\n' +
           '💡 *Como usar:*\n' +
