@@ -2,7 +2,8 @@ import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import { webcrypto } from 'crypto';
-import { parseUserDateTime, extractEventTitle } from './telegram/utils/parseDate';
+import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateParser';
+import { extractEventTitle } from './telegram/utils/parseDate';
 import { generateCalendarLinks } from './utils/calendarUtils';
 import { parseEventWithClaude } from './utils/claudeParser';
 
@@ -99,7 +100,7 @@ class WhatsAppBot {
     console.log('🔍 Processando evento:', text);
 
     // 1. Tentar parser avançado local (Luxon + heurísticas)
-    const primaryResult = parseUserDateTime(text, userId || 'whatsapp');
+    const primaryResult = parseBrazilianDateTime(text);
     if (primaryResult) {
       const eventMessage = this.formatEventMessage({
         title: extractEventTitle(text),
