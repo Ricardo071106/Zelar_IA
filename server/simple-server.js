@@ -3,7 +3,7 @@ import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import { webcrypto } from 'crypto';
 import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateParser';
-import { extractEventTitle } from './telegram/utils/parseDate';
+import { extractEventTitle } from './utils/titleExtractor';
 import { generateCalendarLinks } from './utils/calendarUtils';
 import { parseEventWithClaude } from './utils/claudeParser';
 
