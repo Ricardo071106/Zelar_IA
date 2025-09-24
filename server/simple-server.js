@@ -109,6 +109,10 @@ class WhatsAppBot {
     else if (lowerText.includes('consulta')) title = 'Consulta';
     else if (lowerText.includes('academia')) title = 'Academia';
     else if (lowerText.includes('trabalho')) title = 'Trabalho';
+    else if (lowerText.includes('café') || lowerText.includes('cafe')) title = 'Café';
+    else if (lowerText.includes('encontro')) title = 'Encontro';
+    else if (lowerText.includes('call')) title = 'Call';
+    else if (lowerText.includes('meeting')) title = 'Meeting';
     
     // Detectar "com" para adicionar pessoa
     const comMatch = text.match(/(.+?)\s+com\s+(.+)/i);
@@ -116,12 +120,30 @@ class WhatsAppBot {
       title = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
     }
     
-    // Detectar horário
-    const timeMatch = text.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
-    if (!timeMatch) return null;
+    // Detectar horário - mais flexível
+    let hour = 9, minute = 0;
+    const timePatterns = [
+      /(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i,
+      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*manhã|da\s*manha|am)/i,
+      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*tarde|pm)/i,
+      /(\d{1,2})(?::(\d{2}))?\s*(?:h|horas?)/i
+    ];
     
-    const hour = parseInt(timeMatch[1]);
-    const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+    let timeMatch = null;
+    for (const pattern of timePatterns) {
+      timeMatch = text.match(pattern);
+      if (timeMatch) break;
+    }
+    
+    if (timeMatch) {
+      hour = parseInt(timeMatch[1]);
+      minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
+      
+      // Ajustar para PM se mencionado
+      if (lowerText.includes('tarde') || lowerText.includes('pm')) {
+        if (hour < 12) hour += 12;
+      }
+    }
     
     // Detectar data
     let eventDate = new Date();
@@ -147,6 +169,28 @@ class WhatsAppBot {
     // Detectar "amanhã"
     if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
       eventDate.setDate(eventDate.getDate() + 1);
+      isValidEvent = true;
+    }
+    
+    // Detectar dia do mês (ex: "dia 29")
+    const dayMatch = text.match(/dia\s*(\d{1,2})/i);
+    if (dayMatch) {
+      const day = parseInt(dayMatch[1]);
+      const today = new Date();
+      const currentMonth = today.getMonth();
+      const currentYear = today.getFullYear();
+      
+      // Se o dia já passou este mês, agendar para o próximo mês
+      if (day < today.getDate()) {
+        eventDate = new Date(currentYear, currentMonth + 1, day);
+      } else {
+        eventDate = new Date(currentYear, currentMonth, day);
+      }
+      isValidEvent = true;
+    }
+    
+    // Se não conseguiu detectar data específica, mas tem horário, usar hoje
+    if (!isValidEvent && timeMatch) {
       isValidEvent = true;
     }
     
