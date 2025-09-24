@@ -2,6 +2,9 @@ import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
 import { webcrypto } from 'crypto';
+import { parseUserDateTime, extractEventTitle } from './telegram/utils/parseDate';
+import { generateCalendarLinks } from './utils/calendarUtils';
+import { parseEventWithClaude } from './utils/claudeParser';
 
 // Polyfill para crypto global
 if (!globalThis.crypto) {
@@ -74,15 +77,9 @@ class WhatsAppBot {
       }
 
       // Processar evento
-      const result = this.parseEvent(text);
-      if (result) {
-        const response = `✅ *Evento criado!*\n\n` +
-          `🎯 *${result.title}*\n` +
-          `📅 ${result.dateTime}\n\n` +
-          `*Adicionar ao calendário:*\n` +
-          `🔗 Google Calendar: ${result.googleLink}\n\n` +
-          `🔗 Outlook: ${result.outlookLink}`;
-        await this.sendMessage(message.from, response);
+      const eventResponse = await this.processEventMessage(text, message.from);
+      if (eventResponse) {
+        await this.sendMessage(message.from, eventResponse);
       } else {
         const response = `👋 Olá! Sou o assistente Zelar.\n\n` +
           `Para criar um evento, envie uma mensagem como:\n` +
@@ -98,162 +95,94 @@ class WhatsAppBot {
     }
   }
 
-  parseEvent(text) {
-    const lowerText = text.toLowerCase();
+  async processEventMessage(text, userId) {
     console.log('🔍 Processando evento:', text);
-    
-    // Extrair título - mais flexível
-    let title = 'Evento';
-    if (lowerText.includes('jantar')) title = 'Jantar';
-    else if (lowerText.includes('almoço') || lowerText.includes('almoco')) title = 'Almoço';
-    else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) title = 'Reunião';
-    else if (lowerText.includes('consulta')) title = 'Consulta';
-    else if (lowerText.includes('academia')) title = 'Academia';
-    else if (lowerText.includes('trabalho')) title = 'Trabalho';
-    else if (lowerText.includes('café') || lowerText.includes('cafe')) title = 'Café';
-    else if (lowerText.includes('encontro')) title = 'Encontro';
-    else if (lowerText.includes('call')) title = 'Call';
-    else if (lowerText.includes('meeting')) title = 'Meeting';
-    else if (lowerText.includes('marque')) title = 'Evento';
-    
-    // Detectar "com" para adicionar pessoa - mais flexível
-    const comMatch = text.match(/(.+?)\s+com\s+(.+)/i);
-    if (comMatch) {
-      const beforeCom = comMatch[1].trim();
-      const afterCom = comMatch[2].trim();
-      
-      // Se começar com "marque", usar o que vem depois
-      if (beforeCom.toLowerCase().includes('marque')) {
-        const eventType = beforeCom.toLowerCase().replace(/marque\s*um?\s*/, '').trim();
-        if (eventType) {
-          title = `${eventType} com ${afterCom}`;
-        } else {
-          title = `Evento com ${afterCom}`;
+
+    // 1. Tentar parser avançado local (Luxon + heurísticas)
+    const primaryResult = parseUserDateTime(text, userId || 'whatsapp');
+    if (primaryResult) {
+      const eventMessage = this.formatEventMessage({
+        title: extractEventTitle(text),
+        iso: primaryResult.iso,
+        readable: primaryResult.readable
+      });
+      if (eventMessage) {
+        console.log('✅ Evento interpretado via parser local');
+        return eventMessage;
+      }
+    }
+
+    // 2. Fallback para Claude/OpenRouter se disponível
+    if (process.env.OPENROUTER_API_KEY) {
+      try {
+        const claudeResult = await parseEventWithClaude(text, 'America/Sao_Paulo');
+        console.log('🧠 Claude retornou:', claudeResult);
+
+        if (claudeResult?.isValid && claudeResult.date) {
+          const eventDate = new Date(`${claudeResult.date}T${(claudeResult.hour ?? 9).toString().padStart(2, '0')}:${(claudeResult.minute ?? 0).toString().padStart(2, '0')}:00`);
+          const eventMessage = this.formatEventMessage({
+            title: claudeResult.title || extractEventTitle(text),
+            iso: eventDate.toISOString(),
+            readable: primaryResult?.readable || eventDate.toLocaleString('pt-BR', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              hour: '2-digit',
+              minute: '2-digit'
+            })
+          });
+          if (eventMessage) {
+            console.log('✅ Evento interpretado via Claude');
+            return eventMessage;
+          }
         }
-      } else {
-        title = `${beforeCom} com ${afterCom}`;
+      } catch (error) {
+        console.error('❌ Erro ao interpretar evento com Claude:', error.message || error);
       }
     }
-    
-    console.log('📝 Título extraído:', title);
-    
-    // Detectar horário - mais flexível
-    let hour = 9, minute = 0;
-    const timePatterns = [
-      /(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i,
-      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*manhã|da\s*manha|am)/i,
-      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*tarde|pm)/i,
-      /(\d{1,2})(?::(\d{2}))?\s*(?:h|horas?)/i,
-      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*manhã|da\s*manha)/i
-    ];
-    
-    let timeMatch = null;
-    for (const pattern of timePatterns) {
-      timeMatch = text.match(pattern);
-      if (timeMatch) break;
-    }
-    
-    if (timeMatch) {
-      hour = parseInt(timeMatch[1]);
-      minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-      
-      // Ajustar para PM se mencionado
-      if (lowerText.includes('tarde') || lowerText.includes('pm')) {
-        if (hour < 12) hour += 12;
+
+    console.log('❌ Não foi possível interpretar o evento');
+    return null;
+  }
+
+  formatEventMessage(eventData) {
+    try {
+      if (!eventData?.iso) return null;
+
+      const eventDate = new Date(eventData.iso);
+      if (Number.isNaN(eventDate.getTime())) {
+        console.log('❌ Data inválida ao formatar evento');
+        return null;
       }
-      
-      console.log('⏰ Horário extraído:', `${hour}:${minute.toString().padStart(2, '0')}`);
-    }
-    
-    // Detectar data
-    let eventDate = new Date();
-    let isValidEvent = false;
-    
-    // Detectar dia da semana
-    const weekdays = {
-      'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
-    };
-    
-    for (const [day, dayNum] of Object.entries(weekdays)) {
-      if (lowerText.includes(day)) {
-        const today = new Date();
-        const currentDay = today.getDay();
-        let daysToAdd = (dayNum - currentDay + 7) % 7;
-        if (daysToAdd === 0) daysToAdd = 7;
-        eventDate.setDate(today.getDate() + daysToAdd);
-        isValidEvent = true;
-        break;
-      }
-    }
-    
-    // Detectar "amanhã"
-    if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
-      eventDate.setDate(eventDate.getDate() + 1);
-      isValidEvent = true;
-    }
-    
-    // Detectar dia do mês (ex: "dia 29", "29", "dia 29 de setembro")
-    const dayMatch = text.match(/dia\s*(\d{1,2})/i) || text.match(/\b(\d{1,2})\b/);
-    if (dayMatch) {
-      const day = parseInt(dayMatch[1]);
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
-      
-      // Se o dia já passou este mês, agendar para o próximo mês
-      if (day < today.getDate()) {
-        eventDate = new Date(currentYear, currentMonth + 1, day);
-      } else {
-        eventDate = new Date(currentYear, currentMonth, day);
-      }
-      isValidEvent = true;
-      console.log('📅 Data extraída (dia do mês):', eventDate.toLocaleDateString('pt-BR'));
-    }
-    
-    // Se não conseguiu detectar data específica, mas tem horário, usar hoje
-    if (!isValidEvent && timeMatch) {
-      isValidEvent = true;
-    }
-    
-    if (!isValidEvent) {
-      console.log('❌ Evento inválido - não conseguiu detectar data/hora');
+
+      const title = eventData.title?.trim() || extractEventTitle(eventData.readable || 'Evento');
+
+      const calendarLinks = generateCalendarLinks({
+        title,
+        startDate: eventDate,
+        hour: eventDate.getHours(),
+        minute: eventDate.getMinutes()
+      });
+
+      const readableDate = eventData.readable || eventDate.toLocaleDateString('pt-BR', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'America/Sao_Paulo'
+      });
+
+      return `✅ *Evento criado!*\n\n` +
+        `🎯 *${title}*\n` +
+        `📅 ${readableDate}\n\n` +
+        `*Adicionar ao calendário:*\n` +
+        `🔗 Google Calendar: ${calendarLinks.google}\n\n` +
+        `🔗 Outlook: ${calendarLinks.outlook}`;
+    } catch (error) {
+      console.error('❌ Erro ao formatar mensagem de evento:', error);
       return null;
     }
-    
-    console.log('✅ Evento válido detectado!');
-    
-    // Configurar horário (timezone Brasil UTC-3)
-    eventDate.setHours(hour, minute, 0, 0);
-    console.log('📅 Data final:', eventDate.toLocaleDateString('pt-BR'), eventDate.toLocaleTimeString('pt-BR'));
-    
-    // Gerar links com timezone correto
-    const startDate = new Date(eventDate);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-    
-    // Converter para UTC para os links (Brasil é UTC-3)
-    const utcStartDate = new Date(startDate.getTime() + (3 * 60 * 60 * 1000));
-    const utcEndDate = new Date(endDate.getTime() + (3 * 60 * 60 * 1000));
-    
-    const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-    
-    const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(utcStartDate)}/${formatDate(utcEndDate)}`;
-    const outlookLink = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(title)}&startdt=${utcStartDate.toISOString()}&enddt=${utcEndDate.toISOString()}`;
-    
-    const dateTime = startDate.toLocaleDateString('pt-BR', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      hour: '2-digit',
-      minute: '2-digit',
-      timeZone: 'America/Sao_Paulo'
-    });
-    
-    return {
-      title,
-      dateTime,
-      googleLink,
-      outlookLink
-    };
   }
 
   async sendMessage(to, message) {
@@ -263,7 +192,7 @@ class WhatsAppBot {
         return false;
       }
       
-      await this.sock.sendMessage(to, { text: message });
+      await this.sock.sendMessage(to, { text: message }, { linkPreview: false });
       return true;
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);
