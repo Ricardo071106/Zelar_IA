@@ -1,32 +1,61 @@
 import { stripEmails } from './attendeeExtractor.js';
 
+function removeInviteInstructions(text) {
+  if (!text) return '';
+  return text
+    .replace(/(?:,?\s*)?(?:e\s+)?(?:manda|mande|mandar|mandei|envia|envie|enviar|enviei|adiciona|adicionar|adiciona?e?|coloca|colocar|inclui|incluir)\s+(?:pra|para|pro|a|o|os|as)\b.*$/gi, '')
+    .trim();
+}
+
+function removeTemporalExpressions(text) {
+  if (!text) return '';
+  return text
+    .replace(/\b(hoje|amanhã|amanha|agora|depois|ontem|já|ja|ainda)\b/gi, '')
+    .replace(/\b(próxima|proxima|passada|seguinte)\b/gi, '')
+    .replace(/\bque\s+vem\b/gi, '')
+    .replace(/\b(dia)\s+\d{1,2}\b/gi, '')
+    .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '')
+    .replace(/\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(?:-feira)?\b/gi, '')
+    .replace(/\b(?:às|ás|as|a)\s*\d{1,2}(?::\d{2})?\s*(?:h|horas?|pm|am)?\b/gi, '')
+    .replace(/\b(?:da|de|do|pela|pelos|pelas|ao|aos)\s+(manhã|manha|tarde|noite)\b/gi, '')
+    .replace(/\b(?:pela|na|no|em)\s+(manhã|manha|tarde|noite)\b/gi, '')
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*$/g, '')
+    .replace(/\s+e\s*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 function capitalizeFirst(str) {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function extractEventTitle(text) {
-  const sanitizedText = stripEmails(text);
+  let sanitizedText = stripEmails(text);
+  sanitizedText = removeInviteInstructions(sanitizedText);
   const textLower = sanitizedText.toLowerCase();
 
   let cleanTitle = sanitizedText;
 
   const limparTitulo = (texto) =>
-    texto
+    removeInviteInstructions(texto)
       .replace(/\b(marque|agende|coloque|anote|lembre|crie|faça|criar|fazer)\b/gi, '')
       .replace(/\b(me\s+lembre\s+de|lembre\s+me\s+de|me\s+lembrar\s+de)\b/gi, '')
       .replace(/\b(às|as)\s+\d{1,2}(:\d{2})?\s?(h|horas?|pm|am)?\b/gi, '')
       .replace(/\b(amanhã|amanha|hoje|ontem|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/gi, '')
       .replace(/\b(da\s+manhã|da\s+tarde|da\s+noite|de\s+manhã|de\s+tarde|de\s+noite)\b/gi, '')
       .replace(/\b\d{1,2}\/\d{1,2}(?:\/\d{2,4})?\b/gi, '')
+      .replace(/(?:,?\s*)?(?:e\s+)?(?:manda|envia|enviar|mandar|adiciona|adicionar|coloca|colocar|inclui|incluir)\s+(?:pra|para|pro|a|o|os|as)\b.*$/gi, '')
       .replace(/\s+/g, ' ')
       .trim();
 
   cleanTitle = limparTitulo(cleanTitle);
+  cleanTitle = removeTemporalExpressions(cleanTitle);
 
   const temporalPatterns = [
     /\b(próxima|proxima|que\s+vem)\b/gi,
-    /\b(depois|antes|agora|já|ainda)\b/gi
+    /\b(depois|antes|agora|já|ja|ainda)\b/gi
   ];
 
   for (const pattern of temporalPatterns) {
@@ -57,23 +86,26 @@ function extractEventTitle(text) {
   for (const pattern of specificPatterns) {
     const match = textLower.match(pattern.regex);
     if (match && match[1]) {
-      const result = pattern.format(match[1].trim());
-      return capitalizeFirst(result);
+      const result = pattern.format(removeInviteInstructions(match[1].trim()));
+      const cleanedResult = removeTemporalExpressions(result);
+      return capitalizeFirst(cleanedResult);
     }
   }
 
   const actionVerbs = [
-    /(?:me\s+)?lembre?\s+de\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
-    /(?:vou\s+|ir\s+)?fazer\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
-    /agende?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
-    /marque?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
-    /criar?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i
+    /(?:me\s+)?lembre?\s+de\s+(.+?)(?:\s+(?:hoje|amanhã|amanha|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|às|as|na|no)|\s*$)/i,
+    /(?:vou\s+|ir\s+)?fazer\s+(.+?)(?:\s+(?:hoje|amanhã|amanha|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|às|as|na|no)|\s*$)/i,
+    /agende?\s+(.+?)(?:\s+(?:hoje|amanhã|amanha|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|às|as|na|no)|\s*$)/i,
+    /marque?\s+(.+?)(?:\s+(?:hoje|amanhã|amanha|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|às|as|na|no)|\s*$)/i,
+    /criar?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|amanha|segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo|às|as|na|no)|\s*$)/i
   ];
 
   for (const verb of actionVerbs) {
-    const match = text.match(verb);
+    const match = sanitizedText.match(verb);
     if (match && match[1]) {
-      let extracted = match[1].trim();
+      let extracted = removeInviteInstructions(match[1])
+        .trim();
+      extracted = removeTemporalExpressions(extracted);
       extracted = extracted.replace(/^(um|uma|o|a|os|as)\s+/i, '');
       return capitalizeFirst(extracted);
     }
@@ -86,6 +118,13 @@ function extractEventTitle(text) {
 
   for (const keyword of directKeywords) {
     if (textLower.includes(keyword)) {
+      const keywordMatch = sanitizedText.match(new RegExp(`${keyword}\\s+com\\s+([^,]+)`, 'i'));
+      if (keywordMatch && keywordMatch[1]) {
+        const participant = removeInviteInstructions(removeTemporalExpressions(keywordMatch[1].trim()));
+        if (participant) {
+          return capitalizeFirst(`${keyword} com ${participant}`);
+        }
+      }
       return capitalizeFirst(keyword);
     }
   }
@@ -99,8 +138,11 @@ function extractEventTitle(text) {
     .replace(/\bàs?\s+\d{1,2}(:\d{2})?h?\b/gi, '')
     .replace(/\b\d{1,2}(am|pm)\b/gi, '')
     .replace(/\b(da manhã|da manha|da tarde|da noite)\b/gi, '')
+    .replace(/(?:,?\s*)?(?:e\s+)?(?:manda|envia|enviar|mandar|adiciona|adicionar|coloca|colocar|inclui|incluir)\s+(?:pra|para|pro|a|o|os|as)\b.*$/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+  cleaned = removeInviteInstructions(cleaned);
+  cleaned = removeTemporalExpressions(cleaned);
 
   return capitalizeFirst(cleaned) || 'Evento';
 }
