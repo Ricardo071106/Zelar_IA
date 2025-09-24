@@ -100,8 +100,9 @@ class WhatsAppBot {
 
   parseEvent(text) {
     const lowerText = text.toLowerCase();
+    console.log('🔍 Processando evento:', text);
     
-    // Extrair título
+    // Extrair título - mais flexível
     let title = 'Evento';
     if (lowerText.includes('jantar')) title = 'Jantar';
     else if (lowerText.includes('almoço') || lowerText.includes('almoco')) title = 'Almoço';
@@ -113,12 +114,28 @@ class WhatsAppBot {
     else if (lowerText.includes('encontro')) title = 'Encontro';
     else if (lowerText.includes('call')) title = 'Call';
     else if (lowerText.includes('meeting')) title = 'Meeting';
+    else if (lowerText.includes('marque')) title = 'Evento';
     
-    // Detectar "com" para adicionar pessoa
+    // Detectar "com" para adicionar pessoa - mais flexível
     const comMatch = text.match(/(.+?)\s+com\s+(.+)/i);
     if (comMatch) {
-      title = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
+      const beforeCom = comMatch[1].trim();
+      const afterCom = comMatch[2].trim();
+      
+      // Se começar com "marque", usar o que vem depois
+      if (beforeCom.toLowerCase().includes('marque')) {
+        const eventType = beforeCom.toLowerCase().replace(/marque\s*um?\s*/, '').trim();
+        if (eventType) {
+          title = `${eventType} com ${afterCom}`;
+        } else {
+          title = `Evento com ${afterCom}`;
+        }
+      } else {
+        title = `${beforeCom} com ${afterCom}`;
+      }
     }
+    
+    console.log('📝 Título extraído:', title);
     
     // Detectar horário - mais flexível
     let hour = 9, minute = 0;
@@ -126,7 +143,8 @@ class WhatsAppBot {
       /(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i,
       /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*manhã|da\s*manha|am)/i,
       /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*tarde|pm)/i,
-      /(\d{1,2})(?::(\d{2}))?\s*(?:h|horas?)/i
+      /(\d{1,2})(?::(\d{2}))?\s*(?:h|horas?)/i,
+      /(\d{1,2})(?::(\d{2}))?\s*(?:da\s*manhã|da\s*manha)/i
     ];
     
     let timeMatch = null;
@@ -143,6 +161,8 @@ class WhatsAppBot {
       if (lowerText.includes('tarde') || lowerText.includes('pm')) {
         if (hour < 12) hour += 12;
       }
+      
+      console.log('⏰ Horário extraído:', `${hour}:${minute.toString().padStart(2, '0')}`);
     }
     
     // Detectar data
@@ -172,8 +192,8 @@ class WhatsAppBot {
       isValidEvent = true;
     }
     
-    // Detectar dia do mês (ex: "dia 29")
-    const dayMatch = text.match(/dia\s*(\d{1,2})/i);
+    // Detectar dia do mês (ex: "dia 29", "29", "dia 29 de setembro")
+    const dayMatch = text.match(/dia\s*(\d{1,2})/i) || text.match(/\b(\d{1,2})\b/);
     if (dayMatch) {
       const day = parseInt(dayMatch[1]);
       const today = new Date();
@@ -187,6 +207,7 @@ class WhatsAppBot {
         eventDate = new Date(currentYear, currentMonth, day);
       }
       isValidEvent = true;
+      console.log('📅 Data extraída (dia do mês):', eventDate.toLocaleDateString('pt-BR'));
     }
     
     // Se não conseguiu detectar data específica, mas tem horário, usar hoje
@@ -194,10 +215,16 @@ class WhatsAppBot {
       isValidEvent = true;
     }
     
-    if (!isValidEvent) return null;
+    if (!isValidEvent) {
+      console.log('❌ Evento inválido - não conseguiu detectar data/hora');
+      return null;
+    }
+    
+    console.log('✅ Evento válido detectado!');
     
     // Configurar horário (timezone Brasil UTC-3)
     eventDate.setHours(hour, minute, 0, 0);
+    console.log('📅 Data final:', eventDate.toLocaleDateString('pt-BR'), eventDate.toLocaleTimeString('pt-BR'));
     
     // Gerar links com timezone correto
     const startDate = new Date(eventDate);
@@ -280,7 +307,25 @@ class WhatsAppBot {
       console.log('🔗 Criando conexão Baileys...');
       this.sock = makeWASocket({
         auth: state,
-        printQRInTerminal: true
+        printQRInTerminal: true,
+        generateHighQualityLinkPreview: false,
+        markOnlineOnConnect: false,
+        defaultQueryTimeoutMs: 60000,
+        keepAliveIntervalMs: 30000,
+        connectTimeoutMs: 60000,
+        retryRequestDelayMs: 250,
+        maxMsgRetryCount: 5,
+        msgRetryCounterCache: new Map(),
+        linkPreviewImageThumbnailWidth: 192,
+        transactionOpts: {
+          maxCommitRetries: 10,
+          delayBetweenTriesMs: 3000
+        },
+        getMessage: async (key) => {
+          return {
+            conversation: "placeholder"
+          }
+        }
       });
       console.log('✅ Conexão criada!');
 
