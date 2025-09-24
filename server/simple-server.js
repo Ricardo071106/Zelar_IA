@@ -1,16 +1,29 @@
 import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
-import { webcrypto } from 'crypto';
+import * as nodeCrypto from 'crypto';
 import { parseBrazilianDateTime, parseBrazilianDateTimeISO } from './utils/dateParser.js';
 import { extractEventTitle } from './utils/titleExtractor.js';
 import { generateCalendarLinks } from './utils/calendarUtils.js';
 import { parseEventWithClaude } from './utils/claudeParser.js';
 import { extractEmails, stripEmails } from './utils/attendeeExtractor.js';
 
-// Polyfill para crypto global
+const { webcrypto } = nodeCrypto;
+
+const resolvedCrypto = webcrypto || nodeCrypto.webcrypto || nodeCrypto;
+
 if (!globalThis.crypto) {
-  globalThis.crypto = webcrypto;
+  globalThis.crypto = resolvedCrypto;
+}
+
+if (!global.crypto) {
+  global.crypto = globalThis.crypto;
+}
+
+const subtle = globalThis.crypto?.subtle || globalThis.crypto?.webcrypto?.subtle;
+if (!subtle && nodeCrypto.webcrypto?.subtle) {
+  globalThis.crypto = nodeCrypto.webcrypto;
+  global.crypto = globalThis.crypto;
 }
 
 // import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
@@ -607,156 +620,4 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false
         
         if (selectedTimezone) {
           await telegramBot.sendMessage(chatId,
-            `✅ *Fuso horário atualizado!*\n\n` +
-            `🌍 Região: ${timezoneName}\n` +
-            `⏰ Agora todos os eventos serão criados neste fuso horário.\n\n` +
-            `💡 Envie uma mensagem como "reunião amanhã às 14h" para testar!`,
-            { parse_mode: 'Markdown' }
-          );
-          
-          await telegramBot.answerCallbackQuery(callbackId, { text: `Fuso horário definido: ${timezoneName}` });
-        }
-      }
-    });
-    
-  } catch (error) {
-    console.error('❌ Erro ao inicializar bot do Telegram:', error);
-  }
-}
-
-app.use(express.json());
-
-// Health check simples
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'TelegramScheduler is running!',
-    timestamp: new Date().toISOString(),
-    port: port,
-    telegramBot: !!process.env.TELEGRAM_BOT_TOKEN,
-    database: !!process.env.DATABASE_URL
-  });
-});
-
-// Root endpoint
-app.get('/', (req, res) => {
-  res.json({
-    message: 'TelegramScheduler API',
-    version: '1.0.0',
-    status: 'running',
-    telegramBot: !!process.env.TELEGRAM_BOT_TOKEN,
-    database: !!process.env.DATABASE_URL
-  });
-});
-
-// Rota para a página do QR Code
-app.get('/qr', (req, res) => {
-  res.sendFile('qr-display.html', { root: 'public' });
-});
-
-// Endpoint para obter QR code do WhatsApp
-app.get('/api/whatsapp/qr', async (req, res) => {
-  try {
-    if (!whatsappBot) {
-      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
-    }
-
-    const status = whatsappBot.getStatus();
-    
-    if (status.isConnected) {
-      return res.json({
-        status: 'connected',
-        message: 'WhatsApp já está conectado!',
-        clientInfo: status.clientInfo
-      });
-    }
-
-    if (status.qrCode) {
-      // Gerar QR code como imagem
-      const qrImage = await qrcode.toDataURL(status.qrCode, {
-        width: 300,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#FFFFFF'
-        }
-      });
-      return res.json({
-        status: 'qr_ready',
-        qrCode: status.qrCode,
-        qrImage: qrImage,
-        message: 'Escaneie o QR code com seu WhatsApp'
-      });
-    }
-
-    return res.json({
-      status: 'waiting',
-      message: 'Aguardando QR code... Tente novamente em alguns segundos'
-    });
-  } catch (error) {
-    console.error('Erro ao gerar QR code:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-// Endpoint para status do WhatsApp
-app.get('/api/whatsapp/status', async (req, res) => {
-  try {
-    if (!whatsappBot) {
-      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
-    }
-
-    const status = whatsappBot.getStatus();
-    res.json(status);
-  } catch (error) {
-    console.error('Erro ao obter status do WhatsApp:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-// Endpoint para enviar mensagem via WhatsApp
-app.post('/api/whatsapp/send', async (req, res) => {
-  try {
-    const { to, message } = req.body;
-    
-    if (!to || !message) {
-      return res.status(400).json({ error: 'Número de destino e mensagem são obrigatórios' });
-    }
-
-    if (!whatsappBot) {
-      return res.status(404).json({ error: 'Bot do WhatsApp não encontrado' });
-    }
-
-    const success = await whatsappBot.sendMessage(to, message);
-    
-    if (success) {
-      res.json({ success: true, message: 'Mensagem enviada com sucesso' });
-    } else {
-      res.status(500).json({ error: 'Falha ao enviar mensagem' });
-    }
-  } catch (error) {
-    console.error('Erro ao enviar mensagem WhatsApp:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
-// Start server
-app.listen(port, async () => {
-  console.log(`🚀 Server running on port ${port}`);
-  console.log(`📊 Health check: http://localhost:${port}/health`);
-  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 Telegram Bot: ${process.env.TELEGRAM_BOT_TOKEN ? 'Configured' : 'Not configured'}`);
-  console.log(`🗄️ Database: ${process.env.DATABASE_URL ? 'Configured' : 'Not configured'}`);
-  console.log(`📱 WhatsApp QR: http://localhost:${port}/api/whatsapp/qr`);
-  
-  // Inicializar WhatsApp Bot
-  try {
-    whatsappBot = new WhatsAppBot();
-    await whatsappBot.initialize();
-    console.log('✅ WhatsApp Bot inicializado!');
-  } catch (error) {
-    console.error('❌ Erro ao inicializar WhatsApp Bot:', error);
-  }
-});
-
-export default app; 
+            `

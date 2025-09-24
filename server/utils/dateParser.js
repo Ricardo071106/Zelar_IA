@@ -203,3 +203,8 @@ export function parseBrazilianDateTime(input) {
     return null;
   }
 }
+
+export function parseBrazilianDateTimeISO(input) {
+  const result = parseBrazilianDateTime(input);
+  return result?.iso || null;
+}
