@@ -30,62 +30,6 @@ class WhatsAppBot {
     };
   }
 
-  setupEventHandlers() {
-    console.log('🔧 Configurando event handlers do WhatsApp...');
-    
-    this.client.on('qr', async (qr) => {
-      console.log('🔗 QR Code recebido!');
-      this.status.qrCode = qr;
-      this.status.isConnected = false;
-      this.status.isReady = true;
-      
-      // Gerar QR code visual no terminal
-      try {
-        const qrImage = await qrcode.toString(qr, { type: 'terminal', width: 40 });
-        console.log('\n📱 ESCANEIE O QR CODE ABAIXO NO SEU WHATSAPP:\n');
-        console.log(qrImage);
-        console.log('\n🔗 Ou acesse: http://localhost:' + (process.env.PORT || 8080) + '/api/whatsapp/qr');
-        console.log('\n📋 Como conectar:');
-        console.log('1. Abra o WhatsApp no seu celular');
-        console.log('2. Toque em Menu (3 pontos) → Dispositivos conectados');
-        console.log('3. Toque em Conectar dispositivo');
-        console.log('4. Aponte a câmera para o QR code acima\n');
-      } catch (error) {
-        console.log('❌ Erro ao gerar QR code visual:', error);
-      }
-    });
-
-    this.client.on('ready', () => {
-      console.log('✅ WhatsApp Bot está pronto!');
-      this.status.isConnected = true;
-      this.status.isReady = true;
-      this.status.qrCode = null;
-    });
-
-    this.client.on('authenticated', () => {
-      console.log('🔐 WhatsApp autenticado!');
-    });
-
-    this.client.on('auth_failure', (msg) => {
-      console.error('❌ Falha na autenticação WhatsApp:', msg);
-    });
-
-    this.client.on('disconnected', (reason) => {
-      console.log('🔌 WhatsApp desconectado:', reason);
-      this.status.isConnected = false;
-      this.status.isReady = false;
-    });
-
-    this.client.on('error', (error) => {
-      console.error('❌ Erro no WhatsApp:', error);
-      this.status.isConnected = false;
-      this.status.isReady = false;
-    });
-
-    this.client.on('message', async (message) => {
-      await this.handleMessage(message);
-    });
-  }
 
   async handleMessage(message) {
     try {
@@ -238,7 +182,12 @@ class WhatsAppBot {
 
   async sendMessage(to, message) {
     try {
-      await this.client.sendMessage(to, message);
+      if (!this.sock) {
+        console.error('❌ Socket não está disponível');
+        return false;
+      }
+      
+      await this.sock.sendMessage(to, { text: message });
       return true;
     } catch (error) {
       console.error('❌ Erro ao enviar mensagem:', error);
@@ -326,6 +275,21 @@ class WhatsAppBot {
       });
 
       this.sock.ev.on('creds.update', saveCreds);
+      
+      // Listener para mensagens recebidas
+      this.sock.ev.on('messages.upsert', async (m) => {
+        const msg = m.messages[0];
+        if (!msg.message || msg.key.fromMe) return;
+        
+        const message = {
+          from: msg.key.remoteJid,
+          body: msg.message.conversation || msg.message.extendedTextMessage?.text || '',
+          isStatus: false,
+          fromMe: msg.key.fromMe
+        };
+        
+        await this.handleMessage(message);
+      });
       
       console.log('✅ WhatsApp Bot inicializado com sucesso!');
     } catch (error) {
