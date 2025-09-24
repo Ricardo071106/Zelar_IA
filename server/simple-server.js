@@ -196,24 +196,29 @@ class WhatsAppBot {
     
     if (!isValidEvent) return null;
     
-    // Configurar horário
+    // Configurar horário (timezone Brasil UTC-3)
     eventDate.setHours(hour, minute, 0, 0);
     
-    // Gerar links
+    // Gerar links com timezone correto
     const startDate = new Date(eventDate);
     const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
     
+    // Converter para UTC para os links (Brasil é UTC-3)
+    const utcStartDate = new Date(startDate.getTime() + (3 * 60 * 60 * 1000));
+    const utcEndDate = new Date(endDate.getTime() + (3 * 60 * 60 * 1000));
+    
     const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
     
-    const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
-    const outlookLink = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(title)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
+    const googleLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${formatDate(utcStartDate)}/${formatDate(utcEndDate)}`;
+    const outlookLink = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(title)}&startdt=${utcStartDate.toISOString()}&enddt=${utcEndDate.toISOString()}`;
     
     const dateTime = startDate.toLocaleDateString('pt-BR', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      timeZone: 'America/Sao_Paulo'
     });
     
     return {
