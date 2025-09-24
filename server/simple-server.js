@@ -1,6 +1,13 @@
 import express from 'express';
 import qrcode from 'qrcode';
 import TelegramBot from 'node-telegram-bot-api';
+import { webcrypto } from 'crypto';
+
+// Polyfill para crypto global
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
+
 // import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
 // import { Boom } from '@hapi/boom';
 

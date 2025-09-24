@@ -1,5 +1,0 @@
-2025/08/13-23:08:42.885 b203 Creating DB /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb since it was missing.
-2025/08/13-23:08:42.904 b203 Reusing MANIFEST /Users/ricardo_abrahao/Desktop/TelegramScheduler/whatsapp_session/session-zelar-whatsapp-bot/Default/Local Storage/leveldb/MANIFEST-000001
-2025/08/15-13:19:31.205 28fa7 Level-0 table #5: started
-2025/08/15-13:19:31.211 28fa7 Level-0 table #5: 17054 bytes OK
-2025/08/15-13:19:31.218 28fa7 Delete type=0 #3
