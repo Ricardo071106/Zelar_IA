@@ -143,7 +143,7 @@ function extractTimeInfo(input) {
   return null;
 }
 
-export function parseBrazilianDateTime(input) {
+export function parseBrazilianDateTime(input, timezone = 'America/Sao_Paulo') {
   try {
     console.log(`🔍 Analisando: "${input}"`);
 
@@ -156,7 +156,7 @@ export function parseBrazilianDateTime(input) {
       return null;
     }
 
-    let baseDateTime = DateTime.now().setZone('America/Sao_Paulo');
+    let baseDateTime = DateTime.now().setZone(timezone);
 
     if (dateInfo.type === 'relative' && dateInfo.daysOffset !== undefined) {
       baseDateTime = baseDateTime.plus({ days: dateInfo.daysOffset });
@@ -169,14 +169,14 @@ export function parseBrazilianDateTime(input) {
         month = current.month - 1;
       }
       let targetYear = dateInfo.year || current.year;
-      let candidate = DateTime.fromObject({ year: targetYear, month: month + 1, day: dateInfo.day }, { zone: 'America/Sao_Paulo' });
+      let candidate = DateTime.fromObject({ year: targetYear, month: month + 1, day: dateInfo.day }, { zone: timezone });
       if (!candidate.isValid || candidate < current.startOf('day')) {
         candidate = candidate.plus({ months: 1 });
       }
       baseDateTime = candidate;
     } else if (dateInfo.type === 'numeric') {
       const targetYear = dateInfo.year ? (dateInfo.year < 100 ? 2000 + dateInfo.year : dateInfo.year) : baseDateTime.year;
-      let candidate = DateTime.fromObject({ year: targetYear, month: dateInfo.month + 1, day: dateInfo.day }, { zone: 'America/Sao_Paulo' });
+      let candidate = DateTime.fromObject({ year: targetYear, month: dateInfo.month + 1, day: dateInfo.day }, { zone: timezone });
       if (!candidate.isValid || candidate < baseDateTime.startOf('day')) {
         candidate = candidate.plus({ years: 1 });
       }
@@ -204,7 +204,7 @@ export function parseBrazilianDateTime(input) {
   }
 }
 
-export function parseBrazilianDateTimeISO(input) {
-  const result = parseBrazilianDateTime(input);
+export function parseBrazilianDateTimeISO(input, timezone = 'America/Sao_Paulo') {
+  const result = parseBrazilianDateTime(input, timezone);
   return result?.iso || null;
 }

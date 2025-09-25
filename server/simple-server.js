@@ -364,6 +364,7 @@ let whatsappBot = null;
 
 // Inicializar bot do Telegram se o token estiver configurado
 let telegramBot = null;
+const telegramUserTimezones = new Map();
 if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false') {
   try {
     telegramBot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
@@ -468,62 +469,12 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false
       if (text.startsWith('/')) return;
 
       try {
-        // Processamento simples de mensagens
-        const lowerText = text.toLowerCase();
-        
-        // Detectar padrões básicos
-        let eventTitle = 'Evento';
-        let eventDate = new Date();
-        let isValidEvent = false;
-        
-        // Extrair título básico
-        if (lowerText.includes('jantar')) eventTitle = 'Jantar';
-        else if (lowerText.includes('almoço') || lowerText.includes('almoco')) eventTitle = 'Almoço';
-        else if (lowerText.includes('reunião') || lowerText.includes('reuniao')) eventTitle = 'Reunião';
-        else if (lowerText.includes('consulta')) eventTitle = 'Consulta';
-        else if (lowerText.includes('academia')) eventTitle = 'Academia';
-        else if (lowerText.includes('trabalho')) eventTitle = 'Trabalho';
-        else eventTitle = 'Evento';
-        
-        // Detectar "com" para adicionar pessoa
-        const comMatch = text.match(/(.+?)\s+com\s+(.+)/i);
-        if (comMatch) {
-          eventTitle = `${comMatch[1].trim()} com ${comMatch[2].trim()}`;
-        }
-        
-        // Detectar horário básico
-        const timeMatch = text.match(/(?:às|as|a)\s*(\d{1,2})(?::(\d{2}))?\s*h?/i);
-        if (timeMatch) {
-          const hour = parseInt(timeMatch[1]);
-          const minute = timeMatch[2] ? parseInt(timeMatch[2]) : 0;
-          eventDate.setHours(hour, minute, 0, 0);
-          isValidEvent = true;
-        }
-        
-        // Detectar dia da semana
-        const weekdays = {
-          'segunda': 1, 'terça': 2, 'terca': 2, 'quarta': 3, 'quinta': 4, 'sexta': 5, 'sábado': 6, 'sabado': 6, 'domingo': 0
-        };
-        
-        for (const [day, dayNum] of Object.entries(weekdays)) {
-          if (lowerText.includes(day)) {
-            const today = new Date();
-            const currentDay = today.getDay();
-            let daysToAdd = (dayNum - currentDay + 7) % 7;
-            if (daysToAdd === 0) daysToAdd = 7; // Se for hoje, agendar para próxima semana
-            eventDate.setDate(today.getDate() + daysToAdd);
-            isValidEvent = true;
-            break;
-          }
-        }
-        
-        // Detectar "amanhã"
-        if (lowerText.includes('amanhã') || lowerText.includes('amanha')) {
-          eventDate.setDate(eventDate.getDate() + 1);
-          isValidEvent = true;
-        }
-        
-        if (!isValidEvent) {
+        const attendees = extractEmails(text);
+        const cleanText = stripEmails(text);
+        const userTimezone = telegramUserTimezones.get(chatId) || 'America/Sao_Paulo';
+        const parsed = parseBrazilianDateTime(cleanText, userTimezone);
+
+        if (!parsed) {
           await telegramBot.sendMessage(chatId,
             '❌ *Não consegui entender a data/hora*\n\n' +
             '💡 *Tente algo como:*\n' +
@@ -533,41 +484,41 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false
           );
           return;
         }
-        
-        // Gerar links do calendário
-        const startDate = new Date(eventDate);
-        const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-        
-        const formatDate = (date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-        
-        const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(eventTitle)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
-        const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(eventTitle)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
+
+        const eventTitle = extractEventTitle(cleanText);
+        const eventDate = new Date(parsed.iso);
+
+        const calendarLinks = generateCalendarLinks({
+          title: eventTitle,
+          startDate: eventDate,
+          hour: eventDate.getHours(),
+          minute: eventDate.getMinutes(),
+          attendees
+        });
 
         const replyMarkup = {
           inline_keyboard: [
             [
-              { text: '📅 Google Calendar', url: googleUrl },
-              { text: '📅 Outlook', url: outlookUrl }
+              { text: '📅 Google Calendar', url: calendarLinks.google },
+              { text: '📅 Outlook', url: calendarLinks.outlook }
             ]
           ]
         };
 
-        const displayDate = startDate.toLocaleDateString('pt-BR', {
-          weekday: 'long',
-          day: 'numeric',
-          month: 'long',
-          hour: '2-digit',
-          minute: '2-digit'
+        let message = '✅ *Evento criado!*\n\n' +
+          `🎯 *${eventTitle}*\n` +
+          `📅 ${parsed.readable}`;
+
+        if (attendees.length) {
+          message += `\n\n👥 Convidados: ${attendees.join(', ')}`;
+        }
+
+        await telegramBot.sendMessage(chatId, message, {
+          parse_mode: 'Markdown',
+          reply_markup: replyMarkup
         });
 
-        await telegramBot.sendMessage(chatId,
-          '✅ *Evento criado!*\n\n' +
-          `🎯 *${eventTitle}*\n` +
-          `📅 ${displayDate}`,
-          { parse_mode: 'Markdown', reply_markup: replyMarkup }
-        );
-
-        console.log(`✅ Evento criado: ${eventTitle}`);
+        console.log(`✅ Evento criado via parser compartilhado: ${eventTitle}`);
 
       } catch (error) {
         console.error('❌ Erro ao processar:', error);
@@ -619,5 +570,26 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false
         const timezoneName = timezoneNames[callbackData];
         
         if (selectedTimezone) {
+          telegramUserTimezones.set(chatId, selectedTimezone);
+
           await telegramBot.sendMessage(chatId,
-            `
+            '✅ *Fuso horário configurado!*\n\n' +
+            `🌍 *Novo fuso:* ${timezoneName}\n` +
+            `📍 *Código:* \`${selectedTimezone}\`\n\n` +
+            'Agora todos os eventos considerarão este fuso horário.',
+            { parse_mode: 'Markdown' }
+          );
+
+          await telegramBot.answerCallbackQuery(callbackId, {
+            text: `Fuso atualizado: ${timezoneName}`,
+            show_alert: false
+          });
+
+          return;
+        }
+
+        await telegramBot.answerCallbackQuery(callbackId, { text: 'Ação não reconhecida' });
+        return;
+      }
+ 
+      console.log('⚠️ Callback query não reconhecida:', callbackData);
