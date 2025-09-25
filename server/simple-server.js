@@ -531,65 +531,134 @@ if (process.env.TELEGRAM_BOT_TOKEN && process.env.ENABLE_TELEGRAM_BOT !== 'false
       const callbackData = callbackQuery.data;
       const chatId = callbackQuery.message.chat.id;
       const callbackId = callbackQuery.id;
-      
+
       console.log(`🔘 Callback: "${callbackData}" do chat ${chatId}`);
-      
-      // Processar seleção de fuso horário
-      if (callbackData?.startsWith('tz_')) {
-        const timezoneMap = {
-          'tz_brazil': 'America/Sao_Paulo',
-          'tz_us_east': 'America/New_York',
-          'tz_us_central': 'America/Chicago',
-          'tz_us_west': 'America/Los_Angeles',
-          'tz_london': 'Europe/London',
-          'tz_europe': 'Europe/Berlin',
-          'tz_moscow': 'Europe/Moscow',
-          'tz_india': 'Asia/Kolkata',
-          'tz_china': 'Asia/Shanghai',
-          'tz_japan': 'Asia/Tokyo',
-          'tz_sydney': 'Australia/Sydney',
-          'tz_newzealand': 'Pacific/Auckland'
-        };
 
-        const timezoneNames = {
-          'tz_brazil': 'Brasil/Argentina (UTC-3)',
-          'tz_us_east': 'EUA Leste/Canadá (UTC-5)',
-          'tz_us_central': 'EUA Central/México (UTC-6)',
-          'tz_us_west': 'EUA Oeste (UTC-8)',
-          'tz_london': 'Londres/Dublin (UTC+0)',
-          'tz_europe': 'Europa Central (UTC+1)',
-          'tz_moscow': 'Moscou/Turquia (UTC+3)',
-          'tz_india': 'Índia (UTC+5:30)',
-          'tz_china': 'China/Singapura (UTC+8)',
-          'tz_japan': 'Japão/Coreia (UTC+9)',
-          'tz_sydney': 'Austrália Leste (UTC+10)',
-          'tz_newzealand': 'Nova Zelândia (UTC+12)'
-        };
+      try {
+        if (callbackData?.startsWith('tz_')) {
+          const timezoneMap = {
+            'tz_brazil': 'America/Sao_Paulo',
+            'tz_us_east': 'America/New_York',
+            'tz_us_central': 'America/Chicago',
+            'tz_us_west': 'America/Los_Angeles',
+            'tz_london': 'Europe/London',
+            'tz_europe': 'Europe/Berlin',
+            'tz_moscow': 'Europe/Moscow',
+            'tz_india': 'Asia/Kolkata',
+            'tz_china': 'Asia/Shanghai',
+            'tz_japan': 'Asia/Tokyo',
+            'tz_sydney': 'Australia/Sydney',
+            'tz_newzealand': 'Pacific/Auckland'
+          };
 
-        const selectedTimezone = timezoneMap[callbackData];
-        const timezoneName = timezoneNames[callbackData];
-        
-        if (selectedTimezone) {
-          telegramUserTimezones.set(chatId, selectedTimezone);
+          const timezoneNames = {
+            'tz_brazil': 'Brasil/Argentina (UTC-3)',
+            'tz_us_east': 'EUA Leste/Canadá (UTC-5)',
+            'tz_us_central': 'EUA Central/México (UTC-6)',
+            'tz_us_west': 'EUA Oeste (UTC-8)',
+            'tz_london': 'Londres/Dublin (UTC+0)',
+            'tz_europe': 'Europa Central (UTC+1)',
+            'tz_moscow': 'Moscou/Turquia (UTC+3)',
+            'tz_india': 'Índia (UTC+5:30)',
+            'tz_china': 'China/Singapura (UTC+8)',
+            'tz_japan': 'Japão/Coreia (UTC+9)',
+            'tz_sydney': 'Austrália Leste (UTC+10)',
+            'tz_newzealand': 'Nova Zelândia (UTC+12)'
+          };
 
-          await telegramBot.sendMessage(chatId,
-            '✅ *Fuso horário configurado!*\n\n' +
-            `🌍 *Novo fuso:* ${timezoneName}\n` +
-            `📍 *Código:* \`${selectedTimezone}\`\n\n` +
-            'Agora todos os eventos considerarão este fuso horário.',
-            { parse_mode: 'Markdown' }
-          );
+          const selectedTimezone = timezoneMap[callbackData];
+          const timezoneName = timezoneNames[callbackData];
 
-          await telegramBot.answerCallbackQuery(callbackId, {
-            text: `Fuso atualizado: ${timezoneName}`,
-            show_alert: false
-          });
+          if (selectedTimezone) {
+            telegramUserTimezones.set(chatId, selectedTimezone);
 
-          return;
+            await telegramBot.sendMessage(chatId,
+              '✅ *Fuso horário configurado!*\n\n' +
+              `🌍 *Novo fuso:* ${timezoneName}\n` +
+              `📍 *Código:* \`${selectedTimezone}\`\n\n` +
+              'Agora todos os eventos considerarão este fuso horário.',
+              { parse_mode: 'Markdown' }
+            );
+
+            await telegramBot.answerCallbackQuery(callbackId, {
+              text: `Fuso atualizado: ${timezoneName}`,
+              show_alert: false
+            });
+
+            return;
+          }
         }
 
+        console.log('⚠️ Callback query não reconhecida:', callbackData);
         await telegramBot.answerCallbackQuery(callbackId, { text: 'Ação não reconhecida' });
-        return;
+      } catch (error) {
+        console.error('❌ Erro ao processar callback:', error);
+        try {
+          await telegramBot.answerCallbackQuery(callbackId, {
+            text: 'Erro interno ao processar a ação',
+            show_alert: false
+          });
+        } catch (answerError) {
+          console.error('⚠️ Não foi possível enviar resposta ao callback:', answerError);
+        }
       }
- 
-      console.log('⚠️ Callback query não reconhecida:', callbackData);
+    });
+
+  } catch (error) {
+    console.error('❌ Erro geral no bot do Telegram:', error);
+    telegramBot = null;
+  }
+}
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', whatsapp: whatsappBot?.getStatus() ?? null });
+});
+
+app.get('/api/whatsapp/status', (req, res) => {
+  res.json(whatsappBot?.getStatus() || { isReady: false, isConnected: false });
+});
+
+app.get('/api/whatsapp/qr', async (req, res) => {
+  try {
+    if (!whatsappBot || !whatsappBot.getStatus().qrCode) {
+      return res.status(404).json({ error: 'QR code não disponível' });
+    }
+
+    const status = whatsappBot.getStatus();
+    const svg = await qrcode.toString(status.qrCode, { type: 'svg' });
+
+    res.setHeader('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  } catch (error) {
+    console.error('❌ Erro ao gerar QR via API:', error);
+    res.status(500).json({ error: 'Erro interno ao gerar QR code' });
+  }
+});
+
+app.post('/api/whatsapp/restart', async (req, res) => {
+  try {
+    if (!whatsappBot) {
+      whatsappBot = new WhatsAppBot();
+    }
+
+    await whatsappBot.initialize();
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erro ao reiniciar WhatsApp Bot:', error);
+    res.status(500).json({ error: 'Falha ao reiniciar o bot' });
+  }
+});
+
+(async () => {
+  whatsappBot = new WhatsAppBot();
+  await whatsappBot.initialize();
+})();
+
+app.listen(port, () => {
+  console.log(`🚀 Server running on port ${port}`);
+  console.log(`📊 Health check: http://localhost:${port}/health`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🤖 Telegram Bot: ${telegramBot ? 'Configured' : 'Not configured'}`);
+  console.log(`🗄️ Database: ${process.env.DATABASE_URL ? 'Configured' : 'Not configured'}`);
+  console.log(`📱 WhatsApp QR: http://localhost:${port}/api/whatsapp/qr`);
+});
