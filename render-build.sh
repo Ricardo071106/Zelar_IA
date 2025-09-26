@@ -35,6 +35,9 @@ echo "📦 Instalando dependências Node.js..."
 npm install
 
 # Build do frontend
+echo "🧹 Limpando build anterior..."
+rm -rf dist
+
 echo "🔨 Fazendo build do frontend..."
 npm run build
 
