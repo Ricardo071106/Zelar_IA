@@ -7,6 +7,7 @@ import DocumentationSection from "@/components/DocumentationSection";
 import TestimonialsSection from "@/components/TestimonialsSection";
 import CtaSection from "@/components/CtaSection";
 import Footer from "@/components/Footer";
+import AnalyticsSection from "@/components/AnalyticsSection";
 
 export default function Home() {
   return (
@@ -16,6 +17,7 @@ export default function Home() {
       <FeaturesSection />
       <HowItWorksSection />
       <BotDemoSection />
+      <AnalyticsSection />
       <DocumentationSection />
       <TestimonialsSection />
       <CtaSection />

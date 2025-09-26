@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Calendar, Bot, Trash2, Eye, Twitter } from "lucide-react";
+import { MessageSquare, Globe2, Users, Link, Brain, Send } from "lucide-react";
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -30,33 +30,33 @@ export default function FeaturesSection() {
   const features = [
     {
       icon: <MessageSquare className="text-primary text-2xl" />,
-      title: "Linguagem Simples",
-      description: "Simplesmente diga 'agendar reunião amanhã às 15h' e o Zelar entenderá automaticamente usando inteligência artificial."
+      title: "Linguagem natural",
+      description: "Diga frases como ‘agendar revisão com o time amanhã às 15h’ e o Zelar identifica automaticamente título, data e contexto."
     },
     {
-      icon: <Calendar className="text-primary text-2xl" />,
-      title: "Links Diretos para Calendários",
-      description: "Receba links prontos para adicionar eventos ao Google Calendar, Outlook ou Apple Calendar com apenas um clique."
+      icon: <Globe2 className="text-primary text-2xl" />,
+      title: "Fuso horário inteligente",
+      description: "Cada usuário escolhe seu fuso e o bot converte horários, garantindo agenda consistente para times distribuídos."
     },
     {
-      icon: <Eye className="text-primary text-2xl" />,
-      title: "Visualizar Eventos",
-      description: "Diga 'mostrar meus eventos' ou use o comando /eventos para ver todos os seus compromissos agendados."
+      icon: <Users className="text-primary text-2xl" />,
+      title: "Convites instantâneos",
+      description: "Emails mencionados na conversa são reconhecidos e adicionados como convidados nos links de calendário gerados."
     },
     {
-      icon: <Bot className="text-primary text-2xl" />,
-      title: "IA Avançada com OpenRouter",
-      description: "Tecnologia de ponta para entender suas mensagens em português de forma natural e precisa."
+      icon: <Link className="text-primary text-2xl" />,
+      title: "Links para calendários",
+      description: "Receba links prontos para Google Calendar e Outlook com horário, descrição e participantes já preenchidos."
     },
     {
-      icon: <Trash2 className="text-primary text-2xl" />,
-      title: "Cancelar Eventos",
-      description: "Cancele compromissos facilmente dizendo 'cancelar reunião de amanhã' - o bot entenderá qual evento você quer remover."
+      icon: <Brain className="text-primary text-2xl" />,
+      title: "Aprendizado contínuo",
+      description: "O Zelar aprende padrões recorrentes e acelera os próximos agendamentos, sem depender de palavras-chave rígidas."
     },
     {
-      icon: <Twitter className="text-primary text-2xl" />,
+      icon: <Send className="text-primary text-2xl" />,
       title: "100% no Telegram",
-      description: "Nenhum app para baixar - o Zelar funciona completamente dentro do Telegram que você já usa todos os dias."
+      description: "Nenhum aplicativo extra: todos os fluxos — criar, listar ou ajustar eventos — acontecem direto no chat do bot."
     }
   ];
 
