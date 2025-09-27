@@ -163,24 +163,6 @@ export default function AnalyticsSection() {
               )}
             </CardContent>
           </Card>
-
-          <Card className="border-primary/10">
-            <CardHeader>
-              <CardTitle className="text-lg font-semibold">Próximo nível</CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm text-gray-600 space-y-3">
-              <p>
-                Veja o relatório completo com funil detalhado, métricas por canal e exemplos recentes de mensagens em
-                <span className="font-semibold text-primary"> /analytics-dashboard</span>.
-              </p>
-              <p>
-                Use o link direto quando quiser compartilhar resultados com stakeholders — sem dashboards externos ou planilhas.
-              </p>
-              {!loading && overview.updatedAt && (
-                <p className="text-xs text-gray-400">Última captura: {new Date(overview.updatedAt).toLocaleString('pt-BR')}</p>
-              )}
-            </CardContent>
-          </Card>
         </div>
       </div>
     </section>
