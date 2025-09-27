@@ -55,8 +55,8 @@ export default function FeaturesSection() {
     },
     {
       icon: <Send className="text-primary text-2xl" />,
-      title: "100% no Telegram",
-      description: "Nenhum aplicativo extra: todos os fluxos — criar, listar ou ajustar eventos — acontecem direto no chat do bot."
+      title: "100% no Telegram e WhatsApp",
+      description: "Nenhum aplicativo extra: crie, liste ou ajuste eventos diretamente nas conversas com o bot tanto no Telegram quanto no WhatsApp."
     }
   ];
 
