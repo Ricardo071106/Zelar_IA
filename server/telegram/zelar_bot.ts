@@ -399,8 +399,8 @@ function generateLinks(event: Event) {
   let location = '';
   
   if (wantsConference) {
-    description = description ? `${description}\n\nVideoconferência Google Meet` : 'Videoconferência Google Meet';
-    location = 'Google Meet';
+    description = description ? `${description}\n\n🎥 Videoconferência Google Meet\n\nO link do Meet será gerado automaticamente quando você salvar o evento.` : '🎥 Videoconferência Google Meet\n\nO link do Meet será gerado automaticamente quando você salvar o evento.';
+    location = 'Google Meet - Link será gerado automaticamente';
     console.log('🎥 Videoconferência detectada - adicionando ao link');
   }
   
@@ -715,13 +715,25 @@ export async function startZelarBot(): Promise<boolean> {
         }
         
         const links = generateLinks(event);
+        const wantsConference = detectConferenceIntent(event);
+
+        let replyText = '✅ *Evento criado com sucesso!*\n\n' +
+                        `🎯 *${event.title}*\n` +
+                        `📅 ${event.displayDate}` +
+                        formatAttendees(event.attendees);
+
+        if (wantsConference) {
+          replyText += '\n\n🎥 *Videoconferência detectada!*\n' +
+                      '💡 *Para ativar o Google Meet:*\n' +
+                      '1. Clique no link do Google Calendar\n' +
+                      '2. Procure por "Adicionar videoconferência"\n' +
+                      '3. O Google Meet será criado automaticamente';
+        }
+
+        replyText += '\n\n📅 *Adicionar ao calendário:*';
 
         await ctx.reply(
-          '✅ *Evento criado com sucesso!*\n\n' +
-          `🎯 *${event.title}*\n` +
-          `📅 ${event.displayDate}` +
-          formatAttendees(event.attendees) +
-          '\n\n📅 *Adicionar ao calendário:*',
+          replyText,
           {
             parse_mode: 'Markdown',
             reply_markup: {
