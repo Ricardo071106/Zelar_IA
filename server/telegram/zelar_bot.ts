@@ -339,35 +339,6 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
 }
 
 /**
- * Detecta se o usuário quer videoconferência
- */
-function detectConferenceIntent(event: Event): boolean {
-  const textToCheck = [event.title, event.description]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase();
-  
-  const conferenceTriggers = [
-    'video conferencia',
-    'videoconferencia',
-    'videoconferência',
-    'google meet',
-    'meet',
-    'video call',
-    'videochamada',
-    'video chamada',
-    'conferencia',
-    'conferência',
-    'reuniao online',
-    'reunião online',
-    'reuniao virtual',
-    'reunião virtual',
-  ];
-  
-  return conferenceTriggers.some(trigger => textToCheck.includes(trigger));
-}
-
-/**
  * Gera links para calendários usando data ISO com fuso correto
  */
 function generateLinks(event: Event) {
@@ -391,21 +362,8 @@ function generateLinks(event: Event) {
   console.log(`📅 Google UTC: ${startFormatted}/${endFormatted}`);
   console.log(`📅 Outlook: ${startISO} → ${endISO}`);
   
-  // Detectar intenção de videoconferência
-  const wantsConference = detectConferenceIntent(event);
-  
-  // Preparar descrição e localização para videoconferência
-  let description = event.description || '';
-  let location = '';
-  
-  if (wantsConference) {
-    description = description ? `${description}\n\n🎥 Videoconferência Google Meet\n\nO link do Meet será gerado automaticamente quando você salvar o evento.` : '🎥 Videoconferência Google Meet\n\nO link do Meet será gerado automaticamente quando você salvar o evento.';
-    location = 'Google Meet - Link será gerado automaticamente';
-    console.log('🎥 Videoconferência detectada - adicionando ao link');
-  }
-  
-  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}${serializeGoogleAttendees(event.attendees)}`;
-  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}&body=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}${serializeOutlookAttendees(event.attendees)}`;
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}${serializeGoogleAttendees(event.attendees)}`;
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}${serializeOutlookAttendees(event.attendees)}`;
   
   return { google, outlook };
 }
@@ -715,25 +673,13 @@ export async function startZelarBot(): Promise<boolean> {
         }
         
         const links = generateLinks(event);
-        const wantsConference = detectConferenceIntent(event);
-
-        let replyText = '✅ *Evento criado com sucesso!*\n\n' +
-                        `🎯 *${event.title}*\n` +
-                        `📅 ${event.displayDate}` +
-                        formatAttendees(event.attendees);
-
-        if (wantsConference) {
-          replyText += '\n\n🎥 *Videoconferência detectada!*\n' +
-                      '💡 *Para ativar o Google Meet:*\n' +
-                      '1. Clique no link do Google Calendar\n' +
-                      '2. Procure por "Adicionar videoconferência"\n' +
-                      '3. O Google Meet será criado automaticamente';
-        }
-
-        replyText += '\n\n📅 *Adicionar ao calendário:*';
 
         await ctx.reply(
-          replyText,
+          '✅ *Evento criado com sucesso!*\n\n' +
+          `🎯 *${event.title}*\n` +
+          `📅 ${event.displayDate}` +
+          formatAttendees(event.attendees) +
+          '\n\n📅 *Adicionar ao calendário:*',
           {
             parse_mode: 'Markdown',
             reply_markup: {
