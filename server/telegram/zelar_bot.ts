@@ -339,6 +339,35 @@ function processMessage(text: string, userId: string, languageCode?: string): Ev
 }
 
 /**
+ * Detecta se o usuário quer videoconferência
+ */
+function detectConferenceIntent(event: Event): boolean {
+  const textToCheck = [event.title, event.description]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+  
+  const conferenceTriggers = [
+    'video conferencia',
+    'videoconferencia',
+    'videoconferência',
+    'google meet',
+    'meet',
+    'video call',
+    'videochamada',
+    'video chamada',
+    'conferencia',
+    'conferência',
+    'reuniao online',
+    'reunião online',
+    'reuniao virtual',
+    'reunião virtual',
+  ];
+  
+  return conferenceTriggers.some(trigger => textToCheck.includes(trigger));
+}
+
+/**
  * Gera links para calendários usando data ISO com fuso correto
  */
 function generateLinks(event: Event) {
@@ -362,8 +391,21 @@ function generateLinks(event: Event) {
   console.log(`📅 Google UTC: ${startFormatted}/${endFormatted}`);
   console.log(`📅 Outlook: ${startISO} → ${endISO}`);
   
-  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}${serializeGoogleAttendees(event.attendees)}`;
-  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}${serializeOutlookAttendees(event.attendees)}`;
+  // Detectar intenção de videoconferência
+  const wantsConference = detectConferenceIntent(event);
+  
+  // Preparar descrição e localização para videoconferência
+  let description = event.description || '';
+  let location = '';
+  
+  if (wantsConference) {
+    description = description ? `${description}\n\nVideoconferência Google Meet` : 'Videoconferência Google Meet';
+    location = 'Google Meet';
+    console.log('🎥 Videoconferência detectada - adicionando ao link');
+  }
+  
+  const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}&details=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}${serializeGoogleAttendees(event.attendees)}`;
+  const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}&body=${encodeURIComponent(description)}&location=${encodeURIComponent(location)}${serializeOutlookAttendees(event.attendees)}`;
   
   return { google, outlook };
 }
