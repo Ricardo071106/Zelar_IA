@@ -14,6 +14,7 @@ export async function syncEventWithGoogleCalendar(event: Event, userId: number):
   message: string;
   requiresAuth?: boolean;
   authUrl?: string;
+  conferenceLink?: string;
 }> {
   try {
     // Verifica se o usuário existe
@@ -73,13 +74,14 @@ export async function syncEventWithGoogleCalendar(event: Event, userId: number):
     // Atualiza o evento com o ID do Google Calendar
     if (googleEvent.calendarEventId) {
       await storage.updateEvent(event.id, {
-        calendarId: googleEvent.calendarEventId
+        calendarId: googleEvent.calendarEventId,
       });
     }
 
     return {
       success: true,
-      message: 'Evento adicionado ao Google Calendar com sucesso'
+      message: 'Evento adicionado ao Google Calendar com sucesso',
+      conferenceLink: googleEvent.conferenceLink,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -87,7 +89,7 @@ export async function syncEventWithGoogleCalendar(event: Event, userId: number):
     
     return {
       success: false,
-      message: `Erro ao sincronizar com Google Calendar: ${errorMessage}`
+      message: `Erro ao sincronizar com Google Calendar: ${errorMessage}`,
     };
   }
 }

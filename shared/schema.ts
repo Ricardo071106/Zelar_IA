@@ -30,6 +30,7 @@ export const events = pgTable("events", {
   location: text("location"),
   isAllDay: boolean("is_all_day").default(false),
   calendarId: text("calendar_id"), // ID do evento no Google/Apple Calendar
+  conferenceLink: text("conference_link"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   rawData: json("raw_data"), // Dados originais processados pela IA
@@ -85,6 +86,7 @@ export const insertEventSchema = createInsertSchema(events).pick({
   location: true,
   isAllDay: true,
   calendarId: true,
+  conferenceLink: true,
   rawData: true,
 });
 
