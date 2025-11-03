@@ -7,3 +7,4 @@ vite.config.ts.*
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+whatsapp_session/
