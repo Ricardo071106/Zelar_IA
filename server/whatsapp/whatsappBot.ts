@@ -6,6 +6,9 @@ import { makeWASocket, DisconnectReason, useMultiFileAuthState, WASocket, proto 
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { generateCalendarLinks } from '../utils/calendarUtils';
 import { parseUserDateTime, extractEventTitle } from '../telegram/utils/parseDate';
+import { storage } from '../storage';
+import type { InsertEvent } from '@shared/schema';
+import { DateTime } from 'luxon';
 import qrcode from 'qrcode';
 import fs from 'fs';
 import path from 'path';
@@ -115,6 +118,35 @@ export class WhatsAppBot {
 
       // Comando /start ou mensagem de boas-vindas
       if (text === '/start' || text.toLowerCase().includes('olá, gostaria de usar o zelar para agendar meus compromissos')) {
+        // Buscar ou criar usuário no banco
+        try {
+          let dbUser = await storage.getUserByWhatsApp(from);
+          
+          if (!dbUser) {
+            // Criar novo usuário
+            dbUser = await storage.createUser({
+              username: from, // WhatsApp ID como username
+              password: `whatsapp_${from}`,
+              name: from.split('@')[0], // Número como nome temporário
+            });
+            
+            // Criar configurações padrão
+            await storage.createUserSettings({
+              userId: dbUser.id,
+              notificationsEnabled: true,
+              reminderTimes: [12],
+              language: 'pt-BR',
+              timeZone: 'America/Sao_Paulo',
+            });
+            
+            console.log(`✅ Novo usuário WhatsApp criado: ${from} (ID: ${dbUser.id})`);
+          } else {
+            console.log(`✅ Usuário WhatsApp existente: ${from} (ID: ${dbUser.id})`);
+          }
+        } catch (error) {
+          console.error('❌ Erro ao buscar/criar usuário WhatsApp:', error);
+        }
+        
         const response =
           '🤖 *Zelar - Assistente de Agendamento*\n\n' +
           'Bem-vindo! Eu posso te ajudar a criar eventos e lembretes de forma natural.\n\n' +
@@ -173,6 +205,34 @@ export class WhatsAppBot {
       // Processar evento
       console.log(`🔍 [DEBUG] Processando mensagem: "${text}"`);
       const userId = from;
+      
+      // Buscar ou criar usuário no banco
+      let dbUser;
+      try {
+        dbUser = await storage.getUserByWhatsApp(from);
+        
+        if (!dbUser) {
+          // Criar novo usuário se não existir
+          dbUser = await storage.createUser({
+            username: from,
+            password: `whatsapp_${from}`,
+            name: from.split('@')[0],
+          });
+          
+          await storage.createUserSettings({
+            userId: dbUser.id,
+            notificationsEnabled: true,
+            reminderTimes: [12],
+            language: 'pt-BR',
+            timeZone: 'America/Sao_Paulo',
+          });
+          
+          console.log(`✅ Novo usuário criado ao processar evento: ${from} (ID: ${dbUser.id})`);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar/criar usuário:', error);
+      }
+      
       const result = parseUserDateTime(text, userId);
       console.log(`🔍 [DEBUG] Resultado do parser:`, result);
       
@@ -180,9 +240,38 @@ export class WhatsAppBot {
       console.log(`🟢 [DEBUG] Título limpo: "${cleanTitle}"`);
       
       if (result) {
+        const date = new Date(result.iso);
+        
+        // Salvar evento no banco de dados
+        if (dbUser) {
+          try {
+            const startDate = DateTime.fromJSDate(date);
+            const endDate = startDate.plus({ hours: 1 });
+            
+            const insertEvent: InsertEvent = {
+              userId: dbUser.id,
+              title: cleanTitle,
+              description: cleanTitle,
+              startDate: date,
+              endDate: endDate.toJSDate(),
+              location: undefined,
+              isAllDay: false,
+              rawData: {
+                originalMessage: text,
+                parsedResult: result,
+                userTimezone: 'America/Sao_Paulo'
+              }
+            };
+            
+            const savedEvent = await storage.createEvent(insertEvent);
+            console.log(`✅ Evento WhatsApp salvo no banco: ${cleanTitle} (ID: ${savedEvent.id})`);
+          } catch (error) {
+            console.error('❌ Erro ao salvar evento WhatsApp no banco:', error);
+          }
+        }
+        
         let response = `✅ *Evento criado!*\n\n`;
         response += `🎯 *${cleanTitle}*\n`;
-        const date = new Date(result.iso);
         const dateTime = `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
         response += `📅 ${dateTime}\n\n`;
         response += `*Adicionar ao calendário:*\n`;

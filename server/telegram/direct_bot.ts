@@ -6,6 +6,8 @@
 import { parseEventWithClaude } from '../utils/claudeParser';
 import { DateTime } from 'luxon';
 import { getUserTimezone, extractEventTitle } from './utils/parseDate';
+import { storage } from '../storage';
+import type { InsertEvent } from '@shared/schema';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -214,6 +216,41 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
   // Comando /start
   if (message === '/start') {
+    // Buscar ou criar usuário
+    const userId = update.message?.from?.id;
+    const username = update.message?.from?.username || `telegram_${userId}`;
+    
+    if (userId) {
+      try {
+        let user = await storage.getUserByTelegramId(userId.toString());
+        
+        if (!user) {
+          // Criar novo usuário
+          user = await storage.createUser({
+            username: username,
+            password: `telegram_${userId}`, // Senha placeholder para usuários do Telegram
+            telegramId: userId.toString(),
+            name: username,
+          });
+          
+          // Criar configurações padrão
+          await storage.createUserSettings({
+            userId: user.id,
+            notificationsEnabled: true,
+            reminderTimes: [12], // 12 horas antes
+            language: 'pt-BR',
+            timeZone: 'America/Sao_Paulo',
+          });
+          
+          console.log(`✅ Novo usuário criado: ${username} (ID: ${user.id})`);
+        } else {
+          console.log(`✅ Usuário existente: ${username} (ID: ${user.id})`);
+        }
+      } catch (error) {
+        console.error('❌ Erro ao buscar/criar usuário:', error);
+      }
+    }
+    
     await sendMessage(chatId, 
       '🤖 *Zelar - Assistente de Agendamento*\n\n' +
       '💡 *Como usar:*\n' +
@@ -241,11 +278,67 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       '• "consulta médica terça-feira às 10h"\n' +
       '• "call de projeto quinta às 15h"\n\n' +
       '⚙️ *Comandos:*\n' +
+      '/eventos - Ver seus próximos eventos\n' +
       '/timezone - Alterar fuso horário\n' +
       '/start - Mensagem inicial\n\n' +
       '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
       '✨ Processamento com IA Claude!'
     );
+    return;
+  }
+
+  // Comando /eventos - Listar eventos do usuário
+  if (message === '/eventos' || message === '/events') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        await sendMessage(chatId, 
+          '📭 *Nenhum evento encontrado*\n\n' +
+          'Você ainda não criou nenhum evento.\n' +
+          'Envie uma mensagem como "reunião amanhã às 14h" para criar seu primeiro evento!'
+        );
+        return;
+      }
+      
+      const events = await storage.getUpcomingEvents(dbUser.id, 5);
+      
+      if (events.length === 0) {
+        await sendMessage(chatId, 
+          '📭 *Nenhum evento próximo*\n\n' +
+          'Você não tem eventos futuros agendados.\n' +
+          'Envie uma mensagem como "consulta médica sexta às 10h" para criar um evento!'
+        );
+        return;
+      }
+      
+      let response = '📅 *Seus próximos eventos:*\n\n';
+      
+      events.forEach((event, index) => {
+        const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
+        const formattedDate = date.toFormat('dd/MM/yyyy HH:mm', { locale: 'pt-BR' });
+        const dayOfWeek = date.toFormat('EEEE', { locale: 'pt-BR' });
+        
+        response += `${index + 1}. 🎯 *${event.title}*\n`;
+        response += `   📅 ${dayOfWeek}, ${formattedDate}\n`;
+        if (event.description && event.description !== event.title) {
+          response += `   📝 ${event.description}\n`;
+        }
+        response += '\n';
+      });
+      
+      await sendMessage(chatId, response);
+    } catch (error) {
+      console.error('❌ Erro ao buscar eventos:', error);
+      await sendMessage(chatId, '❌ Erro ao buscar seus eventos. Tente novamente mais tarde.');
+    }
     return;
   }
 
@@ -303,9 +396,9 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
   try {
     // Usar Claude para interpretar
-    const userId = update.message?.from?.id?.toString() || 'unknown';
-    // Não há language_code disponível nesse tipo de update
-    const userTimezone = getUserTimezone(userId);
+    const telegramUserId = update.message?.from?.id?.toString() || 'unknown';
+    const username = update.message?.from?.username || `telegram_${telegramUserId}`;
+    const userTimezone = getUserTimezone(telegramUserId);
     const claudeResult = await parseEventWithClaude(message, userTimezone);
     
     if (!claudeResult.isValid) {
@@ -316,6 +409,36 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         '• "reunião quarta às 15h"'
       );
       return;
+    }
+
+    // Buscar ou criar usuário no banco
+    let dbUser;
+    try {
+      dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        // Criar novo usuário se não existir
+        dbUser = await storage.createUser({
+          username: username,
+          password: `telegram_${telegramUserId}`,
+          telegramId: telegramUserId,
+          name: username,
+        });
+        
+        // Criar configurações padrão
+        await storage.createUserSettings({
+          userId: dbUser.id,
+          notificationsEnabled: true,
+          reminderTimes: [12],
+          language: 'pt-BR',
+          timeZone: userTimezone,
+        });
+        
+        console.log(`✅ Novo usuário criado ao criar evento: ${username} (ID: ${dbUser.id})`);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar/criar usuário:', error);
+      // Continuar sem salvar no banco se houver erro
     }
 
     // Criar evento
@@ -335,6 +458,34 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       description: eventTitle,
       displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
     };
+
+    // Salvar evento no banco de dados
+    if (dbUser) {
+      try {
+        const endDate = eventDate.plus({ hours: 1 }); // Evento padrão de 1 hora
+        
+        const insertEvent: InsertEvent = {
+          userId: dbUser.id,
+          title: eventTitle,
+          description: eventTitle, // Usar título como descrição por enquanto
+          startDate: eventDate.toJSDate(),
+          endDate: endDate.toJSDate(),
+          location: undefined, // Claude não retorna location ainda
+          isAllDay: false,
+          rawData: {
+            originalMessage: message,
+            claudeResult: claudeResult,
+            userTimezone: userTimezone
+          }
+        };
+        
+        const savedEvent = await storage.createEvent(insertEvent);
+        console.log(`✅ Evento salvo no banco: ${eventTitle} (ID: ${savedEvent.id})`);
+      } catch (error) {
+        console.error('❌ Erro ao salvar evento no banco:', error);
+        // Continuar mesmo se falhar ao salvar
+      }
+    }
 
     const links = generateCalendarLinks(event);
 
