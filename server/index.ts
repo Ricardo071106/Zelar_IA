@@ -1,7 +1,11 @@
 import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
+import cors from 'cors';
+import helmet from 'helmet';
+import compression from 'compression';
 import { createServer } from "http";
 import { registerRoutes } from "./routes";
+import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { startDirectBot } from "./telegram/direct_bot";
 import { getWhatsAppBot } from "./whatsapp/whatsappBot";
 import path from 'path';
@@ -11,8 +15,22 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// =================== SEGURANÇA ===================
+app.use(helmet({
+  contentSecurityPolicy: false, // Desabilitar para desenvolvimento, habilitar em produção
+}));
+
+app.use(cors({
+  origin: process.env.CORS_ORIGIN || '*',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+}));
+
+// =================== PERFORMANCE ===================
+app.use(compression());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // =================== MONITORAMENTO E ROBUSTEZ ===================
 let requestCount = 0;
@@ -21,7 +39,7 @@ let lastRequestTime = Date.now();
 // Middleware de monitoramento
 app.use((req, res, next) => {
   const start = Date.now();
-  const path = req.path;
+  const requestPath = req.path; // Renomeado para evitar conflito com import 'path'
   requestCount++;
   lastRequestTime = Date.now();
   
@@ -35,14 +53,12 @@ app.use((req, res, next) => {
 
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
+    if (requestPath.startsWith("/api")) {
+      let logLine = `${req.method} ${requestPath} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
+        const responsePreview = JSON.stringify(capturedJsonResponse);
+        // Aumentado limite de 80 para 500 caracteres
+        logLine += ` :: ${responsePreview.length > 400 ? responsePreview.slice(0, 400) + '...' : responsePreview}`;
       }
 
       log(logLine);
@@ -68,84 +84,158 @@ process.on('unhandledRejection', (reason, promise) => {
 // =================== CONFIGURAÇÕES DE TIMEOUT ===================
 const TIMEOUT_MS = 30000; // 30 segundos
 
-// Carregar variáveis do .env em desenvolvimento
-if (process.env.NODE_ENV !== 'production') {
-  import('dotenv/config');
+// Health check interno rápido (não passa pelas rotas)
+app.get('/_health', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    requests: requestCount,
+  });
+});
+
+// =================== INICIALIZAÇÃO DO SERVIDOR ===================
+async function startServer() {
+  try {
+    // Registrar rotas
+    log('📋 Registrando rotas...');
+    await registerRoutes(app);
+    log('✅ Rotas registradas com sucesso');
+    
+    // Aplicar error handlers (DEVEM SER OS ÚLTIMOS middlewares)
+    app.use(notFoundHandler);
+    app.use(errorHandler);
+    
+    // Criar servidor HTTP com configurações robustas
+    const server = createServer(app);
+    
+    // Configurar timeouts para evitar travamentos
+    server.timeout = TIMEOUT_MS;
+    server.keepAliveTimeout = 65000;
+    server.headersTimeout = 66000;
+
+    // Inicializar bots apenas se as variáveis estiverem configuradas
+    const botsInitialized = await initializeBots();
+    
+    // Validar e iniciar servidor
+    const port = validatePort(process.env.PORT);
+    
+    server.listen(port, () => {
+      log('═══════════════════════════════════════════════════════');
+      log(`🚀 Servidor iniciado na porta ${port}`);
+      log(`📊 Health check: http://localhost:${port}/health`);
+      log(`📊 Health interno: http://localhost:${port}/_health`);
+      log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+      log(`🤖 WhatsApp: ${botsInitialized.whatsapp ? '✅' : '❌'}`);
+      log(`🤖 Telegram: ${botsInitialized.telegram ? '✅' : '❌'}`);
+      log('═══════════════════════════════════════════════════════');
+      
+      if (!process.env.TELEGRAM_BOT_TOKEN) {
+        log('⚠️ Para ativar o bot do Telegram, configure TELEGRAM_BOT_TOKEN', 'warn');
+      }
+      if (!process.env.DATABASE_URL) {
+        log('⚠️ Para funcionalidades completas, configure DATABASE_URL', 'warn');
+      }
+    });
+
+    // Graceful shutdown
+    const shutdownSignals = ['SIGTERM', 'SIGINT'];
+    shutdownSignals.forEach(signal => {
+      process.on(signal, () => {
+        log(`🛑 Recebido ${signal}, encerrando servidor gracefully...`);
+        server.close(() => {
+          log('✅ Servidor encerrado com sucesso');
+          process.exit(0);
+        });
+        
+        // Forçar encerramento após 10 segundos
+        setTimeout(() => {
+          log('⚠️ Forçando encerramento após timeout', 'error');
+          process.exit(1);
+        }, 10000);
+      });
+    });
+    
+  } catch (error) {
+    log(`💥 Erro fatal ao iniciar servidor: ${error}`, 'error');
+    if (error instanceof Error) {
+      log(`Stack: ${error.stack}`, 'error');
+    }
+    process.exit(1);
+  }
 }
 
-// =================== INICIALIZAÇÃO CONDICIONAL DOS BOTS ===================
-(async () => {
-  // Registrar rotas diretamente
-  await registerRoutes(app);
-  
-  // Criar servidor HTTP com configurações robustas
-  const server = createServer(app);
-  
-  // Configurar timeouts para evitar travamentos
-  server.timeout = TIMEOUT_MS;
-  server.keepAliveTimeout = 65000;
-  server.headersTimeout = 66000;
+// =================== FUNÇÕES AUXILIARES ===================
 
-  // Inicializar bots apenas se as variáveis estiverem configuradas
+/**
+ * Valida e retorna porta válida
+ */
+function validatePort(portEnv: string | undefined): number {
+  const port = parseInt(portEnv || '8080', 10);
+  
+  if (isNaN(port) || port < 1 || port > 65535) {
+    throw new Error(`Porta inválida: ${portEnv}. Deve ser um número entre 1 e 65535.`);
+  }
+  
+  return port;
+}
+
+/**
+ * Inicializa os bots (WhatsApp e Telegram)
+ */
+async function initializeBots(): Promise<{ whatsapp: boolean; telegram: boolean }> {
+  const results = { whatsapp: false, telegram: false };
+  
+  // Inicializar bot do WhatsApp
   try {
-    // Inicializar bot do WhatsApp (sempre tenta)
     log('🤖 Inicializando bot do WhatsApp...');
     const whatsappBot = getWhatsAppBot();
     await whatsappBot.initialize();
     log('✅ Bot do WhatsApp inicializado com sucesso!');
+    results.whatsapp = true;
   } catch (error) {
     log(`❌ Erro ao inicializar bot do WhatsApp: ${error}`, 'error');
+    if (process.env.REQUIRE_WHATSAPP === 'true') {
+      throw error; // Falhar se WhatsApp é obrigatório
+    }
   }
 
+  // Inicializar bot do Telegram
   try {
-    // Inicializar bot do Telegram apenas se o token estiver configurado
     if (process.env.TELEGRAM_BOT_TOKEN) {
       log('🤖 Inicializando bot do Telegram...');
       await startDirectBot();
       log('✅ Bot do Telegram inicializado com sucesso!');
+      results.telegram = true;
     } else {
-      log('⚠️ TELEGRAM_BOT_TOKEN não configurado - bot do Telegram desabilitado');
+      log('⚠️ TELEGRAM_BOT_TOKEN não configurado - bot do Telegram desabilitado', 'warn');
     }
   } catch (error) {
     log(`❌ Erro ao inicializar bot do Telegram: ${error}`, 'error');
+    if (process.env.REQUIRE_TELEGRAM === 'true') {
+      throw error; // Falhar se Telegram é obrigatório
+    }
   }
-
-  // Iniciar servidor
-  const port = process.env.PORT || 8080;
-  server.listen(port, () => {
-    log(`🚀 Servidor iniciado na porta ${port}`);
-    log(`📊 Health check: http://localhost:${port}/health`);
-    log(`🌐 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-    
-    if (!process.env.TELEGRAM_BOT_TOKEN) {
-      log('⚠️ Para ativar o bot do Telegram, configure TELEGRAM_BOT_TOKEN');
-    }
-    if (!process.env.DATABASE_URL) {
-      log('⚠️ Para funcionalidades completas, configure DATABASE_URL');
-    }
-  });
-
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    log('🛑 Recebido SIGTERM, encerrando servidor...');
-    server.close(() => {
-      log('✅ Servidor encerrado com sucesso');
-      process.exit(0);
-    });
-  });
-
-  process.on('SIGINT', () => {
-    log('🛑 Recebido SIGINT, encerrando servidor...');
-    server.close(() => {
-      log('✅ Servidor encerrado com sucesso');
-      process.exit(0);
-    });
-  });
-
-})();
-
-function log(message: string, tag?: string) {
-  const timestamp = new Date().toISOString();
-  const logMessage = tag ? `[${timestamp}] [${tag}] ${message}` : `[${timestamp}] ${message}`;
-  console.log(logMessage);
+  
+  return results;
 }
+
+/**
+ * Sistema de logging estruturado
+ */
+function log(message: string, level: 'info' | 'warn' | 'error' = 'info') {
+  const timestamp = new Date().toISOString();
+  const emoji = level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️';
+  const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+  
+  if (level === 'error') {
+    console.error(logMessage);
+  } else if (level === 'warn') {
+    console.warn(logMessage);
+  } else {
+    console.log(logMessage);
+  }
+}
+
+// =================== INICIAR SERVIDOR ===================
+startServer();
