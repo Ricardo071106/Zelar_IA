@@ -2,7 +2,7 @@
   "name": "zelar-app",
   "version": "1.0.0",
   "type": "module",
-  "main": "server/simple-server.js",
+  "main": "server/index.ts",
   "license": "MIT",
   "engines": {
     "node": ">=18.0.0"
@@ -11,8 +11,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node server/simple-server.js",
-    "start:prod": "NODE_ENV=production node server/simple-server.js"
+    "start": "tsx server/index.ts",
+    "start:prod": "NODE_ENV=production tsx server/index.ts",
+    "start:simple": "node server/simple-server.js"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",

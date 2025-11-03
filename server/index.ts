@@ -52,31 +52,6 @@ app.use((req, res, next) => {
   next();
 });
 
-// Rota de health check
-app.get('/health', (req, res) => {
-  const uptime = Date.now() - lastRequestTime;
-  res.json({
-    status: 'ok',
-    uptime: Math.floor(uptime / 1000),
-    requestCount,
-    lastRequest: new Date(lastRequestTime).toISOString(),
-    memory: process.memoryUsage(),
-    telegramBot: !!process.env.TELEGRAM_BOT_TOKEN,
-    database: !!process.env.DATABASE_URL
-  });
-});
-
-// Health check simples para AWS
-app.get('/', (req, res) => {
-  res.json({
-    status: 'ok',
-    message: 'TelegramScheduler is running!',
-    timestamp: new Date().toISOString(),
-    telegramBot: !!process.env.TELEGRAM_BOT_TOKEN,
-    database: !!process.env.DATABASE_URL
-  });
-});
-
 // =================== TRATAMENTO DE ERROS GLOBAL ===================
 process.on('uncaughtException', (error) => {
   log(`❌ ERRO CRÍTICO (uncaughtException): ${error.message}`, 'error');

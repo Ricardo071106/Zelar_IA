@@ -27,9 +27,6 @@ if (!subtle && nodeCrypto.webcrypto?.subtle) {
   global.crypto = globalThis.crypto;
 }
 
-// import { default as makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
-// import { Boom } from '@hapi/boom';
-
 const app = express();
 const port = process.env.PORT || 8080;
 
