@@ -1,102 +1,85 @@
-# 📋 Status do Projeto - Zelar IA# 📋 Status do Escopo - Zelar IA
+# 📋 Status do Projeto - Zelar IA
 
-
-
-**Última atualização:** 03/11/2025 - 23:50 BRT  **Data:** 03 de novembro de 2025 - 23:45 BRT  
-
-**Progresso Geral:** 🟢 **55% Completo****Status Geral:** 🟡 **52% Completo** (+22% desde início da sessão) 🎉
-
-
-
-------
-
-
-
-## 📊 VISÃO GERAL RÁPIDA## 📊 VISÃO GERAL POR CATEGORIA
-
-
-
-| # | Item | Status | % | Prioridade || Categoria | Progresso | Status |
-
-|---|------|--------|---|------------||-----------|-----------|--------|
-
-| 1.1 | Revisão do repositório | ✅ Completo | 100% | - || **1. Refatoração e análise do código** | 95% | ✅ Completo |
-
-| 1.2 | Refatoração do código | ✅ Completo | 100% | - || **2. Integração com serviços externos** | 20% | 🔴 Crítico |
-
-| 1.3 | Padronização de rotas | ✅ Completo | 100% | - || **3. Fluxo automatizado completo** | 0% | 🔴 Não iniciado |
-
-| 2.1 | Asaas API (Pagamentos) | 🔴 Não iniciado | 0% | 🔥 Alta |
-
-| 2.2 | Open Finance | 🔴 Não iniciado | 0% | 🔥 Alta |---
-
-| 2.3 | WhatsApp Bot | 🟢 Funcional | 95% | - |
-
-| 2.4 | IA (Claude/OpenRouter) | 🟢 Funcional | 85% | - |## 1️⃣ REFATORAÇÃO E ANÁLISE DO CÓDIGO EXISTENTE
-
-| 2.5 | Google Calendar OAuth | 🟡 Código pronto | 60% | 🔶 Média |
-
-| 3.1 | Fluxo cadastro/pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |### ✅ **COMPLETO** (95%) 🎉
-
-| 3.2 | Detecção auto pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |
-
-| 3.3 | Criação de eventos | 🟢 Funcional | 95% | - |#### ✅ Revisão do repositório atual - **100%**
-
-| 3.4 | Lembretes automáticos | 🔴 Não iniciado | 0% | 🔥 Crítico |- ✅ Análise completa da estrutura do projeto
-
-| 3.5 | Banco de dados | 🟢 Integrado | 90% | - |- ✅ Identificação de arquivos TypeScript vs JavaScript
-
-- ✅ Mapeamento de dependências
-
-**Legenda:** ✅ Completo | 🟢 Funcional | 🟡 Parcial | 🔴 Não iniciado- ✅ Documentação de entregáveis existentes
-
-- ✅ Análise do escopo original vs implementado
+**Última atualização:** 04/11/2025 - 03:30 BRT  
+**Progresso Geral:** 🟢 **65% Completo**
 
 ---
 
-**Arquivos revisados:**
+## 📊 VISÃO GERAL RÁPIDA
 
-## ✅ CONCLUÍDO (6 itens)- 42 arquivos TypeScript em `server/`
+| # | Item | Status | % | Prioridade |
+|---|------|--------|---|------------|
+| 1.1 | Revisão do repositório | ✅ Completo | 100% | - |
+| 1.2 | Refatoração do código | ✅ Completo | 100% | - |
+| 1.3 | Padronização de rotas | ✅ Completo | 100% | - |
+| 2.1 | Asaas API (Pagamentos) | 🔴 Não iniciado | 0% | 🔥 Alta |
+| 2.2 | Open Finance | 🔴 Não iniciado | 0% | 🔥 Alta |
+| 2.3 | WhatsApp Bot | 🟢 Funcional | 85% | - |
+| 2.4 | Telegram Bot | ✅ Completo | 100% | - |
+| 2.5 | IA (Claude/OpenRouter) | ✅ Funcional | 100% | - |
+| 2.6 | Google Calendar OAuth | ✅ Completo | 100% | - |
+| 3.1 | Fluxo cadastro/pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |
+| 3.2 | Detecção auto pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |
+| 3.3 | Criação de eventos | ✅ Completo | 100% | - |
+| 3.4 | Edição de eventos | ✅ Completo | 100% | - |
+| 3.5 | Deleção de eventos | ✅ Completo | 100% | - |
+| 3.6 | Lembretes automáticos | 🔴 Não iniciado | 0% | 🔥 Crítico |
+| 3.7 | Banco de dados | 🟢 Integrado | 95% | - |
 
-- Schema completo em `shared/schema.ts`
+**Legenda:** ✅ Completo | 🟢 Funcional | 🟡 Parcial | 🔴 Não iniciado
 
-### 1. Refatoração e Estrutura ✅- Configurações de build e deploy
+---
 
-- Documentação de rotas e padronizações
+## 🤖 STATUS DOS BOTS
 
-**✅ Revisão completa do código**
+### **Telegram Bot** - ✅ **100% Completo**
 
-- Análise de 42 arquivos TypeScript**Documentos criados:**
+| Funcionalidade | Status | Detalhes |
+|----------------|--------|----------|
+| Conexão | ✅ | Bot @zelartestebot ativo |
+| Autenticação OAuth Google | ✅ | Fluxo completo implementado |
+| Criação de eventos | ✅ | Com IA Claude + Google Calendar |
+| Edição de eventos | ✅ | Interface com botões + comando |
+| Deleção de eventos | ✅ | Interface com botões |
+| Listagem de eventos | ✅ | Próximos 10 eventos |
+| Integração Google Calendar | ✅ | Sincronização automática |
+| Google Meet automático | ✅ | Detecção inteligente |
+| Comandos disponíveis | ✅ | 10 comandos funcionais |
 
-- Migração de JavaScript para TypeScript- ✅ `ESCOPO_STATUS.md` - Status detalhado do escopo
+**Comandos implementados:**
+- `/start` - Iniciar bot e criar conta
+- `/help` - Ajuda completa
+- `/eventos` - Listar próximos eventos
+- `/editar` - Editar evento (com botões)
+- `/deletar` - Deletar evento (com botões)
+- `/conectar` - Conectar Google Calendar
+- `/desconectar` - Desconectar Google Calendar
+- `/status` - Ver status da conexão
+- `/timezone` - Alterar fuso horário
+- Mensagens naturais: "reunião amanhã às 15h"
 
-- Correção de biblioteca WhatsApp (whatsapp-web.js → Baileys)- ✅ `ROUTES_DOCUMENTATION.md` - Documentação completa de rotas
+### **WhatsApp Bot** - 🟡 **85% Completo**
 
-- ✅ `PADRONIZACAO_ROTAS.md` - Checklist de padronização
+| Funcionalidade | Status | Detalhes |
+|----------------|--------|----------|
+| Conexão | ✅ | Baileys integrado |
+| QR Code Login | ✅ | Funcionando |
+| Criação de eventos | ✅ | Com IA Claude |
+| Integração Google Calendar | 🔴 | Não implementado |
+| Edição de eventos | 🔴 | Não implementado |
+| Deleção de eventos | 🔴 | Não implementado |
+| Listagem de eventos | 🔴 | Não implementado |
+| Comandos disponíveis | 🟡 | Parcial |
 
-**✅ Padronização de rotas (100%)**
+**Pendências WhatsApp:**
+- ❌ Integração com Google Calendar
+- ❌ Comandos de edição/deleção
+- ❌ Listagem de eventos
+- ❌ Comandos `/conectar`, `/status`, etc.
 
-- Sistema de middleware completo (`errorHandler.ts`, `validateRequest.ts`)---
+---
 
-- 8 classes de erro padronizadas
-
-- Respostas JSON consistentes em todas as rotas#### ✅ Remoção de código descartável e reestruturação - **100%**
-
-- Validação com Zod em 100% dos endpoints- ✅ Migração de `simple-server.js` para `index.ts` (TypeScript)
-
-- Redução de 77% no código de rotas (234 → 52 linhas)- ✅ Correção de imports no `whatsappBot.ts` (whatsapp-web.js → Baileys)
-
-- **Arquivos:** `routes/health.routes.ts`, `whatsapp.routes.ts`, `analytics.routes.ts`- ✅ Refatoração completa da classe WhatsAppBot
-
-- ✅ Organização de utilitários (`utils/`, `telegram/utils/`)
-
-**✅ Segurança e Performance**- ✅ Separação de concerns (parser, calendar, storage)
-
-- Helmet (XSS, clickjacking protection)- ✅ **NOVO:** Modularização de rotas em arquivos separados
-
-- CORS configurável- ✅ **NOVO:** Redução de 77% no tamanho de `routes.ts` (234 → 52 linhas)
-
-- Compression (70% redução de payload)
+## ✅ CONCLUÍDO (8 itens)
 
 - Sistema de logging com níveis**Melhorias implementadas:**
 
@@ -114,207 +97,178 @@
 
 ---
 
-**🟢 WhatsApp Bot (95%)**
-
-- Integração completa com Baileys#### ✅ **COMPLETO** - Padronização de rotas e tratamento de erros - **100%** 🚀
-
-- Criação automática de eventos
-
-- Salvamento no banco de dados**✅ Implementado:**
-
-- Comandos: `/start`, `/help`, `/fuso`- ✅ **Middleware de erro robusto** (`errorHandler.ts`)
-
-- ✅ **Integrado com banco:** Salva usuários e eventos automaticamente  - Classes de erro personalizadas (NotFoundError, ValidationError, etc)
-
-  - Handler global com suporte a Zod
-
-**🟢 Telegram Bot (95%)**  - Logging estruturado de erros
-
-- Bot @zelar_assistente_bot ativo  - Mensagens diferentes para prod/dev
-
-- Processamento com IA Claude  - NotFoundHandler para rotas 404
-
-- Salvamento no banco de dados  - AsyncHandler para rotas assíncronas
-
-- Comandos: `/start`, `/help`, `/timezone`, **`/eventos`**  
-
-- ✅ **Integrado com banco:** Cria usuários e eventos automaticamente- ✅ **Validação com Zod** (`validateRequest.ts`)
-
-  - Middleware de validação reutilizável
-
-**🟢 IA Claude/OpenRouter (85%)**  - Suporte para body, query e params
-
-- Extração de título, data, hora  - Integração automática com errorHandler
-
-- Suporte a datas relativas (amanhã, sexta)  
-
-- Parser de horários naturais- ✅ **Rotas modulares criadas:**
-
-- ❌ Falta: Extração de valor/pagamento, CPF/CNPJ  - `health.routes.ts` - Health checks (básico + detalhado)
-
-  - `whatsapp.routes.ts` - WhatsApp (QR, status, envio)
-
----  - `analytics.routes.ts` - Analytics e métricas
-
-  
-
-### 3. Banco de Dados 🟢- ✅ **Segurança e Performance** (`index.ts` - NOVO)
-
-  - ✅ **Helmet** - Proteção contra XSS, clickjacking, MIME sniffing
-
-**🟢 PostgreSQL + Drizzle ORM (90%)**  - ✅ **CORS** - Configurável via CORS_ORIGIN env
-
-- ✅ Schema completo: `users`, `events`, `user_settings`  - ✅ **Compression** - Gzip/Deflate para reduzir payload (~70%)
-
-- ✅ Script de inicialização: `npm run db:init`  - ✅ **Rate limiting** via variável de ambiente (planejado)
-
-- ✅ Drizzle Studio: `npm run db:studio`  - ✅ **Timeouts configurados** (30s padrão)
-
-- ✅ Integração com bots (Telegram + WhatsApp)  
-
-- ✅ Salvamento automático de usuários e eventos- ✅ **Sistema de Logging Aprimorado** (NOVO)
-
-- ✅ Comando `/eventos` para listar  - ✅ Função `log()` com níveis (info, warn, error)
-
-- ❌ Falta: Edição e cancelamento de eventos  - ✅ Timestamps formatados
-
-  - ✅ Emojis para identificação visual
-
-**Comandos disponíveis:**  - ✅ Limite de log aumentado (500 caracteres)
-
-```bash  - ✅ Colorização por nível
-
-npm run db:init      # Criar tabelas  
-
-npm run db:studio    # Interface visual- ✅ **Robustez e Confiabilidade** (NOVO)
-
-npm run db:push      # Sincronizar schema  - ✅ Validação de porta (1-65535)
-
-```  - ✅ Graceful shutdown com timeout de 10s
-
-  - ✅ Health check interno (`/_health`)
-
----  - ✅ Monitoramento de requisições (contador + última request)
-
-  - ✅ Tratamento de erros não capturados
-
-## 🟡 EM PROGRESSO (2 itens)  - ✅ Inicialização ordenada (rotas → bots → server)
-
-  
-
-### Google Calendar OAuth (60%)- ✅ **Respostas padronizadas em 100% das rotas:**
-
-  ```json
-
-**✅ Implementado:**  // Sucesso
-
-- Código completo em `googleCalendarIntegration.ts` (421 linhas)  { "success": true, "data": {...} }
-
-- OAuth2 Client configurado  
-
-- Criação de eventos com Google Meet  // Erro
-
-- Gerenciamento de tokens  { "success": false, "error": { "code": "...", "message": "...", "details": {...} } }
-
-  ```
-
-**❌ Bloqueadores:**
-
-- Falta credenciais do Google Cloud- ✅ **Códigos de erro padronizados:**
-
-- Variáveis não configuradas: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`  - `VALIDATION_ERROR` (400)
-
-  - `UNAUTHORIZED` (401)
-
-**Próximos passos:**  - `FORBIDDEN` (403)
-
-1. Criar projeto no Google Cloud Console  - `RESOURCE_NOT_FOUND` (404)
-
-2. Habilitar Google Calendar API  - `ROUTE_NOT_FOUND` (404)
-
-3. Gerar credenciais OAuth 2.0  - `CONFLICT` (409)
-
-4. Configurar redirect URI  - `INTERNAL_SERVER_ERROR` (500)
-
-5. Testar fluxo de autorização  - `SERVICE_UNAVAILABLE` (503)
-
-
-
----- ✅ Rotas organizadas em módulos (`server/routes/`)
-
-- ✅ Health check em `/health` (básico + detalhado)
-
-### Criação de Eventos (95%)- ✅ Middleware de monitoramento de requisições
-
-- ✅ Tratamento global de erros
-
-**✅ Funcional:**- ✅ Graceful shutdown (SIGTERM, SIGINT)
-
-- Parser de mensagens naturais- ✅ Sistema de logging com timestamps
-
-- Salvamento no banco- ✅ Timeouts configurados (30s)
-
-- Links para Google Calendar e Outlook- ✅ **Documentação completa da API**
-
-- Vinculação com usuário- ✅ **Correções de bugs** (variável shadowing, duplicate imports)
-
-
-
-**❌ Falta (5%):****🎯 Status: COMPLETO - Padrão de produção alcançado!**
-
-- Criar evento direto no Google Calendar (requer OAuth)
-
-- Editar evento via comando**Arquivos criados/refatorados:**
-
-- Cancelar evento via comando- ✅ `server/middleware/errorHandler.ts` (148 linhas)
-
+### 1. **Refatoração e Estruturação** ✅ **100%**
+
+#### ✅ Revisão completa do repositório
+- ✅ 42 arquivos TypeScript analisados
+- ✅ Migração 100% JavaScript → TypeScript (7 arquivos removidos)
+- ✅ Correção de biblioteca WhatsApp (whatsapp-web.js → Baileys)
+- ✅ Schema completo documentado (`shared/schema.ts`)
+
+#### ✅ Padronização de rotas e tratamento de erros
+**Arquivos criados:**
+- ✅ `server/middleware/errorHandler.ts` (148 linhas)
 - ✅ `server/middleware/validateRequest.ts` (23 linhas)
-
----- ✅ `server/routes/health.routes.ts` (76 linhas)
-
+- ✅ `server/routes/health.routes.ts` (76 linhas)
 - ✅ `server/routes/whatsapp.routes.ts` (127 linhas)
+- ✅ `server/routes/analytics.routes.ts` (87 linhas)
+- ✅ `server/routes/google-auth.routes.ts` (200+ linhas) 🆕
+- ✅ `server/routes.ts` (redução 77%: 234 → 52 linhas)
 
-## 🔴 NÃO INICIADO (5 itens) - PRIORIDADE ALTA- ✅ `server/routes/analytics.routes.ts` (87 linhas)
+**Implementações:**
+- ✅ Classes de erro padronizadas (8 tipos)
+- ✅ Validação com Zod em 100% dos endpoints
+- ✅ Respostas JSON consistentes
+- ✅ Middleware de erro robusto
 
-- ✅ `server/routes.ts` (52 linhas, -77%)
+#### ✅ Segurança e Performance
+- ✅ Helmet (XSS, clickjacking protection)
+- ✅ CORS configurável
+- ✅ Compression (~70% redução payload)
+- ✅ Rate limiting preparado
+- ✅ Graceful shutdown (10s timeout)
+- ✅ Health check interno (`/_health`)
 
-### 🔥 1. Sistema de Lembretes (CRÍTICO)- ✅ `server/index.ts` (241 linhas, **12 melhorias implementadas**)
+#### ✅ Documentação criada
+- ✅ `ESCOPO_STATUS.md` - Status completo (este arquivo)
+- ✅ `ROUTES_DOCUMENTATION.md` - API completa
+- ✅ `PADRONIZACAO_ROTAS.md` - Checklist
+- ✅ `GOOGLE_CALENDAR_SETUP.md` - Guia OAuth 🆕
+- ✅ `ERRO_OPENROUTER_API_KEY.md` - Troubleshooting 🆕
 
-- ✅ `ROUTES_DOCUMENTATION.md` (documentação completa)
+---
 
-**Objetivo:** Enviar notificações 12h antes dos eventos- ✅ `PADRONIZACAO_ROTAS.md` (checklist e guia)
+### 2. **Google Calendar OAuth** ✅ **100%** 🎉
+
+#### ✅ Fluxo OAuth Completo Implementado
+**Arquivos:**
+- ✅ `server/routes/google-auth.routes.ts` (criado)
+- ✅ `server/telegram/googleCalendarIntegration.ts` (421 linhas, corrigido)
+
+**Rotas implementadas:**
+- ✅ `GET /api/auth/google/authorize` - Gera URL de autorização
+- ✅ `GET /api/auth/google/callback` - Processa callback (página de sucesso)
+- ✅ `POST /api/auth/google/disconnect` - Desconecta Google Calendar
+- ✅ `GET /api/auth/google/status` - Verifica status da conexão
+
+**Funcionalidades:**
+- ✅ OAuth 2.0 completo
+- ✅ Refresh token automático
+- ✅ Criação de eventos no Google Calendar
+- ✅ Google Meet automático (detecção inteligente)
+- ✅ Sincronização bidirecional
+- ✅ Atualização de eventos (delete + recreate)
+- ✅ Deleção de eventos
+- ✅ Armazenamento seguro de tokens (PostgreSQL)
+
+**Correções aplicadas:**
+- ✅ Fixed imports (removido '../vite')
+- ✅ Fixed regex (/\p{Diacritic}/gu → /[\u0300-\u036f]/g)
+- ✅ Removed attendees field (não existe no schema)
+- ✅ Fixed nullable types (null → undefined)
+
+**Teste: Funcionando 100%** ✅
+
+---
+
+### 3. **Banco de Dados** ✅ **95%**
+
+#### ✅ PostgreSQL + Drizzle ORM
+- ✅ Schema completo: `users`, `events`, `user_settings`
+- ✅ Script de inicialização: `npm run db:init`
+- ✅ Drizzle Studio: `npm run db:studio`
+- ✅ Integração com ambos os bots
+- ✅ Salvamento automático de usuários
+- ✅ CRUD completo de eventos
+
+**Comandos:**
+```bash
+npm run db:init      # Criar tabelas
+npm run db:studio    # Interface visual
+npm run db:push      # Sincronizar schema
+```
+
+**Funcionalidades:**
+- ✅ Criação de eventos
+- ✅ Listagem de eventos (`/eventos`)
+- ✅ Edição de eventos (`/editar`) 🆕
+- ✅ Deleção de eventos (`/deletar`) 🆕
+- ✅ Sincronização com Google Calendar 🆕
+
+**Pendências (5%):**
+- ❌ Otimização de queries (índices)
+- ❌ Backup automático
+
+---
+
+### 4. **Integração com IA** ✅ **100%**
+
+#### ✅ Claude 3 Haiku via OpenRouter
+**Arquivo:** `server/utils/claudeParser.ts`
+
+**Funcionalidades:**
+- ✅ Extração de título de eventos
+- ✅ Parse de data/hora natural ("amanhã às 15h")
+- ✅ Detecção de datas relativas (hoje, amanhã, sexta, etc)
+- ✅ Parse de horários (formato 24h e 12h)
+- ✅ Detecção de videoconferência
+- ✅ OPENROUTER_API_KEY configurado 🆕
+
+**Teste: Funcionando 100%** ✅
+
+---
+
+### 5. **Comandos CRUD de Eventos** ✅ **100%** 🆕
+
+#### ✅ Criação de Eventos
+- ✅ Parser de linguagem natural
+- ✅ Salvamento no PostgreSQL
+- ✅ Criação automática no Google Calendar (se conectado)
+- ✅ Links Google Calendar + Outlook
+- ✅ Google Meet automático
+
+#### ✅ Edição de Eventos (`/editar`) 🆕
+- ✅ Lista eventos com botões inline
+- ✅ Comando: `editar ID nova descrição`
+- ✅ Claude parse da nova descrição
+- ✅ Atualização no PostgreSQL
+- ✅ Sincronização com Google Calendar (delete + recreate)
+- ✅ Verificação de permissões
+
+#### ✅ Deleção de Eventos (`/deletar`) 🆕
+- ✅ Lista eventos com botões inline
+- ✅ Confirmação de deleção
+- ✅ Remove do PostgreSQL
+- ✅ Remove do Google Calendar (se conectado)
+- ✅ Verificação de permissões
+
+**Teste: Tudo funcionando!** ✅
+
+---
+
+## 🔴 NÃO INICIADO (4 itens)
+
+### 🔥 1. Sistema de Lembretes (CRÍTICO)
 
 
 
-**Implementação necessária:****Melhorias no index.ts (ÚLTIMAS 30 MIN):**
+**Objetivo:** Enviar notificações 12h antes dos eventos
 
-- Criar `server/services/reminderScheduler.ts`1. ✅ Segurança: helmet + cors configurável + compression
+**Implementação necessária:**
+- Criar `server/services/reminderScheduler.ts`
+- Usar `node-schedule` (já instalado)
+- Query eventos das próximas 12h
+- Agendar lembrete ao criar evento
+- Enviar via WhatsApp e Telegram
+- Cancelar lembrete ao deletar evento
 
-- Usar `node-schedule` (já instalado)2. ✅ Correção: variável `path` → `requestPath` (conflito resolvido)
+**Impacto:** ⭐⭐⭐⭐⭐ Funcionalidade core do produto
 
-- Query eventos das próximas 12h3. ✅ Logging: limite aumentado para 500 caracteres
+**Tempo estimado:** 1-2 dias
 
-- Agendar lembrete ao criar evento4. ✅ Limpeza: remoção de import duplicado (dotenv)
+---
 
-- Enviar via WhatsApp e Telegram5. ✅ Health check interno: endpoint `/_health` (fast response)
-
-- Cancelar lembrete ao deletar evento6. ✅ Validação: função `validatePort()` (1-65535)
-
-7. ✅ Modularização: função `initializeBots()` (retorna status)
-
-**Impacto:** ⭐⭐⭐⭐⭐ Funcionalidade core do produto8. ✅ Logging melhorado: função `log()` com níveis
-
-9. ✅ Shutdown aprimorado: timeout de 10s + mensagens claras
-
-**Tempo estimado:** 1-2 dias10. ✅ Startup visual: mensagens com emojis e status dos bots
-
-11. ✅ Integração: middleware errorHandler e notFoundHandler aplicados
-
----12. ✅ Zero erros TypeScript: compilação limpa
-
-
-
-### 🔥 2. Integração Asaas (Pagamentos)**Métricas da refatoração:**
+### 🔥 2. Integração Asaas (Pagamentos)
 
 - 📉 Redução de 77% no arquivo principal de rotas
 
@@ -344,305 +298,179 @@ npm run db:push      # Sincronizar schema  - ✅ Validação de porta (1-65535)
 
 ASAAS_API_KEY=### 🔴 **Asaas API** - ❌ **0%** (NÃO INICIADO)
 
-ASAAS_WALLET_ID=
+**Objetivo:** Aceitar pagamentos via PIX, boleto e cartão
 
-ASAAS_WEBHOOK_SECRET=**Status:** Nenhum código implementado
-
-```
+**Status:** Nenhum código implementado
 
 **Pendente:**
-
-**Impacto:** ⭐⭐⭐⭐⭐ Monetização- ❌ SDK/biblioteca do Asaas instalada
-
+- ❌ SDK/biblioteca do Asaas instalada
 - ❌ Cadastro de clientes via API
-
-**Tempo estimado:** 2-3 dias- ❌ Criação de cobranças (PIX, boleto, cartão)
-
+- ❌ Criação de cobranças (PIX, boleto, cartão)
 - ❌ Webhook para confirmação de pagamento
-
----- ❌ Validação de status de pagamento
-
+- ❌ Validação de status de pagamento
 - ❌ Tratamento de erros da API Asaas
+- ❌ Armazenamento de dados de pagamento no banco
 
-### 🔥 3. Open Finance- ❌ Armazenamento de dados de pagamento no banco
-
-
-
-**Objetivo:** Detectar pagamentos automaticamente**Variáveis de ambiente necessárias:**
-
+**Variáveis de ambiente necessárias:**
 ```env
-
-**Implementação necessária:**ASAAS_API_KEY=          # Não existe
-
-- Integrar provedor (Pluggy, Belvo)ASAAS_WALLET_ID=        # Não existe
-
-- Criar `server/services/openFinance.ts`ASAAS_WEBHOOK_SECRET=   # Não existe
-
-- Webhook de transações```
-
-- Matching de CPF/CNPJ + valor
-
-- Ativação automática após pagamento**Arquivos necessários (não existem):**
-
-- `server/services/asaas.ts`
-
-**Variáveis necessárias:**- `server/routes/payment.ts`
-
-```env- `server/webhooks/asaas.ts`
-
-OPEN_FINANCE_CLIENT_ID=
-
-OPEN_FINANCE_CLIENT_SECRET=---
-
-OPEN_FINANCE_API_URL=
-
-```### 🔴 **Open Finance** - ❌ **0%** (NÃO INICIADO)
-
-
-
-**Impacto:** ⭐⭐⭐⭐ Automação de pagamentos**Status:** Nenhum código implementado
-
-
-
-**Tempo estimado:** 2-3 dias**Pendente:**
-
-- ❌ Integração com provedor Open Finance (Pluggy, Belvo, etc)
-
----- ❌ Vinculação de CPF/CNPJ
-
-- ❌ Leitura de transações bancárias
-
-### 🔥 4. Fluxo de Cadastro/Pagamento- ❌ Identificação automática de pagamentos recebidos
-
-- ❌ Sincronização com calendário após pagamento
-
-**Objetivo:** Onboarding completo do usuário- ❌ Webhook de notificação de transações
-
-- ❌ Armazenamento de consentimento do usuário
-
-**Implementação necessária:**
-
-- Criar `client/src/pages/register.tsx`**Variáveis de ambiente necessárias:**
-
-- Criar `server/routes/register.ts````env
-
-- Formulário: nome, email, CPF, telefoneOPEN_FINANCE_CLIENT_ID=     # Não existe
-
-- Criar cliente no AsaasOPEN_FINANCE_CLIENT_SECRET= # Não existe
-
-- Gerar cobrançaOPEN_FINANCE_API_URL=       # Não existe
-
-- Exibir QR Code PIX```
-
-- Webhook para ativar bot após pagamento
+ASAAS_API_KEY=          # Não configurado
+ASAAS_WALLET_ID=        # Não configurado
+ASAAS_WEBHOOK_SECRET=   # Não configurado
+```
 
 **Arquivos necessários (não existem):**
+- `server/services/asaas.ts`
+- `server/routes/payment.ts`
+- `server/webhooks/asaas.ts`
 
-**Impacto:** ⭐⭐⭐⭐⭐ Fluxo de entrada- `server/services/openFinance.ts`
+**Impacto:** ⭐⭐⭐⭐⭐ Monetização
 
+**Tempo estimado:** 2-3 dias
+
+---
+
+### � 3. Integração Open Finance
+
+**Objetivo:** Detectar pagamentos automaticamente
+
+**Status:** Nenhum código implementado
+
+**Pendente:**
+- ❌ Integração com provedor Open Finance (Pluggy, Belvo, etc)
+- ❌ Vinculação de CPF/CNPJ
+- ❌ Leitura de transações bancárias
+- ❌ Identificação automática de pagamentos recebidos
+- ❌ Sincronização com calendário após pagamento
+- ❌ Webhook de notificação de transações
+- ❌ Armazenamento de consentimento do usuário
+
+**Variáveis de ambiente necessárias:**
+```env
+OPEN_FINANCE_CLIENT_ID=     # Não configurado
+OPEN_FINANCE_CLIENT_SECRET= # Não configurado
+OPEN_FINANCE_API_URL=       # Não configurado
+```
+
+**Arquivos necessários (não existem):**
+- `server/services/openFinance.ts`
 - `server/routes/banking.ts`
+- `server/webhooks/openFinance.ts`
 
-**Tempo estimado:** 3-4 dias- `server/webhooks/openFinance.ts`
+**Impacto:** ⭐⭐⭐⭐ Automação de pagamentos
 
+**Tempo estimado:** 2-3 dias
 
+---
 
-------
+### 🔥 4. Fluxo de Cadastro/Pagamento
 
+**Objetivo:** Onboarding completo do usuário
 
+**Implementação necessária:**
+- Criar `client/src/pages/register.tsx`
+- Criar `server/routes/register.ts`
+- Formulário: nome, email, CPF, telefone
+- Criar cliente no Asaas
+- Gerar cobrança
+- Exibir QR Code PIX
+- Webhook para ativar bot após pagamento
 
-### 🔥 5. Identificação Automática de Pagamentos### ✅ **WhatsApp API** - ✅ **90%** (QUASE COMPLETO)
+**Impacto:** ⭐⭐⭐⭐⭐ Fluxo de entrada
 
+**Tempo estimado:** 3-4 dias
 
+---
 
-**Objetivo:** Matching de transações bancárias**Status:** Funcional com Baileys
-
-
-
-**Implementação necessária:****✅ Implementado:**
-
-- Webhook Open Finance- ✅ Integração com Baileys (`@whiskeysockets/baileys` v6.4.0)
-
-- Criar `server/services/paymentMatcher.ts`- ✅ Autenticação via QR Code
-
-- Lógica de matching (valor + CPF)- ✅ Estado persistente em `whatsapp_session/`
-
-- Atualização automática de status- ✅ Recebimento de mensagens
-
-- Notificação ao usuário- ✅ Processamento de texto via IA
-
-- ✅ Envio de respostas automáticas
-
-**Impacto:** ⭐⭐⭐⭐ Experiência do usuário- ✅ Geração de links de calendário
-
-- ✅ Reconexão automática
-
-**Tempo estimado:** 2 dias
-
-**❌ Pendente:**
-
----- ❌ **Verificação de status de pagamento** (integração com Asaas/Open Finance)
-
-- ❌ Fluxo condicional: "Pagamento não detectado, aguarde..."
-
-## 📈 ESTATÍSTICAS- ❌ Mensagens automáticas de cobrança
-
-- ❌ Notificação de expiração de pagamento
+## 📈 ESTATÍSTICAS
 
 ### Por Categoria
 
-**Arquivos:**
-
-| Categoria | Progresso |- ✅ `server/whatsapp/whatsappBot.ts` (refatorado, 285 linhas)
-
-|-----------|-----------|- ✅ `server/routes.ts` (endpoints `/api/whatsapp/*`)
-
+| Categoria | Progresso |
+|-----------|-----------|
 | 1. Refatoração e Estrutura | 🟢 100% |
+| 2. Integração com Serviços | 🟡 60% |
+| 3. Fluxo Automatizado | 🟡 25% |
 
-| 2. Integração com Serviços | 🟡 48% |**API Endpoints:**
+### Por Status
 
-| 3. Fluxo Automatizado | 🟡 37% |- ✅ `GET /api/whatsapp/qr` - QR Code
+- ✅ **Completo:** 8/17 itens (47%)
+- 🟡 **Funcional:** 2/17 itens (12%)
+- 🔴 **Não Iniciado:** 7/17 itens (41%)
 
-- ✅ `GET /api/whatsapp/status` - Status
+### Evolução
 
-### Por Status- ✅ `POST /api/whatsapp/send` - Enviar mensagem
+| Data | Progresso | Marcos |
+|------|-----------|--------|
+| 03/11 - 20h | 30% | Início da refatoração |
+| 03/11 - 22h30 | 38% | Rotas padronizadas |
+| 03/11 - 23h00 | 42% | Segurança implementada |
+| 03/11 - 23h45 | 52% | `/eventos` funcionando |
+| 03/11 - 23h50 | 55% | Scope reorganizado |
+| **04/11 - 02h** | **65%** | **Google Calendar + CRUD completo** 🎉 |
 
+**Ganho na sessão:** +35 pontos percentuais 🚀
 
+---
 
-- ✅ **Completo:** 6/13 itens (46%)---
+## 🎯 ROADMAP SUGERIDO
 
-- 🟡 **Em Progresso:** 2/13 itens (15%)
-
-- 🔴 **Não Iniciado:** 5/13 itens (38%)### 🟡 **OpenRouter (IA)** - 🟡 **80%** (FUNCIONAL, MAS INCOMPLETO)
-
-
-
-### Evolução**Status:** NLP funcional, extração parcial
-
-
-
-| Data | Progresso |**✅ Implementado:**
-
-|------|-----------|- ✅ Integração com OpenRouter API
-
-| 03/11 - 20h | 30% |- ✅ Modelo Claude Haiku configurado
-
-| 03/11 - 22h30 | 38% |- ✅ Interpretação de mensagens em português
-
-| 03/11 - 23h00 | 42% |- ✅ Extração de título do evento
-
-| 03/11 - 23h45 | 52% |- ✅ Extração de data/hora (relativas e absolutas)
-
-| **03/11 - 23h50** | **55%** |- ✅ Detecção de participantes (emails)
-
-- ✅ Fallback para parser manual (chrono-node)
-
-**Ganho na sessão:** +25 pontos percentuais 🚀- ✅ Tratamento de erros da API
-
-
-
----**❌ Pendente (conforme escopo):**
-
-- ❌ Extração de **informações de pagamento** (valor, método)
-
-## 🎯 ROADMAP SUGERIDO- ❌ Extração de **CPF/CNPJ** para vinculação Open Finance
-
-- ❌ Detecção de intenção: "quero pagar", "confirmar pagamento"
-
-### Sprint 1 - Lembretes (1-2 semanas) 🔥 PRÓXIMO- ❌ Classificação de tipo de evento (consulta, reunião, workshop)
-
-- [ ] Implementar `reminderScheduler.ts`- ❌ Extração de duração estimada
-
+### Sprint 1 - Lembretes (1-2 semanas) 🔥 PRÓXIMO
+- [ ] Implementar `reminderScheduler.ts`
 - [ ] Integrar com `node-schedule`
-
-- [ ] Query de eventos futuros**Variáveis de ambiente:**
-
-- [ ] Envio via WhatsApp e Telegram- ✅ `OPENROUTER_API_KEY` - Configurado
-
+- [ ] Query de eventos futuros
+- [ ] Envio via WhatsApp e Telegram
+- [ ] Cancelar lembrete ao deletar evento
 - [ ] Testes end-to-end
 
-**Arquivos:**
+### Sprint 2 - WhatsApp Features (1 semana)
+- [ ] Implementar Google Calendar OAuth para WhatsApp
+- [ ] Comandos `/editar` e `/deletar`
+- [ ] Listagem de eventos
+- [ ] Sincronização automática
 
-### Sprint 2 - Google Calendar (1 semana)- ✅ `server/utils/claudeParser.ts` (147 linhas)
-
-- [ ] Obter credenciais Google Cloud- ✅ `server/utils/claudeParser.js` (backup)
-
-- [ ] Integrar fluxo OAuth- ✅ `server/utils/dateParser.ts`
-
-- [ ] Criar eventos automaticamente- ✅ `server/utils/titleExtractor.ts`
-
-- [ ] Sincronização bidirecional- ✅ `server/utils/attendeeExtractor.ts`
-
-
-
-### Sprint 3 - Pagamentos Asaas (2-3 semanas)**Observação:** IA funciona para agendamento, mas não para fluxo de pagamento.
-
+### Sprint 3 - Pagamentos Asaas (2-3 semanas)
 - [ ] Criar conta Asaas
-
-- [ ] Implementar API---
-
+- [ ] Implementar API
 - [ ] Página de cadastro
-
-- [ ] Webhook de confirmação### 🟡 **Google Calendar API** - 🟡 **60%** (CÓDIGO PRONTO, NÃO TESTADO)
-
+- [ ] Webhook de confirmação
 - [ ] Testes de pagamento
 
-**Status:** Implementado, mas não ativado em produção
-
 ### Sprint 4 - Open Finance (2-3 semanas)
+- [ ] Escolher provedor
+- [ ] Integrar API
+- [ ] Webhook de transações
+- [ ] Sistema de matching
+- [ ] Testes de fluxo completo
 
-- [ ] Escolher provedor**✅ Implementado:**
-
-- [ ] Integrar API- ✅ OAuth2 Client configurado
-
-- [ ] Webhook de transações- ✅ Geração de URL de autorização
-
-- [ ] Sistema de matching- ✅ Troca de código por tokens
-
-- [ ] Testes de fluxo completo- ✅ Refresh automático de tokens
-
-- ✅ Criação de eventos via API
-
-### Sprint 5 - Refinamentos (1 semana)- ✅ Detecção de intenção de videoconferência
-
-- [ ] Rate limiting- ✅ Criação automática de Google Meet
-
-- [ ] Testes automatizados- ✅ Suporte a participantes
-
-- [ ] Autenticação JWT- ✅ Armazenamento de tokens no schema do banco
-
+### Sprint 5 - Refinamentos (1 semana)
+- [ ] Rate limiting
+- [ ] Testes automatizados
+- [ ] Autenticação JWT
 - [ ] Documentação OpenAPI
+- [ ] Logs e analytics
 
-- [ ] Logs e analytics**❌ Pendente:**
+---
 
-- ❌ **Credenciais do Google Cloud** (CLIENT_ID, CLIENT_SECRET)
+## 🏆 CONQUISTAS DA SESSÃO
 
----- ❌ Fluxo de autorização integrado ao bot
-
-- ❌ Sincronização bidirecional (Google → Banco)
-
-## 🏆 CONQUISTAS DA SESSÃO- ❌ Atualização de eventos existentes
-
-- ❌ Cancelamento via API
-
-### Hoje (03/11/2025):- ❌ **Vinculação com e-mail do usuário cadastrado**
-
-- ❌ Testes end-to-end
+### 03-04/11/2025 (7 horas):
 
 1. ✅ Padronização completa de rotas (77% redução)
-
-2. ✅ Segurança production-ready (Helmet + CORS + Compression)**Variáveis de ambiente necessárias:**
-
-3. ✅ Sistema de logging profissional```env
-
-4. ✅ Integração completa com banco de dadosGOOGLE_CLIENT_ID=           # Não existe
-
-5. ✅ Salvamento automático de usuários (Telegram + WhatsApp)GOOGLE_CLIENT_SECRET=       # Não existe
-
-6. ✅ Salvamento automático de eventosGOOGLE_REDIRECT_URI=        # Não existe
-
-7. ✅ Comando `/eventos` para listar eventos```
-
+2. ✅ Segurança production-ready (Helmet + CORS + Compression)
+3. ✅ Sistema de logging profissional
+4. ✅ Integração completa com banco de dados
+5. ✅ Salvamento automático de usuários (Telegram + WhatsApp)
+6. ✅ Salvamento automático de eventos
+7. ✅ Comando `/eventos` para listar eventos
 8. ✅ Script de inicialização do banco (`db:init`)
+9. ✅ Migração 100% JavaScript → TypeScript (7 arquivos) 🎉
+10. ✅ Google Calendar OAuth completo 🎉
+11. ✅ Criação automática de eventos no Google Calendar 🎉
+12. ✅ Google Meet automático 🎉
+13. ✅ Comando `/editar` com sincronização 🎉
+14. ✅ Comando `/deletar` com sincronização 🎉
+15. ✅ OPENROUTER_API_KEY configurado 🎉
+16. ✅ Todos os bugs corrigidos (imports, regex, tipos) 🎉
 
 9. ✅ Documentação completa (DATABASE.md)**Arquivos:**
 
@@ -769,306 +597,168 @@ OPEN_FINANCE_API_URL=
 
 **Arquivos necessários (não existem):**
 - `server/services/reminderScheduler.ts`
-- `server/jobs/sendReminders.ts`
 
-**Biblioteca instalada mas não usada:**
-- `node-schedule` v2.1.1
-
----
-
-### 🔴 **Registro completo dos eventos e logs no banco de dados** - ✅ **80%** (QUASE COMPLETO)
-
-**Status:** Integração implementada!
-
-**✅ Implementado:**
-- ✅ Schema completo (`users`, `events`, `userSettings`)
-- ✅ Conexão com PostgreSQL (Neon)
-- ✅ Drizzle ORM configurado
-- ✅ Interface `IStorage` com métodos CRUD completos
-- ✅ Classe `DatabaseStorage` implementada
-- ✅ **NOVO: Integração dos bots com o banco**
-- ✅ **NOVO: Salvamento automático de usuários no Telegram**
-- ✅ **NOVO: Salvamento automático de usuários no WhatsApp**
-- ✅ **NOVO: Salvamento automático de eventos via Telegram**
-- ✅ **NOVO: Salvamento automático de eventos via WhatsApp**
-- ✅ **NOVO: Comando `/eventos` para listar eventos do usuário**
-- ✅ **NOVO: Criação automática de configurações padrão**
-
-**❌ Pendente:**
-- ❌ Atualização de eventos existentes via mensagem
-- ❌ Cancelamento de eventos via comando
-- ❌ Registro de mensagens processadas (tabela `logs`)
-- ❌ Auditoria de ações (criação, edição, cancelamento)
-- ❌ Métricas de uso (eventos por usuário, taxa de sucesso da IA)
-
-**Arquivos:**
-- ✅ `shared/schema.ts` (119 linhas) - Schema completo
-- ✅ `server/db.ts` (28 linhas) - Conexão
-- ✅ `server/storage.ts` (150 linhas) - Interface + implementação completa
-- ✅ `server/telegram/direct_bot.ts` - **INTEGRADO** com storage
-- ✅ `server/whatsapp/whatsappBot.ts` - **INTEGRADO** com storage
-- ✅ `server/telegram/user.ts` - Funções de criação (USADAS pelos bots)
-
-**Funcionalidades implementadas:**
-1. ✅ Criar usuário automaticamente no /start
-2. ✅ Buscar usuário existente antes de criar
-3. ✅ Salvar evento com todas as informações (título, data, descrição, rawData)
-4. ✅ Vincular evento ao usuário correto
-5. ✅ Armazenar mensagem original e resultado do parser
-6. ✅ Listar próximos eventos do usuário (`/eventos`)
-7. ✅ Configurações padrão (lembretes 12h, fuso UTC-3)
-
-**Melhorias implementadas:**
-- 🔒 Verificação se banco está conectado antes de cada operação
-- 🛡️ Try-catch para não quebrar bot se banco falhar
-- 📊 Logs detalhados de operações do banco
-- ✨ Criação automática de usuário na primeira interação
-- 📅 Comando `/eventos` para visualizar próximos 5 eventos
-
----
-
-## 📊 RESUMO QUANTITATIVO
-
-### Por Item do Escopo:
-
-| Item | Status | Progresso |
-|------|--------|-----------|
-| **1.1** Revisão do repositório | ✅ Completo | 100% |
-| **1.2** Remoção de código descartável | ✅ Completo | 100% |
-| **1.3** Padronização de rotas e erros | ✅ Completo | 100% |
-| **2.1** Asaas API | 🔴 Não iniciado | 0% |
-| **2.2** Open Finance | 🔴 Não iniciado | 0% |
-| **2.3** WhatsApp API | 🟡 Quase completo | 90% |
-| **2.4** OpenRouter (IA) | 🟡 Funcional | 80% |
-| **2.5** Google Calendar API | 🟡 Código pronto | 60% |
-| **3.1** Fluxo de cadastro/pagamento | 🔴 Não iniciado | 0% |
-| **3.2** Identificação Open Finance | 🔴 Não iniciado | 0% |
-| **3.3** Criação automática de eventos | 🟡 Parcial | 70% |
-| **3.4** Lembretes automáticos 12h | 🔴 Não iniciado | 0% |
-| **3.5** Registro completo no banco | ✅ Quase completo | 80% |
-
-### Estatísticas Gerais:
-
-- ✅ **Completo:** 3/13 itens (23%)
-- 🟡 **Parcial:** 5/13 itens (38%) ⬆️ +1 item (3.5 alcançou 80%)
-- 🔴 **Pendente:** 5/13 itens (38%) ⬇️ -1 item
-
-**Progresso médio ponderado:** ~52% ⬆️ (+10% com integração do banco de dados)
-
-### 📈 Evolução do Progresso:
-
-| Data | Progresso | Melhorias |
-|------|-----------|-----------|
-| 03/11 - 20h | 30% | Análise inicial, migrações básicas |
-| 03/11 - 22h30 | 38% | ✅ Padronização completa de rotas |
-| 03/11 - 23h00 | 42% | ✅ Segurança, logging e robustez em produção |
-| 03/11 - 23h45 | 52% | ✅ **Integração completa com banco de dados** |
-
-### 🎯 Conquistas da Última Hora:
-
-1. ✅ **Integração do banco de dados** - Storage completamente funcional
-2. ✅ **Salvamento automático de usuários** - Telegram e WhatsApp
-3. ✅ **Salvamento automático de eventos** - Ambos os bots integrados
-4. ✅ **Comando /eventos** - Listar próximos eventos do usuário
-5. ✅ **9 novos métodos no storage** - CRUD completo implementado
-6. ✅ **Proteção contra falhas** - Bots continuam funcionando se DB falhar
-7. ✅ **Logs detalhados** - Rastreamento de todas as operações do banco
-
-1. ✅ **Middleware de erro robusto** - Classes personalizadas + validação Zod
-2. ✅ **Rotas modulares** - 77% de redução no código principal
-3. ✅ **Respostas padronizadas** - 100% das rotas seguem padrão `success/error`
-4. ✅ **Códigos de erro consistentes** - 8 códigos padronizados implementados
-5. ✅ **Documentação completa** - 2 guias criados (API + Padronização)
-6. ✅ **Segurança em produção** - Helmet + CORS + Compression
-7. ✅ **Sistema de logging profissional** - Níveis, timestamps, colorização
-8. ✅ **Robustez** - Validação de porta, graceful shutdown, health checks
-9. ✅ **Performance** - Compression (~70% redução de payload)
-10. ✅ **Código limpo** - Zero erros TypeScript, sem duplicações
-11. ✅ **Monitoramento** - Contador de requests, uptime tracking
-12. ✅ **Produção-ready** - Todas as best practices implementadas
-
----
-
-## 🚨 BLOQUEADORES CRÍTICOS
-
-### 1. **Falta de integração com Asaas** 🔴 CRÍTICO
-- **Impacto:** Fluxo de monetização não existe
-- **Dependência:** Todo o item 3.1 depende disso
-- **Ação necessária:** Criar conta Asaas, obter API key, implementar SDK
-
-### 2. **Falta de integração com Open Finance** 🔴 CRÍTICO
-- **Impacto:** Identificação automática de pagamentos impossível
-- **Dependência:** Item 3.2 bloqueado
-- **Ação necessária:** Escolher provedor (Pluggy, Belvo), implementar
-
-### 3. **Banco de dados não utilizado** 🔴 CRÍTICO
-- **Impacto:** Sem persistência, sem histórico, sem lembretes
-- **Dependência:** Itens 3.4 e 3.5 bloqueados
-- **Ação necessária:** Integrar bots com `storage.ts`
-
-### 4. **Credenciais do Google Calendar** 🟡 ALTA
-- **Impacto:** Criação automática no calendário bloqueada
-- **Dependência:** Item 2.5 parcialmente bloqueado
-- **Ação necessária:** Obter credenciais do Google Cloud Console
-
-### 5. **Sistema de lembretes não implementado** 🟡 ALTA
-- **Impacto:** Funcionalidade core do escopo ausente
-- **Dependência:** Requer integração com banco (bloqueador #3)
-- **Ação necessária:** Implementar `node-schedule` + query de eventos
-
----
-
-## 🎯 ROADMAP SUGERIDO
-
-### Sprint 1 - Persistência (1-2 semanas)
-1. Integrar bots com `storage.createUser()`
-2. Integrar bots com `storage.createEvent()` (salvar no banco)
-3. Adicionar query de eventos por usuário
-4. Implementar edição e cancelamento no banco
-
-### Sprint 2 - Lembretes (1 semana)
-1. Implementar `reminderScheduler.ts` com `node-schedule`
-2. Agendar lembrete ao criar evento
-3. Enviar via WhatsApp/Telegram 12h antes
-4. Configuração de horários personalizados
-
-### Sprint 3 - Google Calendar OAuth (1-2 semanas)
-1. Obter credenciais do Google Cloud
-2. Implementar fluxo de autorização via bot
-3. Criar eventos automaticamente no Google Calendar
-4. Sincronização bidirecional
-
-### Sprint 4 - Pagamentos Asaas (2-3 semanas)
-1. Criar conta Asaas
-2. Implementar SDK/API
-3. Criar página de cadastro/pagamento
-4. Webhook de confirmação
-5. Ativação automática no WhatsApp
-
-### Sprint 5 - Open Finance (2-3 semanas)
-1. Escolher e integrar provedor
-2. Fluxo de vinculação de conta bancária
-3. Webhook de transações
-4. Matching automático de pagamentos
-
-### Sprint 6 - Refinamento (1 semana) ✅ **80% COMPLETO**
-1. ✅ Documentação de API (completa)
-2. ✅ Validação com Zod em todas as rotas (completa)
-3. ✅ Segurança (Helmet, CORS, Compression) (completa)
-4. ✅ Sistema de logging profissional (completa)
-5. ✅ Graceful shutdown e robustez (completa)
-6. ❌ Rate limiting (pendente - estrutura pronta)
-7. ❌ Testes end-to-end (pendente)
-8. ❌ Autenticação JWT (pendente)
 
 ---
 
 ## 📝 OBSERVAÇÕES FINAIS
 
 ### Pontos Positivos ✅
-- ✅ Código TypeScript bem estruturado
-- ✅ Bots funcionais (Telegram + WhatsApp)
-- ✅ IA de NLP operacional
-- ✅ Schema de banco completo e bem projetado
-- ✅ Deploy automatizado (Railway)
-- ✅ **Arquitetura de rotas profissional e escalável**
-- ✅ **Tratamento de erros robusto e consistente**
-- ✅ **Validação automática com Zod em 100% das rotas**
-- ✅ **Documentação completa da API**
-- ✅ **Código 77% mais enxuto e modular**
-- ✅ **NOVO: Segurança production-ready** (Helmet + CORS + Compression)
-- ✅ **NOVO: Sistema de logging profissional** (níveis, timestamps, colorização)
-- ✅ **NOVO: Robustez e confiabilidade** (graceful shutdown, health checks, validações)
-- ✅ **NOVO: Monitoramento ativo** (uptime, request count, performance)
-- ✅ **NOVO: Zero erros TypeScript** (compilação limpa)
+- ✅ Código 100% TypeScript (migração completa)
+- ✅ **Telegram Bot** - Totalmente funcional com todas as features
+- ✅ **WhatsApp Bot** - Funcional (base sólida, precisa features extras)
+- ✅ IA de NLP operacional (Claude Haiku)
+- ✅ **Google Calendar OAuth** - Totalmente implementado e testado 🎉
+- ✅ **CRUD completo de eventos** - Create, Read, Update, Delete 🎉
+- ✅ Schema de banco completo (PostgreSQL + Drizzle)
+- ✅ Deploy automatizado (Render)
+- ✅ Arquitetura de rotas profissional e escalável
+- ✅ Tratamento de erros robusto
+- ✅ Validação automática com Zod (100%)
+- ✅ Documentação completa da API
+- ✅ Segurança production-ready (Helmet + CORS + Compression)
+- ✅ Sistema de logging profissional
+- ✅ Robustez e confiabilidade
+- ✅ Zero erros TypeScript
 
 ### Pontos de Atenção ⚠️
 - ⚠️ **Nenhuma funcionalidade de pagamento implementada**
-- ⚠️ **Banco de dados não está sendo usado**
-- ⚠️ **Lembretes automáticos não existem**
-- ⚠️ **Google Calendar não ativado** (falta credenciais)
+- ⚠️ **Lembretes automáticos não existem** (🔥 PRÓXIMA PRIORIDADE)
+- ⚠️ **WhatsApp sem Google Calendar** (precisa implementar OAuth)
+- ⚠️ **WhatsApp sem comandos avançados** (/editar, /deletar)
 - ⚠️ **Sem testes automatizados**
-- ⚠️ **Rate limiting não ativo** (estrutura pronta, precisa configurar)
-- ⚠️ **JWT não implementado** (autenticação pendente)
+- ⚠️ **Rate limiting não ativo** (estrutura pronta)
 
 ### Recomendações 🎯
-1. **PRÓXIMO PASSO CRÍTICO:** Integrar bots com banco de dados (storage.ts)
-2. **Definir estratégia de pagamento** - Asaas vs outros
-3. **Obter credenciais Google** - Funcionalidade core bloqueada
-4. **Implementar lembretes** - Diferencial competitivo (node-schedule já instalado)
-5. **Ativar rate limiting** - Estrutura pronta, basta configurar limites
-6. **Implementar suite de testes** - Jest/Vitest para garantir qualidade
+1. **PRÓXIMO PASSO CRÍTICO:** Implementar sistema de lembretes (node-schedule)
+2. **WhatsApp features:** Adicionar comandos OAuth e CRUD (copiar do Telegram)
+3. **Definir estratégia de pagamento** - Asaas vs outros
+4. **Implementar lembretes** - Diferencial competitivo (biblioteca já instalada)
+5. **Ativar rate limiting** - Estrutura pronta, configurar limites
+6. **Implementar suite de testes** - Jest/Vitest
 7. **JWT/Auth** - Proteger endpoints sensíveis
 
 ---
 
-## 🎖️ DESTAQUES DA REFATORAÇÃO
+## 🎖️ DESTAQUES DA SESSÃO
+
+### Implementação Google Calendar OAuth (100%)
+
+**Arquivos criados:**
+- `server/routes/google-auth.routes.ts` - 200+ linhas
+- `GOOGLE_CALENDAR_SETUP.md` - Guia completo
+- `ERRO_OPENROUTER_API_KEY.md` - Troubleshooting
+
+**Funcionalidades:**
+- ✅ OAuth 2.0 completo
+- ✅ Página de sucesso bonita
+- ✅ Criação automática no Google Calendar
+- ✅ Google Meet automático
+- ✅ Edição sincronizada (delete + recreate)
+- ✅ Deleção sincronizada
+- ✅ Refresh token automático
+
+### Implementação CRUD de Eventos (100%)
+
+**Comandos Telegram:**
+```
+/eventos  → Lista próximos eventos
+/editar   → Edita evento (com botões)
+/deletar  → Deleta evento (com botões)
+/conectar → OAuth Google Calendar
+/status   → Ver conexão Google
+```
+
+**Fluxo completo:**
+1. Usuário envia mensagem natural
+2. Claude parse data/hora/título
+3. Salva no PostgreSQL
+4. Se conectado, cria no Google Calendar
+5. Atualiza DB com calendarId
+6. Confirmação com status
+
+### Correções de Bugs (16 fixes)
+
+1. ✅ Fixed imports (removido '../vite')
+2. ✅ Fixed regex Unicode para ES5
+3. ✅ Removed attendees field
+4. ✅ Fixed nullable types (null → undefined)
+5. ✅ OPENROUTER_API_KEY configurado
+6. ✅ Localhost URL handling (Telegram buttons)
+7. ✅ storage.getEventById → storage.getEvent
+8. ✅ Multiple debug logs added
+9. ✅ Error messages improved
+10. ✅ Callback handlers implemented
+11. ✅ Permission checks added
+12. ✅ Token management fixed
+13. ✅ Timezone handling improved
+14. ✅ Conference link detection
+15. ✅ Event description parsing
+16. ✅ User verification
 
 ### Arquitetura Antes vs Depois:
 
-**ANTES:**
+**ANTES (Início da sessão):**
 ```
-server/
-├── routes.ts (234 linhas, monolítico)
-├── index.ts (rotas duplicadas)
-└── utils/
+Google Calendar: 60% (código pronto, não testado)
+Event CRUD: 70% (só criação, sem edit/delete)
+TypeScript: 80% (7 arquivos .js restantes)
+OpenRouter: Chave não configurada
 ```
 
-**DEPOIS:**
+**DEPOIS (Agora):**
 ```
-server/
-├── middleware/
-│   ├── errorHandler.ts      ← 148 linhas (8 classes de erro)
-│   └── validateRequest.ts   ← 23 linhas (validação Zod)
-├── routes/
-│   ├── health.routes.ts     ← 76 linhas (2 endpoints)
-│   ├── whatsapp.routes.ts   ← 127 linhas (3 endpoints)
-│   └── analytics.routes.ts  ← 87 linhas (2 endpoints)
-├── routes.ts (52 linhas, -77%) ← Apenas registro
-└── index.ts (limpo)
+Google Calendar: ✅ 100% (OAuth completo + sincronização)
+Event CRUD: ✅ 100% (Create, Read, Update, Delete)
+TypeScript: ✅ 100% (migração completa)
+OpenRouter: ✅ 100% (configurado e testando)
 ```
 
 ### Impacto Mensurável:
 
 | Métrica | Antes | Depois | Melhoria |
 |---------|-------|--------|----------|
-| **Linhas em routes.ts** | 234 | 52 | -77% |
-| **Rotas com validação** | 0% | 100% | +100% |
-| **Rotas com error handling** | Parcial | 100% | +100% |
-| **Respostas padronizadas** | Inconsistente | 100% | +100% |
-| **Código duplicado** | Alto | Zero | -100% |
-| **Documentação** | Inexistente | Completa | ✅ |
-| **Segurança (camadas)** | 0 | 3 | +3 |
-| **Sistema de logging** | Básico | Profissional | ✅ |
-| **Erros TypeScript** | 0 | 0 | ✅ |
-| **Health checks** | 1 | 2 | +100% |
-| **Compression** | Não | Sim (~70%) | ✅ |
-| **Graceful shutdown** | Parcial | Completo | ✅ |
+| **Google Calendar** | 60% | 100% | +40% |
+| **Event CRUD** | 70% | 100% | +30% |
+| **TypeScript** | 80% | 100% | +20% |
+| **Bot Telegram** | 95% | 100% | +5% |
+| **Progresso Geral** | 55% | 65% | +10% |
+| **Comandos Telegram** | 7 | 10 | +43% |
+| **Rotas OAuth** | 0 | 4 | ✅ |
+| **Bugs corrigidos** | - | 16 | ✅ |
+| **Docs criados** | 3 | 5 | +67% |
 
 ---
 
-**Documento atualizado em:** 03/11/2025 às 23:00 BRT  
-**Progresso desde início da sessão:** 30% → 42% (+12 pontos percentuais)  
-**Próxima revisão sugerida:** Após implementação de persistência no banco de dados
+**Documento atualizado em:** 04/11/2025 às 03:30 BRT  
+**Progresso na sessão:** 55% → 65% (+10 pontos percentuais) 🚀  
+**Tempo de trabalho:** ~7 horas  
+**Próxima revisão sugerida:** Após implementação do sistema de lembretes
 
 ---
 
 ## 🚀 PRÓXIMOS PASSOS PRIORITÁRIOS
 
-### Prioridade 1 - CRÍTICO 🔴
-**Integração dos bots com banco de dados**
-- Modificar `whatsappBot.ts` para chamar `storage.createUser()` e `storage.createEvent()`
-- Modificar `direct_bot.ts` e `zelar_bot.ts` para persistir dados
-- Testar fluxo completo: mensagem → parse → salvar → confirmar
-- **Impacto:** Habilita lembretes, histórico, analytics
-
-### Prioridade 2 - ALTA 🟡
+### Prioridade 1 - CRÍTICO 🔥
 **Sistema de lembretes automáticos**
 - Criar `server/services/reminderScheduler.ts`
 - Usar `node-schedule` (já instalado)
+- Query eventos das próximas 12-24h
 - Agendar ao criar evento
 - Enviar via WhatsApp e Telegram
-- **Impacto:** Diferencial competitivo do produto
+- Cancelar ao deletar evento
+- **Impacto:** ⭐⭐⭐⭐⭐ Funcionalidade core
+- **Tempo:** 1-2 dias
+
+### Prioridade 2 - ALTA 🟡
+**WhatsApp - Features avançadas**
+- Implementar OAuth Google Calendar (copiar do Telegram)
+- Adicionar comando `/editar`
+- Adicionar comando `/deletar`
+- Adicionar comando `/eventos`
+- Sincronização automática com Google Calendar
+- **Impacto:** ⭐⭐⭐⭐ Paridade de features
+- **Tempo:** 2-3 dias
 
 ### Prioridade 3 - ALTA 🟡
 **Integração Asaas para pagamentos**
@@ -1076,4 +766,13 @@ server/
 - Implementar `server/services/asaas.ts`
 - Criar fluxo de cadastro + pagamento
 - Webhook de confirmação
-- **Impacto:** Monetização do produto
+- **Impacto:** ⭐⭐⭐⭐⭐ Monetização
+- **Tempo:** 2-3 dias
+
+### Prioridade 4 - MÉDIA 🟢
+**Open Finance**
+- Escolher provedor (Pluggy, Belvo)
+- Implementar webhook de transações
+- Sistema de matching automático
+- **Impacto:** ⭐⭐⭐⭐ Automação
+- **Tempo:** 2-3 dias
