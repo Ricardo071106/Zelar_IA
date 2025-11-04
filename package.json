@@ -13,7 +13,6 @@
     "preview": "vite preview",
     "start": "tsx server/index.ts",
     "start:prod": "NODE_ENV=production tsx server/index.ts",
-    "start:simple": "node server/simple-server.js",
     "db:init": "tsx server/scripts/init-db.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx server/scripts/migrate.ts",

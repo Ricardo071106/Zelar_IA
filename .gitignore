@@ -3,8 +3,31 @@ node_modules
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Build outputs
+dist/
+build/
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.production
+
 # Elastic Beanstalk Files
 .elasticbeanstalk/*
 !.elasticbeanstalk/*.cfg.yml
 !.elasticbeanstalk/*.global.yml
+
+# WhatsApp session
 whatsapp_session/
+
+# TypeScript
+*.tsbuildinfo
+
+# Ignore JS files (we only use TypeScript)
+# Except config files
+*.js
+!postcss.config.js
+!vite.config.js
+!tailwind.config.js
