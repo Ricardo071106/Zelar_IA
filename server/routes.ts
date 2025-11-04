@@ -4,6 +4,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/health.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import googleAuthRoutes from './routes/google-auth.routes';
 
 /**
  * Registra todas as rotas da aplicação de forma modular e padronizada
@@ -20,6 +21,9 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
   
   // WhatsApp routes
   app.use('/api/whatsapp', whatsappRoutes);
+  
+  // Google Calendar OAuth routes
+  app.use('/api/auth/google', googleAuthRoutes);
 
   // =================== LEGACY COMPATIBILITY ===================
   

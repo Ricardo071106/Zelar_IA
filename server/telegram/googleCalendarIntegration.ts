@@ -1,7 +1,13 @@
 import { calendar_v3, google } from 'googleapis';
 import { OAuth2Client } from 'google-auth-library';
-import { log } from '../vite';
 import { Event } from '@shared/schema';
+
+// Função auxiliar de log
+function log(message: string, context?: string): void {
+  const timestamp = new Date().toISOString();
+  const prefix = context ? `[${context.toUpperCase()}]` : '';
+  console.log(`${timestamp} ${prefix} ${message}`);
+}
 
 function detectConferenceIntent(event: Event): boolean {
   const fieldsToCheck = [event.description, event.location, event.title]
@@ -34,8 +40,9 @@ const conferenceTriggers = [
 
   return fieldsToCheck.some((field) =>
     conferenceTriggers.some((trigger) => {
-      const normalizedTrigger = trigger.normalize('NFD').replace(/\p{Diacritic}/gu, '');
-      const normalizedField = field.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+      // Remove acentos de forma mais compatível
+      const normalizedTrigger = trigger.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const normalizedField = field.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       return normalizedField.includes(normalizedTrigger) || field.includes(trigger);
     })
   );
@@ -240,11 +247,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
       reminders: {
         useDefault: true,
       },
-      attendees: event.attendees?.map((email) => ({ email })),
     };
-    if (!googleEvent.attendees?.length) {
-      delete googleEvent.attendees;
-    }
 
     if (detectConferenceIntent(event)) {
       googleEvent.conferenceData = {
@@ -273,8 +276,8 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
     return {
       success: true,
       message: 'Evento adicionado ao Google Calendar com sucesso',
-      calendarEventId: response.data.id,
-      conferenceLink: meetLink,
+      calendarEventId: response.data.id || undefined,
+      conferenceLink: meetLink || undefined,
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

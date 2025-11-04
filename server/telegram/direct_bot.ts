@@ -8,6 +8,7 @@ import { DateTime } from 'luxon';
 import { getUserTimezone, extractEventTitle } from './utils/parseDate';
 import { storage } from '../storage';
 import type { InsertEvent } from '@shared/schema';
+import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -35,6 +36,7 @@ interface Event {
   startDate: string;
   description: string;
   displayDate: string;
+  conferenceLink?: string;
 }
 
 let lastUpdateId = 0;
@@ -55,20 +57,35 @@ function generateCalendarLinks(event: Event) {
 async function sendMessage(chatId: number, text: string, replyMarkup?: any): Promise<boolean> {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    if (!token) return false;
+    if (!token) {
+      console.error('❌ TELEGRAM_BOT_TOKEN não configurado');
+      return false;
+    }
+
+    const payload = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'Markdown',
+      reply_markup: replyMarkup
+    };
+
+    console.log('📤 Enviando para Telegram API:', JSON.stringify(payload).substring(0, 200));
 
     const response = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        parse_mode: 'Markdown',
-        reply_markup: replyMarkup
-      })
+      body: JSON.stringify(payload)
     });
 
-    return response.ok;
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error(`❌ Erro Telegram API (${response.status}):`, errorData);
+      return false;
+    }
+
+    const responseData = await response.json();
+    console.log('✅ Resposta Telegram API:', JSON.stringify(responseData).substring(0, 200));
+    return true;
   } catch (error) {
     console.error('❌ Erro ao enviar mensagem:', error);
     return false;
@@ -107,6 +124,30 @@ async function setupBotCommands(token: string): Promise<void> {
       {
         command: 'help',
         description: 'Mostrar ajuda completa e exemplos'
+      },
+      {
+        command: 'eventos',
+        description: 'Ver próximos eventos agendados'
+      },
+      {
+        command: 'editar',
+        description: 'Editar um evento existente'
+      },
+      {
+        command: 'deletar',
+        description: 'Deletar um evento'
+      },
+      {
+        command: 'conectar',
+        description: 'Conectar Google Calendar'
+      },
+      {
+        command: 'desconectar',
+        description: 'Desconectar Google Calendar'
+      },
+      {
+        command: 'status',
+        description: 'Ver status da conexão com calendário'
       },
       {
         command: 'timezone',
@@ -156,6 +197,131 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     const callbackId = update.callback_query.id;
     
     console.log(`🔘 Callback: "${callbackData}" do chat ${chatId}`);
+    
+    // Processar deletar evento
+    if (callbackData?.startsWith('delete_')) {
+      const eventId = parseInt(callbackData.replace('delete_', ''));
+      
+      try {
+        const telegramUserId = update.callback_query?.from?.id?.toString();
+        if (!telegramUserId) {
+          await answerCallbackQuery(callbackId, '❌ Erro ao identificar usuário');
+          return;
+        }
+        
+        const dbUser = await storage.getUserByTelegramId(telegramUserId);
+        if (!dbUser) {
+          await answerCallbackQuery(callbackId, '❌ Usuário não encontrado');
+          return;
+        }
+        
+        // Buscar evento
+        const event = await storage.getEvent(eventId);
+        
+        if (!event) {
+          await sendMessage(chatId, '❌ Evento não encontrado.');
+          await answerCallbackQuery(callbackId);
+          return;
+        }
+        
+        // Verificar se o evento pertence ao usuário
+        if (event.userId !== dbUser.id) {
+          await sendMessage(chatId, '❌ Você não tem permissão para deletar este evento.');
+          await answerCallbackQuery(callbackId);
+          return;
+        }
+        
+        // Deletar do Google Calendar se estiver conectado
+        if (event.calendarId) {
+          const settings = await storage.getUserSettings(dbUser.id);
+          if (settings?.googleTokens) {
+            const tokens = JSON.parse(settings.googleTokens);
+            setTokens(dbUser.id, tokens);
+            
+            const googleResult = await cancelGoogleCalendarEvent(event.calendarId, dbUser.id);
+            if (googleResult.success) {
+              console.log('✅ Evento deletado do Google Calendar');
+            } else {
+              console.log('⚠️ Não foi possível deletar do Google Calendar:', googleResult.message);
+            }
+          }
+        }
+        
+        // Deletar do banco
+        await storage.deleteEvent(eventId);
+        
+        await sendMessage(chatId, 
+          `✅ *Evento deletado com sucesso!*\n\n` +
+          `🗑️ ${event.title}\n` +
+          `📅 ${DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy HH:mm')}`
+        );
+        
+        await answerCallbackQuery(callbackId, 'Evento deletado!');
+        
+      } catch (error) {
+        console.error('❌ Erro ao deletar evento:', error);
+        await sendMessage(chatId, '❌ Erro ao deletar evento. Tente novamente.');
+        await answerCallbackQuery(callbackId, 'Erro ao deletar');
+      }
+      return;
+    }
+    
+    // Processar editar evento
+    if (callbackData?.startsWith('edit_')) {
+      const eventId = parseInt(callbackData.replace('edit_', ''));
+      
+      try {
+        const telegramUserId = update.callback_query?.from?.id?.toString();
+        if (!telegramUserId) {
+          await answerCallbackQuery(callbackId, '❌ Erro ao identificar usuário');
+          return;
+        }
+        
+        const dbUser = await storage.getUserByTelegramId(telegramUserId);
+        if (!dbUser) {
+          await answerCallbackQuery(callbackId, '❌ Usuário não encontrado');
+          return;
+        }
+        
+        // Buscar evento
+        const event = await storage.getEvent(eventId);
+        
+        if (!event) {
+          await sendMessage(chatId, '❌ Evento não encontrado.');
+          await answerCallbackQuery(callbackId);
+          return;
+        }
+        
+        // Verificar se o evento pertence ao usuário
+        if (event.userId !== dbUser.id) {
+          await sendMessage(chatId, '❌ Você não tem permissão para editar este evento.');
+          await answerCallbackQuery(callbackId);
+          return;
+        }
+        
+        const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
+        
+        await sendMessage(chatId, 
+          `✏️ *Editar Evento*\n\n` +
+          `📋 *Evento atual:*\n` +
+          `🎯 ${event.title}\n` +
+          `📅 ${date.toFormat('dd/MM/yyyy HH:mm')}\n\n` +
+          `💡 *Como editar:*\n` +
+          `Envie uma mensagem no formato:\n` +
+          `\`editar ${eventId} novo título amanhã às 15h\`\n\n` +
+          `Ou apenas o novo horário:\n` +
+          `\`editar ${eventId} amanhã às 15h\``
+        );
+        
+        await answerCallbackQuery(callbackId, 'Envie o novo conteúdo');
+        
+      } catch (error) {
+        console.error('❌ Erro ao buscar evento para editar:', error);
+        await sendMessage(chatId, '❌ Erro ao buscar evento. Tente novamente.');
+        await answerCallbackQuery(callbackId, 'Erro');
+      }
+      return;
+    }
     
     // Processar seleção de fuso horário
     if (callbackData?.startsWith('tz_')) {
@@ -279,11 +445,194 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       '• "call de projeto quinta às 15h"\n\n' +
       '⚙️ *Comandos:*\n' +
       '/eventos - Ver seus próximos eventos\n' +
+      '/editar - Editar um evento existente\n' +
+      '/deletar - Deletar um evento\n' +
+      '/conectar - Conectar Google Calendar\n' +
+      '/desconectar - Desconectar Google Calendar\n' +
+      '/status - Ver status da conexão\n' +
       '/timezone - Alterar fuso horário\n' +
       '/start - Mensagem inicial\n\n' +
+      '✏️ *Para editar:*\n' +
+      '`editar ID novo título amanhã às 15h`\n\n' +
       '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
       '✨ Processamento com IA Claude!'
     );
+    return;
+  }
+
+  // Comando /conectar - Conectar Google Calendar
+  if (message === '/conectar') {
+    console.log('🔗 Comando /conectar detectado!');
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      console.log('❌ Telegram userId não encontrado');
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    console.log(`✅ Telegram userId: ${telegramUserId}`);
+    
+    try {
+      // Verificar se já está conectado
+      console.log('🔍 Buscando usuário no banco...');
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        console.log('❌ Usuário não encontrado no banco');
+        await sendMessage(chatId, 
+          '❌ *Usuário não encontrado*\n\n' +
+          'Por favor, envie /start primeiro para criar sua conta.'
+        );
+        return;
+      }
+      
+      console.log(`✅ Usuário encontrado: ${dbUser.username} (ID: ${dbUser.id})`);
+      
+      const settings = await storage.getUserSettings(dbUser.id);
+      console.log(`🔍 Settings: ${settings ? 'Encontrado' : 'Não encontrado'}`);
+      
+      if (settings?.googleTokens) {
+        console.log('✅ Já está conectado ao Google Calendar');
+        await sendMessage(chatId, 
+          '✅ *Você já está conectado!*\n\n' +
+          'Seu Google Calendar já está integrado.\n' +
+          'Use /desconectar se quiser remover a conexão.'
+        );
+        return;
+      }
+      
+      // Gerar URL de autorização
+      console.log('🔗 Gerando URL de autorização...');
+      const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
+      const authUrl = `${baseUrl}/api/auth/google/authorize?userId=${telegramUserId}&platform=telegram`;
+      console.log(`📎 URL gerada: ${authUrl}`);
+      
+      console.log('📤 Enviando mensagem com botão...');
+      
+      // Se for localhost, enviar sem botão (Telegram não aceita localhost em botões)
+      if (authUrl.includes('localhost')) {
+        await sendMessage(chatId, 
+          '🔐 *Conectar Google Calendar*\n\n' +
+          'Para criar eventos automaticamente no seu Google Calendar, ' +
+          'você precisa autorizar o acesso.\n\n' +
+          '🔗 Copie e cole este link no navegador:\n' +
+          `\`${authUrl}\`\n\n` +
+          '⚠️ *Nota:* Como você está usando localhost, não posso criar um botão. ' +
+          'Use ngrok (https://ngrok.com) para ter uma URL pública e botões funcionais.\n\n' +
+          '✨ Após autorizar, seus eventos serão criados automaticamente!'
+        );
+      } else {
+        // URL pública, pode usar botão
+        await sendMessage(chatId, 
+          '🔐 *Conectar Google Calendar*\n\n' +
+          'Para criar eventos automaticamente no seu Google Calendar, ' +
+          'você precisa autorizar o acesso.\n\n' +
+          '🔗 Clique no botão abaixo:\n\n' +
+          '✨ Após autorizar, seus eventos serão criados automaticamente!',
+          {
+            inline_keyboard: [[
+              { text: '🔗 Conectar Google Calendar', url: authUrl }
+            ]]
+          }
+        );
+      }
+      console.log('✅ Mensagem enviada com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao gerar URL de autorização:', error);
+      await sendMessage(chatId, 
+        '❌ *Erro ao conectar*\n\n' +
+        'Ocorreu um erro ao gerar o link de autorização.\n' +
+        'Por favor, tente novamente mais tarde.'
+      );
+    }
+    return;
+  }
+
+  // Comando /desconectar - Desconectar Google Calendar
+  if (message === '/desconectar') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        await sendMessage(chatId, '❌ Usuário não encontrado.');
+        return;
+      }
+      
+      const settings = await storage.getUserSettings(dbUser.id);
+      
+      if (!settings?.googleTokens) {
+        await sendMessage(chatId, 
+          '📭 *Não conectado*\n\n' +
+          'Você não está conectado ao Google Calendar.\n' +
+          'Use /conectar para fazer a conexão.'
+        );
+        return;
+      }
+      
+      // Desconectar
+      await storage.updateUserSettings(dbUser.id, {
+        googleTokens: null,
+        calendarProvider: null,
+      });
+      
+      await sendMessage(chatId, 
+        '✅ *Desconectado com sucesso!*\n\n' +
+        'Seu Google Calendar foi desconectado.\n' +
+        'Use /conectar quando quiser conectar novamente.'
+      );
+    } catch (error) {
+      console.error('❌ Erro ao desconectar:', error);
+      await sendMessage(chatId, '❌ Erro ao desconectar. Tente novamente.');
+    }
+    return;
+  }
+
+  // Comando /status - Ver status da conexão
+  if (message === '/status') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+      
+      const settings = await storage.getUserSettings(dbUser.id);
+      const isConnected = !!(settings?.googleTokens);
+      
+      if (isConnected) {
+        await sendMessage(chatId, 
+          '✅ *Google Calendar Conectado*\n\n' +
+          '🔗 Seu Google Calendar está integrado\n' +
+          '✨ Eventos são criados automaticamente\n\n' +
+          'Use /desconectar para remover a conexão.'
+        );
+      } else {
+        await sendMessage(chatId, 
+          '📭 *Google Calendar não conectado*\n\n' +
+          '🔗 Use /conectar para integrar seu calendário\n' +
+          '✨ Eventos serão criados automaticamente após conectar!'
+        );
+      }
+    } catch (error) {
+      console.error('❌ Erro ao verificar status:', error);
+      await sendMessage(chatId, '❌ Erro ao verificar status.');
+    }
     return;
   }
 
@@ -342,6 +691,106 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     return;
   }
 
+  // Comando /deletar - Deletar evento
+  if (message === '/deletar' || message === '/delete') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+      
+      const events = await storage.getUpcomingEvents(dbUser.id, 10);
+      
+      if (events.length === 0) {
+        await sendMessage(chatId, 
+          '📭 *Nenhum evento para deletar*\n\n' +
+          'Você não tem eventos futuros agendados.'
+        );
+        return;
+      }
+      
+      // Criar botões inline para cada evento
+      const buttons = events.map((event, index) => {
+        const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
+        const formattedDate = date.toFormat('dd/MM HH:mm');
+        return [{
+          text: `${index + 1}. ${event.title} - ${formattedDate}`,
+          callback_data: `delete_${event.id}`
+        }];
+      });
+      
+      await sendMessage(chatId, 
+        '🗑️ *Deletar Evento*\n\n' +
+        'Selecione o evento que deseja deletar:',
+        { inline_keyboard: buttons }
+      );
+      
+    } catch (error) {
+      console.error('❌ Erro ao listar eventos para deletar:', error);
+      await sendMessage(chatId, '❌ Erro ao buscar eventos. Tente novamente.');
+    }
+    return;
+  }
+
+  // Comando /editar - Editar evento
+  if (message === '/editar' || message === '/edit') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+      return;
+    }
+    
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      
+      if (!dbUser) {
+        await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+      
+      const events = await storage.getUpcomingEvents(dbUser.id, 10);
+      
+      if (events.length === 0) {
+        await sendMessage(chatId, 
+          '📭 *Nenhum evento para editar*\n\n' +
+          'Você não tem eventos futuros agendados.'
+        );
+        return;
+      }
+      
+      // Criar botões inline para cada evento
+      const buttons = events.map((event, index) => {
+        const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
+        const formattedDate = date.toFormat('dd/MM HH:mm');
+        return [{
+          text: `${index + 1}. ${event.title} - ${formattedDate}`,
+          callback_data: `edit_${event.id}`
+        }];
+      });
+      
+      await sendMessage(chatId, 
+        '✏️ *Editar Evento*\n\n' +
+        'Selecione o evento que deseja editar:',
+        { inline_keyboard: buttons }
+      );
+      
+    } catch (error) {
+      console.error('❌ Erro ao listar eventos para editar:', error);
+      await sendMessage(chatId, '❌ Erro ao buscar eventos. Tente novamente.');
+    }
+    return;
+  }
+
   // Comando /timezone
   if (message === '/timezone') {
     const replyMarkup = {
@@ -389,6 +838,115 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       '🇳🇿 Nova Zelândia: UTC+12',
       replyMarkup
     );
+    return;
+  }
+
+  // Processar comando de edição "editar ID ..."
+  if (message.toLowerCase().startsWith('editar ')) {
+    try {
+      const parts = message.split(' ');
+      const eventId = parseInt(parts[1]);
+      
+      if (isNaN(eventId)) {
+        await sendMessage(chatId, '❌ ID do evento inválido. Use: `editar ID texto`');
+        return;
+      }
+      
+      const telegramUserId = update.message?.from?.id?.toString();
+      if (!telegramUserId) {
+        await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
+        return;
+      }
+      
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      if (!dbUser) {
+        await sendMessage(chatId, '❌ Usuário não encontrado.');
+        return;
+      }
+      
+      // Buscar evento
+      const event = await storage.getEvent(eventId);
+      
+      if (!event) {
+        await sendMessage(chatId, '❌ Evento não encontrado.');
+        return;
+      }
+      
+      // Verificar permissão
+      if (event.userId !== dbUser.id) {
+        await sendMessage(chatId, '❌ Você não tem permissão para editar este evento.');
+        return;
+      }
+      
+      // Pegar o texto após o ID
+      const newContent = parts.slice(2).join(' ');
+      
+      if (!newContent) {
+        await sendMessage(chatId, '❌ Forneça o novo conteúdo. Exemplo: `editar ${eventId} reunião amanhã às 15h`');
+        return;
+      }
+      
+      // Interpretar novo conteúdo com Claude
+      const userTimezone = getUserTimezone(telegramUserId);
+      const claudeResult = await parseEventWithClaude(newContent, userTimezone);
+      
+      if (!claudeResult.isValid) {
+        await sendMessage(chatId, '❌ Não consegui entender a nova data/hora. Tente novamente.');
+        return;
+      }
+      
+      // Criar nova data
+      const newDate = DateTime.fromFormat(claudeResult.date, 'yyyy-MM-dd', { zone: userTimezone })
+        .set({ hour: claudeResult.hour, minute: claudeResult.minute });
+      
+      // Atualizar no banco
+      const updateData: any = {
+        title: claudeResult.title,
+        startDate: newDate.toJSDate(),
+        updatedAt: new Date()
+      };
+      
+      await storage.updateEvent(eventId, updateData);
+      
+      // Atualizar no Google Calendar se conectado
+      if (event.calendarId) {
+        const settings = await storage.getUserSettings(dbUser.id);
+        if (settings?.googleTokens) {
+          try {
+            const tokens = JSON.parse(settings.googleTokens);
+            setTokens(dbUser.id, tokens);
+            
+            // Deletar evento antigo e criar novo (Google Calendar não tem update direto via nossa API)
+            await cancelGoogleCalendarEvent(event.calendarId, dbUser.id);
+            
+            const updatedEvent = await storage.getEvent(eventId);
+            if (updatedEvent) {
+              const googleResult = await addEventToGoogleCalendar(updatedEvent, dbUser.id);
+              
+              if (googleResult.success && googleResult.calendarEventId) {
+                await storage.updateEvent(eventId, {
+                  calendarId: googleResult.calendarEventId
+                });
+              }
+            }
+            
+            console.log('✅ Evento atualizado no Google Calendar');
+          } catch (error) {
+            console.error('⚠️ Erro ao atualizar no Google Calendar:', error);
+          }
+        }
+      }
+      
+      await sendMessage(chatId,
+        `✅ *Evento atualizado com sucesso!*\n\n` +
+        `🎯 ${claudeResult.title}\n` +
+        `📅 ${newDate.toFormat('dd/MM/yyyy HH:mm', { locale: 'pt-BR' })}`
+      );
+      
+    } catch (error) {
+      console.error('❌ Erro ao editar evento:', error);
+      await sendMessage(chatId, '❌ Erro ao editar evento. Tente novamente.');
+    }
     return;
   }
 
@@ -481,6 +1039,53 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         
         const savedEvent = await storage.createEvent(insertEvent);
         console.log(`✅ Evento salvo no banco: ${eventTitle} (ID: ${savedEvent.id})`);
+        
+        // =================== INTEGRAÇÃO GOOGLE CALENDAR ===================
+        // Verificar se usuário tem Google Calendar conectado
+        try {
+          const telegramUserId = update.message?.from?.id?.toString();
+          if (telegramUserId) {
+            const dbUser = await storage.getUserByTelegramId(telegramUserId);
+            if (dbUser) {
+              const settings = await storage.getUserSettings(dbUser.id);
+              
+              if (settings?.googleTokens) {
+                console.log('🔗 Usuário tem Google Calendar conectado, criando evento...');
+                
+                // Configurar tokens do Google
+                const tokens = JSON.parse(settings.googleTokens);
+                setTokens(dbUser.id, tokens);
+                
+                // Criar evento no Google Calendar
+                const googleResult = await addEventToGoogleCalendar(savedEvent, dbUser.id);
+                
+                if (googleResult.success) {
+                  console.log('✅ Evento criado no Google Calendar!');
+                  
+                  // Atualizar evento com ID do Google Calendar
+                  if (googleResult.calendarEventId) {
+                    await storage.updateEvent(savedEvent.id, {
+                      calendarId: googleResult.calendarEventId,
+                      conferenceLink: googleResult.conferenceLink || null
+                    });
+                  }
+                  
+                  // Adicionar info de Google Calendar na resposta
+                  event.conferenceLink = googleResult.conferenceLink;
+                } else {
+                  console.log('⚠️ Não foi possível criar no Google Calendar:', googleResult.message);
+                }
+              } else {
+                console.log('ℹ️ Usuário não tem Google Calendar conectado');
+              }
+            }
+          }
+        } catch (error) {
+          console.error('❌ Erro ao criar evento no Google Calendar:', error);
+          // Continuar mesmo se falhar
+        }
+        // =================== FIM INTEGRAÇÃO ===================
+        
       } catch (error) {
         console.error('❌ Erro ao salvar evento no banco:', error);
         // Continuar mesmo se falhar ao salvar
@@ -498,12 +1103,32 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       ]
     };
 
-    await sendMessage(chatId,
-      '✅ *Evento criado!*\n\n' +
+    // Mensagem com informação de Google Calendar se aplicável
+    let messageText = '✅ *Evento criado!*\n\n' +
       `🎯 *${event.title}*\n` +
-      `📅 ${event.displayDate}`,
-      replyMarkup
-    );
+      `📅 ${event.displayDate}`;
+    
+    if (event.conferenceLink) {
+      messageText += `\n\n📹 *Google Meet:*\n${event.conferenceLink}\n\n✨ *Evento adicionado automaticamente ao seu Google Calendar!*`;
+    } else {
+      // Verificar se usuário tem Google Calendar conectado
+      try {
+        const telegramUserId = update.message?.from?.id?.toString();
+        if (telegramUserId) {
+          const dbUser = await storage.getUserByTelegramId(telegramUserId);
+          if (dbUser) {
+            const settings = await storage.getUserSettings(dbUser.id);
+            if (settings?.googleTokens) {
+              messageText += '\n\n✨ *Evento adicionado ao seu Google Calendar!*';
+            }
+          }
+        }
+      } catch (error) {
+        // Ignorar erro
+      }
+    }
+
+    await sendMessage(chatId, messageText, replyMarkup);
 
     console.log(`✅ Evento criado: ${event.title}`);
 
