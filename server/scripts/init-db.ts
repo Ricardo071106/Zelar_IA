@@ -83,6 +83,21 @@ async function initDatabase() {
     `);
     console.log('✅ Tabela "reminders" criada!\n');
 
+    // Garantir colunas de reminders (idempotente)
+    console.log('🔎 Garantindo colunas da tabela "reminders"...');
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS send_at TIMESTAMP;`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS sent BOOLEAN DEFAULT false NOT NULL;`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP;`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false NOT NULL;`);
+    console.log('✅ Colunas de reminders OK!\n');
+
+    // Garantir colunas de identificação do canal (idempotente)
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS channel VARCHAR(20);`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS message TEXT;`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS user_id INTEGER;`);
+    await pool.query(`ALTER TABLE reminders ALTER COLUMN channel SET NOT NULL;`);
+    await pool.query(`ALTER TABLE reminders ALTER COLUMN user_id SET NOT NULL;`);
+
     // Criar índices para performance
     console.log('📋 Criando índices na tabela "events"...');
     await pool.query(`
