@@ -9,6 +9,7 @@ import { getUserTimezone, extractEventTitle } from './utils/parseDate';
 import { storage } from '../storage';
 import type { InsertEvent } from '@shared/schema';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
+import { reminderService } from '../services/reminderService';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -54,6 +55,14 @@ function generateCalendarLinks(event: Event) {
   return { google: googleUrl, outlook: outlookUrl };
 }
 
+function parseReminderOffset(token: string): number | null {
+  const match = token.match(/^(\d+)(h|m)$/i);
+  if (!match) return null;
+  const value = parseInt(match[1], 10);
+  if (Number.isNaN(value)) return null;
+  return match[2].toLowerCase() === 'm' ? value / 60 : value;
+}
+
 async function sendMessage(chatId: number, text: string, replyMarkup?: any): Promise<boolean> {
   try {
     const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -90,6 +99,10 @@ async function sendMessage(chatId: number, text: string, replyMarkup?: any): Pro
     console.error('❌ Erro ao enviar mensagem:', error);
     return false;
   }
+}
+
+export async function sendTelegramNotification(chatId: number, text: string): Promise<boolean> {
+  return sendMessage(chatId, text);
 }
 
 async function answerCallbackQuery(callbackId: string, text?: string): Promise<boolean> {
@@ -248,6 +261,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         }
         
         // Deletar do banco
+        await reminderService.deleteEventReminders(eventId);
         await storage.deleteEvent(eventId);
         
         await sendMessage(chatId, 
@@ -435,28 +449,36 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
   // Comando /help
   if (message === '/help') {
-    await sendMessage(chatId,
-      '🤖 *Assistente Zelar - Ajuda*\n\n' +
-      '📅 *Como usar:*\n' +
-      'Envie mensagens naturais como:\n' +
-      '• "reunião com cliente amanhã às 14h"\n' +
-      '• "jantar com família sexta às 19h30"\n' +
-      '• "consulta médica terça-feira às 10h"\n' +
-      '• "call de projeto quinta às 15h"\n\n' +
-      '⚙️ *Comandos:*\n' +
-      '/eventos - Ver seus próximos eventos\n' +
-      '/editar - Editar um evento existente\n' +
-      '/deletar - Deletar um evento\n' +
-      '/conectar - Conectar Google Calendar\n' +
-      '/desconectar - Desconectar Google Calendar\n' +
-      '/status - Ver status da conexão\n' +
-      '/timezone - Alterar fuso horário\n' +
-      '/start - Mensagem inicial\n\n' +
-      '✏️ *Para editar:*\n' +
-      '`editar ID novo título amanhã às 15h`\n\n' +
-      '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
-      '✨ Processamento com IA Claude!'
-    );
+    const helpText = `
+Assistente Zelar - Ajuda
+
+Como usar:
+Envie mensagens naturais como:
+- "reunião com cliente amanhã às 14h"
+- "jantar com família sexta às 19h30"
+- "consulta médica terça-feira às 10h"
+- "call de projeto quinta às 15h"
+
+Comandos:
+/eventos - Ver seus próximos eventos
+/editar - Editar um evento existente
+/deletar - Deletar um evento
+/lembretes - Ver lembretes pendentes
+lembrete ID 2h - Criar lembrete (horas antes)
+editarlembrete ID 1h - Editar lembrete
+deletarlembrete ID - Remover lembrete
+/conectar - Conectar Google Calendar
+/desconectar - Desconectar Google Calendar
+/status - Ver status da conex?o
+/timezone - Alterar fuso hor?rio
+/start - Mensagem inicial
+
+Para editar:
+\`editar ID novo título amanhã às 15h\`
+
+Fuso atual: Brasil (UTC-3)
+`;
+    await sendMessage(chatId, helpText.trim());
     return;
   }
 
@@ -691,7 +713,64 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     return;
   }
 
-  // Comando /deletar - Deletar evento
+  
+  // Comando /lembretes - Listar lembretes pendentes
+  if (message === '/lembretes') {
+    const telegramUserId = update.message?.from?.id?.toString();
+    
+    if (!telegramUserId) {
+      await sendMessage(chatId, '? Não foi possível identificar seu usuário.');
+      return;
+    }
+
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      if (!dbUser) {
+        await sendMessage(chatId, '? Usuário não encontrado. Use /start primeiro.');
+        return;
+      }
+
+      const settings = await storage.getUserSettings(dbUser.id);
+      const timezone = settings?.timeZone || 'America/Sao_Paulo';
+      const reminders = await storage.getUserPendingReminders(dbUser.id);
+
+      if (reminders.length === 0) {
+        await sendMessage(chatId, '?? *Nenhum lembrete pendente*\
+Use o comando \`lembrete ID 2h\` para criar um.');
+        return;
+      }
+
+      let response = '? *Seus lembretes pendentes:*\
+\
+';
+      for (const reminder of reminders) {
+        const event = await storage.getEvent(reminder.eventId);
+        if (!event) continue;
+        const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+        response += `#${reminder.id} - ${event.title}
+`;
+        response += `   ?? Envio: ${sendTime} (${reminder.channel})
+`;
+        response += `   ??? Evento: ${event.id}
+
+`;
+      }
+
+      response += '?? Para criar: `lembrete EVENTO_ID 2h`\
+';
+      response += '?? Para editar: `editarlembrete LEMBRETE_ID 1h`\
+';
+      response += '??? Para deletar: `deletarlembrete LEMBRETE_ID`';
+
+      await sendMessage(chatId, response);
+    } catch (error) {
+      console.error('? Erro ao listar lembretes:', error);
+      await sendMessage(chatId, '? N?o foi poss?vel listar seus lembretes agora.');
+    }
+    return;
+  }
+
+// Comando /deletar - Deletar evento
   if (message === '/deletar' || message === '/delete') {
     const telegramUserId = update.message?.from?.id?.toString();
     
@@ -741,7 +820,148 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     return;
   }
 
-  // Comando /editar - Editar evento
+  
+  // Criar lembrete manual para um evento
+  if (message.toLowerCase().startsWith('lembrete ')) {
+    const parts = message.split(' ');
+    const eventId = parseInt(parts[1]);
+    const offset = parseReminderOffset(parts[2] || '');
+    const customMessage = parts.slice(3).join(' ').trim() || undefined;
+
+    if (Number.isNaN(eventId) || offset === null) {
+      await sendMessage(chatId, '? Formato inv?lido. Use: `lembrete ID 2h` ou `lembrete ID 30m`.');
+      return;
+    }
+
+    const telegramUserId = update.message?.from?.id?.toString();
+    if (!telegramUserId) {
+      await sendMessage(chatId, '? N?o foi poss?vel identificar seu usu?rio.');
+      return;
+    }
+
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      if (!dbUser) {
+        await sendMessage(chatId, '? Usu?rio n?o encontrado. Use /start primeiro.');
+        return;
+      }
+
+      const event = await storage.getEvent(eventId);
+      if (!event || event.userId !== dbUser.id) {
+        await sendMessage(chatId, '? Evento n?o encontrado ou sem permiss?o.');
+        return;
+      }
+
+      const reminder = await reminderService.createReminderWithOffset(event, 'telegram', offset, customMessage);
+      const settings = await storage.getUserSettings(dbUser.id);
+      const timezone = settings?.timeZone || 'America/Sao_Paulo';
+      const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+
+      await sendMessage(chatId,
+        `? Lembrete criado!
+` +
+        `?? Lembrete: ${reminder.id}
+` +
+        `??? Evento: ${event.title}
+` +
+        `?? Envio: ${sendTime}`
+      );
+    } catch (error) {
+      console.error('? Erro ao criar lembrete:', error);
+      await sendMessage(chatId, '? Erro ao criar lembrete.');
+    }
+    return;
+  }
+
+  // Editar lembrete existente
+  if (message.toLowerCase().startsWith('editarlembrete ')) {
+    const parts = message.split(' ');
+    const reminderId = parseInt(parts[1]);
+    const offset = parseReminderOffset(parts[2] || '');
+    const customMessage = parts.slice(3).join(' ').trim() || undefined;
+
+    if (Number.isNaN(reminderId) || offset === null) {
+      await sendMessage(chatId, '? Formato inv?lido. Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`.');
+      return;
+    }
+
+    try {
+      const reminder = await storage.getReminder(reminderId);
+      if (!reminder) {
+        await sendMessage(chatId, '? Lembrete n?o encontrado.');
+        return;
+      }
+
+      const telegramUserId = update.message?.from?.id?.toString();
+      const dbUser = telegramUserId ? await storage.getUserByTelegramId(telegramUserId) : undefined;
+      if (!dbUser || reminder.userId !== dbUser.id) {
+        await sendMessage(chatId, '? Voc? n?o tem permiss?o para editar este lembrete.');
+        return;
+      }
+
+      const event = await storage.getEvent(reminder.eventId);
+      if (!event) {
+        await sendMessage(chatId, '? Evento associado n?o encontrado.');
+        return;
+      }
+
+      const updated = await reminderService.updateReminderWithOffset(reminderId, event, offset, customMessage);
+      if (!updated) {
+        await sendMessage(chatId, '? N?o foi poss?vel atualizar o lembrete.');
+        return;
+      }
+
+      const settings = await storage.getUserSettings(dbUser.id);
+      const timezone = settings?.timeZone || 'America/Sao_Paulo';
+      const sendTime = DateTime.fromJSDate(updated.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+
+      await sendMessage(chatId,
+        `? Lembrete atualizado!
+` +
+        `?? Lembrete: ${updated.id}
+` +
+        `?? Envio: ${sendTime}`
+      );
+    } catch (error) {
+      console.error('? Erro ao editar lembrete:', error);
+      await sendMessage(chatId, '? Erro ao editar lembrete.');
+    }
+    return;
+  }
+
+  // Deletar lembrete
+  if (message.toLowerCase().startsWith('deletarlembrete ')) {
+    const parts = message.split(' ');
+    const reminderId = parseInt(parts[1]);
+    if (Number.isNaN(reminderId)) {
+      await sendMessage(chatId, '? ID do lembrete inv?lido. Use: `deletarlembrete ID`.');
+      return;
+    }
+
+    try {
+      const reminder = await storage.getReminder(reminderId);
+      if (!reminder) {
+        await sendMessage(chatId, '? Lembrete n?o encontrado.');
+        return;
+      }
+
+      const telegramUserId = update.message?.from?.id?.toString();
+      const dbUser = telegramUserId ? await storage.getUserByTelegramId(telegramUserId) : undefined;
+      if (!dbUser || reminder.userId !== dbUser.id) {
+        await sendMessage(chatId, '? Voc? n?o tem permiss?o para deletar este lembrete.');
+        return;
+      }
+
+      await reminderService.deleteReminder(reminderId);
+      await sendMessage(chatId, `? Lembrete #${reminderId} deletado.`);
+    } catch (error) {
+      console.error('? Erro ao deletar lembrete:', error);
+      await sendMessage(chatId, '? Erro ao deletar lembrete.');
+    }
+    return;
+  }
+
+// Comando /editar - Editar evento
   if (message === '/editar' || message === '/edit') {
     const telegramUserId = update.message?.from?.id?.toString();
     
@@ -906,7 +1126,10 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         updatedAt: new Date()
       };
       
-      await storage.updateEvent(eventId, updateData);
+      const updatedEventRecord = await storage.updateEvent(eventId, updateData);
+      if (updatedEventRecord) {
+        await reminderService.ensureDefaultReminder(updatedEventRecord, 'telegram');
+      }
       
       // Atualizar no Google Calendar se conectado
       if (event.calendarId) {
@@ -1039,6 +1262,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         
         const savedEvent = await storage.createEvent(insertEvent);
         console.log(`✅ Evento salvo no banco: ${eventTitle} (ID: ${savedEvent.id})`);
+        await reminderService.ensureDefaultReminder(savedEvent, 'telegram');
         
         // =================== INTEGRAÇÃO GOOGLE CALENDAR ===================
         // Verificar se usuário tem Google Calendar conectado

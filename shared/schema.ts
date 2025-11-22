@@ -68,6 +68,34 @@ export const userSettingsRelations = relations(userSettings, ({ one }) => ({
 
 
 
+
+// Lembretes
+export const reminders = pgTable("reminders", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  channel: varchar("channel", { length: 20 }).notNull(), // telegram | whatsapp
+  message: text("message"),
+  sendAt: timestamp("send_at").notNull(),
+  sent: boolean("sent").default(false).notNull(),
+  sentAt: timestamp("sent_at"),
+  isDefault: boolean("is_default").default(false).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const reminderRelations = relations(reminders, ({ one }) => ({
+  event: one(events, {
+    fields: [reminders.eventId],
+    references: [events.id],
+  }),
+  user: one(users, {
+    fields: [reminders.userId],
+    references: [users.id],
+  }),
+}));
+
+
 // Schemas para inserção
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -92,6 +120,18 @@ export const insertEventSchema = createInsertSchema(events).pick({
 
 
 
+
+export const insertReminderSchema = createInsertSchema(reminders).pick({
+  eventId: true,
+  userId: true,
+  channel: true,
+  message: true,
+  sendAt: true,
+  sent: true,
+  isDefault: true,
+});
+
+
 export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   userId: true,
   notificationsEnabled: true,
@@ -113,6 +153,10 @@ export type InsertEvent = z.infer<typeof insertEventSchema>;
 export type Event = typeof events.$inferSelect;
 
 
+
+
+export type InsertReminder = z.infer<typeof insertReminderSchema>;
+export type Reminder = typeof reminders.$inferSelect;
 
 export type InsertUserSettings = z.infer<typeof insertUserSettingsSchema>;
 export type UserSettings = typeof userSettings.$inferSelect;

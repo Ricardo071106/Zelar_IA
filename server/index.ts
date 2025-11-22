@@ -10,6 +10,7 @@ import { startDirectBot } from "./telegram/direct_bot";
 import { getWhatsAppBot } from "./whatsapp/whatsappBot";
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { reminderService } from './services/reminderService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -116,6 +117,7 @@ async function startServer() {
 
     // Inicializar bots apenas se as variáveis estiverem configuradas
     const botsInitialized = await initializeBots();
+    await reminderService.start();
     
     // Validar e iniciar servidor
     const port = validatePort(process.env.PORT);

@@ -63,14 +63,41 @@ async function initDatabase() {
       )
     `);
     console.log('✅ Tabela "events" criada!\n');
-    
-    // Criar índice para performance
+
+    // Criar tabela reminders
+    console.log('📋 Criando tabela "reminders"...');
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reminders (
+        id SERIAL PRIMARY KEY,
+        event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        channel VARCHAR(20) NOT NULL,
+        message TEXT,
+        send_at TIMESTAMP NOT NULL,
+        sent BOOLEAN DEFAULT false NOT NULL,
+        sent_at TIMESTAMP,
+        is_default BOOLEAN DEFAULT false NOT NULL,
+        created_at TIMESTAMP DEFAULT NOW() NOT NULL,
+        updated_at TIMESTAMP DEFAULT NOW() NOT NULL
+      )
+    `);
+    console.log('✅ Tabela "reminders" criada!\n');
+
+    // Criar índices para performance
     console.log('📋 Criando índices na tabela "events"...');
     await pool.query(`
       CREATE INDEX IF NOT EXISTS idx_events_user_id ON events(user_id);
       CREATE INDEX IF NOT EXISTS idx_events_start_date ON events(start_date);
     `);
     console.log('✅ Índices criados!\n');
+
+    console.log('📋 Criando índices na tabela "reminders"...');
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_reminders_event_id ON reminders(event_id);
+      CREATE INDEX IF NOT EXISTS idx_reminders_send_at ON reminders(send_at);
+      CREATE INDEX IF NOT EXISTS idx_reminders_user_channel ON reminders(user_id, channel);
+    `);
+    console.log('✅ Índices de reminders criados!\n');
     
     // Criar tabela user_settings
     console.log('📋 Criando tabela "user_settings"...');
@@ -107,14 +134,16 @@ async function initDatabase() {
     });
     
     // Contar registros em cada tabela
-    console.log('\n📈 Contagem de registros:');
+    console.log('\n[STATS] Contagem de registros:');
     const userCount = await pool.query('SELECT COUNT(*) FROM users');
     const eventCount = await pool.query('SELECT COUNT(*) FROM events');
     const settingsCount = await pool.query('SELECT COUNT(*) FROM user_settings');
+    const remindersCount = await pool.query('SELECT COUNT(*) FROM reminders');
     
-    console.log(`   👥 Users: ${userCount.rows[0].count}`);
-    console.log(`   📅 Events: ${eventCount.rows[0].count}`);
-    console.log(`   ⚙️  Settings: ${settingsCount.rows[0].count}`);
+    console.log(`   Users: ${userCount.rows[0].count}`);
+    console.log(`   Events: ${eventCount.rows[0].count}`);
+    console.log(`   Settings: ${settingsCount.rows[0].count}`);
+    console.log(`   Reminders: ${remindersCount.rows[0].count}`);
     
     console.log('\n✅ Banco de dados inicializado com sucesso! 🎉');
     console.log('\n💡 Agora você pode iniciar o servidor com: npm run start');

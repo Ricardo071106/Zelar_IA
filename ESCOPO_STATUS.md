@@ -1,7 +1,7 @@
 # 📋 Status do Projeto - Zelar IA
 
-**Última atualização:** 04/11/2025 - 04:00 BRT  
-**Progresso Geral:** 🟢 **70% Completo** 🎉
+**?sltima atualiza???o:** 22/11/2025 - 03:40 BRT  
+**Progresso Geral:** ?YY? **80% Completo** ?YZ%
 
 ---
 
@@ -9,23 +9,22 @@
 
 | # | Item | Status | % | Prioridade |
 |---|------|--------|---|------------|
-| 1.1 | Revisão do repositório | ✅ Completo | 100% | - |
-| 1.2 | Refatoração do código | ✅ Completo | 100% | - |
-| 1.3 | Padronização de rotas | ✅ Completo | 100% | - |
-| 2.1 | Asaas API (Pagamentos) | 🔴 Não iniciado | 0% | 🔥 Alta |
-| 2.2 | Open Finance | 🔴 Não iniciado | 0% | 🔥 Alta |
-| 2.3 | WhatsApp Bot | ✅ Completo | 100% | - |
-| 2.4 | Telegram Bot | ✅ Completo | 100% | - |
-| 2.5 | IA (Claude/OpenRouter) | ✅ Funcional | 100% | - |
-| 2.6 | Google Calendar OAuth | ✅ Completo | 100% | - |
-| 3.1 | Fluxo cadastro/pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |
-| 3.2 | Detecção auto pagamento | 🔴 Não iniciado | 0% | 🔥 Alta |
-| 3.3 | Criação de eventos | ✅ Completo | 100% | - |
-| 3.4 | Edição de eventos | ✅ Completo | 100% | - |
-| 3.5 | Deleção de eventos | ✅ Completo | 100% | - |
-| 3.6 | Lembretes automáticos | 🔴 Não iniciado | 0% | 🔥 Crítico |
-| 3.7 | Banco de dados | 🟢 Integrado | 95% | - |
-
+| 1.1 | Revisao do repositorio | ? Completo | 100% | - |
+| 1.2 | Refatoracao do codigo | ? Completo | 100% | - |
+| 1.3 | Padronizacao de rotas | ? Completo | 100% | - |
+| 2.1 | Asaas API (Pagamentos) | ?? Nao iniciado | 0% | ?? Alta |
+| 2.2 | Open Finance | ?? Nao iniciado | 0% | ?? Alta |
+| 2.3 | WhatsApp Bot | ? Completo | 100% | - |
+| 2.4 | Telegram Bot | ? Completo | 100% | - |
+| 2.5 | IA (Claude/OpenRouter) | ? Funcional | 100% | - |
+| 2.6 | Google Calendar OAuth | ? Completo | 100% | - |
+| 3.1 | Fluxo cadastro/pagamento | ?? Nao iniciado | 0% | ?? Alta |
+| 3.2 | Detecao auto pagamento | ?? Nao iniciado | 0% | ?? Alta |
+| 3.3 | Criacao de eventos | ? Completo | 100% | - |
+| 3.4 | Edicao de eventos | ? Completo | 100% | - |
+| 3.5 | Delecao de eventos | ? Completo | 100% | - |
+| 3.6 | Lembretes automaticos | ? Completo | 100% | - |
+| 3.7 | Banco de dados | ?? Integrado | 95% | - |
 **Legenda:** ✅ Completo | 🟢 Funcional | 🟡 Parcial | 🔴 Não iniciado
 
 ---
@@ -254,25 +253,15 @@ npm run db:push      # Sincronizar schema
 
 ---
 
-## 🔴 NÃO INICIADO (4 itens)
+## ?? N?O INICIADO (3 itens)
 
-### 🔥 1. Sistema de Lembretes (CRÍTICO)
+### ? 1. Sistema de Lembretes (Conclu?do)
 
-
-
-**Objetivo:** Enviar notificações 12h antes dos eventos
-
-**Implementação necessária:**
-- Criar `server/services/reminderScheduler.ts`
-- Usar `node-schedule` (já instalado)
-- Query eventos das próximas 12h
-- Agendar lembrete ao criar evento
-- Enviar via WhatsApp e Telegram
-- Cancelar lembrete ao deletar evento
-
-**Impacto:** ⭐⭐⭐⭐⭐ Funcionalidade core do produto
-
-**Tempo estimado:** 1-2 dias
+- Lembrete padr?o de 12h criado ao salvar eventos (Telegram e WhatsApp)
+- CRUD de lembretes: criar/editar/deletar com comandos dedicados
+- Comando /lembretes lista pendentes n?o enviados
+- Cancelamento autom?tico ao deletar eventos e reprograma??o na edi??o
+- Envio agendado via node-schedule para ambos os canais
 
 ---
 
@@ -423,13 +412,13 @@ OPEN_FINANCE_API_URL=       # Não configurado
 
 ## 🎯 ROADMAP SUGERIDO
 
-### Sprint 1 - Lembretes (1-2 semanas) 🔥 PRÓXIMO
+### Sprint 1 - Lembretes (conclu?do)
 - [ ] Implementar `reminderScheduler.ts`
 - [ ] Integrar com `node-schedule`
 - [ ] Query de eventos futuros
 - [ ] Envio via WhatsApp e Telegram
-- [ ] Cancelar lembrete ao deletar evento
-- [ ] Testes end-to-end
+- [x] Cancelar lembrete ao deletar evento
+- [ ] Testes end-to-end (pendente)
 
 ### Sprint 2 - WhatsApp Features (1 semana)
 - [ ] Implementar Google Calendar OAuth para WhatsApp
@@ -637,7 +626,7 @@ OPEN_FINANCE_API_URL=       # Não configurado
 
 ### Pontos de Atenção ⚠️
 - ⚠️ **Nenhuma funcionalidade de pagamento implementada**
-- ⚠️ **Lembretes automáticos não existem** (🔥 PRÓXIMA PRIORIDADE)
+- ? Lembretes autom?ticos implementados (envio 12h + CRUD + comandos /lembretes)
 - ⚠️ **Sem testes automatizados**
 - ⚠️ **Rate limiting não ativo** (estrutura pronta)
 

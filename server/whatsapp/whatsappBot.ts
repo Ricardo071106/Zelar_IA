@@ -12,6 +12,7 @@ import type { InsertEvent } from '@shared/schema';
 import { DateTime } from 'luxon';
 import qrcode from 'qrcode';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from '../telegram/googleCalendarIntegration';
+import { reminderService } from '../services/reminderService';
 
 interface WhatsAppBotStatus {
   isReady: boolean;
@@ -19,6 +20,14 @@ interface WhatsAppBotStatus {
   qrCode?: string;
   qrCodeImage?: string;
   clientInfo?: any;
+}
+
+function parseReminderOffset(token: string): number | null {
+  const match = token.match(/^(\d+)(h|m)$/i);
+  if (!match) return null;
+  const value = parseInt(match[1], 10);
+  if (Number.isNaN(value)) return null;
+  return match[2].toLowerCase() === 'm' ? value / 60 : value;
 }
 
 export class WhatsAppBot {
@@ -169,28 +178,31 @@ export class WhatsAppBot {
 
       // Comando /help
       if (text === '/help') {
-        const response =
-          '🤖 *Assistente Zelar - Ajuda*\n\n' +
-          '📅 *Como usar:*\n' +
-          'Envie mensagens naturais como:\n' +
-          '• "reunião com cliente amanhã às 14h"\n' +
-          '• "jantar com família sexta às 19h30"\n' +
-          '• "consulta médica terça-feira às 10h"\n' +
-          '• "call de projeto quinta às 15h"\n\n' +
-          '⚙️ *Comandos:*\n' +
-          '/eventos - Ver seus próximos eventos\n' +
-          '/editar - Editar um evento existente\n' +
-          '/deletar - Deletar um evento\n' +
-          '/conectar - Conectar Google Calendar\n' +
-          '/desconectar - Desconectar Google Calendar\n' +
-          '/status - Ver status da conexão\n' +
-          '/fuso - Alterar fuso horário\n' +
-          '/start - Mensagem inicial\n\n' +
-          '✏️ *Para editar:*\n' +
-          'editar ID novo título amanhã às 15h\n\n' +
-          '🌍 *Fuso atual:* Brasil (UTC-3)\n\n' +
-          '✨ Processamento com IA Claude!';
-        await this.sendMessage(from, response);
+        const helpText = `
+Assistente Zelar - Ajuda
+
+Como usar:
+Envie mensagens como:
+- "reuni?o com cliente amanh? ?s 14h"
+- "jantar com fam?lia sexta ?s 19h30"
+- "consulta m?dica ter?a ?s 10h"
+- "call de projeto quinta ?s 15h"
+
+Comandos:
+/eventos - Ver pr?ximos eventos
+/editar - Editar evento
+/deletar - Deletar evento
+/lembretes - Listar lembretes
+lembrete ID 2h - Criar lembrete (horas antes)
+editarlembrete ID 1h - Editar lembrete
+deletarlembrete ID - Remover lembrete
+/conectar - Conectar Google Calendar
+/desconectar - Desconectar Google Calendar
+/status - Status da conex?o
+/fuso - Alterar fuso hor?rio
+/start - Mensagem inicial
+`;
+        await this.sendMessage(from, helpText.trim());
         return;
       }
 
@@ -366,6 +378,56 @@ export class WhatsAppBot {
         return;
       }
 
+
+      // Comando /lembretes - Listar lembretes pendentes
+      if (text === '/lembretes') {
+        try {
+          const dbUser = await storage.getUserByWhatsApp(whatsappId);
+
+          if (!dbUser) {
+            await this.sendMessage(from, '? Usu?rio n?o encontrado. Use /start primeiro.');
+            return;
+          }
+
+          const settings = await storage.getUserSettings(dbUser.id);
+          const timezone = settings?.timeZone || 'America/Sao_Paulo';
+          const reminders = await storage.getUserPendingReminders(dbUser.id);
+
+          if (reminders.length === 0) {
+            await this.sendMessage(from, '?? Nenhum lembrete pendente. Use "lembrete ID 2h" para criar.');
+            return;
+          }
+
+          let response = '? Lembretes pendentes:
+
+';
+          for (const reminder of reminders) {
+            const event = await storage.getEvent(reminder.eventId);
+            if (!event) continue;
+            const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+            response += `#${reminder.id} - ${event.title}
+`;
+            response += `  Envio: ${sendTime} (${reminder.channel})
+`;
+            response += `  Evento: ${event.id}
+
+`;
+          }
+
+          response += 'Criar: lembrete EVENTO_ID 2h
+';
+          response += 'Editar: editarlembrete ID 1h
+';
+          response += 'Deletar: deletarlembrete ID';
+
+          await this.sendMessage(from, response);
+        } catch (error) {
+          console.error('? Erro ao listar lembretes:', error);
+          await this.sendMessage(from, '? N?o foi poss?vel listar seus lembretes agora.');
+        }
+        return;
+      }
+
       // Comando /deletar - Deletar evento
       if (text === '/deletar') {
         try {
@@ -402,6 +464,133 @@ export class WhatsAppBot {
         } catch (error) {
           console.error('❌ Erro ao listar eventos para deletar:', error);
           await this.sendMessage(from, '❌ Erro ao buscar eventos. Tente novamente.');
+        }
+        return;
+      }
+
+
+      // Criar lembrete manual
+      if (text.toLowerCase().startsWith('lembrete ')) {
+        const parts = text.split(' ');
+        const eventId = parseInt(parts[1]);
+        const offset = parseReminderOffset(parts[2] || '');
+        const customMessage = parts.slice(3).join(' ').trim() || undefined;
+
+        if (Number.isNaN(eventId) || offset === null) {
+          await this.sendMessage(from, '? Formato inv?lido. Use: lembrete ID 2h ou lembrete ID 30m');
+          return;
+        }
+
+        try {
+          const dbUser = await storage.getUserByWhatsApp(whatsappId);
+          if (!dbUser) {
+            await this.sendMessage(from, '? Usu?rio n?o encontrado. Envie /start.');
+            return;
+          }
+
+          const event = await storage.getEvent(eventId);
+          if (!event || event.userId !== dbUser.id) {
+            await this.sendMessage(from, '? Evento n?o encontrado ou sem permiss?o.');
+            return;
+          }
+
+          const reminder = await reminderService.createReminderWithOffset(event, 'whatsapp', offset, customMessage);
+          const settings = await storage.getUserSettings(dbUser.id);
+          const timezone = settings?.timeZone || 'America/Sao_Paulo';
+          const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+
+          await this.sendMessage(from,
+            `? Lembrete criado!
+` +
+            `Lembrete: ${reminder.id}
+` +
+            `Evento: ${event.title}
+` +
+            `Envio: ${sendTime}`
+          );
+        } catch (error) {
+          console.error('? Erro ao criar lembrete:', error);
+          await this.sendMessage(from, '? Erro ao criar lembrete.');
+        }
+        return;
+      }
+
+      // Editar lembrete existente
+      if (text.toLowerCase().startsWith('editarlembrete ')) {
+        const parts = text.split(' ');
+        const reminderId = parseInt(parts[1]);
+        const offset = parseReminderOffset(parts[2] || '');
+        const customMessage = parts.slice(3).join(' ').trim() || undefined;
+
+        if (Number.isNaN(reminderId) || offset === null) {
+          await this.sendMessage(from, '? Formato inv?lido. Use: editarlembrete ID 1h');
+          return;
+        }
+
+        try {
+          const reminder = await storage.getReminder(reminderId);
+          if (!reminder) {
+            await this.sendMessage(from, '? Lembrete n?o encontrado.');
+            return;
+          }
+
+          const dbUser = await storage.getUserByWhatsApp(whatsappId);
+          if (!dbUser || reminder.userId !== dbUser.id) {
+            await this.sendMessage(from, '? Voc? n?o tem permiss?o para editar este lembrete.');
+            return;
+          }
+
+          const event = await storage.getEvent(reminder.eventId);
+          if (!event) {
+            await this.sendMessage(from, '? Evento associado n?o encontrado.');
+            return;
+          }
+
+          const updated = await reminderService.updateReminderWithOffset(reminderId, event, offset, customMessage);
+          if (!updated) {
+            await this.sendMessage(from, '? N?o foi poss?vel atualizar o lembrete.');
+            return;
+          }
+
+          const settings = await storage.getUserSettings(dbUser.id);
+          const timezone = settings?.timeZone || 'America/Sao_Paulo';
+          const sendTime = DateTime.fromJSDate(updated.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
+          await this.sendMessage(from, `? Lembrete atualizado!
+Envio: ${sendTime}`);
+        } catch (error) {
+          console.error('? Erro ao editar lembrete:', error);
+          await this.sendMessage(from, '? Erro ao editar lembrete.');
+        }
+        return;
+      }
+
+      // Deletar lembrete
+      if (text.toLowerCase().startsWith('deletarlembrete ')) {
+        const parts = text.split(' ');
+        const reminderId = parseInt(parts[1]);
+        if (Number.isNaN(reminderId)) {
+          await this.sendMessage(from, '? ID do lembrete inv?lido.');
+          return;
+        }
+
+        try {
+          const reminder = await storage.getReminder(reminderId);
+          if (!reminder) {
+            await this.sendMessage(from, '? Lembrete n?o encontrado.');
+            return;
+          }
+
+          const dbUser = await storage.getUserByWhatsApp(whatsappId);
+          if (!dbUser || reminder.userId !== dbUser.id) {
+            await this.sendMessage(from, '? Voc? n?o tem permiss?o para deletar este lembrete.');
+            return;
+          }
+
+          await reminderService.deleteReminder(reminderId);
+          await this.sendMessage(from, `? Lembrete #${reminderId} deletado.`);
+        } catch (error) {
+          console.error('? Erro ao deletar lembrete:', error);
+          await this.sendMessage(from, '? Erro ao deletar lembrete.');
         }
         return;
       }
@@ -512,6 +701,7 @@ export class WhatsAppBot {
           }
           
           // Deletar do banco
+          await reminderService.deleteEventReminders(eventId);
           await storage.deleteEvent(eventId);
           
           await this.sendMessage(from, 
@@ -584,12 +774,16 @@ export class WhatsAppBot {
           const newEndDate = newDate.plus({ hours: 1 });
           
           // Atualizar no banco
-          await storage.updateEvent(eventId, {
+          const updatedEvent = await storage.updateEvent(eventId, {
             title: newTitle,
             description: newTitle,
             startDate: newDate.toJSDate(),
             endDate: newEndDate.toJSDate(),
           });
+          
+          if (updatedEvent) {
+            await reminderService.ensureDefaultReminder(updatedEvent, 'whatsapp');
+          }
           
           // Atualizar no Google Calendar se conectado
           const settings = await storage.getUserSettings(dbUser.id);
@@ -703,6 +897,7 @@ export class WhatsAppBot {
             
             const savedEvent = await storage.createEvent(insertEvent);
             console.log(`✅ Evento WhatsApp salvo no banco: ${cleanTitle} (ID: ${savedEvent.id})`);
+            await reminderService.ensureDefaultReminder(savedEvent, 'whatsapp');
             
             // Integração com Google Calendar
             const settings = await storage.getUserSettings(dbUser.id);

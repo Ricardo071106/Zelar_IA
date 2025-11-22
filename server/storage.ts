@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gt, lte } from "drizzle-orm";
 import {
   users,
   type User,
@@ -10,6 +10,9 @@ import {
   events,
   type Event,
   type InsertEvent,
+  reminders,
+  type Reminder,
+  type InsertReminder,
 } from "@shared/schema";
 
 export interface IStorage {
@@ -33,6 +36,18 @@ export interface IStorage {
   getUpcomingEvents(userId: number, limit?: number): Promise<Event[]>;
   updateEvent(eventId: number, data: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(eventId: number): Promise<boolean>;
+
+  // Lembretes
+  createReminder(reminder: InsertReminder): Promise<Reminder>;
+  getReminder(id: number): Promise<Reminder | undefined>;
+  getEventReminders(eventId: number): Promise<Reminder[]>;
+  getPendingRemindersToSend(): Promise<Reminder[]>;
+  getUserPendingReminders(userId: number): Promise<Reminder[]>;
+  getAllUnsentReminders(): Promise<Reminder[]>;
+  updateReminder(reminderId: number, data: Partial<Reminder>): Promise<Reminder | undefined>;
+  markReminderSent(reminderId: number): Promise<void>;
+  deleteReminder(reminderId: number): Promise<boolean>;
+  deleteRemindersByEvent(eventId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -138,7 +153,7 @@ export class DatabaseStorage implements IStorage {
       .from(events)
       .where(and(
         eq(events.userId, userId),
-        // Eventos que ainda não aconteceram
+        gt(events.startDate, now)
       ))
       .orderBy(events.startDate)
       .limit(limit);
@@ -159,6 +174,76 @@ export class DatabaseStorage implements IStorage {
     if (!db) return false;
     const result = await db.delete(events).where(eq(events.id, eventId));
     return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  // =================== LEMBRETES ===================
+  async createReminder(reminder: InsertReminder): Promise<Reminder> {
+    if (!db) throw new Error("Database not connected");
+    const [newReminder] = await db.insert(reminders).values(reminder).returning();
+    return newReminder;
+  }
+
+  async getReminder(id: number): Promise<Reminder | undefined> {
+    if (!db) return undefined;
+    const [reminder] = await db.select().from(reminders).where(eq(reminders.id, id));
+    return reminder;
+  }
+
+  async getEventReminders(eventId: number): Promise<Reminder[]> {
+    if (!db) return [];
+    return db.select().from(reminders).where(eq(reminders.eventId, eventId)).orderBy(reminders.sendAt);
+  }
+
+  async getPendingRemindersToSend(): Promise<Reminder[]> {
+    if (!db) return [];
+    const now = new Date();
+    return db
+      .select()
+      .from(reminders)
+      .where(and(eq(reminders.sent, false), lte(reminders.sendAt, now)));
+  }
+
+  async getUserPendingReminders(userId: number): Promise<Reminder[]> {
+    if (!db) return [];
+    return db
+      .select()
+      .from(reminders)
+      .where(and(eq(reminders.userId, userId), eq(reminders.sent, false)))
+      .orderBy(reminders.sendAt);
+  }
+
+  async updateReminder(reminderId: number, data: Partial<Reminder>): Promise<Reminder | undefined> {
+    if (!db) return undefined;
+    const [updated] = await db
+      .update(reminders)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(reminders.id, reminderId))
+      .returning();
+    return updated;
+  }
+
+  async markReminderSent(reminderId: number): Promise<void> {
+    if (!db) return;
+    await db
+      .update(reminders)
+      .set({ sent: true, sentAt: new Date(), updatedAt: new Date() })
+      .where(eq(reminders.id, reminderId));
+  }
+
+  async getAllUnsentReminders(): Promise<Reminder[]> {
+    if (!db) return [];
+    return db.select().from(reminders).where(eq(reminders.sent, false)).orderBy(reminders.sendAt);
+  }
+
+  async deleteReminder(reminderId: number): Promise<boolean> {
+    if (!db) return false;
+    const result = await db.delete(reminders).where(eq(reminders.id, reminderId));
+    return result.rowCount ? result.rowCount > 0 : false;
+  }
+
+  async deleteRemindersByEvent(eventId: number): Promise<void> {
+    if (!db) return;
+    await db.delete(reminders).where(eq(reminders.eventId, eventId));
   }
 }
 

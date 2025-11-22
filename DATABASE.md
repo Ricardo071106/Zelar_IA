@@ -141,6 +141,26 @@ Acesse: `https://local.drizzle.studio`
 - `idx_events_user_id` - Performance em queries por usuário
 - `idx_events_start_date` - Performance em queries por data
 
+
+### Tabela: `reminders`
+```sql
+- id (SERIAL PRIMARY KEY)
+- event_id (INTEGER) - FK para events (ON DELETE CASCADE)
+- user_id (INTEGER) - FK para users (ON DELETE CASCADE)
+- channel (VARCHAR) - telegram ou whatsapp
+- message (TEXT) - Mensagem customizada (opcional)
+- send_at (TIMESTAMP) - Hor?rio agendado do lembrete
+- sent (BOOLEAN) - Se j? foi enviado
+- sent_at (TIMESTAMP) - Data de envio
+- is_default (BOOLEAN) - Criado automaticamente (12h antes)
+- created_at / updated_at (TIMESTAMP)
+```
+
+**?ndices:**
+- `idx_reminders_event_id`
+- `idx_reminders_send_at`
+- `idx_reminders_user_channel`
+
 ### Tabela: `user_settings`
 ```sql
 - id (SERIAL PRIMARY KEY)
