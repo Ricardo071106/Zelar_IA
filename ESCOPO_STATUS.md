@@ -1,7 +1,7 @@
 # Status do Projeto - Zelar IA
 
-**Última atualização:** 22/11/2025 - 07:55 BRT  
-**Progresso Geral:** 80% Completo
+**Última atualização:** 22/11/2025 - 08:10 BRT  
+**Progresso Geral:** 82% Completo
 
 ---
 
@@ -47,7 +47,8 @@ Legenda: ✅ Completo | 🟡 Funcional/Parcial | 🔴 Não iniciado
 ## Entregas Recentes
 - Sistema de lembretes automáticos concluído (padrão 12h) com CRUD via Telegram e WhatsApp.
 - Tabela `reminders` criada/ajustada, service de agendamento em produção.
-- Inicialização do DB agora idempotente para colunas e índices de reminders.
+- Inicialização do DB idempotente para colunas e índices de reminders.
+- Comandos de lembrete padronizados com `/` e mensagens formatadas com emojis/acentos.
 
 ---
 

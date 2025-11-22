@@ -193,9 +193,9 @@ Comandos:
 /editar - Editar evento
 /deletar - Deletar evento
 /lembretes - Listar lembretes
-lembrete ID 2h - Criar lembrete (horas antes)
-editarlembrete ID 1h - Editar lembrete
-deletarlembrete ID - Remover lembrete
+/lembrete ID 2h - Criar lembrete (horas antes)
+/editarlembrete ID 1h - Editar lembrete
+/deletarlembrete ID - Remover lembrete
 /conectar - Conectar Google Calendar
 /desconectar - Desconectar Google Calendar
 /status - Status da conexão
