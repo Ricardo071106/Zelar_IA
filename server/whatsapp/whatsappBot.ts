@@ -408,9 +408,9 @@ deletarlembrete ID - Remover lembrete
             response += `  Evento: ${event.id}\\n\\n`;
           }
           
-          response += 'Criar: lembrete EVENTO_ID 2h\\n';
-          response += 'Editar: editarlembrete ID 1h\\n';
-          response += 'Deletar: deletarlembrete ID';
+          response += 'Criar: /lembrete EVENTO_ID 2h\\n';
+          response += 'Editar: /editarlembrete ID 1h\\n';
+          response += 'Deletar: /deletarlembrete ID';
           
           await this.sendMessage(from, response);
         } catch (error) {
@@ -462,14 +462,14 @@ deletarlembrete ID - Remover lembrete
 
 
       // Criar lembrete manual
-      if (text.toLowerCase().startsWith('lembrete ')) {
+      if (text.toLowerCase().startsWith('/lembrete ')) {
         const parts = text.split(' ');
         const eventId = parseInt(parts[1]);
         const offset = parseReminderOffset(parts[2] || '');
         const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
         if (Number.isNaN(eventId) || offset === null) {
-          await this.sendMessage(from, '❌ Formato inválido.\nUse: `lembrete ID 2h` ou `lembrete ID 30m`');
+          await this.sendMessage(from, '❌ Formato inválido.\nUse: `/lembrete ID 2h` ou `/lembrete ID 30m`');
           return;
         }
 
@@ -508,14 +508,14 @@ deletarlembrete ID - Remover lembrete
       }
 
       // Editar lembrete existente
-      if (text.toLowerCase().startsWith('editarlembrete ')) {
+      if (text.toLowerCase().startsWith('/editarlembrete ')) {
         const parts = text.split(' ');
         const reminderId = parseInt(parts[1]);
         const offset = parseReminderOffset(parts[2] || '');
         const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
         if (Number.isNaN(reminderId) || offset === null) {
-          await this.sendMessage(from, '❌ Formato inválido.\n Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`');
+          await this.sendMessage(from, '❌ Formato inválido.\n Use: `/editarlembrete ID 1h` ou `/editarlembrete ID 30m`');
           return;
         }
 
@@ -557,7 +557,7 @@ Envio: ${sendTime}`);
       }
 
       // Deletar lembrete
-      if (text.toLowerCase().startsWith('deletarlembrete ')) {
+      if (text.toLowerCase().startsWith('/deletarlembrete ')) {
         const parts = text.split(' ');
         const reminderId = parseInt(parts[1]);
         if (Number.isNaN(reminderId)) {

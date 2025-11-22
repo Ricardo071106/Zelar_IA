@@ -752,9 +752,9 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         response += `   ??? Evento: ${event.id}\n\n`;
       }
 
-      response += '?? Para criar: `lembrete EVENTO_ID 2h`\n';
-      response += '?? Para editar: `editarlembrete LEMBRETE_ID 1h`\n';
-      response += '??? Para deletar: `deletarlembrete LEMBRETE_ID`';
+      response += '💡 Para criar: `/lembrete EVENTO_ID 2h`\n';
+      response += '✏️ Para editar: `/editarlembrete LEMBRETE_ID 1h`\n';
+      response += '🗑️ Para deletar: `/deletarlembrete LEMBRETE_ID`';
 
       await sendMessage(chatId, response);
     } catch (error) {
@@ -816,14 +816,14 @@ Use o comando \`lembrete ID 2h\` para criar um.');
 
   
   // Criar lembrete manual para um evento
-  if (message.toLowerCase().startsWith('lembrete ')) {
+  if (message.toLowerCase().startsWith('/lembrete ')) {
     const parts = message.split(' ');
     const eventId = parseInt(parts[1]);
     const offset = parseReminderOffset(parts[2] || '');
     const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
     if (Number.isNaN(eventId) || offset === null) {
-      await sendMessage(chatId, '❌ Formato inválido. Use: `lembrete ID 2h` ou `lembrete ID 30m`.');
+      await sendMessage(chatId, '❌ Formato inválido. Use: `/lembrete ID 2h` ou `/lembrete ID 30m`.');
       return;
     }
 
@@ -868,14 +868,14 @@ Use o comando \`lembrete ID 2h\` para criar um.');
   }
 
   // Editar lembrete existente
-  if (message.toLowerCase().startsWith('editarlembrete ')) {
+  if (message.toLowerCase().startsWith('/editarlembrete ')) {
     const parts = message.split(' ');
     const reminderId = parseInt(parts[1]);
     const offset = parseReminderOffset(parts[2] || '');
     const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
     if (Number.isNaN(reminderId) || offset === null) {
-      await sendMessage(chatId, '❌ Formato inválido. Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`.');
+      await sendMessage(chatId, '❌ Formato inválido. Use: `/editarlembrete ID 1h` ou `/editarlembrete ID 30m`.');
       return;
     }
 
@@ -924,7 +924,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
   }
 
   // Deletar lembrete
-  if (message.toLowerCase().startsWith('deletarlembrete ')) {
+  if (message.toLowerCase().startsWith('/deletarlembrete ')) {
     const parts = message.split(' ');
     const reminderId = parseInt(parts[1]);
     if (Number.isNaN(reminderId)) {
