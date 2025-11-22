@@ -103,7 +103,8 @@ class ReminderService {
   }
 
   async ensureDefaultReminder(event: Event, channel: ReminderChannel): Promise<Reminder | undefined> {
-    const sendAt = this.calculateSendAt(event.startDate, 12);
+    const hoursBefore = 12;
+    const sendAt = this.calculateSendAt(event.startDate, hoursBefore);
     const message = this.buildReminderMessage({ message: undefined }, event, undefined);
 
     const reminders = await storage.getEventReminders(event.id);
@@ -114,6 +115,7 @@ class ReminderService {
         sendAt,
         sent: false,
         message,
+        reminderTime: hoursBefore,
       });
       if (updated) {
         this.scheduleReminder(updated, event);
@@ -129,6 +131,7 @@ class ReminderService {
       sendAt,
       sent: false,
       isDefault: true,
+      reminderTime: hoursBefore,
     });
     this.scheduleReminder(reminder, event);
     return reminder;
@@ -149,6 +152,7 @@ class ReminderService {
       sendAt,
       sent: false,
       isDefault: false,
+      reminderTime: hoursBefore,
     });
     this.scheduleReminder(reminder, event);
     return reminder;
@@ -165,6 +169,7 @@ class ReminderService {
       sendAt,
       sent: false,
       message: message || undefined,
+      reminderTime: hoursBefore,
     });
     if (updated) {
       this.scheduleReminder(updated, event);

@@ -76,6 +76,7 @@ export const reminders = pgTable("reminders", {
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   channel: varchar("channel", { length: 20 }).notNull(), // telegram | whatsapp
   message: text("message"),
+  reminderTime: integer("reminder_time").notNull().default(12), // horas antes do evento
   sendAt: timestamp("send_at").notNull(),
   sent: boolean("sent").default(false).notNull(),
   sentAt: timestamp("sent_at"),
@@ -126,6 +127,7 @@ export const insertReminderSchema = createInsertSchema(reminders).pick({
   userId: true,
   channel: true,
   message: true,
+  reminderTime: true,
   sendAt: true,
   sent: true,
   isDefault: true,
