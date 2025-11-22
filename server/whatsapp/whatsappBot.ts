@@ -383,47 +383,39 @@ deletarlembrete ID - Remover lembrete
       if (text === '/lembretes') {
         try {
           const dbUser = await storage.getUserByWhatsApp(whatsappId);
-
+          
           if (!dbUser) {
-            await this.sendMessage(from, '? Usu?rio n?o encontrado. Use /start primeiro.');
+            await this.sendMessage(from, '❌ Usuário não encontrado. Use /start primeiro.');
             return;
           }
-
+          
           const settings = await storage.getUserSettings(dbUser.id);
           const timezone = settings?.timeZone || 'America/Sao_Paulo';
           const reminders = await storage.getUserPendingReminders(dbUser.id);
-
+          
           if (reminders.length === 0) {
-            await this.sendMessage(from, '?? Nenhum lembrete pendente. Use "lembrete ID 2h" para criar.');
+            await this.sendMessage(from, 'ℹ️ Nenhum lembrete pendente. Use "lembrete ID 2h" para criar.');
             return;
           }
-
-          let response = '? Lembretes pendentes:
-
-';
+          
+          let response = '✅ Lembretes pendentes:\\n\\n';
           for (const reminder of reminders) {
             const event = await storage.getEvent(reminder.eventId);
             if (!event) continue;
             const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
-            response += `#${reminder.id} - ${event.title}
-`;
-            response += `  Envio: ${sendTime} (${reminder.channel})
-`;
-            response += `  Evento: ${event.id}
-
-`;
+            response += `#${reminder.id} - ${event.title}\\n`;
+            response += `  Envio: ${sendTime} (${reminder.channel})\\n`;
+            response += `  Evento: ${event.id}\\n\\n`;
           }
-
-          response += 'Criar: lembrete EVENTO_ID 2h
-';
-          response += 'Editar: editarlembrete ID 1h
-';
+          
+          response += 'Criar: lembrete EVENTO_ID 2h\\n';
+          response += 'Editar: editarlembrete ID 1h\\n';
           response += 'Deletar: deletarlembrete ID';
-
+          
           await this.sendMessage(from, response);
         } catch (error) {
-          console.error('? Erro ao listar lembretes:', error);
-          await this.sendMessage(from, '? N?o foi poss?vel listar seus lembretes agora.');
+          console.error('Erro ao listar lembretes:', error);
+          await this.sendMessage(from, 'Nao foi possivel listar seus lembretes agora.');
         }
         return;
       }

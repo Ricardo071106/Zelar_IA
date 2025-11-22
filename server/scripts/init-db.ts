@@ -89,6 +89,10 @@ async function initDatabase() {
     await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS sent BOOLEAN DEFAULT false NOT NULL;`);
     await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP;`);
     await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false NOT NULL;`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE reminders ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE reminders ALTER COLUMN created_at SET DEFAULT NOW();`);
+    await pool.query(`ALTER TABLE reminders ALTER COLUMN updated_at SET DEFAULT NOW();`);
     console.log('✅ Colunas de reminders OK!\n');
 
     // Garantir colunas de identificação do canal (idempotente)
