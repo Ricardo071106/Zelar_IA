@@ -183,13 +183,13 @@ Assistente Zelar - Ajuda
 
 Como usar:
 Envie mensagens como:
-- "reuni?o com cliente amanh? ?s 14h"
-- "jantar com fam?lia sexta ?s 19h30"
-- "consulta m?dica ter?a ?s 10h"
-- "call de projeto quinta ?s 15h"
+- "reunião com cliente amanhã às 14h"
+- "jantar com família sexta às 19h30"
+- "consulta médica terça às 10h"
+- "call de projeto quinta às 15h"
 
 Comandos:
-/eventos - Ver pr?ximos eventos
+/eventos - Ver próximos eventos
 /editar - Editar evento
 /deletar - Deletar evento
 /lembretes - Listar lembretes
@@ -198,8 +198,8 @@ editarlembrete ID 1h - Editar lembrete
 deletarlembrete ID - Remover lembrete
 /conectar - Conectar Google Calendar
 /desconectar - Desconectar Google Calendar
-/status - Status da conex?o
-/fuso - Alterar fuso hor?rio
+/status - Status da conexão
+/fuso - Alterar fuso horário
 /start - Mensagem inicial
 `;
         await this.sendMessage(from, helpText.trim());
@@ -469,20 +469,20 @@ deletarlembrete ID - Remover lembrete
         const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
         if (Number.isNaN(eventId) || offset === null) {
-          await this.sendMessage(from, '? Formato inv?lido. Use: lembrete ID 2h ou lembrete ID 30m');
+          await this.sendMessage(from, '❌ Formato inválido.\nUse: `lembrete ID 2h` ou `lembrete ID 30m`');
           return;
         }
 
         try {
           const dbUser = await storage.getUserByWhatsApp(whatsappId);
           if (!dbUser) {
-            await this.sendMessage(from, '? Usu?rio n?o encontrado. Envie /start.');
+            await this.sendMessage(from, '❌ Usuário não encontrado. Envie `/start`.');
             return;
           }
 
           const event = await storage.getEvent(eventId);
           if (!event || event.userId !== dbUser.id) {
-            await this.sendMessage(from, '? Evento n?o encontrado ou sem permiss?o.');
+            await this.sendMessage(from, '❌ Evento não encontrado ou sem permissão.');
             return;
           }
 
@@ -492,7 +492,7 @@ deletarlembrete ID - Remover lembrete
           const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
 
           await this.sendMessage(from,
-            `? Lembrete criado!
+            `✅ Lembrete criado!
 ` +
             `Lembrete: ${reminder.id}
 ` +
@@ -502,7 +502,7 @@ deletarlembrete ID - Remover lembrete
           );
         } catch (error) {
           console.error('? Erro ao criar lembrete:', error);
-          await this.sendMessage(from, '? Erro ao criar lembrete.');
+          await this.sendMessage(from, '❌ Erro ao criar lembrete.');
         }
         return;
       }
@@ -515,43 +515,43 @@ deletarlembrete ID - Remover lembrete
         const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
         if (Number.isNaN(reminderId) || offset === null) {
-          await this.sendMessage(from, '? Formato inv?lido. Use: editarlembrete ID 1h');
+          await this.sendMessage(from, '❌ Formato inválido.\n Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`');
           return;
         }
 
         try {
           const reminder = await storage.getReminder(reminderId);
           if (!reminder) {
-            await this.sendMessage(from, '? Lembrete n?o encontrado.');
+            await this.sendMessage(from, '❌ Lembrete não encontrado.');
             return;
           }
 
           const dbUser = await storage.getUserByWhatsApp(whatsappId);
           if (!dbUser || reminder.userId !== dbUser.id) {
-            await this.sendMessage(from, '? Voc? n?o tem permiss?o para editar este lembrete.');
+            await this.sendMessage(from, '❌ Você não tem permissão para editar este lembrete.');
             return;
           }
 
           const event = await storage.getEvent(reminder.eventId);
           if (!event) {
-            await this.sendMessage(from, '? Evento associado n?o encontrado.');
+            await this.sendMessage(from, '❌ Evento associado não encontrado.');
             return;
           }
 
           const updated = await reminderService.updateReminderWithOffset(reminderId, event, offset, customMessage);
           if (!updated) {
-            await this.sendMessage(from, '? N?o foi poss?vel atualizar o lembrete.');
+            await this.sendMessage(from, '❌ Não foi possível atualizar o lembrete.');
             return;
           }
 
           const settings = await storage.getUserSettings(dbUser.id);
           const timezone = settings?.timeZone || 'America/Sao_Paulo';
           const sendTime = DateTime.fromJSDate(updated.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
-          await this.sendMessage(from, `? Lembrete atualizado!
+          await this.sendMessage(from, `✅ Lembrete atualizado!
 Envio: ${sendTime}`);
         } catch (error) {
-          console.error('? Erro ao editar lembrete:', error);
-          await this.sendMessage(from, '? Erro ao editar lembrete.');
+          console.error('❌ Erro ao editar lembrete:', error);
+          await this.sendMessage(from, '❌ Erro ao editar lembrete.');
         }
         return;
       }
@@ -561,28 +561,28 @@ Envio: ${sendTime}`);
         const parts = text.split(' ');
         const reminderId = parseInt(parts[1]);
         if (Number.isNaN(reminderId)) {
-          await this.sendMessage(from, '? ID do lembrete inv?lido.');
+          await this.sendMessage(from, '❌ ID do lembrete inválido.');
           return;
         }
 
         try {
           const reminder = await storage.getReminder(reminderId);
           if (!reminder) {
-            await this.sendMessage(from, '? Lembrete n?o encontrado.');
+            await this.sendMessage(from, '❌ Lembrete não encontrado.');
             return;
           }
 
           const dbUser = await storage.getUserByWhatsApp(whatsappId);
           if (!dbUser || reminder.userId !== dbUser.id) {
-            await this.sendMessage(from, '? Voc? n?o tem permiss?o para deletar este lembrete.');
+            await this.sendMessage(from, '❌ Você não tem permissão para deletar este lembrete.');
             return;
           }
 
           await reminderService.deleteReminder(reminderId);
-          await this.sendMessage(from, `? Lembrete #${reminderId} deletado.`);
+          await this.sendMessage(from, `✅ Lembrete #${reminderId} deletado.`);
         } catch (error) {
-          console.error('? Erro ao deletar lembrete:', error);
-          await this.sendMessage(from, '? Erro ao deletar lembrete.');
+          console.error('❌ Erro ao deletar lembrete:', error);
+          await this.sendMessage(from, '❌ Erro ao deletar lembrete.');
         }
         return;
       }
@@ -593,7 +593,7 @@ Envio: ${sendTime}`);
           const dbUser = await storage.getUserByWhatsApp(whatsappId);
           
           if (!dbUser) {
-            await this.sendMessage(from, '❌ Usuário não encontrado. Use /start primeiro.');
+            await this.sendMessage(from, '❌ Usuário não encontrado. Use `/start` primeiro.');
             return;
           }
           

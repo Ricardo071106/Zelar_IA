@@ -719,14 +719,14 @@ Fuso atual: Brasil (UTC-3)
     const telegramUserId = update.message?.from?.id?.toString();
     
     if (!telegramUserId) {
-      await sendMessage(chatId, '? Não foi possível identificar seu usuário.');
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
 
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
       if (!dbUser) {
-        await sendMessage(chatId, '? Usuário não encontrado. Use /start primeiro.');
+        await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
 
@@ -735,37 +735,31 @@ Fuso atual: Brasil (UTC-3)
       const reminders = await storage.getUserPendingReminders(dbUser.id);
 
       if (reminders.length === 0) {
-        await sendMessage(chatId, '?? *Nenhum lembrete pendente*\
+        await sendMessage(chatId, '📭 *Nenhum lembrete pendente*\n\
 Use o comando \`lembrete ID 2h\` para criar um.');
         return;
       }
 
-      let response = '? *Seus lembretes pendentes:*\
+      let response = '📅 *Seus lembretes pendentes:*\
 \
 ';
       for (const reminder of reminders) {
         const event = await storage.getEvent(reminder.eventId);
         if (!event) continue;
         const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
-        response += `#${reminder.id} - ${event.title}
-`;
-        response += `   ?? Envio: ${sendTime} (${reminder.channel})
-`;
-        response += `   ??? Evento: ${event.id}
-
-`;
+        response += `#${reminder.id} - ${event.title}\n`;
+        response += `   ?? Envio: ${sendTime} (${reminder.channel})\n`;
+        response += `   ??? Evento: ${event.id}\n\n`;
       }
 
-      response += '?? Para criar: `lembrete EVENTO_ID 2h`\
-';
-      response += '?? Para editar: `editarlembrete LEMBRETE_ID 1h`\
-';
+      response += '?? Para criar: `lembrete EVENTO_ID 2h`\n';
+      response += '?? Para editar: `editarlembrete LEMBRETE_ID 1h`\n';
       response += '??? Para deletar: `deletarlembrete LEMBRETE_ID`';
 
       await sendMessage(chatId, response);
     } catch (error) {
-      console.error('? Erro ao listar lembretes:', error);
-      await sendMessage(chatId, '? N?o foi poss?vel listar seus lembretes agora.');
+      console.error('❌ Erro ao listar lembretes:', error);
+      await sendMessage(chatId, '❌ Não foi possível listar seus lembretes agora.');
     }
     return;
   }
@@ -829,26 +823,26 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
     if (Number.isNaN(eventId) || offset === null) {
-      await sendMessage(chatId, '? Formato inv?lido. Use: `lembrete ID 2h` ou `lembrete ID 30m`.');
+      await sendMessage(chatId, '❌ Formato inválido. Use: `lembrete ID 2h` ou `lembrete ID 30m`.');
       return;
     }
 
     const telegramUserId = update.message?.from?.id?.toString();
     if (!telegramUserId) {
-      await sendMessage(chatId, '? N?o foi poss?vel identificar seu usu?rio.');
+      await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
 
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
       if (!dbUser) {
-        await sendMessage(chatId, '? Usu?rio n?o encontrado. Use /start primeiro.');
+        await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
 
       const event = await storage.getEvent(eventId);
       if (!event || event.userId !== dbUser.id) {
-        await sendMessage(chatId, '? Evento n?o encontrado ou sem permiss?o.');
+        await sendMessage(chatId, '❌ Evento não encontrado ou sem permissão.');
         return;
       }
 
@@ -858,7 +852,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
       const sendTime = DateTime.fromJSDate(reminder.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
 
       await sendMessage(chatId,
-        `? Lembrete criado!
+        `✅ Lembrete criado!
 ` +
         `?? Lembrete: ${reminder.id}
 ` +
@@ -867,8 +861,8 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         `?? Envio: ${sendTime}`
       );
     } catch (error) {
-      console.error('? Erro ao criar lembrete:', error);
-      await sendMessage(chatId, '? Erro ao criar lembrete.');
+      console.error('❌ Erro ao criar lembrete:', error);
+      await sendMessage(chatId, '❌ Erro ao criar lembrete.');
     }
     return;
   }
@@ -881,33 +875,33 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     const customMessage = parts.slice(3).join(' ').trim() || undefined;
 
     if (Number.isNaN(reminderId) || offset === null) {
-      await sendMessage(chatId, '? Formato inv?lido. Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`.');
+      await sendMessage(chatId, '❌ Formato inválido. Use: `editarlembrete ID 1h` ou `editarlembrete ID 30m`.');
       return;
     }
 
     try {
       const reminder = await storage.getReminder(reminderId);
       if (!reminder) {
-        await sendMessage(chatId, '? Lembrete n?o encontrado.');
+        await sendMessage(chatId, '❌ Lembrete não encontrado.');
         return;
       }
 
       const telegramUserId = update.message?.from?.id?.toString();
       const dbUser = telegramUserId ? await storage.getUserByTelegramId(telegramUserId) : undefined;
       if (!dbUser || reminder.userId !== dbUser.id) {
-        await sendMessage(chatId, '? Voc? n?o tem permiss?o para editar este lembrete.');
+        await sendMessage(chatId, '❌ Você não tem permissão para editar este lembrete.');
         return;
       }
 
       const event = await storage.getEvent(reminder.eventId);
       if (!event) {
-        await sendMessage(chatId, '? Evento associado n?o encontrado.');
+        await sendMessage(chatId, '❌ Evento associado não encontrado.');
         return;
       }
 
       const updated = await reminderService.updateReminderWithOffset(reminderId, event, offset, customMessage);
       if (!updated) {
-        await sendMessage(chatId, '? N?o foi poss?vel atualizar o lembrete.');
+        await sendMessage(chatId, '❌ Não foi possível atualizar o lembrete.');
         return;
       }
 
@@ -916,15 +910,15 @@ Use o comando \`lembrete ID 2h\` para criar um.');
       const sendTime = DateTime.fromJSDate(updated.sendAt).setZone(timezone).toFormat('dd/MM/yyyy HH:mm');
 
       await sendMessage(chatId,
-        `? Lembrete atualizado!
+        `✅ Lembrete atualizado!
 ` +
         `?? Lembrete: ${updated.id}
 ` +
         `?? Envio: ${sendTime}`
       );
     } catch (error) {
-      console.error('? Erro ao editar lembrete:', error);
-      await sendMessage(chatId, '? Erro ao editar lembrete.');
+      console.error('❌ Erro ao editar lembrete:', error);
+      await sendMessage(chatId, '❌ Erro ao editar lembrete.');
     }
     return;
   }
@@ -934,29 +928,29 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     const parts = message.split(' ');
     const reminderId = parseInt(parts[1]);
     if (Number.isNaN(reminderId)) {
-      await sendMessage(chatId, '? ID do lembrete inv?lido. Use: `deletarlembrete ID`.');
+      await sendMessage(chatId, '❌ ID do lembrete inválido. Use: `deletarlembrete ID`.');
       return;
     }
 
     try {
       const reminder = await storage.getReminder(reminderId);
       if (!reminder) {
-        await sendMessage(chatId, '? Lembrete n?o encontrado.');
+        await sendMessage(chatId, '❌ Lembrete não encontrado.');
         return;
       }
 
       const telegramUserId = update.message?.from?.id?.toString();
       const dbUser = telegramUserId ? await storage.getUserByTelegramId(telegramUserId) : undefined;
       if (!dbUser || reminder.userId !== dbUser.id) {
-        await sendMessage(chatId, '? Voc? n?o tem permiss?o para deletar este lembrete.');
+        await sendMessage(chatId, '❌ Você não tem permissão para deletar este lembrete.');
         return;
       }
 
       await reminderService.deleteReminder(reminderId);
-      await sendMessage(chatId, `? Lembrete #${reminderId} deletado.`);
+      await sendMessage(chatId, `✅ Lembrete #${reminderId} deletado.`);
     } catch (error) {
-      console.error('? Erro ao deletar lembrete:', error);
-      await sendMessage(chatId, '? Erro ao deletar lembrete.');
+      console.error('❌ Erro ao deletar lembrete:', error);
+      await sendMessage(chatId, '❌ Erro ao deletar lembrete.');
     }
     return;
   }
