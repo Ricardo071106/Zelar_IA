@@ -85,14 +85,6 @@ class WhatsAppBot {
         const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
         console.log('Conexão fechada devido a ', lastDisconnect?.error, ', reconectar: ', shouldReconnect);
         if (shouldReconnect) {
-          // Fetch version again mostly useless here but we need to pass something unless we store it
-          // For simplicity let's rely on internal default or stored version if we call startSock without args or
-          // better: Just restart the whole init process or store version in class.
-          // Ideally we should just call initialize() again but that checks isInitializing flag.
-          // Let's modify startSock to take version or handle it. 
-          // Simpler: Just allow calling specific method or just retry startSock logic.
-          // Current implementation of 'startSock' doesn't fetch version.
-          // Let's just fix the recursive call.
           this.startSock(version);
         }
       } else if (connection === 'open') {
@@ -161,17 +153,27 @@ class WhatsAppBot {
 
       await this.sendMessage(remoteJid, response);
     } else {
-      // Fallback apenas se parecer uma tentativa de agendamento ou se o bot for mencionado?
-      // No Telegram, o bot responde a tudo. No WhatsApp pode ser chato em grupos.
-      // Se for chat privado (termina com @s.whatsapp.net), responder.
-      if (remoteJid.endsWith('@s.whatsapp.net')) {
-        await this.sendMessage(remoteJid,
-          '❌ *Não consegui entender a data/hora*\n\n' +
-          '💡 *Tente algo como:*\n' +
-          '• "jantar hoje às 19h"\n' +
-          '• "reunião amanhã às 15h"\n\n' +
-          'Ou use `/interpretar sua frase` para testar!'
-        );
+      // Fallback: Se não for comando e não for evento, responder com ajuda se for chat privado
+      // Ou se o usuário mencionar o bot (lógica futura)
+
+      console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
+
+      const isPrivateChat = remoteJid.endsWith('@s.whatsapp.net');
+
+      if (isPrivateChat) {
+        const helpParams = [
+          '❌ *Não consegui entender a data/hora*',
+          '',
+          '💡 *Exemplos que entendo:*',
+          '• "jantar hoje às 19h"',
+          '• "reunião amanhã às 15h"',
+          '• "consulta sexta que vem às 10 da manhã"',
+          '',
+          '🔍 Use `/interpretar sua frase` para testar!',
+          '🌍 Use `/fuso` para configurar horários locais!'
+        ].join('\n');
+
+        await this.sendMessage(remoteJid, helpParams);
       }
     }
   }
@@ -218,8 +220,17 @@ class WhatsAppBot {
   }
 
   private async sendMessage(jid: string, text: string) {
-    if (this.sock) {
+    if (!this.sock) {
+      console.error('❌ Tentativa de enviar mensagem sem conexão ativa');
+      return;
+    }
+
+    try {
+      console.log(`📤 Enviando mensagem para ${jid}: ${text.slice(0, 50)}...`);
       await this.sock.sendMessage(jid, { text });
+      console.log('✅ Mensagem enviada com sucesso');
+    } catch (error) {
+      console.error(`❌ Erro ao enviar mensagem para ${jid}:`, error);
     }
   }
 }

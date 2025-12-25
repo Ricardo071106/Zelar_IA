@@ -21,6 +21,7 @@ build/
 
 # WhatsApp session
 whatsapp_session/
+auth_info_baileys/
 
 # TypeScript
 *.tsbuildinfo

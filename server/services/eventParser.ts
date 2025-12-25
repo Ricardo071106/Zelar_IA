@@ -239,7 +239,13 @@ export async function processMessage(text: string, userId: string, languageCode?
 export async function parseEvent(text: string, userId: string, userTimezone: string, languageCode?: string): Promise<Event | null> {
   console.log(`🤖 Usando Claude Haiku para interpretar: "${text}"`);
 
-  const claudeResult = await parseEventWithClaude(text, userTimezone);
+  let claudeResult = { isValid: false, date: '', hour: 0, minute: 0 };
+
+  try {
+    claudeResult = await parseEventWithClaude(text, userTimezone);
+  } catch (error) {
+    console.warn('⚠️ Erro ao usar Claude (ignorando e usando fallback):', error);
+  }
 
   let event: Event | null = null;
 
