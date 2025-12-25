@@ -25,6 +25,7 @@ INSTRUÇÕES:
 1. Extraia o TÍTULO do evento removendo todas as expressões temporais
 2. Identifique a DATA (considere fuso horário ${userTimezone})
 3. Identifique o HORÁRIO (formato 24h)
+4. Se o TÍTULO não se parecer com um evento, marque como inválido e rejeite a criação do evento
 
 REGRAS CRÍTICAS PARA TÍTULO:
 - Remova TODOS os comandos: "marque", "agende", "coloque", "lembre", "me lembre de", "anote", "criar", "fazer"
@@ -78,10 +79,10 @@ Responda APENAS em JSON:
     );
 
     const result = JSON.parse(response.data.choices[0].message.content);
-    
+
     console.log(`🤖 Claude interpretou: "${userMessage}" → ${JSON.stringify(result)}`);
     console.log(`🔍 [CLAUDE DEBUG] Título retornado: "${result.title}"`);
-    
+
     // CORREÇÃO: Garantir que a data seja sempre 2025 ou posterior
     let correctedDate = result.date;
     if (correctedDate && correctedDate.startsWith('2023') || correctedDate.startsWith('2024')) {
@@ -89,7 +90,7 @@ Responda APENAS em JSON:
       correctedDate = correctedDate.replace(/^\d{4}/, currentYear.toString());
       console.log(`📅 Data corrigida de ${result.date} para ${correctedDate}`);
     }
-    
+
     return {
       title: result.title || 'Evento',
       date: correctedDate || new Date().toISOString().split('T')[0],
@@ -100,7 +101,7 @@ Responda APENAS em JSON:
 
   } catch (error) {
     console.error('Erro ao usar Claude:', error);
-    
+
     // Fallback para parsing manual se Claude falhar
     return {
       title: userMessage.split(' ').slice(0, 3).join(' '), // primeiras 3 palavras

@@ -165,6 +165,31 @@ class WhatsAppBot {
     // Comandos
     if (text.startsWith('/')) {
       const command = text.split(' ')[0].toLowerCase();
+
+      // Permitir /start e /ajuda para todos (ou bloquear tudo, conforme pedido. "caso usuario não seja pagante, deve receber o link")
+      // Vamos bloquear tudo mas enviando o link, exceto talvez se ele quiser saber o status.
+      // Melhor: Checar assinatura antes de tudo.
+    }
+
+    // VERIFICAÇÃO DE ASSINATURA
+    if (user.subscriptionStatus !== 'active') {
+      const baseUrl = process.env.STRIPE_PAYMENT_LINK || 'https://buy.stripe.com/test_...';
+      const paymentLink = `${baseUrl}?client_reference_id=${user.id}`;
+      console.log(`🚫 Usuário ${user.username} sem assinatura ativa. Enviando link de pagamento.`);
+
+      await this.sendMessage(remoteJid,
+        '⚠️ *Assinatura Necessária*\n\n' +
+        'Para continuar usando o Zelar IA e ter acesso a agendamentos ilimitados, você precisa de uma assinatura ativa.\n\n' +
+        '🚀 *Assine agora e libere seu acesso:*\n' +
+        `${paymentLink}\n\n` +
+        'Após o pagamento, seu acesso será liberado automaticamente!'
+      );
+      return;
+    }
+
+    // Comandos
+    if (text.startsWith('/')) {
+      const command = text.split(' ')[0].toLowerCase();
       const args = text.substring(command.length).trim();
       await this.handleCommand(remoteJid, user, command, args);
       return;
@@ -175,6 +200,17 @@ class WhatsAppBot {
     const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
 
     const event = await parseEvent(text, whatsappId, userTimezone);
+
+    if (!event) {
+      console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
+      await this.sendMessage(remoteJid,
+        '❓ Não entendi seu comando ou evento.\n' +
+        'Tente algo como: *"Dentista amanhã às 15h"* ou digite /ajuda.'
+      );
+      // Opcional: Chamar sendHelpMessage completo
+      // await this.sendHelpMessage(remoteJid);
+      return;
+    }
 
     if (event) {
       // 1. Salvar no Banco de Dados
@@ -251,7 +287,7 @@ class WhatsAppBot {
   private async sendHelpMessage(remoteJid: string) {
     await this.sendMessage(remoteJid,
       '🤖 *Zelar - Assistente de Agendamento*\n\n' +
-      'Não entendi sua mensagem como um evento. Veja como posso ajudar:\n\n' +
+      'Veja como posso ajudar:\n\n' +
       '💡 *Exemplos de uso:*\n' +
       '• "jantar hoje às 19h"\n' +
       '• "reunião amanhã às 15h"\n' +

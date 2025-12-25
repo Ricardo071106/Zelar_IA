@@ -30,6 +30,11 @@ app.use(cors({
 
 // =================== PERFORMANCE ===================
 app.use(compression());
+
+// IMPORTANTE: O webhook do Stripe precisa do corpo cru (raw body) para verificação de assinatura
+// Deve vir ANTES do express.json() global
+app.use('/api/payments/webhook', express.raw({ type: 'application/json' }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
@@ -43,7 +48,7 @@ app.use((req, res, next) => {
   const requestPath = req.path; // Renomeado para evitar conflito com import 'path'
   requestCount++;
   lastRequestTime = Date.now();
-  
+
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
 
   const originalResJson = res.json;
@@ -87,8 +92,8 @@ const TIMEOUT_MS = 30000; // 30 segundos
 
 // Health check interno rápido (não passa pelas rotas)
 app.get('/_health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     uptime: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
     requests: requestCount,
@@ -102,14 +107,14 @@ async function startServer() {
     log('📋 Registrando rotas...');
     await registerRoutes(app);
     log('✅ Rotas registradas com sucesso');
-    
+
     // Aplicar error handlers (DEVEM SER OS ÚLTIMOS middlewares)
     app.use(notFoundHandler);
     app.use(errorHandler);
-    
+
     // Criar servidor HTTP com configurações robustas
     const server = createServer(app);
-    
+
     // Configurar timeouts para evitar travamentos
     server.timeout = TIMEOUT_MS;
     server.keepAliveTimeout = 65000;
@@ -118,10 +123,10 @@ async function startServer() {
     // Inicializar bots apenas se as variáveis estiverem configuradas
     const botsInitialized = await initializeBots();
     await reminderService.start();
-    
+
     // Validar e iniciar servidor
     const port = validatePort(process.env.PORT);
-    
+
     server.listen(port, () => {
       log('═══════════════════════════════════════════════════════');
       log(`🚀 Servidor iniciado na porta ${port}`);
@@ -131,7 +136,7 @@ async function startServer() {
       log(`🤖 WhatsApp: ${botsInitialized.whatsapp ? '✅' : '❌'}`);
       log(`🤖 Telegram: ${botsInitialized.telegram ? '✅' : '❌'}`);
       log('═══════════════════════════════════════════════════════');
-      
+
       if (!process.env.TELEGRAM_BOT_TOKEN) {
         log('⚠️ Para ativar o bot do Telegram, configure TELEGRAM_BOT_TOKEN', 'warn');
       }
@@ -149,7 +154,7 @@ async function startServer() {
           log('✅ Servidor encerrado com sucesso');
           process.exit(0);
         });
-        
+
         // Forçar encerramento após 10 segundos
         setTimeout(() => {
           log('⚠️ Forçando encerramento após timeout', 'error');
@@ -157,7 +162,7 @@ async function startServer() {
         }, 10000);
       });
     });
-    
+
   } catch (error) {
     log(`💥 Erro fatal ao iniciar servidor: ${error}`, 'error');
     if (error instanceof Error) {
@@ -174,11 +179,11 @@ async function startServer() {
  */
 function validatePort(portEnv: string | undefined): number {
   const port = parseInt(portEnv || '8080', 10);
-  
+
   if (isNaN(port) || port < 1 || port > 65535) {
     throw new Error(`Porta inválida: ${portEnv}. Deve ser um número entre 1 e 65535.`);
   }
-  
+
   return port;
 }
 
@@ -187,7 +192,7 @@ function validatePort(portEnv: string | undefined): number {
  */
 async function initializeBots(): Promise<{ whatsapp: boolean; telegram: boolean }> {
   const results = { whatsapp: false, telegram: false };
-  
+
   // Inicializar bot do WhatsApp
   try {
     log('🤖 Inicializando bot do WhatsApp...');
@@ -218,7 +223,7 @@ async function initializeBots(): Promise<{ whatsapp: boolean; telegram: boolean 
       throw error; // Falhar se Telegram é obrigatório
     }
   }
-  
+
   return results;
 }
 
@@ -229,7 +234,7 @@ function log(message: string, level: 'info' | 'warn' | 'error' = 'info') {
   const timestamp = new Date().toISOString();
   const emoji = level === 'error' ? '❌' : level === 'warn' ? '⚠️' : 'ℹ️';
   const logMessage = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-  
+
   if (level === 'error') {
     console.error(logMessage);
   } else if (level === 'warn') {
