@@ -442,7 +442,7 @@ class WhatsAppBot {
     }
   }
 
-  private async sendMessage(jid: string, text: string) {
+  public async sendMessage(jid: string, text: string) {
     if (!this.sock) {
       console.error('❌ Tentativa de enviar mensagem sem conexão ativa');
       return;

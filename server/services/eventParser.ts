@@ -239,7 +239,7 @@ export async function processMessage(text: string, userId: string, languageCode?
 export async function parseEvent(text: string, userId: string, userTimezone: string, languageCode?: string): Promise<Event | null> {
   console.log(`🤖 Usando Claude Haiku para interpretar: "${text}"`);
 
-  let claudeResult = { isValid: false, date: '', hour: 0, minute: 0 };
+  let claudeResult = { title: '', isValid: false, date: '', hour: 0, minute: 0 };
 
   try {
     claudeResult = await parseEventWithClaude(text, userTimezone);
@@ -259,7 +259,8 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
     }, { zone: userTimezone });
 
     const isoString = eventDate.toISO();
-    const cleanTitle = extractEventTitle(text);
+    // Priorizar o título extraído pelo Claude, se disponível
+    const cleanTitle = claudeResult.title || extractEventTitle(text);
 
     event = {
       title: cleanTitle,
