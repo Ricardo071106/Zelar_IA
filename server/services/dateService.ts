@@ -429,7 +429,7 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
   const text = input.toLowerCase().trim();
 
   // 1. Padrão completo: "às 20:00", "às 20h", "às 20"
-  let match = text.match(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  let match = text.match(/\b(?:às|as|ate)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
   if (match) {
     const hour = parseInt(match[1]);
     const minute = match[2] ? parseInt(match[2]) : 0;
@@ -439,13 +439,13 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     }
   }
 
-  // 2. Padrão: "20:00", "20h", "20"
-  match = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  // 2. CORREÇÃO STRICT: Padrão "20:00" ou "20h" (NÃO aceita apenas "20")
+  match = text.match(/\b(\d{1,2})(?:h|:(\d{2}))\b/);
   if (match) {
     const hour = parseInt(match[1]);
     const minute = match[2] ? parseInt(match[2]) : 0;
     if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-      console.log(`🕐 PADRÃO NÚMERO: '${match[0]}' → ${hour}:${minute.toString().padStart(2, '0')}`);
+      console.log(`🕐 PADRÃO HH:MM ou HHh: '${match[0]}' → ${hour}:${minute.toString().padStart(2, '0')}`);
       return { hour, minute };
     }
   }
@@ -473,7 +473,7 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     return { hour, minute: 0 };
   }
 
-  // 5. Por extenso (vinte, dezenove, etc.)
+  // 5. Por extenso 
   const wordNumbers: { [key: string]: number } = {
     'uma': 1, 'duas': 2, 'dois': 2, 'três': 3, 'tres': 3, 'quatro': 4, 'cinco': 5,
     'seis': 6, 'sete': 7, 'oito': 8, 'nove': 9, 'dez': 10,
@@ -482,8 +482,12 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     'dezenove': 19, 'vinte': 20, 'vinte e uma': 21, 'vinte e duas': 22, 'vinte e três': 23, 'vinte e tres': 23
   };
 
-  // NOVO: Suporte para "oito e meia", "sete e quinze", "nove e quarenta e cinco", etc.
-  const extensoComMinutos = text.match(/\b(uma|duas|dois|três|tres|quatro|cinco|seis|sete|oito|nove|dez|onze|doze|treze|catorze|quatorze|quinze|dezesseis|dezessete|dezoito|dezenove|vinte|vinte e uma|vinte e duas|vinte e três|vinte e tres)\s+e\s+(meia|quinze|minutos?|vinte|vinte e cinco|trinta|quarenta|quarenta e cinco|cinquenta|cinquenta e cinco)\b/);
+  // Verificação de extenso COM contexto obrigatório (às, as, horas, da manhã, etc)
+  // Regex builder para palavras
+  const wordsRegex = Object.keys(wordNumbers).join('|');
+
+  // Padrão "duas e meia", "três e quinze" (Implica horário)
+  const extensoComMinutos = text.match(new RegExp(`\\b(${wordsRegex})\\s+e\\s+(meia|quinze|minutos?|vinte|vinte e cinco|trinta|quarenta|quarenta e cinco|cinquenta|cinquenta e cinco)\\b`));
   if (extensoComMinutos) {
     const horaStr = extensoComMinutos[1];
     const minStr = extensoComMinutos[2];
@@ -498,23 +502,32 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
     else if (minStr.includes('quarenta')) minute = 40;
     else if (minStr.includes('cinquenta e cinco')) minute = 55;
     else if (minStr.includes('cinquenta')) minute = 50;
-    // Ajuste para "da noite" ou "da tarde"
+
     if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(text) && hour < 12) {
       hour += 12;
-      console.log(`🌙 Ajuste período: ${wordNumbers[horaStr]} → ${hour} (${horaStr})`);
     }
     console.log(`🕐 Por extenso com minutos: ${horaStr} e ${minStr} → ${hour}:${minute.toString().padStart(2, '0')}`);
     return { hour, minute };
   }
 
+  // Padrão "às duas", "duas horas", "duas da tarde"
+  // Não aceita "uma" solto
   for (const [word, number] of Object.entries(wordNumbers)) {
-    if (new RegExp(`\\b${word}\\b`).test(text)) {
+    const patterns = [
+      `às\\s+${word}\\b`,
+      `as\\s+${word}\\b`,
+      `\\b${word}\\s+horas?\\b`,
+      `\\b${word}\\s+h\\b`,
+      `\\b${word}\\s+(?:da|de)\\s+(?:manhã|tarde|noite)\\b`
+    ];
+
+    // Testa cada padrão
+    if (patterns.some(p => new RegExp(p).test(text))) {
       let hour = number;
       if (/\b(da tarde|de tarde|da noite|de noite)\b/.test(text) && hour < 12) {
         hour += 12;
-        console.log(`🌙 Ajuste período: ${number} → ${hour} (${word})`);
       }
-      console.log(`🕐 Por extenso: ${word} → ${hour}:00`);
+      console.log(`🕐 Por extenso com contexto: ${word} → ${hour}:00`);
       return { hour, minute: 0 };
     }
   }
