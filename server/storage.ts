@@ -23,6 +23,8 @@ export interface IStorage {
   getUserByWhatsApp(whatsappId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined>;
+  updateUserSubscription(id: number, data: { status: string; stripeCustomerId?: string; subscriptionEndsAt?: Date | null }): Promise<User | undefined>;
+
 
   // Configurações do usuário
   getUserSettings(userId: number): Promise<UserSettings | undefined>;
@@ -52,7 +54,7 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   // =================== USUÁRIOS ===================
-  
+
   async getUser(id: number): Promise<User | undefined> {
     if (!db) return undefined;
     const [user] = await db.select().from(users).where(eq(users.id, id));
@@ -94,8 +96,22 @@ export class DatabaseStorage implements IStorage {
     return updatedUser;
   }
 
+  async updateUserSubscription(id: number, data: { status: string; stripeCustomerId?: string; subscriptionEndsAt?: Date | null }): Promise<User | undefined> {
+    if (!db) return undefined;
+    const [updatedUser] = await db
+      .update(users)
+      .set({
+        subscriptionStatus: data.status,
+        stripeCustomerId: data.stripeCustomerId,
+        subscriptionEndsAt: data.subscriptionEndsAt,
+      })
+      .where(eq(users.id, id))
+      .returning();
+    return updatedUser;
+  }
+
   // =================== CONFIGURAÇÕES DO USUÁRIO ===================
-  
+
   async getUserSettings(userId: number): Promise<UserSettings | undefined> {
     if (!db) return undefined;
     const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
@@ -122,7 +138,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // =================== EVENTOS ===================
-  
+
   async createEvent(event: InsertEvent): Promise<Event> {
     if (!db) throw new Error("Database not connected");
     const [newEvent] = await db.insert(events).values(event).returning();

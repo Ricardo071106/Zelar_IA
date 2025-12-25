@@ -11,13 +11,29 @@ export const users = pgTable("users", {
   telegramId: text("telegram_id").unique(),
   name: text("name"),
   email: text("email"),
+  stripeCustomerId: text("stripe_customer_id"),
+  subscriptionStatus: text("subscription_status").default("inactive"), // active, inactive, past_due
+  subscriptionEndsAt: timestamp("subscription_ends_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const userRelations = relations(users, ({ many }) => ({
   events: many(events),
   settings: many(userSettings),
+  payments: many(payments),
 }));
+
+// Pagamentos
+export const payments = pgTable("payments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  stripeSessionId: text("stripe_session_id").unique(),
+  amount: integer("amount").notNull(), // in cents
+  currency: text("currency").default("brl"),
+  status: text("status").notNull(), // pending, completed, failed
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 // Eventos
 export const events = pgTable("events", {
@@ -131,6 +147,7 @@ export const insertReminderSchema = createInsertSchema(reminders).pick({
   sendAt: true,
   sent: true,
   isDefault: true,
+  createdAt: true,
 });
 
 

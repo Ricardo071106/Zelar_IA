@@ -45,13 +45,13 @@ let lastUpdateId = 0;
 function generateCalendarLinks(event: Event) {
   const startDate = new Date(event.startDate);
   const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
-  
+
   const formatDate = (date: Date) => date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  
+
   const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
-  
+
   const outlookUrl = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startDate.toISOString()}&enddt=${endDate.toISOString()}`;
-  
+
   return { google: googleUrl, outlook: outlookUrl };
 }
 
@@ -208,49 +208,49 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     const callbackData = update.callback_query.data;
     const chatId = update.callback_query.message.chat.id;
     const callbackId = update.callback_query.id;
-    
+
     console.log(`🔘 Callback: "${callbackData}" do chat ${chatId}`);
-    
+
     // Processar deletar evento
     if (callbackData?.startsWith('delete_')) {
       const eventId = parseInt(callbackData.replace('delete_', ''));
-      
+
       try {
         const telegramUserId = update.callback_query?.from?.id?.toString();
         if (!telegramUserId) {
           await answerCallbackQuery(callbackId, '❌ Erro ao identificar usuário');
           return;
         }
-        
+
         const dbUser = await storage.getUserByTelegramId(telegramUserId);
         if (!dbUser) {
           await answerCallbackQuery(callbackId, '❌ Usuário não encontrado');
           return;
         }
-        
+
         // Buscar evento
         const event = await storage.getEvent(eventId);
-        
+
         if (!event) {
           await sendMessage(chatId, '❌ Evento não encontrado.');
           await answerCallbackQuery(callbackId);
           return;
         }
-        
+
         // Verificar se o evento pertence ao usuário
         if (event.userId !== dbUser.id) {
           await sendMessage(chatId, '❌ Você não tem permissão para deletar este evento.');
           await answerCallbackQuery(callbackId);
           return;
         }
-        
+
         // Deletar do Google Calendar se estiver conectado
         if (event.calendarId) {
           const settings = await storage.getUserSettings(dbUser.id);
           if (settings?.googleTokens) {
             const tokens = JSON.parse(settings.googleTokens);
             setTokens(dbUser.id, tokens);
-            
+
             const googleResult = await cancelGoogleCalendarEvent(event.calendarId, dbUser.id);
             if (googleResult.success) {
               console.log('✅ Evento deletado do Google Calendar');
@@ -259,19 +259,19 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
             }
           }
         }
-        
+
         // Deletar do banco
         await reminderService.deleteEventReminders(eventId);
         await storage.deleteEvent(eventId);
-        
-        await sendMessage(chatId, 
+
+        await sendMessage(chatId,
           `✅ *Evento deletado com sucesso!*\n\n` +
           `🗑️ ${event.title}\n` +
           `📅 ${DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo').toFormat('dd/MM/yyyy HH:mm')}`
         );
-        
+
         await answerCallbackQuery(callbackId, 'Evento deletado!');
-        
+
       } catch (error) {
         console.error('❌ Erro ao deletar evento:', error);
         await sendMessage(chatId, '❌ Erro ao deletar evento. Tente novamente.');
@@ -279,43 +279,43 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       }
       return;
     }
-    
+
     // Processar editar evento
     if (callbackData?.startsWith('edit_')) {
       const eventId = parseInt(callbackData.replace('edit_', ''));
-      
+
       try {
         const telegramUserId = update.callback_query?.from?.id?.toString();
         if (!telegramUserId) {
           await answerCallbackQuery(callbackId, '❌ Erro ao identificar usuário');
           return;
         }
-        
+
         const dbUser = await storage.getUserByTelegramId(telegramUserId);
         if (!dbUser) {
           await answerCallbackQuery(callbackId, '❌ Usuário não encontrado');
           return;
         }
-        
+
         // Buscar evento
         const event = await storage.getEvent(eventId);
-        
+
         if (!event) {
           await sendMessage(chatId, '❌ Evento não encontrado.');
           await answerCallbackQuery(callbackId);
           return;
         }
-        
+
         // Verificar se o evento pertence ao usuário
         if (event.userId !== dbUser.id) {
           await sendMessage(chatId, '❌ Você não tem permissão para editar este evento.');
           await answerCallbackQuery(callbackId);
           return;
         }
-        
+
         const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
-        
-        await sendMessage(chatId, 
+
+        await sendMessage(chatId,
           `✏️ *Editar Evento*\n\n` +
           `📋 *Evento atual:*\n` +
           `🎯 ${event.title}\n` +
@@ -326,9 +326,9 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
           `Ou apenas o novo horário:\n` +
           `\`editar ${eventId} amanhã às 15h\``
         );
-        
+
         await answerCallbackQuery(callbackId, 'Envie o novo conteúdo');
-        
+
       } catch (error) {
         console.error('❌ Erro ao buscar evento para editar:', error);
         await sendMessage(chatId, '❌ Erro ao buscar evento. Tente novamente.');
@@ -336,7 +336,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       }
       return;
     }
-    
+
     // Processar seleção de fuso horário
     if (callbackData?.startsWith('tz_')) {
       const timezoneMap: { [key: string]: string } = {
@@ -371,7 +371,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
       const selectedTimezone = timezoneMap[callbackData];
       const timezoneName = timezoneNames[callbackData];
-      
+
       if (selectedTimezone) {
         await sendMessage(chatId,
           `✅ *Fuso horário atualizado!*\n\n` +
@@ -379,11 +379,11 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
           `⏰ Agora todos os eventos serão criados neste fuso horário.\n\n` +
           `💡 Envie uma mensagem como "reunião amanhã às 14h" para testar!`
         );
-        
+
         await answerCallbackQuery(callbackId, `Fuso horário definido: ${timezoneName}`);
       }
     }
-    
+
     return;
   }
 
@@ -391,7 +391,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
 
   const message = update.message.text;
   const chatId = update.message.chat.id;
-  
+
   console.log(`📩 Mensagem: "${message}" do chat ${chatId}`);
 
   // Comando /start
@@ -399,11 +399,11 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
     // Buscar ou criar usuário
     const userId = update.message?.from?.id;
     const username = update.message?.from?.username || `telegram_${userId}`;
-    
+
     if (userId) {
       try {
         let user = await storage.getUserByTelegramId(userId.toString());
-        
+
         if (!user) {
           // Criar novo usuário
           user = await storage.createUser({
@@ -412,7 +412,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
             telegramId: userId.toString(),
             name: username,
           });
-          
+
           // Criar configurações padrão
           await storage.createUserSettings({
             userId: user.id,
@@ -421,7 +421,7 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
             language: 'pt-BR',
             timeZone: 'America/Sao_Paulo',
           });
-          
+
           console.log(`✅ Novo usuário criado: ${username} (ID: ${user.id})`);
         } else {
           console.log(`✅ Usuário existente: ${username} (ID: ${user.id})`);
@@ -430,8 +430,8 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
         console.error('❌ Erro ao buscar/criar usuário:', error);
       }
     }
-    
-    await sendMessage(chatId, 
+
+    await sendMessage(chatId,
       '🤖 *Zelar - Assistente de Agendamento*\n\n' +
       '💡 *Como usar:*\n' +
       '• "jantar hoje às 19h"\n' +
@@ -445,6 +445,31 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
       'Envie qualquer mensagem com data e horário!'
     );
     return;
+  }
+
+  // Verificar assinatura para outros comandos
+  const telegramUserId = update.message?.from?.id?.toString();
+  if (telegramUserId) {
+    try {
+      const dbUser = await storage.getUserByTelegramId(telegramUserId);
+      if (dbUser && dbUser.subscriptionStatus !== 'active') { // Se usuário existe mas não é assinante
+        const paymentLink = process.env.STRIPE_PAYMENT_LINK || 'https://zelar.ai/pricing';
+        const finalUrl = paymentLink.includes('stripe.com')
+          ? `${paymentLink}?client_reference_id=${dbUser.id}`
+          : paymentLink;
+
+        await sendMessage(chatId,
+          '🔒 *Recurso exclusivo para assinantes*\n\n' +
+          'Para continuar usando a Zelar IA e ter acesso a todas as funcionalidades de agendamento, ' +
+          'você precisa ter uma assinatura ativa.\n\n' +
+          '🚀 *Faça um upgrade agora:*\n' +
+          `🔗 [Clique aqui para Assinar](${finalUrl})`
+        );
+        return;
+      }
+    } catch (error) {
+      console.error('Erro ao verificar assinatura:', error);
+    }
   }
 
   // Comando /help
@@ -486,55 +511,55 @@ Fuso atual: Brasil (UTC-3)
   if (message === '/conectar') {
     console.log('🔗 Comando /conectar detectado!');
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       console.log('❌ Telegram userId não encontrado');
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     console.log(`✅ Telegram userId: ${telegramUserId}`);
-    
+
     try {
       // Verificar se já está conectado
       console.log('🔍 Buscando usuário no banco...');
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         console.log('❌ Usuário não encontrado no banco');
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '❌ *Usuário não encontrado*\n\n' +
           'Por favor, envie /start primeiro para criar sua conta.'
         );
         return;
       }
-      
+
       console.log(`✅ Usuário encontrado: ${dbUser.username} (ID: ${dbUser.id})`);
-      
+
       const settings = await storage.getUserSettings(dbUser.id);
       console.log(`🔍 Settings: ${settings ? 'Encontrado' : 'Não encontrado'}`);
-      
+
       if (settings?.googleTokens) {
         console.log('✅ Já está conectado ao Google Calendar');
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '✅ *Você já está conectado!*\n\n' +
           'Seu Google Calendar já está integrado.\n' +
           'Use /desconectar se quiser remover a conexão.'
         );
         return;
       }
-      
+
       // Gerar URL de autorização
       console.log('🔗 Gerando URL de autorização...');
       const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
       const authUrl = `${baseUrl}/api/auth/google/authorize?userId=${telegramUserId}&platform=telegram`;
       console.log(`📎 URL gerada: ${authUrl}`);
-      
+
       console.log('📤 Enviando mensagem com botão...');
-      
+
       // Se for localhost, enviar sem botão (Telegram não aceita localhost em botões)
       if (authUrl.includes('localhost')) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '🔐 *Conectar Google Calendar*\n\n' +
           'Para criar eventos automaticamente no seu Google Calendar, ' +
           'você precisa autorizar o acesso.\n\n' +
@@ -546,7 +571,7 @@ Fuso atual: Brasil (UTC-3)
         );
       } else {
         // URL pública, pode usar botão
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '🔐 *Conectar Google Calendar*\n\n' +
           'Para criar eventos automaticamente no seu Google Calendar, ' +
           'você precisa autorizar o acesso.\n\n' +
@@ -562,7 +587,7 @@ Fuso atual: Brasil (UTC-3)
       console.log('✅ Mensagem enviada com sucesso!');
     } catch (error) {
       console.error('❌ Erro ao gerar URL de autorização:', error);
-      await sendMessage(chatId, 
+      await sendMessage(chatId,
         '❌ *Erro ao conectar*\n\n' +
         'Ocorreu um erro ao gerar o link de autorização.\n' +
         'Por favor, tente novamente mais tarde.'
@@ -574,38 +599,38 @@ Fuso atual: Brasil (UTC-3)
   // Comando /desconectar - Desconectar Google Calendar
   if (message === '/desconectar') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         await sendMessage(chatId, '❌ Usuário não encontrado.');
         return;
       }
-      
+
       const settings = await storage.getUserSettings(dbUser.id);
-      
+
       if (!settings?.googleTokens) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Não conectado*\n\n' +
           'Você não está conectado ao Google Calendar.\n' +
           'Use /conectar para fazer a conexão.'
         );
         return;
       }
-      
+
       // Desconectar
       await storage.updateUserSettings(dbUser.id, {
         googleTokens: null,
         calendarProvider: null,
       });
-      
-      await sendMessage(chatId, 
+
+      await sendMessage(chatId,
         '✅ *Desconectado com sucesso!*\n\n' +
         'Seu Google Calendar foi desconectado.\n' +
         'Use /conectar quando quiser conectar novamente.'
@@ -620,32 +645,32 @@ Fuso atual: Brasil (UTC-3)
   // Comando /status - Ver status da conexão
   if (message === '/status') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
-      
+
       const settings = await storage.getUserSettings(dbUser.id);
       const isConnected = !!(settings?.googleTokens);
-      
+
       if (isConnected) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '✅ *Google Calendar Conectado*\n\n' +
           '🔗 Seu Google Calendar está integrado\n' +
           '✨ Eventos são criados automaticamente\n\n' +
           'Use /desconectar para remover a conexão.'
         );
       } else {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Google Calendar não conectado*\n\n' +
           '🔗 Use /conectar para integrar seu calendário\n' +
           '✨ Eventos serão criados automaticamente após conectar!'
@@ -661,42 +686,42 @@ Fuso atual: Brasil (UTC-3)
   // Comando /eventos - Listar eventos do usuário
   if (message === '/eventos' || message === '/events') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Nenhum evento encontrado*\n\n' +
           'Você ainda não criou nenhum evento.\n' +
           'Envie uma mensagem como "reunião amanhã às 14h" para criar seu primeiro evento!'
         );
         return;
       }
-      
+
       const events = await storage.getUpcomingEvents(dbUser.id, 5);
-      
+
       if (events.length === 0) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Nenhum evento próximo*\n\n' +
           'Você não tem eventos futuros agendados.\n' +
           'Envie uma mensagem como "consulta médica sexta às 10h" para criar um evento!'
         );
         return;
       }
-      
+
       let response = '📅 *Seus próximos eventos:*\n\n';
-      
+
       events.forEach((event, index) => {
         const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
         const formattedDate = date.toFormat('dd/MM/yyyy HH:mm', { locale: 'pt-BR' });
         const dayOfWeek = date.toFormat('EEEE', { locale: 'pt-BR' });
-        
+
         response += `${index + 1}. 🎯 *${event.title}*\n`;
         response += `   📅 ${dayOfWeek}, ${formattedDate}\n`;
         if (event.description && event.description !== event.title) {
@@ -704,7 +729,7 @@ Fuso atual: Brasil (UTC-3)
         }
         response += '\n';
       });
-      
+
       await sendMessage(chatId, response);
     } catch (error) {
       console.error('❌ Erro ao buscar eventos:', error);
@@ -713,11 +738,11 @@ Fuso atual: Brasil (UTC-3)
     return;
   }
 
-  
+
   // Comando /lembretes - Listar lembretes pendentes
   if (message === '/lembretes') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
@@ -764,33 +789,33 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     return;
   }
 
-// Comando /deletar - Deletar evento
+  // Comando /deletar - Deletar evento
   if (message === '/deletar' || message === '/delete') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
-      
+
       const events = await storage.getUpcomingEvents(dbUser.id, 10);
-      
+
       if (events.length === 0) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Nenhum evento para deletar*\n\n' +
           'Você não tem eventos futuros agendados.'
         );
         return;
       }
-      
+
       // Criar botões inline para cada evento
       const buttons = events.map((event, index) => {
         const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
@@ -800,13 +825,13 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           callback_data: `delete_${event.id}`
         }];
       });
-      
-      await sendMessage(chatId, 
+
+      await sendMessage(chatId,
         '🗑️ *Deletar Evento*\n\n' +
         'Selecione o evento que deseja deletar:',
         { inline_keyboard: buttons }
       );
-      
+
     } catch (error) {
       console.error('❌ Erro ao listar eventos para deletar:', error);
       await sendMessage(chatId, '❌ Erro ao buscar eventos. Tente novamente.');
@@ -814,7 +839,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     return;
   }
 
-  
+
   // Criar lembrete manual para um evento
   if (message.toLowerCase().startsWith('/lembrete ')) {
     const parts = message.split(' ');
@@ -955,33 +980,33 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     return;
   }
 
-// Comando /editar - Editar evento
+  // Comando /editar - Editar evento
   if (message === '/editar' || message === '/edit') {
     const telegramUserId = update.message?.from?.id?.toString();
-    
+
     if (!telegramUserId) {
       await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
       return;
     }
-    
+
     try {
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         await sendMessage(chatId, '❌ Usuário não encontrado. Use /start primeiro.');
         return;
       }
-      
+
       const events = await storage.getUpcomingEvents(dbUser.id, 10);
-      
+
       if (events.length === 0) {
-        await sendMessage(chatId, 
+        await sendMessage(chatId,
           '📭 *Nenhum evento para editar*\n\n' +
           'Você não tem eventos futuros agendados.'
         );
         return;
       }
-      
+
       // Criar botões inline para cada evento
       const buttons = events.map((event, index) => {
         const date = DateTime.fromJSDate(event.startDate).setZone('America/Sao_Paulo');
@@ -991,13 +1016,13 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           callback_data: `edit_${event.id}`
         }];
       });
-      
-      await sendMessage(chatId, 
+
+      await sendMessage(chatId,
         '✏️ *Editar Evento*\n\n' +
         'Selecione o evento que deseja editar:',
         { inline_keyboard: buttons }
       );
-      
+
     } catch (error) {
       console.error('❌ Erro ao listar eventos para editar:', error);
       await sendMessage(chatId, '❌ Erro ao buscar eventos. Tente novamente.');
@@ -1035,7 +1060,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         ]
       ]
     };
-    
+
     await sendMessage(chatId,
       '🌍 *Selecione seu fuso horário:*\n\n' +
       '🇧🇷 Brasil/Argentina: UTC-3\n' +
@@ -1060,71 +1085,71 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     try {
       const parts = message.split(' ');
       const eventId = parseInt(parts[1]);
-      
+
       if (isNaN(eventId)) {
         await sendMessage(chatId, '❌ ID do evento inválido. Use: `editar ID texto`');
         return;
       }
-      
+
       const telegramUserId = update.message?.from?.id?.toString();
       if (!telegramUserId) {
         await sendMessage(chatId, '❌ Não foi possível identificar seu usuário.');
         return;
       }
-      
+
       const dbUser = await storage.getUserByTelegramId(telegramUserId);
       if (!dbUser) {
         await sendMessage(chatId, '❌ Usuário não encontrado.');
         return;
       }
-      
+
       // Buscar evento
       const event = await storage.getEvent(eventId);
-      
+
       if (!event) {
         await sendMessage(chatId, '❌ Evento não encontrado.');
         return;
       }
-      
+
       // Verificar permissão
       if (event.userId !== dbUser.id) {
         await sendMessage(chatId, '❌ Você não tem permissão para editar este evento.');
         return;
       }
-      
+
       // Pegar o texto após o ID
       const newContent = parts.slice(2).join(' ');
-      
+
       if (!newContent) {
         await sendMessage(chatId, '❌ Forneça o novo conteúdo. Exemplo: `editar ${eventId} reunião amanhã às 15h`');
         return;
       }
-      
+
       // Interpretar novo conteúdo com Claude
       const userTimezone = getUserTimezone(telegramUserId);
       const claudeResult = await parseEventWithClaude(newContent, userTimezone);
-      
+
       if (!claudeResult.isValid) {
         await sendMessage(chatId, '❌ Não consegui entender a nova data/hora. Tente novamente.');
         return;
       }
-      
+
       // Criar nova data
       const newDate = DateTime.fromFormat(claudeResult.date, 'yyyy-MM-dd', { zone: userTimezone })
         .set({ hour: claudeResult.hour, minute: claudeResult.minute });
-      
+
       // Atualizar no banco
       const updateData: any = {
         title: claudeResult.title,
         startDate: newDate.toJSDate(),
         updatedAt: new Date()
       };
-      
+
       const updatedEventRecord = await storage.updateEvent(eventId, updateData);
       if (updatedEventRecord) {
         await reminderService.ensureDefaultReminder(updatedEventRecord, 'telegram');
       }
-      
+
       // Atualizar no Google Calendar se conectado
       if (event.calendarId) {
         const settings = await storage.getUserSettings(dbUser.id);
@@ -1132,34 +1157,34 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           try {
             const tokens = JSON.parse(settings.googleTokens);
             setTokens(dbUser.id, tokens);
-            
+
             // Deletar evento antigo e criar novo (Google Calendar não tem update direto via nossa API)
             await cancelGoogleCalendarEvent(event.calendarId, dbUser.id);
-            
+
             const updatedEvent = await storage.getEvent(eventId);
             if (updatedEvent) {
               const googleResult = await addEventToGoogleCalendar(updatedEvent, dbUser.id);
-              
+
               if (googleResult.success && googleResult.calendarEventId) {
                 await storage.updateEvent(eventId, {
                   calendarId: googleResult.calendarEventId
                 });
               }
             }
-            
+
             console.log('✅ Evento atualizado no Google Calendar');
           } catch (error) {
             console.error('⚠️ Erro ao atualizar no Google Calendar:', error);
           }
         }
       }
-      
+
       await sendMessage(chatId,
         `✅ *Evento atualizado com sucesso!*\n\n` +
         `🎯 ${claudeResult.title}\n` +
         `📅 ${newDate.toFormat('dd/MM/yyyy HH:mm', { locale: 'pt-BR' })}`
       );
-      
+
     } catch (error) {
       console.error('❌ Erro ao editar evento:', error);
       await sendMessage(chatId, '❌ Erro ao editar evento. Tente novamente.');
@@ -1175,7 +1200,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     const username = update.message?.from?.username || `telegram_${telegramUserId}`;
     const userTimezone = getUserTimezone(telegramUserId);
     const claudeResult = await parseEventWithClaude(message, userTimezone);
-    
+
     if (!claudeResult.isValid) {
       await sendMessage(chatId,
         '❌ *Não consegui entender a data/hora*\n\n' +
@@ -1190,7 +1215,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     let dbUser;
     try {
       dbUser = await storage.getUserByTelegramId(telegramUserId);
-      
+
       if (!dbUser) {
         // Criar novo usuário se não existir
         dbUser = await storage.createUser({
@@ -1199,7 +1224,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           telegramId: telegramUserId,
           name: username,
         });
-        
+
         // Criar configurações padrão
         await storage.createUserSettings({
           userId: dbUser.id,
@@ -1208,7 +1233,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           language: 'pt-BR',
           timeZone: userTimezone,
         });
-        
+
         console.log(`✅ Novo usuário criado ao criar evento: ${username} (ID: ${dbUser.id})`);
       }
     } catch (error) {
@@ -1238,7 +1263,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     if (dbUser) {
       try {
         const endDate = eventDate.plus({ hours: 1 }); // Evento padrão de 1 hora
-        
+
         const insertEvent: InsertEvent = {
           userId: dbUser.id,
           title: eventTitle,
@@ -1253,11 +1278,11 @@ Use o comando \`lembrete ID 2h\` para criar um.');
             userTimezone: userTimezone
           }
         };
-        
+
         const savedEvent = await storage.createEvent(insertEvent);
         console.log(`✅ Evento salvo no banco: ${eventTitle} (ID: ${savedEvent.id})`);
         await reminderService.ensureDefaultReminder(savedEvent, 'telegram');
-        
+
         // =================== INTEGRAÇÃO GOOGLE CALENDAR ===================
         // Verificar se usuário tem Google Calendar conectado
         try {
@@ -1266,20 +1291,20 @@ Use o comando \`lembrete ID 2h\` para criar um.');
             const dbUser = await storage.getUserByTelegramId(telegramUserId);
             if (dbUser) {
               const settings = await storage.getUserSettings(dbUser.id);
-              
+
               if (settings?.googleTokens) {
                 console.log('🔗 Usuário tem Google Calendar conectado, criando evento...');
-                
+
                 // Configurar tokens do Google
                 const tokens = JSON.parse(settings.googleTokens);
                 setTokens(dbUser.id, tokens);
-                
+
                 // Criar evento no Google Calendar
                 const googleResult = await addEventToGoogleCalendar(savedEvent, dbUser.id);
-                
+
                 if (googleResult.success) {
                   console.log('✅ Evento criado no Google Calendar!');
-                  
+
                   // Atualizar evento com ID do Google Calendar
                   if (googleResult.calendarEventId) {
                     await storage.updateEvent(savedEvent.id, {
@@ -1287,7 +1312,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
                       conferenceLink: googleResult.conferenceLink || null
                     });
                   }
-                  
+
                   // Adicionar info de Google Calendar na resposta
                   event.conferenceLink = googleResult.conferenceLink;
                 } else {
@@ -1303,7 +1328,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           // Continuar mesmo se falhar
         }
         // =================== FIM INTEGRAÇÃO ===================
-        
+
       } catch (error) {
         console.error('❌ Erro ao salvar evento no banco:', error);
         // Continuar mesmo se falhar ao salvar
@@ -1325,7 +1350,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
     let messageText = '✅ *Evento criado!*\n\n' +
       `🎯 *${event.title}*\n` +
       `📅 ${event.displayDate}`;
-    
+
     if (event.conferenceLink) {
       messageText += `\n\n📹 *Google Meet:*\n${event.conferenceLink}\n\n✨ *Evento adicionado automaticamente ao seu Google Calendar!*`;
     } else {
@@ -1371,7 +1396,7 @@ export async function startDirectBot(): Promise<boolean> {
     }
 
     console.log('🚀 Iniciando bot direto...');
-    
+
     // Testar conexão
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const response = await fetch(`${TELEGRAM_API}${token}/getMe`);
@@ -1397,7 +1422,7 @@ export async function startDirectBot(): Promise<boolean> {
 
       try {
         const updates = await getUpdates();
-        
+
         for (const update of updates) {
           if (update.update_id > lastUpdateId) {
             lastUpdateId = update.update_id;

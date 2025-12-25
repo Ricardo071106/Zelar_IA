@@ -5,28 +5,33 @@ import healthRoutes from './routes/health.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import googleAuthRoutes from './routes/google-auth.routes';
+import paymentRoutes from './routes/payment.routes';
 
 /**
  * Registra todas as rotas da aplicação de forma modular e padronizada
  */
 export async function registerRoutes(app: Express): Promise<Server | null> {
   // =================== API ROUTES ===================
-  
+
   // Health check routes
   app.use('/health', healthRoutes);
   app.use('/api/health', healthRoutes);
-  
+
   // Analytics routes
   app.use('/api/analytics', analyticsRoutes);
-  
+
   // WhatsApp routes
   app.use('/api/whatsapp', whatsappRoutes);
-  
+
   // Google Calendar OAuth routes
   app.use('/api/auth/google', googleAuthRoutes);
 
+  // Payment routes
+  app.use('/api/payments', paymentRoutes);
+
+
   // =================== LEGACY COMPATIBILITY ===================
-  
+
   // Manter rota raiz para compatibilidade com AWS/Railway
   app.get('/', (req, res) => {
     res.json({
@@ -51,10 +56,10 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
   });
 
   // =================== ERROR HANDLING ===================
-  
+
   // 404 - Rota não encontrada (deve vir antes do errorHandler)
   app.use(notFoundHandler);
-  
+
   // Error handler global (deve ser o último middleware)
   app.use(errorHandler);
 
