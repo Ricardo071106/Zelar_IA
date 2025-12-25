@@ -60,7 +60,6 @@
     "@types/qrcode": "^1.5.5",
     "@whiskeysockets/baileys": "^6.4.0",
     "axios": "^1.9.0",
-    "baileys": "^7.0.0-rc.9",
     "body-parser": "^2.2.0",
     "chrono-node": "^2.7.6",
     "class-variance-authority": "^0.7.1",
