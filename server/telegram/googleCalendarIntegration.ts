@@ -14,29 +14,29 @@ function detectConferenceIntent(event: Event): boolean {
     .filter(Boolean)
     .map((field) => (field ? field.toLowerCase() : ''));
 
-const conferenceTriggers = [
-  'video conferencia',
-  'videoconferencia',
-  'videoconferência',
-  'google meet',
-  'meet',
-  'video call',
-  'videochamada',
-  'video chamada',
-  'call em video',
-  'chamada em video',
-  'chamada de video',
-  'conferencia em video',
-  'conferência em vídeo',
-  'reunião online',
-  'reuniao online',
-  'reunião virtual',
-  'reuniao virtual',
-  'call online',
-  'call virtual',
-  'liga videoconferencia',
-  'liga videoconferência',
-];
+  const conferenceTriggers = [
+    'video conferencia',
+    'videoconferencia',
+    'videoconferência',
+    'google meet',
+    'meet',
+    'video call',
+    'videochamada',
+    'video chamada',
+    'call em video',
+    'chamada em video',
+    'chamada de video',
+    'conferencia em video',
+    'conferência em vídeo',
+    'reunião online',
+    'reuniao online',
+    'reunião virtual',
+    'reuniao virtual',
+    'call online',
+    'call virtual',
+    'liga videoconferencia',
+    'liga videoconferência',
+  ];
 
   return fieldsToCheck.some((field) =>
     conferenceTriggers.some((trigger) => {
@@ -70,13 +70,13 @@ function createOAuth2Client(userId: number): OAuth2Client {
   if (!CLIENT_ID || !CLIENT_SECRET) {
     throw new Error('GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET devem estar definidos');
   }
-  
+
   const oauth2Client = new google.auth.OAuth2(
     CLIENT_ID,
     CLIENT_SECRET,
     REDIRECT_URI
   );
-  
+
   oauth2Clients.set(userId, oauth2Client);
   return oauth2Client;
 }
@@ -92,7 +92,7 @@ export function getOAuth2Client(userId: number): OAuth2Client {
   if (existingClient) {
     return existingClient;
   }
-  
+
   return createOAuth2Client(userId);
 }
 
@@ -100,20 +100,21 @@ export function getOAuth2Client(userId: number): OAuth2Client {
  * Gera uma URL de autorização para o usuário conceder acesso ao seu calendário
  * 
  * @param userId ID do usuário
+ * @param platform Plataforma de origem (telegram ou whatsapp)
  * @returns URL de autorização
  */
-export function generateAuthUrl(userId: number): string {
+export function generateAuthUrl(userId: number, platform: string = 'telegram'): string {
   const oauth2Client = getOAuth2Client(userId);
-  
+
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    // Inclui o ID do usuário no estado para recuperá-lo no callback
-    state: userId.toString(),
+    // Inclui o ID do usuário e plataforma no estado para recuperá-lo no callback
+    state: JSON.stringify({ userId, platform }),
     // Solicita um novo refresh token mesmo que o usuário já tenha autorizado o app
     prompt: 'consent'
   });
-  
+
   return authUrl;
 }
 
@@ -132,11 +133,11 @@ export async function handleAuthCode(code: string, userId: number): Promise<{
   try {
     const oauth2Client = getOAuth2Client(userId);
     const { tokens } = await oauth2Client.getToken(code);
-    
+
     oauth2Client.setCredentials(tokens);
-    
+
     log(`Tokens OAuth recebidos para o usuário ${userId}`, 'google');
-    
+
     return {
       success: true,
       message: 'Autenticação com Google Calendar concluída com sucesso',
@@ -145,7 +146,7 @@ export async function handleAuthCode(code: string, userId: number): Promise<{
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao processar código de autenticação: ${errorMessage}`, 'google');
-    
+
     return {
       success: false,
       message: `Erro ao autenticar com Google Calendar: ${errorMessage}`
@@ -164,14 +165,14 @@ export function setTokens(userId: number, tokens: any): boolean {
   try {
     const oauth2Client = getOAuth2Client(userId);
     oauth2Client.setCredentials(tokens);
-    
+
     log(`Tokens OAuth configurados para o usuário ${userId}`, 'google');
-    
+
     return true;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao configurar tokens: ${errorMessage}`, 'google');
-    
+
     return false;
   }
 }
@@ -191,7 +192,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
 }> {
   try {
     const oauth2Client = getOAuth2Client(userId);
-    
+
     // Verifica se temos tokens para este usuário
     if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
       return {
@@ -199,9 +200,9 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
         message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.'
       };
     }
-    
+
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    
+
     // Verifica se temos datas válidas
     if (!event.startDate) {
       return {
@@ -209,7 +210,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
         message: 'A data de início do evento é obrigatória'
       };
     }
-    
+
     const startDate = new Date(event.startDate);
     if (isNaN(startDate.getTime())) {
       return {
@@ -217,7 +218,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
         message: 'A data de início do evento é inválida'
       };
     }
-    
+
     // Configura a data de término
     let endDate: Date;
     if (event.endDate) {
@@ -230,7 +231,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
       endDate = new Date(startDate);
       endDate.setHours(endDate.getHours() + 1);
     }
-    
+
     // Cria o evento no Google Calendar
     const googleEvent: calendar_v3.Schema$Event = {
       summary: event.title,
@@ -258,7 +259,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
         }
       };
     }
-    
+
     // Insere o evento no calendário
     const response = await calendar.events.insert({
       calendarId: 'primary',
@@ -272,7 +273,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
     }
 
     log(`Evento adicionado ao Google Calendar: ${event.title}`, 'google');
-    
+
     return {
       success: true,
       message: 'Evento adicionado ao Google Calendar com sucesso',
@@ -282,7 +283,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao adicionar evento ao Google Calendar: ${errorMessage}`, 'google');
-    
+
     // Verifica se é um erro de autenticação
     if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
       return {
@@ -290,7 +291,7 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
         message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.'
       };
     }
-    
+
     return {
       success: false,
       message: `Erro ao adicionar evento ao Google Calendar: ${errorMessage}`
@@ -311,7 +312,7 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
 }> {
   try {
     const oauth2Client = getOAuth2Client(userId);
-    
+
     // Verifica se temos tokens para este usuário
     if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
       return {
@@ -319,17 +320,17 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
         message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.'
       };
     }
-    
+
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    
+
     // Exclui o evento do calendário
     await calendar.events.delete({
       calendarId: 'primary',
       eventId: calendarEventId,
     });
-    
+
     log(`Evento cancelado no Google Calendar: ${calendarEventId}`, 'google');
-    
+
     return {
       success: true,
       message: 'Evento cancelado no Google Calendar com sucesso'
@@ -337,7 +338,7 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao cancelar evento no Google Calendar: ${errorMessage}`, 'google');
-    
+
     // Verifica se é um erro de autenticação
     if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
       return {
@@ -345,7 +346,7 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
         message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.'
       };
     }
-    
+
     return {
       success: false,
       message: `Erro ao cancelar evento no Google Calendar: ${errorMessage}`
@@ -367,7 +368,7 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
 }> {
   try {
     const oauth2Client = getOAuth2Client(userId);
-    
+
     // Verifica se temos tokens para este usuário
     if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
       return {
@@ -375,9 +376,9 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
         message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.'
       };
     }
-    
+
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-    
+
     // Lista os próximos eventos
     const response = await calendar.events.list({
       calendarId: 'primary',
@@ -386,9 +387,9 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
       singleEvents: true,
       orderBy: 'startTime',
     });
-    
+
     const events = response.data.items;
-    
+
     if (!events || events.length === 0) {
       return {
         success: true,
@@ -396,9 +397,9 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
         events: []
       };
     }
-    
+
     log(`${events.length} eventos encontrados no Google Calendar para o usuário ${userId}`, 'google');
-    
+
     return {
       success: true,
       message: `${events.length} eventos encontrados.`,
@@ -407,7 +408,7 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao listar eventos do Google Calendar: ${errorMessage}`, 'google');
-    
+
     // Verifica se é um erro de autenticação
     if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
       return {
@@ -415,7 +416,7 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
         message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.'
       };
     }
-    
+
     return {
       success: false,
       message: `Erro ao listar eventos do Google Calendar: ${errorMessage}`

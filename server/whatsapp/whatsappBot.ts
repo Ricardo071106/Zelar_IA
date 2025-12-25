@@ -365,7 +365,7 @@ class WhatsAppBot {
           if (settings?.googleTokens) {
             await this.sendMessage(remoteJid, '✅ Você já está conectado ao Google Calendar.\nUse /desconectar se desejar sair.');
           } else {
-            const authUrl = generateAuthUrl(user.id);
+            const authUrl = generateAuthUrl(user.id, 'whatsapp');
             // Adicionar parâmetro para identificar origem se necessário, mas o state é o userId
             await this.sendMessage(remoteJid,
               '🔐 *Conectar Google Calendar*\n\n' +

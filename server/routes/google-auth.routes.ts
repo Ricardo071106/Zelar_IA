@@ -91,7 +91,7 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
   try {
     // Trocar código por tokens
     const { tokens } = await oauth2Client.getToken(code);
-    
+
     // Extrair informações do state
     const { userId, platform } = JSON.parse(state);
 
@@ -100,16 +100,24 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     if (platform === 'telegram') {
       user = await storage.getUserByTelegramId(userId);
     } else if (platform === 'whatsapp') {
-      user = await storage.getUserByWhatsApp(userId);
+      // WhatsApp usa o ID interno do usuário (number)
+      // Se userId for numérico, busca pelo ID interno
+      if (!isNaN(Number(userId))) {
+        user = await storage.getUser(Number(userId));
+      } else {
+        // Fallback: busca pelo username (whatsappId) se for string
+        user = await storage.getUserByWhatsApp(userId);
+      }
     }
 
     if (!user) {
+      console.error(`❌ Usuário não encontrado no callback. Platform: ${platform}, UserId: ${userId} (${typeof userId})`);
       return res.status(404).send('Usuário não encontrado');
     }
 
     // Buscar ou criar configurações do usuário
     let settings = await storage.getUserSettings(user.id);
-    
+
     if (!settings) {
       settings = await storage.createUserSettings({
         userId: user.id,
