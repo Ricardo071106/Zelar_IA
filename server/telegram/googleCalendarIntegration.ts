@@ -232,11 +232,17 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
       endDate.setHours(endDate.getHours() + 1);
     }
 
+    // Constrói descrição com telefones
+    let finalDescription = event.description || '';
+    if (event.attendeePhones && event.attendeePhones.length > 0) {
+      finalDescription += `\n\n📞 Start attendees/phones: ${event.attendeePhones.join(', ')}`;
+    }
+
     // Cria o evento no Google Calendar
     const googleEvent: calendar_v3.Schema$Event = {
       summary: event.title,
       location: event.location || '',
-      description: event.description || '',
+      description: finalDescription,
       start: {
         dateTime: startDate.toISOString(),
         timeZone: 'America/Sao_Paulo',

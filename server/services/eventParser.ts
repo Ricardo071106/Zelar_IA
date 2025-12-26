@@ -1,8 +1,7 @@
-
 import { DateTime } from 'luxon';
 import { parseUserDateTime } from './dateService';
-import { parseEventWithClaude } from '../utils/claudeParser';
 import { extractEmails, stripEmails } from '../utils/attendeeExtractor';
+import { parseEventWithClaude, ClaudeEventResponse } from '../utils/claudeParser';
 
 // =================== SISTEMA DE APRENDIZADO SIMPLES ===================
 export interface LearnedPattern {
@@ -65,6 +64,7 @@ export interface Event {
   description: string;
   displayDate: string; // Formatted date for display
   attendees?: string[];
+  targetPhones?: string[];
 }
 
 /**
@@ -105,7 +105,6 @@ export function checkLearnedPatterns(userText: string, userTimezone: string = 'A
  */
 export function extractEventTitle(text: string): string {
   const textLower = text.toLowerCase();
-
   let cleanTitle = text;
 
   const limparTitulo = (texto: string) =>
@@ -239,7 +238,15 @@ export async function processMessage(text: string, userId: string, languageCode?
 export async function parseEvent(text: string, userId: string, userTimezone: string, languageCode?: string): Promise<Event | null> {
   console.log(`🤖 Usando Claude Haiku para interpretar: "${text}"`);
 
-  let claudeResult = { title: '', isValid: false, date: '', hour: 0, minute: 0 };
+  let claudeResult: ClaudeEventResponse = {
+    title: '',
+    isValid: false,
+    date: '',
+    hour: 0,
+    minute: 0,
+    target_phones: [],
+    attendees: []
+  };
 
   try {
     claudeResult = await parseEventWithClaude(text, userTimezone);
@@ -258,19 +265,18 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       minute: claudeResult.minute
     }, { zone: userTimezone });
 
-    const isoString = eventDate.toISO();
-    // Priorizar o título extraído pelo Claude, se disponível
-    const cleanTitle = claudeResult.title || extractEventTitle(text);
-
     event = {
-      title: cleanTitle,
-      startDate: isoString || eventDate.toString(),
-      description: cleanTitle,
-      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
+      title: claudeResult.title,
+      startDate: eventDate.toISO() || eventDate.toString(),
+      description: claudeResult.title,
+      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
+      attendees: claudeResult.attendees,
     };
 
-    savePatternForLearning(text.toLowerCase(), cleanTitle, claudeResult.hour, claudeResult.minute, claudeResult.date);
-    console.log(`✅ Claude interpretou: ${cleanTitle} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
+    // Adicionando extended props para uso posterior
+    (event as any).targetPhones = claudeResult.target_phones;
+
+    console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
   } else {
     // Fallback
     const learnedPattern = checkLearnedPatterns(text, userTimezone);

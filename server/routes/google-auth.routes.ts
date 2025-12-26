@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { google } from 'googleapis';
 import { asyncHandler } from '../middleware/errorHandler';
 import { storage } from '../storage';
+import { getWhatsAppBot } from 'server/whatsapp/whatsappBot';
 
 const router = Router();
 
@@ -135,6 +136,18 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     });
 
     console.log(`✅ Google Calendar conectado para usuário ${user.username} (ID: ${user.id})`);
+
+    if (user) {
+      if (/^\d+$/.test(user.username)) {
+        const whatsappBot = getWhatsAppBot();
+        const jid = `${user.username}@s.whatsapp.net`;
+
+        await whatsappBot.sendMessage(jid,
+          '✅ *Google Calendar conectado!*\n\n' +
+          'Agora todos os eventos serão adicionados automaticamente na sua agenda 🚀'
+        );
+      }
+    }
 
     // Página de sucesso
     res.send(`

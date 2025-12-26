@@ -86,8 +86,21 @@ class ReminderService {
     try {
       if (reminder.channel === "telegram" && user.telegramId) {
         await sendTelegramNotification(Number(user.telegramId), message);
-      } else if (reminder.channel === "whatsapp" && user.username) {
-        await getWhatsAppBot().sendMessage(user.username, message);
+      } else if (reminder.channel === "whatsapp") {
+        const bot = getWhatsAppBot();
+
+        // Prioritize targetPhones
+        if (reminder.targetPhones && reminder.targetPhones.length > 0) {
+          for (const phone of reminder.targetPhones) {
+            // Ensure phone has country code or strict format if needed. 
+            // Assuming stored format is compatible (e.g. 5511...)
+            console.log(`📤 Sending reminder to target: ${phone}`);
+            await bot.sendMessage(phone, message);
+          }
+        } else if (user.username) {
+          // Fallback to owner
+          await bot.sendMessage(user.username, message);
+        }
       }
     } finally {
       await storage.markReminderSent(reminder.id);
@@ -107,6 +120,20 @@ class ReminderService {
     const sendAt = this.calculateSendAt(event.startDate, hoursBefore);
     const message = this.buildReminderMessage({ message: undefined }, event, undefined);
 
+    // Determine target phones
+    let targetPhones: string[] = [];
+    if (event.attendeePhones && event.attendeePhones.length > 0) {
+      targetPhones = event.attendeePhones;
+    } else {
+      // Fallback to user's phone if available (need to fetch user? Or assume event.userId maps to a user with phone?)
+      // We can fetch user here or let the sendReminder handle the fallback if targetPhones is empty.
+      // Let's populate it here if possible.
+      const user = await storage.getUser(event.userId);
+      if (user && user.username) { // username is the phone number in this bot
+        targetPhones = [user.username];
+      }
+    }
+
     const reminders = await storage.getEventReminders(event.id);
     const existing = reminders.find((item) => item.isDefault && item.channel === channel);
 
@@ -116,6 +143,7 @@ class ReminderService {
         sent: false,
         message,
         reminderTime: hoursBefore,
+        targetPhones: targetPhones
       });
       if (updated) {
         this.scheduleReminder(updated, event);
@@ -132,6 +160,7 @@ class ReminderService {
       sent: false,
       isDefault: true,
       reminderTime: hoursBefore,
+      targetPhones: targetPhones
     });
     this.scheduleReminder(reminder, event);
     return reminder;

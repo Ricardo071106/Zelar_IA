@@ -47,6 +47,7 @@ export const events = pgTable("events", {
   isAllDay: boolean("is_all_day").default(false),
   calendarId: text("calendar_id"), // ID do evento no Google/Apple Calendar
   conferenceLink: text("conference_link"),
+  attendeePhones: text("attendee_phones").array(), // Lista de telefones dos participantes
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   rawData: json("raw_data"), // Dados originais processados pela IA
@@ -91,6 +92,7 @@ export const reminders = pgTable("reminders", {
   eventId: integer("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   channel: varchar("channel", { length: 20 }).notNull(), // telegram | whatsapp
+  targetPhones: text("target_phones").array(), // Array de telefones para enviar o lembrete
   message: text("message"),
   reminderTime: integer("reminder_time").notNull().default(12), // horas antes do evento
   sendAt: timestamp("send_at").notNull(),
@@ -132,16 +134,16 @@ export const insertEventSchema = createInsertSchema(events).pick({
   isAllDay: true,
   calendarId: true,
   conferenceLink: true,
+  attendeePhones: true,
   rawData: true,
 });
-
-
 
 
 export const insertReminderSchema = createInsertSchema(reminders).pick({
   eventId: true,
   userId: true,
   channel: true,
+  targetPhones: true,
   message: true,
   reminderTime: true,
   sendAt: true,

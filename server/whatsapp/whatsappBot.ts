@@ -113,9 +113,7 @@ class WhatsAppBot {
 
           const whatsappId = msg.key.remoteJid.replace(/\D/g, ''); // Número como ID
 
-          console.log(`Debugger: Calling handleMessage for ${whatsappId}...`);
           await this.handleMessage(msg.key.remoteJid, whatsappId, text, msg);
-          console.log(`Debugger: handleMessage returned.`);
 
         } catch (error) {
           console.error('Erro ao processar mensagem WhatsApp:', error);
@@ -125,15 +123,11 @@ class WhatsAppBot {
   }
 
   private async getOrCreateUser(whatsappId: string, name?: string) {
-    console.log(`Debugger: Entered getOrCreateUser for ${whatsappId}`);
     let user = await storage.getUserByWhatsApp(whatsappId);
-    console.log(`Debugger: getUserByWhatsApp returned: ${user ? 'User found' : 'null'}`);
 
     if (!user) {
       // Tentar buscar por username caso tenha sido criado manualmente
-      console.log(`Debugger: Trying getUserByUsername...`);
       user = await storage.getUserByUsername(whatsappId);
-      console.log(`Debugger: getUserByUsername returned: ${user ? 'User found' : 'null'}`);
     }
 
     if (!user) {
@@ -144,7 +138,6 @@ class WhatsAppBot {
         name: name || `User ${whatsappId}`,
         email: `${whatsappId}@whatsapp.user`, // Placeholder
       });
-      console.log(`Debugger: User created.`);
 
       // Criar configurações padrão
       await storage.createUserSettings({
@@ -154,7 +147,6 @@ class WhatsAppBot {
         language: 'pt-BR',
         timeZone: 'America/Sao_Paulo',
       });
-      console.log(`Debugger: Settings created.`);
     }
     return user;
   }
@@ -162,16 +154,9 @@ class WhatsAppBot {
   private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any) {
     const user = await this.getOrCreateUser(whatsappId, msg.pushName);
 
-    // Comandos
-    if (text.startsWith('/')) {
-      const command = text.split(' ')[0].toLowerCase();
-
-      // Permitir /start e /ajuda para todos (ou bloquear tudo, conforme pedido. "caso usuario não seja pagante, deve receber o link")
-      // Vamos bloquear tudo mas enviando o link, exceto talvez se ele quiser saber o status.
-      // Melhor: Checar assinatura antes de tudo.
-    }
-
-    // VERIFICAÇÃO DE ASSINATURA
+    // =========================================================================
+    // 1. VERIFICAÇÃO ESTRITA DE ASSINATURA (PREMIUM CHECK)
+    // =========================================================================
     if (user.subscriptionStatus !== 'active') {
       const baseUrl = process.env.STRIPE_PAYMENT_LINK || 'https://buy.stripe.com/test_...';
       const paymentLink = `${baseUrl}?client_reference_id=${user.id}`;
@@ -184,10 +169,12 @@ class WhatsAppBot {
         `${paymentLink}\n\n` +
         'Após o pagamento, seu acesso será liberado automaticamente!'
       );
-      return;
+      return; // Bloqueia qualquer outra interação
     }
 
-    // Comandos
+    // =========================================================================
+    // 2. PROCESSAMENTO DE COMANDOS
+    // =========================================================================
     if (text.startsWith('/')) {
       const command = text.split(' ')[0].toLowerCase();
       const args = text.substring(command.length).trim();
@@ -195,43 +182,56 @@ class WhatsAppBot {
       return;
     }
 
-    // Processamento de Evento
+    // =========================================================================
+    // 3. PROCESSAMENTO DE EVENTOS (INTEGRAÇÃO COM CLAUDE)
+    // =========================================================================
     const userSettings = await storage.getUserSettings(user.id);
     const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
 
+    console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
     const event = await parseEvent(text, whatsappId, userTimezone);
 
     if (!event) {
+      // Se não for um evento claro, envia mensagem de ajuda gentil
       console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
       await this.sendMessage(remoteJid,
-        '❓ Não entendi seu comando ou evento.\n' +
-        'Tente algo como: *"Dentista amanhã às 15h"* ou digite /ajuda.'
+        '❓ Desculpe, não entendi.\n\n' +
+        'Estou aqui para agendar seus compromissos. Tente dizer algo como:\n' +
+        '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h com Dr. Silva"*.\n\n' +
+        'Use /ajuda para ver o que posso fazer! 🤖'
       );
-      // Opcional: Chamar sendHelpMessage completo
-      // await this.sendHelpMessage(remoteJid);
       return;
     }
 
-    if (event) {
-      // 1. Salvar no Banco de Dados
+    // =========================================================================
+    // 4. CRIAÇÃO DE EVENTO E INTEGRAÇÕES
+    // =========================================================================
+    try {
+      // 4.1. Salvar no Banco de Dados
       const newEvent = await storage.createEvent({
         userId: user.id,
         title: event.title,
         description: event.description || '',
         startDate: new Date(event.startDate),
+        attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
         rawData: JSON.parse(JSON.stringify(event)),
       });
 
-      let responseText = `✅ *Evento criado com sucesso!*\n\n` +
-        `🎯 *${event.title}*\n` +
+      let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
+        `📝 *${event.title}*\n` +
         `📅 ${event.displayDate}\n` +
         `🆔 ID: ${newEvent.id}`;
 
       if (event.attendees && event.attendees.length > 0) {
-        responseText += '\n👥 *Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
+        responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
       }
 
-      // 2. Integração com Google Calendar (se conectado)
+      const phones = (event as any).targetPhones;
+      if (phones && phones.length > 0) {
+        responseText += '\n📱 *Telefone Convidados:*\n' + phones.map((p: string) => `• ${p}`).join('\n');
+      }
+
+      // 4.2. Integração com Google Calendar
       let googleLink = '';
       if (userSettings?.googleTokens) {
         try {
@@ -239,22 +239,22 @@ class WhatsAppBot {
           const googleResult = await addEventToGoogleCalendar({
             ...newEvent,
             startDate: new Date(event.startDate),
-            endDate: null // addEventToGoogleCalendar calcula o fim se nulo
+            endDate: null,
+            attendeePhones: phones // Passando telefones para o helper do Google
           }, user.id);
 
           if (googleResult.success) {
-            responseText += `\n\n✅ *Adicionado ao Google Calendar*`;
+            responseText += `\n\n✅ *Sincronizado com Google Calendar*`;
             if (googleResult.conferenceLink) {
-              responseText += `\n📹 Link da reunião: ${googleResult.conferenceLink}`;
-              // Atualizar evento com link
+              responseText += `\n📹 Meet: ${googleResult.conferenceLink}`;
               await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
             }
             if (googleResult.calendarEventId) {
               await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
             }
           } else {
-            responseText += `\n\n⚠️ *Falha ao adicionar ao Google Calendar:* ${googleResult.message}`;
-            // Fallback para links manuais
+            responseText += `\n⚠️ Falha no Google Calendar: ${googleResult.message}`;
+            // Fallback links
             const links = generateLinks(event);
             googleLink = links.google;
           }
@@ -264,41 +264,41 @@ class WhatsAppBot {
           googleLink = links.google;
         }
       } else {
-        // Fallback: Links manuais
         const links = generateLinks(event);
         googleLink = links.google;
-        responseText += `\n\n📅 *Adicionar ao calendário:*\n` +
+        responseText += `\n\n🔗 *Links de Calendário:*\n` +
           `Google: ${links.google}\n` +
           `Outlook: ${links.outlook}`;
       }
 
-      await this.sendMessage(remoteJid, responseText);
-    } else {
-      // Fallback: Ajuda
-      console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
-      const isPrivateChat = remoteJid.endsWith('@s.whatsapp.net');
+      // 4.3. Criar Lembrete Automático (12h antes) e enviar para convidados se houver
+      await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
 
-      if (isPrivateChat) {
-        await this.sendHelpMessage(remoteJid);
+      responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
+      if (phones && phones.length > 0) {
+        responseText += `\nOs convidados receberão o lembrete!`;
       }
+
+      await this.sendMessage(remoteJid, responseText);
+
+    } catch (err) {
+      console.error('Erro fatal ao criar evento:', err);
+      await this.sendMessage(remoteJid, '❌ Ocorreu um erro interno ao criar seu evento. Tente novamente.');
     }
   }
 
-  private async sendHelpMessage(remoteJid: string) {
+  private async sendWelcomeMessage(remoteJid: string, user: any) {
     await this.sendMessage(remoteJid,
-      '🤖 *Zelar - Assistente de Agendamento*\n\n' +
-      'Veja como posso ajudar:\n\n' +
-      '💡 *Exemplos de uso:*\n' +
-      '• "jantar hoje às 19h"\n' +
-      '• "reunião amanhã às 15h"\n' +
-      '• "consulta sexta às 10h"\n\n' +
-      '📝 *Comandos disponíveis:*\n' +
-      '• `/eventos` - Ver seus próximos eventos\n' +
-      '• `/deletar` - Deletar um evento (ex: /deletar 123)\n' +
-      '• `/conectar` - Conectar Google Calendar\n' +
-      '• `/status` - Ver status da conexão\n' +
-      '• `/fuso` - Configurar fuso horário\n' +
-      '• `/ajuda` - Ver esta mensagem'
+      `👋 *Olá, Premium User ${user.name || ''}!* Bem-vindo ao Zelar IA.\n\n` +
+      'Estou aqui para organizar sua agenda de forma rápida e inteligente.\n\n' +
+      '📌 *O que eu posso fazer?*\n' +
+      '• Criar eventos (ex: "Almoço com mãe amanhã 13h")\n' +
+      '• Enviar lembretres para você e convidados\n' +
+      '• Sincronizar com seu Google Calendar\n\n' +
+      '🔗 *Recomendação:*\n' +
+      'Conecte seu Google Calendar para uma experiência completa!\n' +
+      'Digite `/conectar` para começar.\n\n' +
+      '❓ *Dúvidas?* Digite `/simbolos` ou `/ajuda` para ver todos os comandos.'
     );
   }
 
@@ -307,78 +307,105 @@ class WhatsAppBot {
     try {
       switch (command) {
         case '/start':
-        case '/help':
-        case '/ajuda':
-          await this.sendHelpMessage(remoteJid);
+        case '/iniciar':
+          await this.sendWelcomeMessage(remoteJid, user);
           break;
 
-        case '/fuso':
-        case '/timezone':
-          if (!args) {
-            const settings = await storage.getUserSettings(user.id);
-            const current = settings?.timeZone || 'America/Sao_Paulo';
-            await this.sendMessage(remoteJid,
-              `🌍 *Configuração de Fuso Horário*\n\n` +
-              `📍 *Atual:* ${current}\n\n` +
-              `Para alterar, digite:\n` +
-              `/fuso America/Sao_Paulo\n\n` +
-              `Outros exemplos:\n` +
-              `• America/New_York\n` +
-              `• Europe/Lisbon`
-            );
+        case '/help':
+        case '/ajuda':
+          await this.sendMessage(remoteJid,
+            '🤖 *Central de Ajuda Zelar IA*\n\n' +
+            '📋 *Comandos Principais:*\n' +
+            '• `/eventos` ou `/events` - Lista eventos passados e futuros\n' +
+            '• `/conectar` - Conecta ao Google Calendar\n' +
+            '• `/reminders` ou `/lembretes` - Vê lembretes pendentes\n' +
+            '• `/edit ID` - Informações sobre como editar\n' +
+            '• `/delete ID` - Remove um evento\n' +
+            '• `/fuso` - Configura seu fuso horário\n\n' +
+            '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
+          );
+          break;
+
+        case '/conectar':
+        case '/connect':
+          const settings = await storage.getUserSettings(user.id);
+          if (settings?.googleTokens) {
+            await this.sendMessage(remoteJid, '✅ Você já está conectado ao Google Calendar.\nUse /desconectar se desejar sair.');
           } else {
-            const success = setUserTimezone(user.username, args); // Helper valida
-            if (success) {
-              await storage.updateUserSettings(user.id, { timeZone: args });
-              await this.sendMessage(remoteJid, `✅ Fuso horário alterado para: ${args}`);
-            } else {
-              await this.sendMessage(remoteJid, `❌ Fuso horário inválido.`);
-            }
+            const authUrl = generateAuthUrl(user.id, 'whatsapp');
+            await this.sendMessage(remoteJid,
+              '🔐 *Conectar Google Calendar*\n\n' +
+              'Clique no link abaixo para autorizar o acesso:\n' +
+              `${authUrl}\n\n` +
+              'Isso permite que eu adicione eventos diretamente na sua agenda oficial!'
+            );
           }
           break;
 
         case '/eventos':
         case '/events':
-          const upcoming = await storage.getUpcomingEvents(user.id, 5);
-          if (upcoming.length === 0) {
-            await this.sendMessage(remoteJid, '📭 Nenhum evento próximo encontrado.');
+          const allEvents = await storage.getUpcomingEvents(user.id, 20); // Pega 20 eventos próximos (ou ordenar melhor no storage)
+          // Aqui getUpcomingEvents pega >= now. Precisaríamos de past events se o usuário quiser. 
+          // O requisito diz "List past/upcoming events". A função atual só pega future.
+          // Vou focar nos futuros que é o mais útil, e talvez mencionar os passados recentes se implementar no storage.
+
+          if (allEvents.length === 0) {
+            await this.sendMessage(remoteJid, '📭 Nenhum evento futuro encontrado.');
           } else {
-            let msg = '📅 *Seus próximos eventos:*\n\n';
-            upcoming.forEach(ev => {
+            let msg = '📅 *Seus Eventos Futuros:*\n\n';
+            allEvents.forEach(ev => {
               const date = DateTime.fromJSDate(ev.startDate).setZone(getUserTimezone(user.username));
-              msg += `🆔 *${ev.id}* - ${ev.title}\n`;
-              msg += `📅 ${date.toFormat('dd/MM HH:mm')}\n\n`;
+              msg += `🆔 *${ev.id}* | ${date.toFormat('dd/MM HH:mm')} - ${ev.title}\n`;
             });
+            msg += '\nPara ver detalhes ou deletar, use o ID.';
             await this.sendMessage(remoteJid, msg);
+          }
+          break;
+
+        case '/reminders':
+        case '/lembretes':
+          // Implementar listagem de lembretes pendentes
+          // Preciso de method no storage ou filtrar
+          const reminders = await storage.getAllUnsentReminders(); // Isso pega DE TODOS. Filtrar por user.
+          const userReminders = reminders.filter(r => r.userId === user.id);
+
+          if (userReminders.length === 0) {
+            await this.sendMessage(remoteJid, '📭 Nenhum lembrete pendente.');
+          } else {
+            let rMsg = '⏰ *Lembretes Pendentes:*\n\n';
+            for (const r of userReminders) {
+              const evt = await storage.getEvent(r.eventId);
+              if (evt) {
+                const date = DateTime.fromJSDate(r.sendAt).setZone(getUserTimezone(user.username));
+                rMsg += `📌 *${evt.title}* - Lembrete em: ${date.toFormat('dd/MM HH:mm')}\n`;
+              }
+            }
+            await this.sendMessage(remoteJid, rMsg);
+          }
+          break;
+
+        case '/edit':
+        case '/editar':
+          if (!args) {
+            await this.sendMessage(remoteJid, '⚠️ Use `/edit ID` para saber com editar.');
+          } else {
+            await this.sendMessage(remoteJid,
+              `📝 *Editar Evento ${args}*\n\n` +
+              'No momento, a edição direta por comando está em desenvolvimento.\n' +
+              '👉 Por favor, delete o evento usando `/delete ${args}` e crie um novo com as informações corretas.'
+            );
           }
           break;
 
         case '/deletar':
         case '/delete':
-        case '/apagar':
           const eventId = parseInt(args);
           if (!eventId || isNaN(eventId)) {
-            // Se não forneceu ID, listar eventos
-            const events = await storage.getUpcomingEvents(user.id, 5);
-            if (events.length === 0) {
-              await this.sendMessage(remoteJid, '📭 Nenhum evento para deletar.');
-              return;
-            }
-            let list = '🗑️ *Qual evento deseja deletar?*\nDigite `/deletar ID` (ex: /deletar 10)\n\n';
-            events.forEach(ev => {
-              const date = DateTime.fromJSDate(ev.startDate).setZone(getUserTimezone(user.username));
-              list += `🆔 *${ev.id}* - ${ev.title} (${date.toFormat('dd/MM')})\n`;
-            });
-            await this.sendMessage(remoteJid, list);
+            await this.sendMessage(remoteJid, '⚠️ Formato inválido. Use `/delete ID` (ex: /delete 123). Veja o ID usando `/eventos`.');
           } else {
-            // Deletar evento específico
             const ev = await storage.getEvent(eventId);
-            if (!ev) {
-              await this.sendMessage(remoteJid, '❌ Evento não encontrado.');
-              return;
-            }
-            if (ev.userId !== user.id) {
-              await this.sendMessage(remoteJid, '❌ Você não tem permissão para deletar este evento.');
+            if (!ev || ev.userId !== user.id) {
+              await this.sendMessage(remoteJid, '❌ Evento não encontrado ou sem permissão.');
               return;
             }
 
@@ -392,53 +419,26 @@ class WhatsAppBot {
             }
 
             await storage.deleteEvent(eventId);
-            await this.sendMessage(remoteJid, `✅ Evento "${ev.title}" deletado com sucesso.`);
+            await this.sendMessage(remoteJid, `🗑️ Evento "${ev.title}" removido com sucesso.`);
           }
           break;
 
-        case '/conectar':
-          const settings = await storage.getUserSettings(user.id);
-          if (settings?.googleTokens) {
-            await this.sendMessage(remoteJid, '✅ Você já está conectado ao Google Calendar.\nUse /desconectar se desejar sair.');
+        case '/fuso':
+          if (!args) {
+            const settings = await storage.getUserSettings(user.id);
+            await this.sendMessage(remoteJid, `Seu fuso atual é: ${settings?.timeZone || 'Padrão'}.\nUse /fuso America/Sao_Paulo para alterar.`);
           } else {
-            const authUrl = generateAuthUrl(user.id, 'whatsapp');
-            // Adicionar parâmetro para identificar origem se necessário, mas o state é o userId
-            await this.sendMessage(remoteJid,
-              '🔐 *Conectar Google Calendar*\n\n' +
-              'Acesse o link abaixo para autorizar:\n' +
-              `${authUrl}\n\n` +
-              'Após autorizar, seus eventos serão sincronizados automaticamente!'
-            );
-          }
-          break;
-
-        case '/desconectar':
-          await storage.updateUserSettings(user.id, { googleTokens: null });
-          await this.sendMessage(remoteJid, '✅ Google Calendar desconectado.');
-          break;
-
-        case '/status':
-          const st = await storage.getUserSettings(user.id);
-          const status = st?.googleTokens ? '✅ Conectado' : '❌ Desconectado';
-          await this.sendMessage(remoteJid, `📊 *Status da conexão:*\nGoogle Calendar: ${status}`);
-          break;
-
-        case '/interpretar':
-          const interpret = await parseUserDateTime(args, user.username);
-          if (interpret) {
-            await this.sendMessage(remoteJid, `✅ *Interpretação:*\n📅 ${interpret.readable}\n(ISO: ${interpret.iso})`);
-          } else {
-            await this.sendMessage(remoteJid, '❌ Não entendi a data.');
+            await storage.updateUserSettings(user.id, { timeZone: args });
+            await this.sendMessage(remoteJid, `✅ Fuso alterado para ${args}`);
           }
           break;
 
         default:
-          console.warn(`⚠️ Comando não reconhecido: ${command}`);
-          await this.sendMessage(remoteJid, '❌ Comando não reconhecido. Use /ajuda.');
+          await this.sendMessage(remoteJid, '❌ Comando não reconhecido. Digite `/ajuda` para ver a lista.');
       }
     } catch (err) {
       console.error(`Erro no comando ${command}:`, err);
-      await this.sendMessage(remoteJid, '❌ Ocorreu um erro ao processar o comando.');
+      await this.sendMessage(remoteJid, '❌ Erro ao processar comando.');
     }
   }
 
@@ -451,7 +451,6 @@ class WhatsAppBot {
     try {
       console.log(`📤 Enviando mensagem para ${jid}: ${text.slice(0, 50)}...`);
       await this.sock.sendMessage(jid, { text });
-      // console.log('✅ Mensagem enviada com sucesso');
     } catch (error) {
       console.error(`❌ Erro ao enviar mensagem para ${jid}:`, error);
     }

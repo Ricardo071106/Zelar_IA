@@ -1,80 +1,119 @@
-# Zelar - Assistente Inteligente
+# Zelar IA - WhatsApp Assistant 🤖
 
-Sistema completo de agendamento com bots do Telegram e WhatsApp, interface web moderna e integração com calendários.
+Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembretes, integrado com Google Calendar e Google AI (Gemini/Claude).
 
-## 🚀 Deploy no Railway
+## 🚀 Funcionalidades
 
-### Pré-requisitos
+- **Interpretação Inteligente**: Crie eventos com linguagem natural (ex: "Jantar com Maria sexta às 20h").
+- **Integração Google Calendar**: Sincronização automática com sua agenda e geração de links para Google Meet.
+- **Sistema de Lembretes**: Lembretes automáticos 12h antes do evento via WhatsApp.
+- **Comandos Completos**: Gerencie tudo pelo chat (`/eventos`, `/deletar`, etc.).
+- **Multi-plataforma**: Suporte para múltiplos usuários com verificação de assinatura Premium.
 
-1. **Conta Railway** (gratuita)
-2. **Conta GitHub** para o repositório
-3. **Banco de dados PostgreSQL** (recomendado: Neon)
-4. **Token do bot do Telegram**
+## 🛠️ Tecnologias
 
-### 📋 Configuração Rápida
+- **Backend**: Node.js, Express, TypeScript
+- **Banco de Dados**: PostgreSQL (via NeonDB), Drizzle ORM
+- **WhatsApp**: @whiskeysockets/baileys
+- **IA**: OpenRouter (Claude Haiku)
+- **Pagamentos**: Stripe
 
-#### 1. Configurar Variáveis de Ambiente
+## 📋 Pré-requisitos
 
-Copie o arquivo `env.example` para `.env` e configure:
+- Node.js 18+
+- PostgreSQL
+- Conta no Google Cloud (para Calendar API)
+- Conta na OpenRouter (para IA)
+- Conta no Stripe (para assinaturas)
 
+## ⚙️ Configuração
+
+1.  **Clone o repositório:**
+    ```bash
+    git clone https://github.com/seu-usuario/zelar-ia.git
+    cd zelar-ia
+    ```
+
+2.  **Instale as dependências:**
+    ```bash
+    npm install
+    ```
+
+3.  **Configure as Variáveis de Ambiente:**
+    Crie um arquivo `.env` na raiz com o seguinte modelo:
+
+    ```env
+    # Servidor
+    PORT=5000
+    BASE_URL=https://seu-dominio-ngrok.app
+
+    # Banco de Dados
+    DATABASE_URL=postgresql://usuario:senha@host/db
+
+    # Google Integration
+    GOOGLE_CLIENT_ID=seu_client_id
+    GOOGLE_CLIENT_SECRET=seu_client_secret
+    GOOGLE_REDIRECT_URI=https://seu-dominio-ngrok.app/api/auth/google/callback
+
+    # AI (OpenRouter)
+    OPENROUTER_API_KEY=sk-or-...
+
+    # Stripe (Pagamentos)
+    STRIPE_SECRET_KEY=sk_test_...
+    STRIPE_WEBHOOK_SECRET=whsec_...
+    STRIPE_PAYMENT_LINK=https://buy.stripe.com/test_...
+    STRIPE_PRICE_ID=price_...
+
+    # WhatsApp
+    ENABLE_WHATSAPP_BOT=true
+    ```
+
+4.  **Banco de Dados:**
+    Gere e aplique as migrações:
+    ```bash
+    npm run db:generate
+    npm run db:migrate
+    ```
+
+## ▶️ Como Rodar
+
+### Modo Desenvolvimento
 ```bash
-cp env.example .env
+npm run dev
 ```
 
-**Variáveis OBRIGATÓRIAS:**
-- `DATABASE_URL` - URL do banco PostgreSQL (Neon)
-- `TELEGRAM_BOT_TOKEN` - Token do seu bot do Telegram
-- `ENABLE_WHATSAPP_BOT` - true
-
-#### 2. Deploy no Railway
-
-1. **Acesse [railway.app](https://railway.app)**
-2. **Faça login com GitHub**
-3. **Clique em "New Project"**
-4. **Selecione "Deploy from GitHub repo"**
-5. **Escolha seu repositório**
-6. **Clique em "Deploy Now"**
-
-### 🔧 Scripts Disponíveis
-
-- `npm run dev` - Ambiente de desenvolvimento
-- `npm run build` - Build para produção
-- `npm run start` - Servidor de produção
-- `npm run db:push` - Sincronizar banco de dados
-
-### 📁 Estrutura do Projeto
-
-```
-Zelar/
-├── client/          # Frontend React + Vite
-├── server/          # Backend Express
-├── shared/          # Schemas compartilhados
-├── dist/            # Build de produção
-└── env.example      # Exemplo de variáveis
+### Modo Produção
+```bash
+npm run build
+npm start
 ```
 
-### 🔍 Endpoints
+## 📱 Comandos do Bot
 
-- **Site principal**: `/`
-- **Health check**: `/health`
-- **WhatsApp QR**: `/api/whatsapp/qr`
-- **Telegram webhook**: `/api/telegram/webhook`
+- **/start**: Inicia a conversa e mostra boas-vindas.
+- **/conectar**: Gera link para conectar ao Google Calendar.
+- **/eventos**: Lista seus próximos eventos agendados.
+- **/lembretes**: Mostra lembretes pendentes.
+- **/deletar ID**: Remove um evento pelo ID.
+- **/fuso [Região]**: Altera seu fuso horário (ex: `/fuso America/Sao_Paulo`).
+- **/ajuda**: Mostra lista de comandos.
 
-### 📱 Funcionalidades
+## 🧠 Como usar a IA
 
-- ✅ **Bot do Telegram** - Agendamentos e lembretes
-- ✅ **Bot do WhatsApp** - Interface conversacional
-- ✅ **Interface Web** - Dashboard moderno
-- ✅ **Banco de Dados** - PostgreSQL com Neon
-- ✅ **Deploy Automático** - Railway + GitHub
+Basta digitar naturalmente:
+- _"Consulta médica amanhã às 14h"_
+- _"Reunião de projeto terça que vem às 10 da manhã"_
+- _"Aniversário do Pedro dia 25/12"_
 
-### 🔐 Segurança
+## 📁 Estrutura do Projeto
 
-- Todas as variáveis sensíveis configuradas no Railway
-- Nunca commite arquivos `.env` no Git
-- HTTPS automático no Railway
-- CORS configurado adequadamente
+- `/server`: Código do backend
+  - `/whatsapp`: Lógica do bot (Baileys)
+  - `/services`: Serviços (IA, Lembretes, Stripe)
+  - `/routes`: Rotas da API e Webhooks
+  - `/telegram`: Legado/Integrações Calendar
+- `/shared`: Schemas do Drizzle
+- `/migrations`: Arquivos SQL de migração
 
 ---
-
-**Deploy**: https://web-production-783b8.up.railway.app/ 
+Desenvolvido com 💜 por Zelar IA Team.
