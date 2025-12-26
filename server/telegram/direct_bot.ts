@@ -10,6 +10,7 @@ import { storage } from '../storage';
 import type { InsertEvent } from '@shared/schema';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 import { reminderService } from '../services/reminderService';
+import axios from 'axios';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
 
@@ -80,23 +81,12 @@ async function sendMessage(chatId: number, text: string, replyMarkup?: any): Pro
 
     console.log('📤 Enviando para Telegram API:', JSON.stringify(payload).substring(0, 200));
 
-    const response = await fetch(`${TELEGRAM_API}${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
+    const response = await axios.post(`${TELEGRAM_API}${token}/sendMessage`, payload);
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error(`❌ Erro Telegram API (${response.status}):`, errorData);
-      return false;
-    }
-
-    const responseData = await response.json();
-    console.log('✅ Resposta Telegram API:', JSON.stringify(responseData).substring(0, 200));
+    console.log('✅ Resposta Telegram API:', JSON.stringify(response.data).substring(0, 200));
     return true;
-  } catch (error) {
-    console.error('❌ Erro ao enviar mensagem:', error);
+  } catch (error: any) {
+    console.error('❌ Erro ao enviar mensagem:', error.message);
     return false;
   }
 }
@@ -110,17 +100,13 @@ async function answerCallbackQuery(callbackId: string, text?: string): Promise<b
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) return false;
 
-    const response = await fetch(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        callback_query_id: callbackId,
-        text: text || '',
-        show_alert: false
-      })
+    await axios.post(`${TELEGRAM_API}${token}/answerCallbackQuery`, {
+      callback_query_id: callbackId,
+      text: text || '',
+      show_alert: false
     });
 
-    return response.ok;
+    return true;
   } catch (error) {
     console.error('❌ Erro ao responder callback:', error);
     return false;
@@ -168,17 +154,8 @@ async function setupBotCommands(token: string): Promise<void> {
       }
     ];
 
-    const response = await fetch(`${TELEGRAM_API}${token}/setMyCommands`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ commands })
-    });
-
-    if (response.ok) {
-      console.log('✅ Comandos configurados no menu do bot');
-    } else {
-      console.log('⚠️ Falha ao configurar comandos');
-    }
+    await axios.post(`${TELEGRAM_API}${token}/setMyCommands`, { commands });
+    console.log('✅ Comandos configurados no menu do bot');
   } catch (error) {
     console.error('❌ Erro ao configurar comandos:', error);
   }
@@ -189,10 +166,14 @@ async function getUpdates(): Promise<TelegramUpdate[]> {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     if (!token) return [];
 
-    const response = await fetch(`${TELEGRAM_API}${token}/getUpdates?offset=${lastUpdateId + 1}&timeout=1`);
-    if (!response.ok) return [];
+    const response = await axios.get(`${TELEGRAM_API}${token}/getUpdates`, {
+      params: {
+        offset: lastUpdateId + 1,
+        timeout: 10 // Aumentado para 10s para long polling funcionar melhor
+      }
+    });
 
-    const data = await response.json();
+    const data = response.data;
     if (!data.ok || !data.result) return [];
 
     return data.result;
@@ -1399,14 +1380,22 @@ export async function startDirectBot(): Promise<boolean> {
 
     // Testar conexão
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const response = await fetch(`${TELEGRAM_API}${token}/getMe`);
-    if (!response.ok) {
-      console.error('❌ Falha na conexão com Telegram');
+    try {
+      const response = await axios.get(`${TELEGRAM_API}${token}/getMe`);
+      const botInfo = response.data;
+      console.log(`✅ Bot @${botInfo.result.username} conectado!`);
+    } catch (connError: any) {
+      console.error('❌ Falha na conexão com Telegram:');
+      if (connError.response) {
+        console.error('Status:', connError.response.status);
+        console.error('Data:', JSON.stringify(connError.response.data));
+      } else if (connError.request) {
+        console.error('Sem resposta (Timeout/Network):', connError.code);
+      } else {
+        console.error('Erro:', connError.message);
+      }
       return false;
     }
-
-    const botInfo = await response.json();
-    console.log(`✅ Bot @${botInfo.result.username} conectado!`);
 
     // Configurar comandos no menu do bot
     await setupBotCommands(token);
