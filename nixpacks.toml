@@ -3,11 +3,9 @@ nixPkgs = ["chromium", "ffmpeg"]
 aptPkgs = [
     "ca-certificates",
     "fonts-liberation",
-    "gconf-service",
-    "libappindicator1",
     "libasound2",
+    "libatk-bridge2.0-0",
     "libatk1.0-0",
-    "libatomic1",
     "libc6",
     "libcairo2",
     "libcups2",
@@ -16,8 +14,6 @@ aptPkgs = [
     "libfontconfig1",
     "libgbm1",
     "libgcc1",
-    "libgconf-2-4",
-    "libgdk-pixbuf2.0-0",
     "libglib2.0-0",
     "libgtk-3-0",
     "libnspr4",
@@ -40,8 +36,7 @@ aptPkgs = [
     "libxtst6",
     "lsb-release",
     "wget",
-    "xdg-utils",
-    "xvfb"
+    "xdg-utils"
 ]
 
 [phases.build]
