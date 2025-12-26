@@ -48,3 +48,4 @@ cmd = "npm run start:prod"
 [variables]
 PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
 PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium"
+NODE_VERSION = "20"
