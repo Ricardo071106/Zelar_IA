@@ -235,6 +235,14 @@ class WhatsAppBot {
     // 4. CRIAÇÃO DE EVENTO E INTEGRAÇÕES
     // =========================================================================
     try {
+      // Adiciona o próprio usuário aos telefones alvo (se não estiver lá)
+      if (!(event as any).targetPhones) {
+        (event as any).targetPhones = [];
+      }
+      if (!(event as any).targetPhones.includes(whatsappId)) {
+        (event as any).targetPhones.push(whatsappId);
+      }
+
       // 4.1. Salvar no Banco de Dados
       const newEvent = await storage.createEvent({
         userId: user.id,

@@ -41,7 +41,7 @@ Instructions:
 1. Extract event title (remove time/date references).
 2. Extract date (YYYY-MM-DD). "Amanhã" = next day. "Segunda" = next Monday.
 3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified.
-4. Extract phone numbers mentioned as 'target_phones' removing spaces and symbols.
+4. Extract phone numbers mentioned as 'target_phones'. MAINTAIN EXACT DIGITS from text.
 5. Extract emails mentioned as 'attendees'.
 6. Return JSON only. DO NOT output conversational text.
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
@@ -87,6 +87,11 @@ Example Output:
     let json;
     try {
       json = JSON.parse(content);
+
+      // Limpeza programática de números de telefone para evitar alucinações de formato
+      if (json.target_phones && Array.isArray(json.target_phones)) {
+        json.target_phones = json.target_phones.map((p: string) => p.replace(/\D/g, ''));
+      }
     } catch (e) {
       console.warn('⚠️ Falha ao fazer parse do JSON do Claude. Conteúdo bruto:', content);
       return {
