@@ -449,6 +449,11 @@ class WhatsAppBot {
     }
 
     try {
+      // Ensure JID has the correct suffix
+      if (!jid.includes('@')) {
+        jid = `${jid}@s.whatsapp.net`;
+      }
+
       console.log(`📤 Enviando mensagem para ${jid}: ${text.slice(0, 50)}...`);
       await this.sock.sendMessage(jid, { text });
     } catch (error) {
