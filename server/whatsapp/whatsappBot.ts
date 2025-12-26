@@ -3,7 +3,8 @@ import makeWASocket, {
   DisconnectReason,
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
-  BaileysEventMap
+  BaileysEventMap,
+  jidNormalizedUser
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
@@ -36,6 +37,7 @@ class WhatsAppBot {
   private authState: any = null;
   private saveCreds: any = null;
   private isInitializing = false;
+  private processedMsgIds = new Set<string>();
 
   async initialize() {
     if (this.isInitializing) return;
@@ -104,14 +106,40 @@ class WhatsAppBot {
       for (const msg of messages) {
         if (!msg.message || msg.key.fromMe) continue;
 
+        // Deduplicação: ignora se já processamos este ID recentemente
+        if (msg.key.id && this.processedMsgIds.has(msg.key.id)) {
+          console.log(`🔄 Mensagem duplicada ignorada: ${msg.key.id}`);
+          continue;
+        }
+        if (msg.key.id) {
+          this.processedMsgIds.add(msg.key.id);
+          // Limpa do cache após 10 segundos
+          setTimeout(() => this.processedMsgIds.delete(msg.key.id!), 10000);
+        }
+
         try {
           const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || '';
 
           if (!text) continue;
 
           console.log(`📩 WhatsApp msg de ${msg.key.remoteJid}: ${text}`);
+          console.log('DEBUG MSG KEY:', JSON.stringify(msg.key, null, 2));
 
-          const whatsappId = msg.key.remoteJid.replace(/\D/g, ''); // Número como ID
+          let targetJid = msg.key.remoteJid;
+
+          // Prioridade 1: senderPn (aparece em mensagens com LID)
+          if ((msg.key as any).senderPn) {
+            targetJid = (msg.key as any).senderPn;
+          }
+          // Prioridade 2: participant (comum em grupos)
+          else if (msg.key.participant) {
+            targetJid = msg.key.participant;
+          }
+
+          const normalizedJid = jidNormalizedUser(targetJid);
+          const whatsappId = normalizedJid.replace(/\D/g, ''); // Garante apenas números
+
+          console.log(`🆔 ID Extraído: ${whatsappId} (Original usado: ${targetJid})`);
 
           await this.handleMessage(msg.key.remoteJid, whatsappId, text, msg);
 

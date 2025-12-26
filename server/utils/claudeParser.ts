@@ -41,9 +41,11 @@ Instructions:
 1. Extract event title (remove time/date references).
 2. Extract date (YYYY-MM-DD). "Amanhã" = next day. "Segunda" = next Monday.
 3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified.
-4. Extract phone numbers mentioned as 'target_phones'.
+4. Extract phone numbers mentioned as 'target_phones' removing spaces and symbols.
 5. Extract emails mentioned as 'attendees'.
-6. Return JSON only.
+6. Return JSON only. DO NOT output conversational text.
+7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
+   { "isValid": false, "title": "", "date": "", "hour": 0, "minute": 0 }
 
 Example Input: "Reunião de orçamento amanhã às 15h com 11999887766"
 Example Output:
@@ -77,18 +79,45 @@ Example Output:
       }
     );
 
-    const content = response.data.choices[0].message.content;
-    const json = JSON.parse(content);
+    let content = response.data.choices[0].message.content;
+
+    // Tentativa de limpeza caso venha com markdown
+    content = content.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    let json;
+    try {
+      json = JSON.parse(content);
+    } catch (e) {
+      console.warn('⚠️ Falha ao fazer parse do JSON do Claude. Conteúdo bruto:', content);
+      return {
+        title: "",
+        date: "",
+        hour: 0,
+        minute: 0,
+        isValid: false
+      };
+    }
 
     // Validate with Zod
-    const result = ClaudeEventSchema.parse(json);
+    const result = ClaudeEventSchema.safeParse(json);
 
-    console.log(`🤖 Claude Output:`, JSON.stringify(result));
+    if (!result.success) {
+      console.warn('⚠️ JSON do Claude inválido pelo schema:', result.error);
+      return {
+        title: "",
+        date: "",
+        hour: 0,
+        minute: 0,
+        isValid: false
+      };
+    }
 
-    return result;
+    console.log(`🤖 Claude Output:`, JSON.stringify(result.data));
+
+    return result.data;
 
   } catch (error) {
-    console.error('Claue Parse Error:', error);
+    console.error('Claude Parse Error:', error);
     return {
       title: "",
       date: "",
