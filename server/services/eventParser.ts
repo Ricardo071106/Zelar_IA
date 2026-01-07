@@ -71,32 +71,8 @@ export interface Event {
  * Verifica se existe um padrão similar aprendido
  */
 export function checkLearnedPatterns(userText: string, userTimezone: string = 'America/Sao_Paulo'): Event | null {
-  const userTextLower = userText.toLowerCase();
-
-  for (const pattern of learnedPatterns) {
-    // Calcular similaridade simples
-    const similarity = calculateSimpleSimilarity(userTextLower, pattern.originalText);
-
-    if (similarity > 0.7 && pattern.confidence > 0.6) {
-      console.log(`🎯 Padrão similar encontrado: "${pattern.originalText}" (similaridade: ${similarity.toFixed(2)})`);
-
-      const eventDate = DateTime.fromObject({
-        year: 2025, // TODO: usar ano atual/correto
-        month: 5, // TODO: isso parece hardcoded no original, preciso corrigir
-        day: 29, // TODO: hardcoded no original??
-        hour: pattern.hour,
-        minute: pattern.minute
-      }, { zone: userTimezone });
-
-      return {
-        title: pattern.title,
-        startDate: eventDate.toISO() || eventDate.toString(),
-        description: pattern.title,
-        displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
-      };
-    }
-  }
-
+  // Desabilitado temporariamente para corrigir bug de data fixa (May 30th)
+  // O sistema de aprendizado estava forçando datas antigas/hardcoded
   return null;
 }
 

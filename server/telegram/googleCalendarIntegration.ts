@@ -77,6 +77,39 @@ function createOAuth2Client(userId: number): OAuth2Client {
     REDIRECT_URI
   );
 
+  // =================== CORREÇÃO: PERSISTÊNCIA DE TOKENS ===================
+  // Escutar evento de tokens atualizados (refresh) e salvar no banco
+  oauth2Client.on('tokens', async (tokens) => {
+    log(`🔄 Tokens atualizados automaticamente (Refresh) para usuário ${userId}`, 'google');
+    try {
+      // Obter configuração atual para mesclar tokens se necessário (ex: refresh_token pode vir apenas no primeiro grant)
+      // Mas a lib googleapis já gerencia isso bem se persistirmos o que recebermos.
+      // É importante salvar no banco.
+
+      const settings = await import('../storage').then(m => m.storage.getUserSettings(userId));
+
+      if (settings) {
+        let newTokens = tokens;
+
+        // Se já tínhamos tokens antigos e o novo não trouxe refresh_token, manter o antigo
+        if (settings.googleTokens) {
+          const oldTokens = JSON.parse(settings.googleTokens);
+          if (!tokens.refresh_token && oldTokens.refresh_token) {
+            newTokens = { ...tokens, refresh_token: oldTokens.refresh_token };
+          }
+        }
+
+        await import('../storage').then(m => m.storage.updateUserSettings(userId, {
+          googleTokens: JSON.stringify(newTokens)
+        }));
+        log(`💾 Novos tokens salvos no banco para usuário ${userId}`, 'google');
+      }
+    } catch (err) {
+      log(`❌ Erro ao salvar tokens atualizados: ${err}`, 'google');
+    }
+  });
+  // =================== FIM CORREÇÃO ===================
+
   oauth2Clients.set(userId, oauth2Client);
   return oauth2Client;
 }

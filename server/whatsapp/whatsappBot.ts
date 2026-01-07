@@ -253,22 +253,15 @@ class WhatsAppBot {
         rawData: JSON.parse(JSON.stringify(event)),
       });
 
-      let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
-        `📝 *${event.title}*\n` +
-        `📅 ${event.displayDate}\n` +
-        `🆔 ID: ${newEvent.id}`;
-
-      if (event.attendees && event.attendees.length > 0) {
-        responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
-      }
-
+      // Definir phones para uso abaixo
       const phones = (event as any).targetPhones;
-      if (phones && phones.length > 0) {
-        responseText += '\n📱 *Telefone Convidados:*\n' + phones.map((p: string) => `• ${p}`).join('\n');
-      }
+
+      // (Bloco de responseText original removido - será construído mais abaixo)
 
       // 4.2. Integração com Google Calendar
       let googleLink = '';
+      let isSyncedWithGoogle = false;
+
       if (userSettings?.googleTokens) {
         try {
           setTokens(user.id, JSON.parse(userSettings.googleTokens));
@@ -280,17 +273,16 @@ class WhatsAppBot {
           }, user.id);
 
           if (googleResult.success) {
-            responseText += `\n\n✅ *Sincronizado com Google Calendar*`;
+            isSyncedWithGoogle = true;
             if (googleResult.conferenceLink) {
-              responseText += `\n📹 Meet: ${googleResult.conferenceLink}`;
               await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
             }
             if (googleResult.calendarEventId) {
               await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
             }
           } else {
-            responseText += `\n⚠️ Falha no Google Calendar: ${googleResult.message}`;
-            // Fallback links
+            console.error(`⚠️ Falha no Google Calendar: ${googleResult.message}`);
+            // Fallback links se falhar
             const links = generateLinks(event);
             googleLink = links.google;
           }
@@ -302,18 +294,71 @@ class WhatsAppBot {
       } else {
         const links = generateLinks(event);
         googleLink = links.google;
-        responseText += `\n\n🔗 *Links de Calendário:*\n` +
-          `Google: ${links.google}\n` +
-          `Outlook: ${links.outlook}`;
       }
 
-      // 4.3. Criar Lembrete Automático (12h antes) e enviar para convidados se houver
-      await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
+      // =================== 4.3. NOTIFICAÇÕES (GUESTS vs CREATOR) ===================
 
-      responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
+      // A) NOTIFICAR CONVIDADOS (Guests)
       if (phones && phones.length > 0) {
-        responseText += `\nOs convidados receberão o lembrete!`;
+        const guestLinks = generateLinks(event);
+        const guestLinkMsg = guestLinks.google; // Priorizando Google Link para simplicidade
+
+        for (const phone of phones) {
+          // Normalizar telefone (remover @s.whatsapp.net se vier)
+          const guestJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+
+          // Não enviar para o próprio criador aqui (ele recebe msg diferenciada abaixo)
+          const creatorJid = remoteJid.includes('@') ? remoteJid : `${remoteJid}@s.whatsapp.net`;
+          const creatorPhone = creatorJid.split('@')[0];
+          const guestPhone = guestJid.split('@')[0];
+
+          if (creatorPhone === guestPhone) continue;
+
+          console.log(`📤 Enviando convite para convidado: ${guestJid}`);
+
+          await this.sendMessage(guestJid,
+            `📅 *Você foi convidado para um evento!*\n\n` +
+            `📝 *${event.title}*\n` +
+            `🗓️ ${event.displayDate}\n\n` +
+            `🔗 *Adicionar ao seu calendário:*\n${guestLinkMsg}\n\n` +
+            `_Enviado via Zelar IA pelo anfitrião_`
+          );
+        }
       }
+
+      // B) NOTIFICAR CRIADOR (Creator)
+      let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
+        `📝 *${event.title}*\n` +
+        `📅 ${event.displayDate}\n` +
+        `🆔 ID: ${newEvent.id}`;
+
+      if (event.attendees && event.attendees.length > 0) {
+        responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
+      }
+
+      if (phones && phones.length > 0) {
+        const creatorPhone = remoteJid.replace(/\D/g, '');
+        const otherGuests = phones.filter((p: string) => p !== creatorPhone);
+
+        if (otherGuests.length > 0) {
+          responseText += '\n📱 *Convidados Notificados:*\n' + otherGuests.map((p: string) => `• ${p}`).join('\n');
+        }
+      }
+
+      // Lógica diferenciada para criador: Synced ou Link Manual
+      if (isSyncedWithGoogle) {
+        responseText += `\n\n✅ *Sincronizado com seu Google Calendar*`;
+        const evtWithLink = await storage.getEvent(newEvent.id);
+        if (evtWithLink?.conferenceLink) {
+          responseText += `\n📹 Meet: ${evtWithLink.conferenceLink}`;
+        }
+      } else {
+        responseText += `\n\n🔗 *Adicione ao seu calendário:*\n${googleLink}`;
+      }
+
+      // 4.4. Criar Lembrete Automático (12h antes) 
+      await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
+      responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
 
       await this.sendMessage(remoteJid, responseText);
 
