@@ -1,4 +1,10 @@
-CREATE TABLE "events" (
+DROP TABLE IF EXISTS "reminders";
+DROP TABLE IF EXISTS "user_settings";
+DROP TABLE IF EXISTS "events";
+DROP TABLE IF EXISTS "users";
+
+
+CREATE TABLE IF NOT EXISTS "events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"title" text NOT NULL,
@@ -14,7 +20,7 @@ CREATE TABLE "events" (
 	"raw_data" json
 );
 --> statement-breakpoint
-CREATE TABLE "reminders" (
+CREATE TABLE IF NOT EXISTS "reminders" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"event_id" integer NOT NULL,
 	"user_id" integer NOT NULL,
@@ -28,7 +34,7 @@ CREATE TABLE "reminders" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "user_settings" (
+CREATE TABLE IF NOT EXISTS "user_settings" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
 	"notifications_enabled" boolean DEFAULT true,
@@ -41,7 +47,7 @@ CREATE TABLE "user_settings" (
 	"updated_at" timestamp DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"username" text NOT NULL,
 	"password" text NOT NULL,
