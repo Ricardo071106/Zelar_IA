@@ -103,7 +103,7 @@ export default function AnalyticsSection() {
               <CardTitle className="text-sm font-medium text-gray-500">Usuários ativos</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between">
-              <div className="text-3xl font-semibold text-primary">{overview.totals.users}</div>
+              <div className="text-3xl font-semibold text-primary">{overview?.totals?.users ?? 0}</div>
               <Users className="text-primary/70" />
             </CardContent>
           </Card>
@@ -113,7 +113,7 @@ export default function AnalyticsSection() {
               <CardTitle className="text-sm font-medium text-gray-500">Conversas no mês</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between">
-              <div className="text-3xl font-semibold text-primary">{overview.totals.activeChats}</div>
+              <div className="text-3xl font-semibold text-primary">{overview?.totals?.activeChats ?? 0}</div>
               <TrendingUp className="text-primary/70" />
             </CardContent>
           </Card>
@@ -123,7 +123,7 @@ export default function AnalyticsSection() {
               <CardTitle className="text-sm font-medium text-gray-500">Eventos criados</CardTitle>
             </CardHeader>
             <CardContent className="flex items-center justify-between">
-              <div className="text-3xl font-semibold text-primary">{overview.totals.eventsCreated}</div>
+              <div className="text-3xl font-semibold text-primary">{overview?.totals?.eventsCreated ?? 0}</div>
               <Calendar className="text-primary/70" />
             </CardContent>
           </Card>
@@ -136,10 +136,10 @@ export default function AnalyticsSection() {
               <div className="flex items-center gap-2 mb-2">
                 <Zap className="text-primary/70" />
                 <span className="text-sm text-gray-500">
-                  {Math.round(overview.automation.smartParserSuccess * 100)}% de acerto
+                  {Math.round((overview?.automation?.smartParserSuccess ?? 0) * 100)}% de acerto
                 </span>
               </div>
-              <Progress value={overview.automation.smartParserSuccess * 100} className="h-2" />
+              <Progress value={(overview?.automation?.smartParserSuccess ?? 0) * 100} className="h-2" />
             </CardContent>
           </Card>
         </div>
@@ -150,7 +150,7 @@ export default function AnalyticsSection() {
               <CardTitle className="text-lg font-semibold">Principais intenções</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {(overview.topIntents || []).slice(0, 4).map((intent) => (
+              {(overview?.topIntents || []).slice(0, 4).map((intent) => (
                 <div key={intent.intent} className="flex items-center justify-between">
                   <span className="text-sm text-gray-600">{intent.intent}</span>
                   <Badge variant="secondary" className="bg-primary/10 text-primary">
@@ -158,7 +158,7 @@ export default function AnalyticsSection() {
                   </Badge>
                 </div>
               ))}
-              {!overview.topIntents.length && (
+              {(!overview?.topIntents || !overview.topIntents.length) && (
                 <p className="text-sm text-gray-500">Carregando métricas de intenção…</p>
               )}
             </CardContent>
