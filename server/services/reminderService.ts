@@ -4,6 +4,7 @@ import { Event, Reminder } from "@shared/schema";
 import { storage } from "../storage";
 import { sendTelegramNotification } from "../telegram/direct_bot";
 import { getWhatsAppBot } from "../whatsapp/whatsappBot";
+import { emailService } from "./emailService";
 
 type ReminderChannel = Reminder["channel"];
 
@@ -101,6 +102,13 @@ class ReminderService {
           // Fallback to owner
           await bot.sendMessage(user.username, message);
         }
+      } else if (reminder.channel === "email") {
+        if (reminder.targetEmails && reminder.targetEmails.length > 0) {
+          for (const email of reminder.targetEmails) {
+            console.log(`📤 Sending email reminder to: ${email}`);
+            await emailService.sendReminder(email, event);
+          }
+        }
       }
     } finally {
       await storage.markReminderSent(reminder.id);
@@ -135,6 +143,14 @@ class ReminderService {
     }
 
     const reminders = await storage.getEventReminders(event.id);
+
+    // Determine target emails (include creator if valid)
+    // Note: We might have fetched user above, but scope is limited. Safest to ensure we have the user.
+    let targetEmails: string[] = [...(event.attendeeEmails || [])];
+    const ownerUser = await storage.getUser(event.userId);
+    if (ownerUser && ownerUser.email && !ownerUser.email.endsWith('@whatsapp.user') && !targetEmails.includes(ownerUser.email)) {
+      targetEmails.push(ownerUser.email);
+    }
     const existing = reminders.find((item) => item.isDefault && item.channel === channel);
 
     if (existing) {
@@ -143,7 +159,8 @@ class ReminderService {
         sent: false,
         message,
         reminderTime: hoursBefore,
-        targetPhones: targetPhones
+        targetPhones: targetPhones,
+        targetEmails: targetEmails
       });
       if (updated) {
         this.scheduleReminder(updated, event);
@@ -160,7 +177,8 @@ class ReminderService {
       sent: false,
       isDefault: true,
       reminderTime: hoursBefore,
-      targetPhones: targetPhones
+      targetPhones: targetPhones,
+      targetEmails: targetEmails
     });
     this.scheduleReminder(reminder, event);
     return reminder;

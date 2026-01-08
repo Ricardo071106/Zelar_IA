@@ -141,7 +141,10 @@ export class DatabaseStorage implements IStorage {
 
   async createEvent(event: InsertEvent): Promise<Event> {
     if (!db) throw new Error("Database not connected");
-    const [newEvent] = await db.insert(events).values(event).returning();
+    const [newEvent] = await db.insert(events).values({
+      ...event,
+      attendeeEmails: event.attendeeEmails || []
+    }).returning();
     return newEvent;
   }
 

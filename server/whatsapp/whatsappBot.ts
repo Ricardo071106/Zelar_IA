@@ -28,6 +28,7 @@ import {
   setTokens
 } from '../telegram/googleCalendarIntegration';
 import { reminderService } from '../services/reminderService';
+import { emailService } from '../services/emailService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -250,11 +251,13 @@ class WhatsAppBot {
         description: event.description || '',
         startDate: new Date(event.startDate),
         attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
+        attendeeEmails: event.attendees || [], // Salvando emails identificados
         rawData: JSON.parse(JSON.stringify(event)),
       });
 
-      // Definir phones para uso abaixo
+      // Definir phones e emails para uso abaixo
       const phones = (event as any).targetPhones;
+      const emails = event.attendees;
 
       // (Bloco de responseText original removido - será construído mais abaixo)
 
@@ -326,6 +329,29 @@ class WhatsAppBot {
         }
       }
 
+      // A.2) NOTIFICAR CONVIDADOS (Emails)
+      if (emails && emails.length > 0) {
+        for (const email of emails) {
+          console.log(`📧 Enviando convite por email para: ${email}`);
+          try {
+            await emailService.sendInvitation(email, newEvent, user.name || user.username);
+          } catch (e) {
+            console.error(`❌ Erro ao enviar email para ${email}`, e);
+          }
+        }
+      }
+
+      // A.3) NOTIFICAR CRIADOR (Email - se tiver email válido cadastrado)
+      if (user.email && !user.email.endsWith('@whatsapp.user')) {
+        console.log(`📧 Enviando confirmação por email para criador: ${user.email}`);
+        try {
+          // Reusing sendInvitation for now, or could be a specific template
+          await emailService.sendInvitation(user.email, newEvent, "Você (Via Zelar IA)");
+        } catch (e) {
+          console.error(`❌ Erro ao enviar email para criador ${user.email}`, e);
+        }
+      }
+
       // B) NOTIFICAR CRIADOR (Creator)
       let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
         `📝 *${event.title}*\n` +
@@ -334,6 +360,7 @@ class WhatsAppBot {
 
       if (event.attendees && event.attendees.length > 0) {
         responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
+        responseText += '\n_Convites enviados por email_';
       }
 
       if (phones && phones.length > 0) {
@@ -358,6 +385,12 @@ class WhatsAppBot {
 
       // 4.4. Criar Lembrete Automático (12h antes) 
       await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
+
+      // Criar lembrete por email se houver convidados por email OU se o criador tiver email
+      if ((emails && emails.length > 0) || (user.email && !user.email.endsWith('@whatsapp.user'))) {
+        await reminderService.ensureDefaultReminder(newEvent as any, 'email');
+      }
+
       responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
 
       await this.sendMessage(remoteJid, responseText);
