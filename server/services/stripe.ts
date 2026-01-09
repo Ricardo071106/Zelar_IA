@@ -118,12 +118,55 @@ export class StripeService {
     }
   }
 
+  async cancelSubscription(userId: number) {
+    const user = await storage.getUser(userId);
+    if (!user || !user.stripeCustomerId) {
+      throw new Error("Usuário não possui assinatura ativa para cancelar.");
+    }
+
+    // Listar assinaturas ativas do cliente
+    const subscriptions = await stripe.subscriptions.list({
+      customer: user.stripeCustomerId,
+      status: 'active',
+      limit: 1,
+    });
+
+    if (subscriptions.data.length === 0) {
+      throw new Error("Nenhuma assinatura ativa encontrada.");
+    }
+
+    const subscription = subscriptions.data[0];
+
+    // Atualizar para cancelar no fim do período
+    const updatedSubscription = await stripe.subscriptions.update(subscription.id, {
+      cancel_at_period_end: true,
+    });
+
+    return {
+      endsAt: new Date((updatedSubscription as any).current_period_end * 1000)
+    };
+  }
+
   private async handleSubscriptionDeleted(subscription: Stripe.Subscription) {
-    // Find user by stripe customer id
-    // This part assumes we can lookup user by stripeCustomerId or we have to add that to storage
-    // For now, let's just log. Implementing lookup would require storage update.
-    console.log(`⚠️ Subscription deleted: ${subscription.id}`);
-    // Ideally: find user and set status to 'inactive'
+    const customerId = subscription.customer as string;
+
+    console.log(`⚠️ Assinatura cancelada/finalizada: ${subscription.id} para customer ${customerId}`);
+
+    try {
+      const user = await storage.getUserByStripeId(customerId);
+      if (user) {
+        await storage.updateUserSubscription(user.id, {
+          status: 'inactive',
+          stripeCustomerId: customerId,
+          subscriptionEndsAt: null
+        });
+        console.log(`✅ Status do usuário ${user.id} atualizado para inativo.`);
+      } else {
+        console.warn(`⚠️ Usuário não encontrado para o customerId ${customerId}`);
+      }
+    } catch (error) {
+      console.error(`Erro ao atualizar status de usuário após cancelamento: ${error}`);
+    }
   }
 }
 

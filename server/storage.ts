@@ -21,6 +21,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   getUserByWhatsApp(whatsappId: string): Promise<User | undefined>;
+  getUserByStripeId(stripeId: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined>;
   updateUserSubscription(id: number, data: { status: string; stripeCustomerId?: string; subscriptionEndsAt?: Date | null }): Promise<User | undefined>;
@@ -77,6 +78,12 @@ export class DatabaseStorage implements IStorage {
     if (!db) return undefined;
     // WhatsApp ID será armazenado no campo username por enquanto
     const [user] = await db.select().from(users).where(eq(users.username, whatsappId));
+    return user;
+  }
+
+  async getUserByStripeId(stripeId: string): Promise<User | undefined> {
+    if (!db) return undefined;
+    const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, stripeId));
     return user;
   }
 

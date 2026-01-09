@@ -39,6 +39,7 @@ class WhatsAppBot {
   private saveCreds: any = null;
   private isInitializing = false;
   private processedMsgIds = new Set<string>();
+  private userStates = new Map<string, string>();
 
   async initialize() {
     if (this.isInitializing) return;
@@ -204,6 +205,50 @@ class WhatsAppBot {
         'Após o pagamento, seu acesso será liberado automaticamente!'
       );
       return; // Bloqueia qualquer outra interação
+    }
+
+    // =========================================================================
+    // 1.5. PROCESSAMENTO DE ESTADOS (CONFIRMAÇÕES)
+    // =========================================================================
+    const currentState = this.userStates.get(remoteJid);
+    if (currentState === 'AWAITING_CANCEL_CONFIRMATION') {
+      const response = text.toLowerCase().trim();
+
+      if (response === 'sim' || response === 's') {
+        this.userStates.delete(remoteJid);
+        await this.sendMessage(remoteJid, '⏳ Cancelando sua assinatura...');
+        try {
+          const { stripeService } = await import('../services/stripe');
+          const result = await stripeService.cancelSubscription(user.id);
+          const endDate = result.endsAt.toLocaleDateString('pt-BR');
+
+          await this.sendMessage(remoteJid,
+            `✅ *Assinatura cancelada com sucesso.*\n\n` +
+            `Seu acesso continuará disponível até *${endDate}*.\n` +
+            `Após essa data, o bot não processará mais novos eventos para você.\n\n` +
+            `Esperamos vê-lo de volta em breve! 👋`
+          );
+        } catch (error: any) {
+          console.error('Erro ao cancelar assinatura:', error);
+          await this.sendMessage(remoteJid, `❌ Não foi possível cancelar: ${error.message}`);
+        }
+        return;
+      } else if (response === 'não' || response === 'nao' || response === 'n' || response === 'não') {
+        this.userStates.delete(remoteJid);
+        await this.sendMessage(remoteJid, '✅ Operação cancelada. Sua assinatura permanece ativa.');
+        return;
+      } else if (text.startsWith('/')) {
+        // Se for um comando, sai do estado e processa o comando
+        this.userStates.delete(remoteJid);
+        // Continua para o processamento de comandos abaixo
+      } else {
+        await this.sendMessage(remoteJid,
+          '⚠️ *Confirmação necessária*\n\n' +
+          'Por favor, responda com *sim* para confirmar o cancelamento ou *não* para desistir.\n' +
+          'Ou digite qualquer comando (ex: /ajuda) para sair.'
+        );
+        return;
+      }
     }
 
     // =========================================================================
@@ -459,6 +504,16 @@ class WhatsAppBot {
               'Isso permite que eu adicione eventos diretamente na sua agenda oficial!'
             );
           }
+          break;
+
+        case '/cancelar':
+        case '/cancelar assinatura':
+          // Confirmação antes de processar
+          this.userStates.set(remoteJid, 'AWAITING_CANCEL_CONFIRMATION');
+          await this.sendMessage(remoteJid,
+            '⚠️ *Confirmação necessária*\n\n' +
+            'Tem certeza que deseja cancelar sua assinatura? Digite *sim* para confirmar ou *não* para desistir.'
+          );
           break;
 
         case '/eventos':
