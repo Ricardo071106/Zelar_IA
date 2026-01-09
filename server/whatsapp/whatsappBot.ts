@@ -165,7 +165,7 @@ class WhatsAppBot {
         username: whatsappId,
         password: `whatsapp_${whatsappId}`,
         name: name || `User ${whatsappId}`,
-        email: `${whatsappId}@whatsapp.user`, // Placeholder
+        // email: undefined, // Opcional, será preenchido se o usuário informar depois
       });
 
       // Criar configurações padrão
@@ -187,7 +187,12 @@ class WhatsAppBot {
     // 1. VERIFICAÇÃO ESTRITA DE ASSINATURA (PREMIUM CHECK)
     // =========================================================================
     if (user.subscriptionStatus !== 'active') {
-      const baseUrl = process.env.STRIPE_PAYMENT_LINK || 'https://buy.stripe.com/test_...';
+      const baseUrl = process.env.STRIPE_PAYMENT_LINK;
+      if (!baseUrl) {
+        console.error("❌ STRIPE_PAYMENT_LINK não configurado no .env");
+        await this.sendMessage(remoteJid, "⚠️ Erro de configuração: Link de pagamento não disponível. Contate o suporte.");
+        return;
+      }
       const paymentLink = `${baseUrl}?client_reference_id=${user.id}`;
       console.log(`🚫 Usuário ${user.username} sem assinatura ativa. Enviando link de pagamento.`);
 
@@ -342,7 +347,7 @@ class WhatsAppBot {
       }
 
       // A.3) NOTIFICAR CRIADOR (Email - se tiver email válido cadastrado)
-      if (user.email && !user.email.endsWith('@whatsapp.user')) {
+      if (user.email) {
         console.log(`📧 Enviando confirmação por email para criador: ${user.email}`);
         try {
           // Reusing sendInvitation for now, or could be a specific template
@@ -387,7 +392,7 @@ class WhatsAppBot {
       await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
 
       // Criar lembrete por email se houver convidados por email OU se o criador tiver email
-      if ((emails && emails.length > 0) || (user.email && !user.email.endsWith('@whatsapp.user'))) {
+      if ((emails && emails.length > 0) || user.email) {
         await reminderService.ensureDefaultReminder(newEvent as any, 'email');
       }
 
