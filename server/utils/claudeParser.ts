@@ -50,11 +50,13 @@ Instructions:
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
    { "isValid": false, "title": "", "date": "", "hour": 0, "minute": 0 }
 
+IMPORTANT: The example below is just for JSON structure reference. DO NOT COPY THE DATE OR VALUES. CALCULATE BASED ON USER INPUT.
+
 Example Input: "Reunião de orçamento amanhã às 15h com 11999887766"
-Example Output:
+Example Output (Reference only):
 {
   "title": "Reunião de orçamento",
-  "date": "${currentYear}-05-30",
+  "date": "${currentYear}-05-30", // This is just an example! Use real calculated date.
   "hour": 15,
   "minute": 0,
   "target_phones": ["11999887766"],

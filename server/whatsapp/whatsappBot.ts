@@ -360,12 +360,15 @@ class WhatsAppBot {
           // Normalizar telefone (remover @s.whatsapp.net se vier)
           const guestJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
 
-          // Não enviar para o próprio criador aqui (ele recebe msg diferenciada abaixo)
-          const creatorJid = remoteJid.includes('@') ? remoteJid : `${remoteJid}@s.whatsapp.net`;
-          const creatorPhone = creatorJid.split('@')[0];
-          const guestPhone = guestJid.split('@')[0];
+          // Normalizar IDs para comparação numérica pura (remove @s.whatsapp.net e outros caracteres)
+          const guestIdOnly = guestJid.split('@')[0].replace(/\D/g, '');
+          const creatorIdOnly = remoteJid.split('@')[0].replace(/\D/g, '');
 
-          if (creatorPhone === guestPhone) continue;
+          // Pula se for o mesmo número (evita mandar "você foi convidado" para o criador)
+          if (guestIdOnly === creatorIdOnly) {
+            console.log(`🔄 Pulando envio de convite para o próprio criador (${guestIdOnly})`);
+            continue;
+          }
 
           console.log(`📤 Enviando convite para convidado: ${guestJid}`);
 
@@ -384,7 +387,7 @@ class WhatsAppBot {
         for (const email of emails) {
           console.log(`📧 Enviando convite por email para: ${email}`);
           try {
-            await emailService.sendInvitation(email, newEvent, user.name || user.username);
+            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião");
           } catch (e) {
             console.error(`❌ Erro ao enviar email para ${email}`, e);
           }
