@@ -139,8 +139,16 @@ export class StripeService {
       cancel_at_period_end: true,
     });
 
+    // Validar se temos a data de término
+    // Usando cast para any pois os tipos do Stripe podem variar entre versões do SDK
+    const timestamp = updatedSubscription.cancel_at || (updatedSubscription as any).current_period_end;
+    if (!timestamp) {
+      // Fallback for immediate safety, though Stripe usually returns one
+      return { endsAt: new Date() };
+    }
+
     return {
-      endsAt: new Date((updatedSubscription as any).current_period_end * 1000)
+      endsAt: new Date(timestamp * 1000)
     };
   }
 
