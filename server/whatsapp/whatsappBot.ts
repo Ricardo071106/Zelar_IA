@@ -488,6 +488,7 @@ class WhatsAppBot {
             '• `/reminders` ou `/lembretes` - Vê lembretes pendentes\n' +
             '• `/edit ID` - Informações sobre como editar\n' +
             '• `/delete ID` - Remove um evento\n' +
+            '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
             '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
