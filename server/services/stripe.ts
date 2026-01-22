@@ -71,50 +71,47 @@ export class StripeService {
 
   private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
     const userId = session.client_reference_id ? parseInt(session.client_reference_id) : null;
+    console.log(`💰 Webhook: Processando checkout.session.completed para userId: ${userId}`);
 
     if (!userId) {
       console.error("Warning: webhook received without userId");
       return;
     }
 
-    // Update user subscription status
-    await storage.updateUserSubscription(userId, {
-      status: 'active',
-      stripeCustomerId: session.customer as string,
-      subscriptionEndsAt: null, // Allow null for active subscriptions (or calculate based on period)
-    });
-
-    // Record payment
-    // Note: We need a method in storage.ts to create payment record
-    // For now we just log it or we can add that method.
-    // Assuming we update schema and storage interfaces eventually.
-    console.log(`✅ Payment successful for user ${userId}`);
-
-    // NOTIFICAÇÃO DE SUCESSO
     try {
+      // Update user subscription status
+      await storage.updateUserSubscription(userId, {
+        status: 'active',
+        stripeCustomerId: session.customer as string,
+        subscriptionEndsAt: null,
+      });
+      console.log(`✅ Subscription updated to ACTIVE for user ${userId}`);
+
+      // NOTIFICAÇÃO DE SUCESSO
       const user = await storage.getUser(userId);
       if (user) {
-        // Tenta enviar pelo WhatsApp se o username parecer um número de telefone
-        // ou se tivermos uma lógica melhor de detecção de canal.
-        // Por enquanto, assumimos que se o username é números, é WhatsApp.
+        console.log(`👤 User found: ${user.username} (Is valid phone? ${/^\d+$/.test(user.username)})`);
+
         if (/^\d+$/.test(user.username)) {
           const whatsappBot = getWhatsAppBot();
-          // O usuário do WhatsApp é username@s.whatsapp.net (lid ou normal)
-          // Precisamos do JID completo. O Bot geralmente guarda o user apenas com números.
-          // getOrCreateUser: username = whatsappId (apenas numeros)
-          // Para enviar msg, precisamos reconstruir o JID ou armazenar o JID completo.
-          // O padrão do Baileys é numero@s.whatsapp.net.
           const jid = `${user.username}@s.whatsapp.net`;
+
+          console.log(`📤 Tentando enviar confirmação de pagamento para: ${jid}`);
 
           await whatsappBot.sendMessage(jid,
             '🎉 *Pagamento Confirmado!*\n\n' +
             'Sua assinatura está ativa e você já pode aproveitar todos os recursos do Zelar IA.\n' +
             'Obrigado por assinar! 🚀'
           );
+          console.log(`✅ Mensagem de confirmação enviada!`);
+        } else {
+          console.warn(`⚠️ Username '${user.username}' não parece um telefone. Notificação pulada.`);
         }
+      } else {
+        console.error(`❌ User ${userId} not found in database.`);
       }
-    } catch (notifyError) {
-      console.error('Erro ao enviar notificação de pagamento:', notifyError);
+    } catch (error) {
+      console.error('❌ Erro crítico ao processar pagamento ou enviar notificação:', error);
     }
   }
 
