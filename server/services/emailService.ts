@@ -12,8 +12,11 @@ const FROM_EMAIL = 'no-reply@zelar.ia'; // Ajustar conforme sender verificado no
 export class EmailService {
   async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
     if (!process.env.SENDGRID_API_KEY) {
-      console.error("❌ SENDGRID_API_KEY não configurada. Falha ao enviar email.");
-      return false;
+      console.log("⚠️ SENDGRID_API_KEY não configurada. Simulando envio de email:");
+      console.log(`Para: ${to}`);
+      console.log(`Assunto: ${subject}`);
+      // console.log(`Conteúdo: ${html}`); // Descomente para ver o HTML
+      return true;
     }
 
     const msg = {

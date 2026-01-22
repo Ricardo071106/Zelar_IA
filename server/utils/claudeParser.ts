@@ -29,13 +29,16 @@ export async function parseEventWithClaude(
   try {
     const today = new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone });
     const dayOfWeek = new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone, weekday: 'long' });
+    const currentYear = new Date().getFullYear();
+    const nextYear = currentYear + 1;
 
     const systemPrompt = `You are a helper that extracts event details from Portuguese text.
     
 Current Context:
 - Date: ${today} (${dayOfWeek})
 - Timezone: ${userTimezone}
-- Year must be 2025+
+- Current Year: ${currentYear}
+- Assume current year unless specified otherwise (or if the date has already passed this year).
 
 Instructions:
 1. Extract event title (remove time/date references).
@@ -51,7 +54,7 @@ Example Input: "Reunião de orçamento amanhã às 15h com 11999887766"
 Example Output:
 {
   "title": "Reunião de orçamento",
-  "date": "2025-05-30",
+  "date": "${currentYear}-05-30",
   "hour": 15,
   "minute": 0,
   "target_phones": ["11999887766"],

@@ -100,7 +100,12 @@ class ReminderService {
           }
         } else if (user.username) {
           // Fallback to owner
-          await bot.sendMessage(user.username, message);
+          // Verify if username looks like a phone number (digits only)
+          if (/^\d+$/.test(user.username)) {
+            await bot.sendMessage(user.username, message);
+          } else {
+            console.log(`⚠️ Username '${user.username}' is not a phone number. Skipping WhatsApp reminder fallback.`);
+          }
         }
       } else if (reminder.channel === "email") {
         if (reminder.targetEmails && reminder.targetEmails.length > 0) {

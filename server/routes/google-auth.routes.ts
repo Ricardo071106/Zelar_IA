@@ -19,6 +19,10 @@ if (!CLIENT_ID || !CLIENT_SECRET) {
   console.warn('⚠️  Google Calendar OAuth não configurado (falta GOOGLE_CLIENT_ID ou GOOGLE_CLIENT_SECRET)');
 }
 
+if (REDIRECT_URI.includes('localhost') && process.env.NODE_ENV === 'production') {
+  console.warn('⚠️  GOOGLE_REDIRECT_URI está configurado para localhost em produção. A autenticação Google falhará.');
+}
+
 const oauth2Client = CLIENT_ID && CLIENT_SECRET ? new google.auth.OAuth2(
   CLIENT_ID,
   CLIENT_SECRET,
