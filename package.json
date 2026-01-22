@@ -9,15 +9,12 @@
   },
   "scripts": {
     "dev": "vite",
+    "server": "tsx server/index.ts",
     "build": "vite build",
-    "preview": "vite preview",
-    "start": "tsx server/index.ts",
-    "start:prod": "NODE_ENV=production tsx server/index.ts",
-    "db:init": "tsx server/scripts/init-db.ts",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "tsx server/scripts/migrate.ts",
+    "start": "NODE_ENV=production tsx server/index.ts",
+    "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "db:push": "drizzle-kit push"
+    "test:email": "tsx server/scripts/test-email.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.37.0",
