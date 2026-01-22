@@ -1,10 +1,11 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
-import ws from "ws";
+import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
+import pg from 'pg';
 
-neonConfig.webSocketConstructor = ws;
-let pool: Pool | null = null;
+const { Pool } = pg;
+
+// Use InstanceType to extract the Pool type from the class constructor value
+let pool: InstanceType<typeof Pool> | null = null;
 let db: any | null = null;
 
 // Verificar se DATABASE_URL está configurado
@@ -15,8 +16,10 @@ if (!process.env.DATABASE_URL) {
   db = null;
 } else {
   try {
-    pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    db = drizzle({ client: pool, schema });
+    pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    db = drizzle(pool, { schema });
     console.log("✅ Conexão com banco de dados estabelecida");
   } catch (error) {
     console.error("❌ Erro ao conectar com banco:", error);
