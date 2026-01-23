@@ -1,8 +1,6 @@
-
 import { Router } from 'express';
 import { stripeService } from '../services/stripe';
 import { storage } from '../storage';
-import bodyParser from 'body-parser';
 
 const router = Router();
 
@@ -35,14 +33,22 @@ router.post('/checkout', async (req, res) => {
 });
 
 // Stripe Webhook
-// NOTE: express.raw({ type: 'application/json' }) is often needed for webhooks signed parsing
-// But since we are inside a larger app, we might check if body parser is already applied globally.
-// Usually webhooks need raw body. We'll handle parsing in the service.
-router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req, res) => {
+// NOTE: express.raw({ type: 'application/json' }) is ALREADY configured in index.ts for this specific route.
+// DO NOT add bodyParser here again, or it will consume the stream twice.
+router.post('/webhook', async (req, res) => {
   const sig = req.headers['stripe-signature'];
 
   console.log('🔔 [DEBUG] Webhook request received at /api/payments/webhook');
-  console.log('📝 [DEBUG] Headers:', JSON.stringify(req.headers, null, 2));
+  console.log(`📝 [DEBUG] Content-Type: ${req.headers['content-type']}`);
+  console.log(`📝 [DEBUG] Body Type: ${typeof req.body}`);
+  console.log(`📝 [DEBUG] Body Is Buffer? ${Buffer.isBuffer(req.body)}`);
+
+  if (Buffer.isBuffer(req.body)) {
+    console.log(`📝 [DEBUG] Body Size: ${req.body.length} bytes`);
+  } else if (typeof req.body === 'object') {
+    console.log(`⚠️ [WARN] Body appears to be already parsed as JSON! This will fail signature verification.`);
+    console.log(`📝 [DEBUG] Body keys: ${Object.keys(req.body).join(', ')}`);
+  }
 
   if (!sig) {
     console.error('❌ [DEBUG] Assinatura Stripe faltando');
@@ -51,6 +57,7 @@ router.post('/webhook', bodyParser.raw({ type: 'application/json' }), async (req
 
   try {
     console.log('📦 [DEBUG] Encaminhando para o serviço...');
+    // req.body should be a Buffer here because of express.raw in index.ts
     await stripeService.handleWebhook(sig as string, req.body);
     console.log('✅ [DEBUG] Webhook processado com sucesso');
     res.json({ received: true });
