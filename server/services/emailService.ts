@@ -10,7 +10,7 @@ if (!process.env.SENDGRID_API_KEY) {
 const FROM_EMAIL = 'no-reply@zelar.ia'; // Ajustar conforme sender verificado no SendGrid, ou usar var de ambiente
 
 export class EmailService {
-  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  async sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
     console.log(`🔍 Tentando enviar email para ${to}. API Key Length: ${process.env.SENDGRID_API_KEY?.length}`);
     if (!process.env.SENDGRID_API_KEY) {
       console.log("⚠️ SENDGRID_API_KEY não configurada. Simulando envio de email:");
@@ -25,6 +25,7 @@ export class EmailService {
       from: process.env.SENDGRID_FROM_EMAIL || 'zelar.ia.suporte@gmail.com', // Fallback
       subject,
       html,
+      text: text || html.replace(/<[^>]*>?/gm, ''), // Fallback: remove tags se não houver texto explícito
     };
 
     try {
@@ -69,7 +70,21 @@ export class EmailService {
       </div>
     `;
 
-    return this.sendEmail(to, subject, html);
+    const text = `
+📅 Você foi convidado!
+
+Olá,
+${creatorName} convidou você para o seguinte evento:
+
+${event.title}
+🗓️ ${date}
+${event.description ? `📝 ${event.description}` : ''}
+${event.conferenceLink ? `🎥 Entrar na reunião: ${event.conferenceLink}` : ''}
+
+Este evento foi organizado com ajuda da Zelar IA.
+    `.trim();
+
+    return this.sendEmail(to, subject, html, text);
   }
 
   async sendReminder(to: string, event: Event): Promise<boolean> {
@@ -92,7 +107,18 @@ export class EmailService {
       </div>
     `;
 
-    return this.sendEmail(to, subject, html);
+    const text = `
+⏰ Lembrete de Evento
+
+Olá,
+Lembre-se que o evento "${event.title}" começará às ${date}.
+
+${event.conferenceLink ? `Entrar na Reunião: ${event.conferenceLink}` : ''}
+
+Enviado por Zelar IA
+    `.trim();
+
+    return this.sendEmail(to, subject, html, text);
   }
 }
 

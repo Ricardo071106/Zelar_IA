@@ -18,7 +18,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm install
+RUN npm ci
 
 # Copy source code
 COPY . .
@@ -26,5 +26,8 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Start the application
+# Prune dev dependencies to keep image size small
+RUN npm prune --production
+
+# Start the application with migrations
 CMD ["npm", "run", "start:prod"]
