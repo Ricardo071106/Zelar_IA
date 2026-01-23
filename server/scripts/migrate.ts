@@ -4,6 +4,11 @@
  */
 
 import 'dotenv/config';
+import { setDefaultResultOrder } from 'dns';
+
+// Força resolução IPv4 para evitar erros de conexão (ENETUNREACH) em ambientes como o Render
+setDefaultResultOrder('ipv4first');
+
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';

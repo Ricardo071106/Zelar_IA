@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import { setDefaultResultOrder } from 'dns';
+
+// Força resolução IPv4
+setDefaultResultOrder('ipv4first');
+
 import express, { type Request, Response, NextFunction } from "express";
 import cors from 'cors';
 import helmet from 'helmet';
