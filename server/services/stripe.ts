@@ -63,6 +63,12 @@ export class StripeService {
       case 'customer.subscription.deleted':
         await this.handleSubscriptionDeleted(event.data.object as Stripe.Subscription);
         break;
+      case 'customer.subscription.updated':
+        await this.handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+      case 'invoice.payment_failed':
+        await this.handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
       // Handle other events like payment_intent.succeeded if needed
     }
 
@@ -171,6 +177,70 @@ export class StripeService {
       }
     } catch (error) {
       console.error(`Erro ao atualizar status de usuário após cancelamento: ${error}`);
+    }
+  }
+
+  private async handleSubscriptionUpdated(subscription: Stripe.Subscription) {
+    const customerId = subscription.customer as string;
+    console.log(`ℹ️ Assinatura atualizada: ${subscription.id} para customer ${customerId}`);
+
+    try {
+      const user = await storage.getUserByStripeId(customerId);
+      if (!user) {
+        console.warn(`⚠️ Usuário não encontrado para o customerId ${customerId}`);
+        return;
+      }
+
+      // Se cancel_at_period_end for true, a assinatura vai acabar no futuro
+      // Se for false, ela está ativa e renovando (logo, endsAt = null)
+      let endsAt: Date | null = null;
+
+      if (subscription.cancel_at_period_end) {
+        const timestamp = subscription.cancel_at || (subscription as any).current_period_end;
+        if (timestamp) {
+          endsAt = new Date(timestamp * 1000);
+        }
+      }
+
+      const status = subscription.status; // active, past_due, unpaid, canceled, incomplete...
+
+      await storage.updateUserSubscription(user.id, {
+        status: status,
+        stripeCustomerId: customerId,
+        subscriptionEndsAt: endsAt
+      });
+      console.log(`✅ Status do usuário ${user.id} atualizado via webhook (updated). Status: ${status}, EndsAt: ${endsAt}`);
+
+    } catch (error) {
+      console.error(`Erro ao processar atualização de assinatura: ${error}`);
+    }
+  }
+
+  private async handleInvoicePaymentFailed(invoice: Stripe.Invoice) {
+    const customerId = invoice.customer as string;
+    console.log(`❌ Pagamento falhou para fatura ${invoice.id}, customer ${customerId}`);
+
+    try {
+      const user = await storage.getUserByStripeId(customerId);
+      if (!user) return;
+
+      if (/^\d+$/.test(user.username)) {
+        const whatsappBot = getWhatsAppBot();
+        const jid = `${user.username}@s.whatsapp.net`;
+        const paymentUrl = invoice.hosted_invoice_url || process.env.STRIPE_PAYMENT_LINK;
+
+        await whatsappBot.sendMessage(jid,
+          '⚠️ *Falha no Pagamento*\n\n' +
+          'Não conseguimos processar a renovação da sua assinatura.\n' +
+          'Seu acesso pode ser suspenso em breve.\n\n' +
+          '💳 *Atualize seu pagamento aqui:*\n' +
+          `${paymentUrl}\n\n` +
+          'Se você já regularizou, desconsidere esta mensagem.'
+        );
+        console.log(`📩 Notificação de falha de pagamento enviada para ${user.username}`);
+      }
+    } catch (error) {
+      console.error(`Erro ao processar falha de pagamento: ${error}`);
     }
   }
 }

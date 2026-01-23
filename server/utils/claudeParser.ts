@@ -5,6 +5,7 @@
 
 import axios from 'axios';
 import { z } from 'zod';
+import { DateTime } from 'luxon';
 
 // =================== DTOs & Validation ===================
 
@@ -27,17 +28,23 @@ export async function parseEventWithClaude(
   userTimezone: string = 'America/Sao_Paulo'
 ): Promise<ClaudeEventResponse> {
   try {
-    const today = new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone });
-    const dayOfWeek = new Date().toLocaleDateString('pt-BR', { timeZone: userTimezone, weekday: 'long' });
-    const currentYear = new Date().getFullYear();
-    const nextYear = currentYear + 1;
+    // Usando Luxon para garantir que "Hoje" seja "Hoje" no fuso do usuário, não em UTC
+    const now = DateTime.now().setZone(userTimezone);
+    const today = now.toFormat('dd/MM/yyyy');
+    const dayOfWeek = now.setLocale('pt-BR').toFormat('EEEE'); // segunda-feira, terça-feira...
+    const currentYear = now.year;
+    const currentMonth = now.month;
+
+    // Calculando "Amanhã" no fuso correto para o exemplo
+    const tomorrowExample = now.plus({ days: 1 }).toISODate(); // YYYY-MM-DD
 
     const systemPrompt = `You are a helper that extracts event details from Portuguese text.
-    
+
 Current Context:
 - Date: ${today} (${dayOfWeek})
 - Timezone: ${userTimezone}
 - Current Year: ${currentYear}
+- Current Month: ${currentMonth}
 - Assume current year unless specified otherwise (or if the date has already passed this year).
 
 Instructions:
@@ -56,7 +63,7 @@ Example Input: "Reunião de orçamento amanhã às 15h com 11999887766"
 Example Output (Reference only):
 {
   "title": "Reunião de orçamento",
-  "date": "${currentYear}-05-30", // This is just an example! Use real calculated date.
+  "date": "${tomorrowExample}",
   "hour": 15,
   "minute": 0,
   "target_phones": ["11999887766"],
