@@ -16,6 +16,7 @@ import { getWhatsAppBot } from "./whatsapp/whatsappBot";
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { reminderService } from './services/reminderService';
+import { initDb } from './db';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,6 +109,9 @@ app.get('/_health', (req, res) => {
 // =================== INICIALIZAÇÃO DO SERVIDOR ===================
 async function startServer() {
   try {
+    // Inicializar conexão com banco (forçar IPv4 se necessário)
+    await initDb();
+
     // Registrar rotas
     log('📋 Registrando rotas...');
     await registerRoutes(app);
