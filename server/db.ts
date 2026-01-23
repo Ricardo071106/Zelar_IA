@@ -47,16 +47,17 @@ export async function initDb() {
     const dbUrl = new URL(process.env.DATABASE_URL);
     const hostname = dbUrl.hostname;
 
-    console.log(`🔍 Resolvendo DNS para host do banco: ${hostname}`);
-    const addresses = await dns.promises.resolve4(hostname);
+    console.log(`🔍 Resolvendo DNS para host do banco (IPv4): ${hostname}`);
+    // dns.lookup usa o resolvedor do sistema (getaddrinfo), o que lida melhor com CNAMEs e hosts locais
+    // do que dns.resolve4
+    const { address } = await dns.promises.lookup(hostname, { family: 4 });
 
-    if (addresses && addresses.length > 0) {
-      const ip = addresses[0];
-      console.log(`✅ IP resolvido: ${ip}. Reconfigurando pool...`);
+    if (address) {
+      console.log(`✅ IP resolvido: ${address}. Reconfigurando pool...`);
 
       // Substitui o hostname pelo IP na string de conexão
-      // Nota: URL.toString() pode codificar caracteres, então fazemos substituição cuidadosa
-      const newUrl = process.env.DATABASE_URL.replace(hostname, ip);
+
+      const newUrl = process.env.DATABASE_URL.replace(hostname, address);
 
       // Encerra pool anterior se existir
       if (pool) {
