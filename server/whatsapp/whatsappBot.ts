@@ -490,6 +490,7 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/conectar` - Conecta ao Google Calendar\n' +
+            '• `/desconectar` - Desconecta do Google Calendar\n' +
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
@@ -510,6 +511,20 @@ class WhatsAppBot {
               `${authUrl}\n\n` +
               'Isso permite que eu adicione eventos diretamente na sua agenda oficial!'
             );
+          }
+          break;
+
+        case '/desconectar':
+        case '/disconnect':
+          const currentSettings = await storage.getUserSettings(user.id);
+          if (!currentSettings || !currentSettings.googleTokens) {
+            await this.sendMessage(remoteJid, '❌ Você não está conectado ao Google Calendar.');
+          } else {
+            await storage.updateUserSettings(user.id, {
+              googleTokens: null,
+              calendarProvider: null,
+            });
+            await this.sendMessage(remoteJid, '✅ Google Calendar desconectado com sucesso!\n\nSeus eventos futuros não serão mais sincronizados automaticamente.');
           }
           break;
 
