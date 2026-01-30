@@ -271,11 +271,23 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
       finalDescription += `\n\n📞 Start attendees/phones: ${event.attendeePhones.join(', ')}`;
     }
 
+    // Prepara lista de participantes (attendees) para o Google Calendar enviarem convites
+    const attendees: calendar_v3.Schema$EventAttendee[] = [];
+    if (event.attendeeEmails && event.attendeeEmails.length > 0) {
+      event.attendeeEmails.forEach(email => {
+        // Validação básica de email se necessário, mas o Google valida tb
+        if (email && email.includes('@')) {
+          attendees.push({ email });
+        }
+      });
+    }
+
     // Cria o evento no Google Calendar
     const googleEvent: calendar_v3.Schema$Event = {
       summary: event.title,
       location: event.location || '',
       description: finalDescription,
+      attendees: attendees.length > 0 ? attendees : undefined,
       start: {
         dateTime: startDate.toISOString(),
         timeZone: 'America/Sao_Paulo',

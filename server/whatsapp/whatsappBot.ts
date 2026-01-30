@@ -383,11 +383,16 @@ class WhatsAppBot {
       }
 
       // A.2) NOTIFICAR CONVIDADOS (Emails)
-      if (emails && emails.length > 0) {
+      // Se sincronizado com Google, ele já envia os convites. Se não, enviamos manualmente.
+      if (emails && emails.length > 0 && !isSyncedWithGoogle) {
+        // Gerar links para o convidado também (pois não é sync automático)
+        const guestLinks = generateLinks(event);
+        const guestGoogleLink = guestLinks.google;
+
         for (const email of emails) {
           console.log(`📧 Enviando convite por email para: ${email}`);
           try {
-            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião");
+            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestGoogleLink);
           } catch (e) {
             console.error(`❌ Erro ao enviar email para ${email}`, e);
           }
@@ -456,7 +461,7 @@ class WhatsAppBot {
 
   private async sendWelcomeMessage(remoteJid: string, user: any) {
     await this.sendMessage(remoteJid,
-      `👋 *Olá, Premium User ${user.name || ''}!* Bem-vindo ao Zelar IA.\n\n` +
+      `👋 *Olá${user.name ? `, ${user.name}` : ''}!* Bem-vindo ao Zelar IA.\n\n` +
       'Estou aqui para organizar sua agenda de forma rápida e inteligente.\n\n' +
       '📌 *O que eu posso fazer?*\n' +
       '• Criar eventos (ex: "Almoço com mãe amanhã 13h")\n' +
@@ -465,7 +470,7 @@ class WhatsAppBot {
       '🔗 *Recomendação:*\n' +
       'Conecte seu Google Calendar para uma experiência completa!\n' +
       'Digite `/conectar` para começar.\n\n' +
-      '❓ *Dúvidas?* Digite `/simbolos` ou `/ajuda` para ver todos os comandos.'
+      '❓ *Dúvidas?* Digite `/ajuda` para ver todos os comandos.'
     );
   }
 
@@ -483,11 +488,9 @@ class WhatsAppBot {
           await this.sendMessage(remoteJid,
             '🤖 *Central de Ajuda Zelar IA*\n\n' +
             '📋 *Comandos Principais:*\n' +
-            '• `/eventos` ou `/events` - Lista eventos passados e futuros\n' +
+            '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/conectar` - Conecta ao Google Calendar\n' +
-            '• `/reminders` ou `/lembretes` - Vê lembretes pendentes\n' +
-            '• `/edit ID` - Informações sobre como editar\n' +
-            '• `/delete ID` - Remove um evento\n' +
+            '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
             '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
@@ -512,7 +515,6 @@ class WhatsAppBot {
 
         case '/cancelar':
         case '/cancelar assinatura':
-          // Confirmação antes de processar
           this.userStates.set(remoteJid, 'AWAITING_CANCEL_CONFIRMATION');
           await this.sendMessage(remoteJid,
             '⚠️ *Confirmação necessária*\n\n' +
@@ -523,7 +525,7 @@ class WhatsAppBot {
         case '/eventos':
         case '/events':
           const allEvents = await storage.getUpcomingEvents(user.id, 20); // Pega 20 eventos próximos (ou ordenar melhor no storage)
-          // Aqui getUpcomingEvents pega >= now. Precisaríamos de past events se o usuário quiser. 
+          // Aqui getUpcomingEvents pega >= now. Precisaríamos de past events se o usuário quiser.
           // O requisito diz "List past/upcoming events". A função atual só pega future.
           // Vou focar nos futuros que é o mais útil, e talvez mencionar os passados recentes se implementar no storage.
 
@@ -620,6 +622,69 @@ class WhatsAppBot {
     }
   }
 
+  /**
+   * Valida e corrige o JID (WhatsApp ID) verificando sua existência na API.
+   * Fundamental para números brasileiros que podem ou não ter o 9º dígito no registro interno.
+   */
+  private async validateJid(jid: string): Promise<string> {
+    if (!this.sock) return jid;
+
+    // Normalização básica
+    let target = jid.replace(/[^0-9]/g, '');
+
+    // Se não tiver sufixo, assumimos s.whatsapp.net
+    if (!jid.includes('@')) {
+      target = `${target}@s.whatsapp.net`;
+    } else {
+      target = jid;
+    }
+
+    // Regra específica para Brasil (55) + Móvel (DDD 11-99)
+    // Se for 55 + DDD + 9 digitos (total 13), tentamos verificar.
+    // Se falhar, tentamos sem o 9 (total 12).
+    // E vice-versa.
+    const cleanNumber = target.split('@')[0];
+
+    if (cleanNumber.startsWith('55') && cleanNumber.length >= 12) {
+      try {
+        // Tenta verificar o número como está
+        const [result] = await this.sock.onWhatsApp(target);
+        if (result && result.exists) {
+          return result.jid;
+        }
+
+        // Se não existe, tentamos variação
+        // Caso 1: Tem 13 dígitos (55 + 2 + 9). Tentar remover o 9º dígito (que é o 3º caractere do DDD+Number, índice 4 considerando 55xxN...)
+        // 55 11 9 8888 7777 -> Remover o índice 4
+        if (cleanNumber.length === 13) {
+          const withoutNinth = cleanNumber.slice(0, 4) + cleanNumber.slice(5);
+          const targetWithout = `${withoutNinth}@s.whatsapp.net`;
+          const [resultWithout] = await this.sock.onWhatsApp(targetWithout);
+          if (resultWithout && resultWithout.exists) {
+            console.log(`🔄 JID corrigido (removeu 9): ${target} -> ${resultWithout.jid}`);
+            return resultWithout.jid;
+          }
+        }
+
+        // Caso 2: Tem 12 dígitos (55 + 2 + 8). Tentar adicionar o 9
+        // 55 11 8888 7777 -> Inserir 9 no índice 4
+        if (cleanNumber.length === 12) {
+          const withNinth = cleanNumber.slice(0, 4) + '9' + cleanNumber.slice(4);
+          const targetWith = `${withNinth}@s.whatsapp.net`;
+          const [resultWith] = await this.sock.onWhatsApp(targetWith);
+          if (resultWith && resultWith.exists) {
+            console.log(`🔄 JID corrigido (adicionou 9): ${target} -> ${resultWith.jid}`);
+            return resultWith.jid;
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Erro ao validar JID no WhatsApp, usando original:', e);
+      }
+    }
+
+    return target;
+  }
+
   public async sendMessage(jid: string, text: string) {
     if (!this.sock) {
       console.error('❌ Tentativa de enviar mensagem sem conexão ativa');
@@ -627,13 +692,11 @@ class WhatsAppBot {
     }
 
     try {
-      // Ensure JID has the correct suffix
-      if (!jid.includes('@')) {
-        jid = `${jid}@s.whatsapp.net`;
-      }
+      // Validar JID antes de enviar
+      const finalJid = await this.validateJid(jid);
 
-      console.log(`📤 Enviando mensagem para ${jid}: ${text.slice(0, 50)}...`);
-      await this.sock.sendMessage(jid, { text });
+      console.log(`📤 Enviando mensagem para ${finalJid}: ${text.slice(0, 50)}...`);
+      await this.sock.sendMessage(finalJid, { text });
     } catch (error) {
       console.error(`❌ Erro ao enviar mensagem para ${jid}:`, error);
     }

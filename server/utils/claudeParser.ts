@@ -51,7 +51,15 @@ Instructions:
 1. Extract event title (remove time/date references).
 2. Extract date (YYYY-MM-DD). "Amanhã" = next day. "Segunda" = next Monday.
 3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified.
-4. Extract phone numbers mentioned as 'target_phones'. MAINTAIN EXACT DIGITS from text.
+4. Extract phone numbers mentioned as 'target_phones'. FORMAT RULES:
+     - Remove all non-digit characters.
+     - DDI Default: If the number starts with DDD (2 digits from 11-99) but NO DDI, prepend '55'.
+     - Example: "11999998888" becomes "5511999998888".
+     - DDI Check: If it already starts with "55", keep it.
+     - 9th Digit: For Brazilian mobile numbers (DDD 11-99), ensure the number part has 9 digits (total 11 digits without DDI, or 13 with DDI).
+     - If a mobile number has only 8 digits (old format), insert '9' after the DDD.
+     - FINAL FORMAT MUST BE: DDI (2 digits) + DDD (2 digits) + NUMBER (9 digits) = 13 digits total (e.g. 5511999998888).
+     - Valid numbers only.
 5. Extract emails mentioned as 'attendees'.
 6. Return JSON only. DO NOT output conversational text.
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
@@ -66,7 +74,7 @@ Example Output (Reference only):
   "date": "${tomorrowExample}",
   "hour": 15,
   "minute": 0,
-  "target_phones": ["11999887766"],
+  "target_phones": ["55119999887766"],
   "attendees": [],
   "isValid": true
 }`;

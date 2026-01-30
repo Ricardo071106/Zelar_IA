@@ -41,7 +41,7 @@ export class EmailService {
     }
   }
 
-  async sendInvitation(to: string, event: Event, creatorName: string = 'Alguém'): Promise<boolean> {
+  async sendInvitation(to: string, event: Event, creatorName: string = 'Alguém', googleCalendarLink?: string): Promise<boolean> {
     const date = new Date(event.startDate).toLocaleString('pt-BR', {
       weekday: 'long',
       day: 'numeric',
@@ -66,6 +66,14 @@ export class EmailService {
           ${event.conferenceLink ? `<p style="margin: 10px 0 0;"><a href="${event.conferenceLink}" style="color: #4F46E5;">🎥 Entrar na reunião</a></p>` : ''}
         </div>
 
+        ${googleCalendarLink ? `
+        <div style="margin: 20px 0; text-align: center;">
+          <a href="${googleCalendarLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+            📅 Adicionar ao Google Calendar
+          </a>
+        </div>
+        ` : ''}
+
         <p>Este evento foi organizado com ajuda da <strong>Zelar IA</strong>.</p>
       </div>
     `;
@@ -80,6 +88,8 @@ ${event.title}
 🗓️ ${date}
 ${event.description ? `📝 ${event.description}` : ''}
 ${event.conferenceLink ? `🎥 Entrar na reunião: ${event.conferenceLink}` : ''}
+
+${googleCalendarLink ? `📅 Adicionar ao Google Calendar: ${googleCalendarLink}` : ''}
 
 Este evento foi organizado com ajuda da Zelar IA.
     `.trim();
