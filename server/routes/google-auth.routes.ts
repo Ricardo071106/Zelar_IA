@@ -29,7 +29,7 @@ const oauth2Client = CLIENT_ID && CLIENT_SECRET ? new google.auth.OAuth2(
   REDIRECT_URI
 ) : null;
 
-const SCOPES = ['https://www.googleapis.com/auth/calendar'];
+const SCOPES = ['https://www.googleapis.com/auth/calendar', 'https://www.googleapis.com/auth/userinfo.email'];
 
 /**
  * GET /api/auth/google/authorize
@@ -118,6 +118,34 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     if (!user) {
       console.error(`❌ Usuário não encontrado no callback. Platform: ${platform}, UserId: ${userId} (${typeof userId})`);
       return res.status(404).send('Usuário não encontrado');
+    }
+
+    // Tentar obter o email do usuário do Google
+    try {
+      if (CLIENT_ID && CLIENT_SECRET && REDIRECT_URI) {
+        const userInfoClient = new google.auth.OAuth2(CLIENT_ID, CLIENT_SECRET, REDIRECT_URI);
+        userInfoClient.setCredentials(tokens);
+
+        const oauth2 = google.oauth2({
+          auth: userInfoClient,
+          version: 'v2'
+        });
+
+        const { data: userInfo } = await oauth2.userinfo.get();
+
+        if (userInfo.email) {
+          // Atualiza o email do usuário
+          // Importante: Apenas se não tiver um email ou quiser sobrescrever (aqui vou atualizar sempre que vier do Google)
+          const updatedUser = await storage.updateUser(user.id, { email: userInfo.email });
+          if (updatedUser) {
+            user = updatedUser;
+            console.log(`📧 Email do usuário atualizado: ${userInfo.email}`);
+          }
+        }
+      }
+    } catch (emailError) {
+      console.error('⚠️ Falha ao obter email do Google:', emailError);
+      // Continua o fluxo normalmente mesmo se falhar ao pegar email
     }
 
     // Buscar ou criar configurações do usuário
