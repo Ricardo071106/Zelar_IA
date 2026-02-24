@@ -174,10 +174,15 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
         const whatsappBot = getWhatsAppBot();
         const jid = `${user.username}@s.whatsapp.net`;
 
-        await whatsappBot.sendMessage(jid,
+        let confirmMsg =
           '✅ *Google Calendar conectado!*\n\n' +
-          'Agora todos os eventos serão adicionados automaticamente na sua agenda 🚀'
-        );
+          'Agora todos os eventos serão adicionados automaticamente na sua agenda 🚀';
+
+        if (user.email) {
+          confirmMsg += `\n\n📧 *Email registrado:*\n${user.email}`;
+        }
+
+        await whatsappBot.sendMessage(jid, confirmMsg);
       }
     }
 

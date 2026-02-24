@@ -493,7 +493,8 @@ class WhatsAppBot {
             '• `/desconectar` - Desconecta do Google Calendar\n' +
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
-            '• `/fuso` - Configura seu fuso horário\n\n' +
+            '• `/fuso` - Configura seu fuso horário\n' +
+            '• `/email` - Ver ou atualizar seu email de notificações\n\n' +
             '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
           break;
@@ -625,6 +626,40 @@ class WhatsAppBot {
           } else {
             await storage.updateUserSettings(user.id, { timeZone: args });
             await this.sendMessage(remoteJid, `✅ Fuso alterado para ${args}`);
+          }
+          break;
+
+        case '/email':
+          if (!args) {
+            // Mostrar email atual
+            if (user.email) {
+              await this.sendMessage(remoteJid,
+                `📧 *Seu email cadastrado:* ${user.email}\n\n` +
+                `Para atualizar, use: /email novo@email.com\n` +
+                `_Dica: ao conectar o Google Calendar, seu email é atualizado automaticamente._`
+              );
+            } else {
+              await this.sendMessage(remoteJid,
+                '📧 *Nenhum email cadastrado.*\n\n' +
+                'Para adicionar, use: /email seu@email.com\n' +
+                '_Ou conecte seu Google Calendar com /conectar para cadastrar automaticamente._'
+              );
+            }
+          } else {
+            // Validar e salvar novo email
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            const newEmail = args.trim().toLowerCase();
+            if (!emailRegex.test(newEmail)) {
+              await this.sendMessage(remoteJid, '❌ Email inválido. Use o formato: /email seu@email.com');
+            } else {
+              await storage.updateUser(user.id, { email: newEmail });
+              console.log(`📧 Email atualizado manualmente para usuário ${user.username}: ${newEmail}`);
+              await this.sendMessage(remoteJid,
+                `✅ *Email atualizado com sucesso!*\n\n` +
+                `📧 ${newEmail}\n\n` +
+                `Você receberá confirmações e lembretes de eventos neste endereço.`
+              );
+            }
           }
           break;
 
