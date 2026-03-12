@@ -322,6 +322,7 @@ class WhatsAppBot {
 
     console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
     let event = await parseEvent(text, whatsappId, userTimezone);
+    const localParsedDate = parseUserDateTime(text, whatsappId);
 
     if (!event) {
       // Fallback local para evitar falhas por interpretação da IA
@@ -345,6 +346,21 @@ class WhatsAppBot {
         attendees: [],
         targetPhones: [],
       };
+    }
+
+    // Se o usuário informou horário explícito, priorizar parser local para evitar erro de hora vindo da IA.
+    if (event && localParsedDate && this.hasExplicitTime(text)) {
+      const aiDate = new Date(event.startDate);
+      const localDate = new Date(localParsedDate.iso);
+      if (!Number.isNaN(aiDate.getTime()) && !Number.isNaN(localDate.getTime())) {
+        const aiHour = aiDate.getHours();
+        const localHour = localDate.getHours();
+        if (aiHour !== localHour) {
+          console.log(`🕐 Corrigindo horário pelo parser local: IA ${aiHour}h -> Local ${localHour}h`);
+          event.startDate = localParsedDate.iso;
+          event.displayDate = localParsedDate.readable;
+        }
+      }
     }
 
     // =========================================================================
@@ -457,7 +473,7 @@ class WhatsAppBot {
 
           // Normalizar IDs para comparação numérica pura (remove @s.whatsapp.net e outros caracteres)
           const guestIdOnly = guestJid.split('@')[0].replace(/\D/g, '');
-          const creatorIdOnly = remoteJid.split('@')[0].replace(/\D/g, '');
+          const creatorIdOnly = whatsappId.replace(/\D/g, '');
 
           // Pula se for o mesmo número (evita mandar "você foi convidado" para o criador)
           if (guestIdOnly === creatorIdOnly) {
@@ -517,7 +533,7 @@ class WhatsAppBot {
       }
 
       if (phones && phones.length > 0) {
-        const creatorPhone = remoteJid.replace(/\D/g, '');
+        const creatorPhone = whatsappId.replace(/\D/g, '');
         const otherGuests = phones.filter((p: string) => p.replace(/\D/g, '') !== creatorPhone);
 
         if (otherGuests.length > 0) {
@@ -860,6 +876,13 @@ class WhatsAppBot {
       // agenda próxima verificação caso continue sem conexão
       this.scheduleQrRecoveryCheck(version);
     }, 30000);
+  }
+
+  private hasExplicitTime(text: string): boolean {
+    const lower = text.toLowerCase();
+    return /(?:\bàs?\s*)?\d{1,2}(?::\d{2})?\s*h?\b/.test(lower)
+      || /\b\d{1,2}\s*(am|pm)\b/.test(lower)
+      || /\b(da manhã|de manhã|da tarde|de tarde|da noite|de noite)\b/.test(lower);
   }
 
   private getMessageTimestampMs(msg: any): number | null {
