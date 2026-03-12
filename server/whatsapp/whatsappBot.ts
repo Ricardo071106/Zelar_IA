@@ -41,6 +41,7 @@ class WhatsAppBot {
   private authPath = '';
   private isConnected = false;
   private lastQrCode: string | null = null;
+  private qrRecoveryAttempts = 0;
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
@@ -68,6 +69,7 @@ class WhatsAppBot {
       console.log(`WhatsApp version: ${version.join('.')} (latest: ${isLatest})`);
 
       this.startSock(version);
+      this.scheduleQrRecoveryCheck(version);
 
     } catch (error) {
       console.error('Erro ao inicializar WhatsApp Bot:', error);
@@ -103,6 +105,7 @@ class WhatsAppBot {
 
       if (connection === 'close') {
         this.isConnected = false;
+        this.lastQrCode = null;
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         console.log('Conexão fechada devido a ', lastDisconnect?.error, ', status: ', statusCode);
@@ -121,6 +124,7 @@ class WhatsAppBot {
       } else if (connection === 'open') {
         this.isConnected = true;
         this.lastQrCode = null;
+        this.qrRecoveryAttempts = 0;
         console.log('✅ Conexão WhatsApp aberta!');
       }
     });
@@ -768,6 +772,21 @@ class WhatsAppBot {
     } catch (error) {
       console.error('❌ Erro ao limpar credenciais do WhatsApp:', error);
     }
+  }
+
+  private scheduleQrRecoveryCheck(version?: any) {
+    setTimeout(() => {
+      if (this.isConnected || this.lastQrCode) return;
+      if (this.qrRecoveryAttempts >= 2) return;
+
+      this.qrRecoveryAttempts += 1;
+      console.log(`⚠️ Sem conexão e sem QR. Forçando regeneração (tentativa ${this.qrRecoveryAttempts})...`);
+      this.clearAuthState();
+      this.startSock(version);
+
+      // agenda próxima verificação caso continue sem conexão
+      this.scheduleQrRecoveryCheck(version);
+    }, 30000);
   }
 }
 
