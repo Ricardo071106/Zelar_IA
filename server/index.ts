@@ -9,6 +9,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import { createServer } from "http";
+import schedule from "node-schedule";
 import { registerRoutes } from "./routes";
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { startDirectBot } from "./telegram/direct_bot";
@@ -96,6 +97,26 @@ process.on('unhandledRejection', (reason, promise) => {
 // =================== CONFIGURAÇÕES DE TIMEOUT ===================
 const TIMEOUT_MS = 30000; // 30 segundos
 
+function setupDailyRestart(): void {
+  const enabled = process.env.AUTO_RESTART_AT_MIDNIGHT === 'true';
+  if (!enabled) return;
+
+  const timezone = process.env.AUTO_RESTART_TZ || 'America/Sao_Paulo';
+  const cron = process.env.AUTO_RESTART_CRON || '0 0 * * *';
+
+  const job = schedule.scheduleJob({ rule: cron, tz: timezone }, () => {
+    log(`🔄 Reinício automático acionado (${timezone}, cron: ${cron})`);
+    // Pequeno atraso para garantir flush de logs
+    setTimeout(() => process.exit(0), 1000);
+  });
+
+  if (job) {
+    log(`⏱️ Reinício diário habilitado (${timezone}, cron: ${cron})`);
+  } else {
+    log('⚠️ Falha ao agendar reinício automático', 'warn');
+  }
+}
+
 // Health check interno rápido (não passa pelas rotas)
 app.get('/_health', (req, res) => {
   res.json({
@@ -132,6 +153,7 @@ async function startServer() {
     // Inicializar bots apenas se as variáveis estiverem configuradas
     const botsInitialized = await initializeBots();
     await reminderService.start();
+    setupDailyRestart();
 
     // Validar e iniciar servidor
     const port = validatePort(process.env.PORT);

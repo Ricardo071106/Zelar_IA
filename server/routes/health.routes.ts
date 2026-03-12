@@ -84,4 +84,47 @@ router.get('/detailed', asyncHandler(async (req: Request, res: Response) => {
   });
 }));
 
+/**
+ * POST /health/restart
+ * Reinício controlado do processo (uso com cron externo).
+ */
+router.post('/restart', asyncHandler(async (req: Request, res: Response) => {
+  const expectedToken = process.env.RESTART_WEBHOOK_TOKEN;
+  if (!expectedToken) {
+    return res.status(503).json({
+      success: false,
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Reinício remoto desabilitado',
+      }
+    });
+  }
+
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+
+  if (token !== expectedToken) {
+    return res.status(401).json({
+      success: false,
+      error: {
+        code: 'UNAUTHORIZED',
+        message: 'Token inválido',
+      }
+    });
+  }
+
+  res.json({
+    success: true,
+    data: {
+      message: 'Reinício agendado',
+      timestamp: new Date().toISOString(),
+    }
+  });
+
+  // Aguarda resposta HTTP ser enviada antes de finalizar o processo.
+  setTimeout(() => {
+    process.exit(0);
+  }, 1000);
+}));
+
 export default router;

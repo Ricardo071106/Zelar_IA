@@ -28,6 +28,9 @@ This guide explains how to deploy the Zelar IA application to [Render](https://r
     - **Other Variables**:
         - `DATABASE_URL`: Your production database connection string.
         - `NODE_ENV`: `production`
+        - `WHATSAPP_AUTH_DIR`: `/opt/render/project/src/.whatsapp-auth` (for session persistence)
+        - `RESTART_WEBHOOK_TOKEN`: secret token used by restart webhook
+        - `RESTART_WEBHOOK_URL`: full URL for `POST /health/restart`
 
 4.  **Database**:
     - Render provides managed PostgreSQL. You can create one and link it, or use an external provider (like Neon, Supabase, or Railway).
@@ -40,3 +43,11 @@ This guide explains how to deploy the Zelar IA application to [Render](https://r
 
 - This setup uses a **Docker** environment to ensure all system dependencies for Puppeteer (Chrome) are present.
 - The `Dockerfile` installs `google-chrome-stable` and fonts, so the bot can generate QR codes and render pages correctly.
+- To persist WhatsApp login between restarts, attach a **Render Disk** and mount it to the same path configured in `WHATSAPP_AUTH_DIR`.
+- For daily midnight restarts, use the cron service defined in `render.yaml` and point `RESTART_WEBHOOK_URL` to:
+  - `https://<your-service-domain>/health/restart`
+  - with `Authorization: Bearer <RESTART_WEBHOOK_TOKEN>`
+- Simpler option (without Render Cron): enable internal restart in the app:
+  - `AUTO_RESTART_AT_MIDNIGHT=true`
+  - `AUTO_RESTART_TZ=America/Sao_Paulo`
+  - `AUTO_RESTART_CRON=0 0 * * *`

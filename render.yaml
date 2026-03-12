@@ -4,6 +4,10 @@ services:
     env: docker
     plan: free
     branch: main
+    disk:
+      name: whatsapp-auth
+      mountPath: /opt/render/project/src/.whatsapp-auth
+      sizeGB: 1
     envVars:
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: true
@@ -11,3 +15,22 @@ services:
         value: /usr/bin/google-chrome-stable
       - key: NODE_ENV
         value: production
+      - key: WHATSAPP_AUTH_DIR
+        value: /opt/render/project/src/.whatsapp-auth
+      - key: RESTART_WEBHOOK_TOKEN
+        sync: false
+      - key: RESTART_WEBHOOK_URL
+        sync: false
+
+  - type: cron
+    name: zelar-ia-midnight-restart
+    env: node
+    plan: free
+    schedule: "0 0 * * *"
+    buildCommand: npm install
+    startCommand: 'curl -fsS -X POST "$RESTART_WEBHOOK_URL" -H "Authorization: Bearer $RESTART_WEBHOOK_TOKEN"'
+    envVars:
+      - key: RESTART_WEBHOOK_TOKEN
+        sync: false
+      - key: RESTART_WEBHOOK_URL
+        sync: false

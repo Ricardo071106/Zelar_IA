@@ -67,6 +67,47 @@ export interface Event {
   targetPhones?: string[];
 }
 
+function normalizeBrazilianPhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+
+  let normalized = digits;
+  if (normalized.startsWith('0')) {
+    normalized = normalized.replace(/^0+/, '');
+  }
+
+  // DDD + 9 dígitos (11): adiciona DDI 55
+  if (normalized.length === 11 && /^[1-9]{2}9\d{8}$/.test(normalized)) {
+    return `55${normalized}`;
+  }
+
+  // DDI 55 + DDD + 9 dígitos (13): já está no padrão
+  if (normalized.length === 13 && /^55[1-9]{2}9\d{8}$/.test(normalized)) {
+    return normalized;
+  }
+
+  // DDD + 8 dígitos (10): formato antigo, adiciona 9
+  if (normalized.length === 10 && /^[1-9]{2}\d{8}$/.test(normalized)) {
+    return `55${normalized.slice(0, 2)}9${normalized.slice(2)}`;
+  }
+
+  // DDI 55 + DDD + 8 dígitos (12): formato antigo, adiciona 9
+  if (normalized.length === 12 && /^55[1-9]{2}\d{8}$/.test(normalized)) {
+    return `${normalized.slice(0, 4)}9${normalized.slice(4)}`;
+  }
+
+  return null;
+}
+
+function extractPhonesFromText(text: string): string[] {
+  const phoneCandidates = text.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4})[-\s]?\d{4}/g) || [];
+  const normalized = phoneCandidates
+    .map((candidate) => normalizeBrazilianPhone(candidate))
+    .filter((phone): phone is string => !!phone);
+
+  return [...new Set(normalized)];
+}
+
 /**
  * Verifica se existe um padrão similar aprendido
  */
@@ -241,16 +282,25 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       minute: claudeResult.minute
     }, { zone: userTimezone });
 
+    const phonesFromText = extractPhonesFromText(text);
+    const phonesFromClaude = (claudeResult.target_phones || [])
+      .map((phone) => normalizeBrazilianPhone(phone))
+      .filter((phone): phone is string => !!phone);
+
+    // Proteção contra alucinação de telefone: só aceita telefone que apareceu no texto.
+    // Se Claude não retornar telefone, usamos os encontrados via regex local.
+    const filteredPhones = phonesFromClaude.length > 0
+      ? phonesFromClaude.filter((phone) => phonesFromText.includes(phone))
+      : phonesFromText;
+
     event = {
       title: claudeResult.title,
       startDate: eventDate.toISO() || eventDate.toString(),
       description: claudeResult.title,
       displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
       attendees: claudeResult.attendees,
+      targetPhones: [...new Set(filteredPhones)],
     };
-
-    // Adicionando extended props para uso posterior
-    (event as any).targetPhones = claudeResult.target_phones;
 
     console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
   } else {
@@ -292,8 +342,43 @@ export function generateLinks(event: Event) {
 
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}${serializeGoogleAttendees(event.attendees)}`;
   const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}${serializeOutlookAttendees(event.attendees)}`;
+  const ics = generateIcsDataUrl(eventDateTime, endDateTime, event);
 
-  return { google, outlook };
+  return { google, outlook, ics };
+}
+
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/\n/g, '\\n')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;');
+}
+
+function generateIcsDataUrl(start: DateTime, end: DateTime, event: Event): string {
+  const uid = `${Date.now()}@zelar.ia`;
+  const dtStamp = DateTime.utc().toFormat("yyyyMMdd'T'HHmmss'Z'");
+  const dtStart = start.toUTC().toFormat("yyyyMMdd'T'HHmmss'Z'");
+  const dtEnd = end.toUTC().toFormat("yyyyMMdd'T'HHmmss'Z'");
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Zelar IA//Agenda//PT-BR',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${dtStamp}`,
+    `DTSTART:${dtStart}`,
+    `DTEND:${dtEnd}`,
+    `SUMMARY:${escapeIcsText(event.title || 'Evento')}`,
+    `DESCRIPTION:${escapeIcsText(event.description || event.title || '')}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ];
+
+  return `data:text/calendar;charset=utf-8,${encodeURIComponent(lines.join('\r\n'))}`;
 }
 
 function serializeGoogleAttendees(attendees?: string[]): string {

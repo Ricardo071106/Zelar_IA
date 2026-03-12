@@ -39,6 +39,7 @@ class WhatsAppBot {
   private saveCreds: any = null;
   private isInitializing = false;
   private processedMsgIds = new Set<string>();
+  private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
 
   async initialize() {
@@ -48,7 +49,9 @@ class WhatsAppBot {
     try {
       console.log('🤖 Inicializando WhatsApp Bot...');
 
-      const authPath = path.resolve(__dirname, 'auth_info_baileys');
+      const authPath = process.env.WHATSAPP_AUTH_DIR
+        ? path.resolve(process.env.WHATSAPP_AUTH_DIR)
+        : path.resolve(__dirname, 'auth_info_baileys');
       if (!fs.existsSync(authPath)) {
         fs.mkdirSync(authPath, { recursive: true });
       }
@@ -142,6 +145,23 @@ class WhatsAppBot {
           const whatsappId = normalizedJid.replace(/\D/g, ''); // Garante apenas números
 
           console.log(`🆔 ID Extraído: ${whatsappId} (Original usado: ${targetJid})`);
+
+          // Deduplicação por conteúdo para casos em que o provedor entrega IDs diferentes
+          const fingerprint = `${msg.key.remoteJid}|${whatsappId}|${text.trim().toLowerCase()}`;
+          const now = Date.now();
+          const existing = this.processedFingerprints.get(fingerprint);
+          if (existing && (now - existing) < 15000) {
+            console.log(`🔄 Mensagem duplicada por fingerprint ignorada: ${fingerprint}`);
+            continue;
+          }
+          this.processedFingerprints.set(fingerprint, now);
+
+          // Limpeza simples de fingerprints antigos
+          for (const [key, timestamp] of this.processedFingerprints.entries()) {
+            if (now - timestamp > 60000) {
+              this.processedFingerprints.delete(key);
+            }
+          }
 
           await this.handleMessage(msg.key.remoteJid, whatsappId, text, msg);
 
@@ -312,7 +332,6 @@ class WhatsAppBot {
       // (Bloco de responseText original removido - será construído mais abaixo)
 
       // 4.2. Integração com Google Calendar
-      let googleLink = '';
       let isSyncedWithGoogle = false;
 
       if (userSettings?.googleTokens) {
@@ -335,18 +354,10 @@ class WhatsAppBot {
             }
           } else {
             console.error(`⚠️ Falha no Google Calendar: ${googleResult.message}`);
-            // Fallback links se falhar
-            const links = generateLinks(event);
-            googleLink = links.google;
           }
         } catch (error) {
           console.error('Erro Google Calendar:', error);
-          const links = generateLinks(event);
-          googleLink = links.google;
         }
-      } else {
-        const links = generateLinks(event);
-        googleLink = links.google;
       }
 
       // =================== 4.3. NOTIFICAÇÕES (GUESTS vs CREATOR) ===================
@@ -354,7 +365,7 @@ class WhatsAppBot {
       // A) NOTIFICAR CONVIDADOS (Guests)
       if (phones && phones.length > 0) {
         const guestLinks = generateLinks(event);
-        const guestLinkMsg = guestLinks.google; // Priorizando Google Link para simplicidade
+        const guestLinkMsg = guestLinks.ics;
 
         for (const phone of phones) {
           // Normalizar telefone (remover @s.whatsapp.net se vier)
@@ -376,7 +387,7 @@ class WhatsAppBot {
             `📅 *Você foi convidado para um evento!*\n\n` +
             `📝 *${event.title}*\n` +
             `🗓️ ${event.displayDate}\n\n` +
-            `🔗 *Adicionar ao seu calendário:*\n${guestLinkMsg}\n\n` +
+            `📎 *Arquivo .ICS para adicionar ao calendário:*\n${guestLinkMsg}\n\n` +
             `_Enviado via Zelar IA pelo anfitrião_`
           );
         }
@@ -387,12 +398,12 @@ class WhatsAppBot {
       if (emails && emails.length > 0 && !isSyncedWithGoogle) {
         // Gerar links para o convidado também (pois não é sync automático)
         const guestLinks = generateLinks(event);
-        const guestGoogleLink = guestLinks.google;
+        const guestIcsLink = guestLinks.ics;
 
         for (const email of emails) {
           console.log(`📧 Enviando convite por email para: ${email}`);
           try {
-            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestGoogleLink);
+            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink);
           } catch (e) {
             console.error(`❌ Erro ao enviar email para ${email}`, e);
           }
@@ -423,7 +434,7 @@ class WhatsAppBot {
 
       if (phones && phones.length > 0) {
         const creatorPhone = remoteJid.replace(/\D/g, '');
-        const otherGuests = phones.filter((p: string) => p !== creatorPhone);
+        const otherGuests = phones.filter((p: string) => p.replace(/\D/g, '') !== creatorPhone);
 
         if (otherGuests.length > 0) {
           responseText += '\n📱 *Convidados Notificados:*\n' + otherGuests.map((p: string) => `• ${p}`).join('\n');
@@ -438,7 +449,8 @@ class WhatsAppBot {
           responseText += `\n📹 Meet: ${evtWithLink.conferenceLink}`;
         }
       } else {
-        responseText += `\n\n🔗 *Adicione ao seu calendário:*\n${googleLink}`;
+        const links = generateLinks(event);
+        responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
       }
 
       // 4.4. Criar Lembrete Automático (12h antes) 
@@ -493,8 +505,7 @@ class WhatsAppBot {
             '• `/desconectar` - Desconecta do Google Calendar\n' +
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
-            '• `/fuso` - Configura seu fuso horário\n' +
-            '• `/email` - Ver ou atualizar seu email de notificações\n\n' +
+            '• `/fuso` - Configura seu fuso horário\n\n' +
             '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
           break;
@@ -626,40 +637,6 @@ class WhatsAppBot {
           } else {
             await storage.updateUserSettings(user.id, { timeZone: args });
             await this.sendMessage(remoteJid, `✅ Fuso alterado para ${args}`);
-          }
-          break;
-
-        case '/email':
-          if (!args) {
-            // Mostrar email atual
-            if (user.email) {
-              await this.sendMessage(remoteJid,
-                `📧 *Seu email cadastrado:* ${user.email}\n\n` +
-                `Para atualizar, use: /email novo@email.com\n` +
-                `_Dica: ao conectar o Google Calendar, seu email é atualizado automaticamente._`
-              );
-            } else {
-              await this.sendMessage(remoteJid,
-                '📧 *Nenhum email cadastrado.*\n\n' +
-                'Para adicionar, use: /email seu@email.com\n' +
-                '_Ou conecte seu Google Calendar com /conectar para cadastrar automaticamente._'
-              );
-            }
-          } else {
-            // Validar e salvar novo email
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            const newEmail = args.trim().toLowerCase();
-            if (!emailRegex.test(newEmail)) {
-              await this.sendMessage(remoteJid, '❌ Email inválido. Use o formato: /email seu@email.com');
-            } else {
-              await storage.updateUser(user.id, { email: newEmail });
-              console.log(`📧 Email atualizado manualmente para usuário ${user.username}: ${newEmail}`);
-              await this.sendMessage(remoteJid,
-                `✅ *Email atualizado com sucesso!*\n\n` +
-                `📧 ${newEmail}\n\n` +
-                `Você receberá confirmações e lembretes de eventos neste endereço.`
-              );
-            }
           }
           break;
 
