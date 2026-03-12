@@ -338,12 +338,23 @@ class WhatsAppBot {
         (event as any).targetPhones.push(whatsappId);
       }
 
+      const parsedStartDate = new Date(event.startDate);
+      if (Number.isNaN(parsedStartDate.getTime())) {
+        console.warn(`⚠️ Data inválida recebida do parser: ${event.startDate}`);
+        await this.sendMessage(remoteJid,
+          '❌ Não consegui entender a data/hora desse compromisso.\n\n' +
+          'Tente novamente com um formato como:\n' +
+          '*"Reunião amanhã às 15h"*.'
+        );
+        return;
+      }
+
       // 4.1. Salvar no Banco de Dados
       const newEvent = await storage.createEvent({
         userId: user.id,
-        title: event.title,
+        title: event.title || 'Evento',
         description: event.description || '',
-        startDate: new Date(event.startDate),
+        startDate: parsedStartDate,
         attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
         attendeeEmails: event.attendees || [], // Salvando emails identificados
         rawData: JSON.parse(JSON.stringify(event)),
@@ -477,15 +488,25 @@ class WhatsAppBot {
         responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
       }
 
-      // 4.4. Criar Lembrete Automático (12h antes) 
-      await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
+      // 4.4. Criar lembretes sem quebrar criação do evento
+      let reminderCreated = false;
+      try {
+        await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
+        reminderCreated = true;
 
-      // Criar lembrete por email se houver convidados por email OU se o criador tiver email
-      if ((emails && emails.length > 0) || user.email) {
-        await reminderService.ensureDefaultReminder(newEvent as any, 'email');
+        // Criar lembrete por email se houver convidados por email OU se o criador tiver email
+        if ((emails && emails.length > 0) || user.email) {
+          await reminderService.ensureDefaultReminder(newEvent as any, 'email');
+        }
+      } catch (reminderError) {
+        console.error('⚠️ Erro ao criar lembrete automático (evento mantido):', reminderError);
       }
 
-      responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
+      if (reminderCreated) {
+        responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
+      } else {
+        responseText += `\n\n⚠️ Evento criado, mas o lembrete automático não foi configurado.`;
+      }
 
       await this.sendMessage(remoteJid, responseText);
 
