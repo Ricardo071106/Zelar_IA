@@ -13,7 +13,7 @@ import { fileURLToPath } from 'url';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { DateTime } from 'luxon';
-import { parseEvent, generateLinks, Event as ParsedEvent } from '../services/eventParser';
+import { parseEvent, generateLinks, extractEventTitle } from '../services/eventParser';
 import {
   setUserTimezone,
   getUserTimezone,
@@ -312,18 +312,30 @@ class WhatsAppBot {
     const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
 
     console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-    const event = await parseEvent(text, whatsappId, userTimezone);
+    let event = await parseEvent(text, whatsappId, userTimezone);
 
     if (!event) {
-      // Se não for um evento claro, envia mensagem de ajuda gentil
-      console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
-      await this.sendMessage(remoteJid,
-        '❓ Desculpe, não entendi.\n\n' +
-        'Estou aqui para agendar seus compromissos. Tente dizer algo como:\n' +
-        '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h com Dr. Silva"*.\n\n' +
-        'Use /ajuda para ver o que posso fazer! 🤖'
-      );
-      return;
+      // Fallback local para evitar falhas por interpretação da IA
+      const fallbackDate = parseUserDateTime(text, whatsappId);
+      if (!fallbackDate) {
+        console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
+        await this.sendMessage(remoteJid,
+          '❓ Não consegui entender a data/hora.\n\n' +
+          'Tente assim:\n' +
+          '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h"*.\n\n' +
+          'Use /ajuda para ver mais exemplos.'
+        );
+        return;
+      }
+
+      event = {
+        title: extractEventTitle(text) || 'Evento',
+        startDate: fallbackDate.iso,
+        description: text,
+        displayDate: fallbackDate.readable,
+        attendees: [],
+        targetPhones: [],
+      };
     }
 
     // =========================================================================
@@ -340,13 +352,19 @@ class WhatsAppBot {
 
       const parsedStartDate = new Date(event.startDate);
       if (Number.isNaN(parsedStartDate.getTime())) {
-        console.warn(`⚠️ Data inválida recebida do parser: ${event.startDate}`);
-        await this.sendMessage(remoteJid,
-          '❌ Não consegui entender a data/hora desse compromisso.\n\n' +
-          'Tente novamente com um formato como:\n' +
-          '*"Reunião amanhã às 15h"*.'
-        );
-        return;
+        const fallbackDate = parseUserDateTime(text, whatsappId);
+        if (!fallbackDate) {
+          console.warn(`⚠️ Data inválida recebida do parser sem fallback: ${event.startDate}`);
+          await this.sendMessage(remoteJid,
+            '❌ Não consegui entender a data/hora desse compromisso.\n\n' +
+            'Tente novamente com um formato como:\n' +
+            '*"Reunião amanhã às 15h"*.'
+          );
+          return;
+        }
+
+        event.startDate = fallbackDate.iso;
+        event.displayDate = fallbackDate.readable;
       }
 
       // 4.1. Salvar no Banco de Dados
