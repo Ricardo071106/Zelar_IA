@@ -38,6 +38,9 @@ class WhatsAppBot {
   private authState: any = null;
   private saveCreds: any = null;
   private isInitializing = false;
+  private authPath = '';
+  private isConnected = false;
+  private lastQrCode: string | null = null;
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
@@ -52,6 +55,7 @@ class WhatsAppBot {
       const authPath = process.env.WHATSAPP_AUTH_DIR
         ? path.resolve(process.env.WHATSAPP_AUTH_DIR)
         : path.resolve(__dirname, 'auth_info_baileys');
+      this.authPath = authPath;
       if (!fs.existsSync(authPath)) {
         fs.mkdirSync(authPath, { recursive: true });
       }
@@ -87,7 +91,10 @@ class WhatsAppBot {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
+        this.lastQrCode = qr;
         console.log('QR Code recebido:');
+        const qrWebUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}`;
+        console.log(`🔗 QR (imagem): ${qrWebUrl}`);
         QRCode.toString(qr, { type: 'terminal', small: true }, (err, url) => {
           if (err) console.error(err);
           console.log(url);
@@ -95,12 +102,25 @@ class WhatsAppBot {
       }
 
       if (connection === 'close') {
-        const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-        console.log('Conexão fechada devido a ', lastDisconnect?.error, ', reconectar: ', shouldReconnect);
+        this.isConnected = false;
+        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+        const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+        console.log('Conexão fechada devido a ', lastDisconnect?.error, ', status: ', statusCode);
+
+        if (isLoggedOut) {
+          console.log('🔓 Sessão WhatsApp encerrada. Limpando credenciais e gerando novo QR...');
+          this.clearAuthState();
+          setTimeout(() => this.initialize(), 1000);
+          return;
+        }
+
+        const shouldReconnect = true;
         if (shouldReconnect) {
           this.startSock(version);
         }
       } else if (connection === 'open') {
+        this.isConnected = true;
+        this.lastQrCode = null;
         console.log('✅ Conexão WhatsApp aberta!');
       }
     });
@@ -726,6 +746,27 @@ class WhatsAppBot {
       await this.sock.sendMessage(finalJid, { text });
     } catch (error) {
       console.error(`❌ Erro ao enviar mensagem para ${jid}:`, error);
+    }
+  }
+
+  public getStatus() {
+    return {
+      isConnected: this.isConnected,
+      qrCode: this.lastQrCode,
+      clientInfo: this.sock?.user || null,
+    };
+  }
+
+  private clearAuthState() {
+    if (!this.authPath) return;
+    try {
+      if (fs.existsSync(this.authPath)) {
+        fs.rmSync(this.authPath, { recursive: true, force: true });
+      }
+      fs.mkdirSync(this.authPath, { recursive: true });
+      console.log('🧹 Credenciais antigas removidas com sucesso.');
+    } catch (error) {
+      console.error('❌ Erro ao limpar credenciais do WhatsApp:', error);
     }
   }
 }
