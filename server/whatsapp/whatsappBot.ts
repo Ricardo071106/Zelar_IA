@@ -411,6 +411,28 @@ class WhatsAppBot {
         }
       }
 
+      // Se houver horário explícito no texto, ele sempre prevalece.
+      const explicitTime = this.extractExplicitTimeFromText(text);
+      if (explicitTime) {
+        const adjusted = DateTime.fromJSDate(finalStartDate)
+          .setZone(userTimezone)
+          .set({
+            hour: explicitTime.hour,
+            minute: explicitTime.minute,
+            second: 0,
+            millisecond: 0
+          });
+
+        if (adjusted.isValid) {
+          finalStartDate = adjusted.toJSDate();
+          event.startDate = adjusted.toISO() || finalStartDate.toISOString();
+          event.displayDate = adjusted
+            .setLocale('pt-BR')
+            .toFormat("EEEE, dd 'de' MMMM 'às' HH:mm");
+          console.log(`🕐 Horário explícito aplicado: ${explicitTime.hour}:${String(explicitTime.minute).padStart(2, '0')}`);
+        }
+      }
+
       // 4.1. Salvar no Banco de Dados
       const newEvent = await storage.createEvent({
         userId: user.id,
@@ -883,6 +905,33 @@ class WhatsAppBot {
     return /(?:\bàs?\s*)?\d{1,2}(?::\d{2})?\s*h?\b/.test(lower)
       || /\b\d{1,2}\s*(am|pm)\b/.test(lower)
       || /\b(da manhã|de manhã|da tarde|de tarde|da noite|de noite)\b/.test(lower);
+  }
+
+  private extractExplicitTimeFromText(text: string): { hour: number; minute: number } | null {
+    const lower = text.toLowerCase();
+
+    let match = lower.match(/\b(?:às|as)?\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+    if (match) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
+
+    match = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+    if (match) {
+      let hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      const period = match[3];
+      if (period === 'pm' && hour < 12) hour += 12;
+      if (period === 'am' && hour === 12) hour = 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
+
+    return null;
   }
 
   private getMessageTimestampMs(msg: any): number | null {
