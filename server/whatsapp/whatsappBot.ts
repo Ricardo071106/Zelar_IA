@@ -42,6 +42,7 @@ class WhatsAppBot {
   private isConnected = false;
   private lastQrCode: string | null = null;
   private qrRecoveryAttempts = 0;
+  private socketStartedAtMs = 0;
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
@@ -79,6 +80,7 @@ class WhatsAppBot {
   }
 
   private startSock(version?: any) {
+    this.socketStartedAtMs = Date.now();
     this.sock = makeWASocket({
       version: version,
       printQRInTerminal: false,
@@ -134,6 +136,13 @@ class WhatsAppBot {
 
       for (const msg of messages) {
         if (!msg.message || msg.key.fromMe) continue;
+
+        // Ignora backlog antigo entregue após reconexão/restart (causa respostas duplicadas no primeiro envio).
+        const msgTimestampMs = this.getMessageTimestampMs(msg);
+        if (msgTimestampMs && msgTimestampMs < (this.socketStartedAtMs - 15000)) {
+          console.log(`⏭️ Ignorando mensagem antiga de backlog (${new Date(msgTimestampMs).toISOString()})`);
+          continue;
+        }
 
         // Deduplicação: ignora se já processamos este ID recentemente
         if (msg.key.id && this.processedMsgIds.has(msg.key.id)) {
@@ -350,8 +359,8 @@ class WhatsAppBot {
         (event as any).targetPhones.push(whatsappId);
       }
 
-      const parsedStartDate = new Date(event.startDate);
-      if (Number.isNaN(parsedStartDate.getTime())) {
+      let finalStartDate = new Date(event.startDate);
+      if (Number.isNaN(finalStartDate.getTime())) {
         const fallbackDate = parseUserDateTime(text, whatsappId);
         if (!fallbackDate) {
           console.warn(`⚠️ Data inválida recebida do parser sem fallback: ${event.startDate}`);
@@ -365,6 +374,25 @@ class WhatsAppBot {
 
         event.startDate = fallbackDate.iso;
         event.displayDate = fallbackDate.readable;
+        finalStartDate = new Date(event.startDate);
+      }
+
+      // Sanidade de ano/data: se IA vier com ano inconsistente e sem ano explícito no texto, usa fallback local.
+      const fallbackDate = parseUserDateTime(text, whatsappId);
+      const hasExplicitYear = /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b20\d{2}\b/.test(text);
+      if (fallbackDate) {
+        const fallbackStart = new Date(fallbackDate.iso);
+        const now = new Date();
+        const aiInPast = finalStartDate.getTime() < (now.getTime() - 6 * 60 * 60 * 1000);
+        const fallbackInFuture = fallbackStart.getTime() > now.getTime();
+        const yearMismatch = finalStartDate.getFullYear() !== fallbackStart.getFullYear();
+
+        if (!hasExplicitYear && (yearMismatch || (aiInPast && fallbackInFuture))) {
+          console.log(`🛠️ Ajustando data para fallback local: ${event.startDate} -> ${fallbackDate.iso}`);
+          event.startDate = fallbackDate.iso;
+          event.displayDate = fallbackDate.readable;
+          finalStartDate = fallbackStart;
+        }
       }
 
       // 4.1. Salvar no Banco de Dados
@@ -372,7 +400,7 @@ class WhatsAppBot {
         userId: user.id,
         title: event.title || 'Evento',
         description: event.description || '',
-        startDate: parsedStartDate,
+        startDate: finalStartDate,
         attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
         attendeeEmails: event.attendees || [], // Salvando emails identificados
         rawData: JSON.parse(JSON.stringify(event)),
@@ -386,6 +414,7 @@ class WhatsAppBot {
 
       // 4.2. Integração com Google Calendar
       let isSyncedWithGoogle = false;
+      let googleSyncErrorMessage = '';
 
       if (userSettings?.googleTokens) {
         try {
@@ -407,9 +436,11 @@ class WhatsAppBot {
             }
           } else {
             console.error(`⚠️ Falha no Google Calendar: ${googleResult.message}`);
+            googleSyncErrorMessage = googleResult.message;
           }
         } catch (error) {
           console.error('Erro Google Calendar:', error);
+          googleSyncErrorMessage = 'Falha ao sincronizar com Google Calendar.';
         }
       }
 
@@ -504,6 +535,9 @@ class WhatsAppBot {
       } else {
         const links = generateLinks(event);
         responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
+        if (userSettings?.googleTokens && googleSyncErrorMessage) {
+          responseText += `\n\n⚠️ *Google Calendar não sincronizou:* ${googleSyncErrorMessage}\nUse */conectar* para reautorizar se necessário.`;
+        }
       }
 
       // 4.4. Criar lembretes sem quebrar criação do evento
@@ -826,6 +860,25 @@ class WhatsAppBot {
       // agenda próxima verificação caso continue sem conexão
       this.scheduleQrRecoveryCheck(version);
     }, 30000);
+  }
+
+  private getMessageTimestampMs(msg: any): number | null {
+    const ts = msg?.messageTimestamp;
+    if (!ts) return null;
+    if (typeof ts === 'number') return ts * 1000;
+    if (typeof ts === 'string') {
+      const n = Number(ts);
+      return Number.isFinite(n) ? n * 1000 : null;
+    }
+    if (typeof ts === 'object') {
+      const low = (ts as any).low;
+      if (typeof low === 'number') return low * 1000;
+      if (typeof (ts as any).toNumber === 'function') {
+        const n = (ts as any).toNumber();
+        return Number.isFinite(n) ? n * 1000 : null;
+      }
+    }
+    return null;
   }
 }
 
