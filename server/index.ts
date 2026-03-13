@@ -98,7 +98,13 @@ process.on('unhandledRejection', (reason, promise) => {
 const TIMEOUT_MS = 30000; // 30 segundos
 
 function setupDailyRestart(): void {
-  const enabled = process.env.AUTO_RESTART_AT_MIDNIGHT === 'true';
+  const restartRequested = process.env.AUTO_RESTART_AT_MIDNIGHT === 'true';
+  const forceEnabled = process.env.AUTO_RESTART_FORCE_ENABLE === 'true';
+  const enabled = restartRequested && forceEnabled;
+
+  if (restartRequested && !forceEnabled) {
+    log('⏸️ Reinício automático está solicitado, mas desativado por segurança (AUTO_RESTART_FORCE_ENABLE != true).', 'warn');
+  }
   if (!enabled) return;
 
   const timezone = process.env.AUTO_RESTART_TZ || 'America/Sao_Paulo';
