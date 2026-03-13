@@ -361,21 +361,6 @@ class WhatsAppBot {
       };
     }
 
-    // Se o usuário informou horário explícito, priorizar parser local para evitar erro de hora vindo da IA.
-    if (event && localParsedDate && this.hasExplicitTime(text)) {
-      const aiDate = new Date(event.startDate);
-      const localDate = new Date(localParsedDate.iso);
-      if (!Number.isNaN(aiDate.getTime()) && !Number.isNaN(localDate.getTime())) {
-        const aiHour = aiDate.getHours();
-        const localHour = localDate.getHours();
-        if (aiHour !== localHour) {
-          console.log(`🕐 Corrigindo horário pelo parser local: IA ${aiHour}h -> Local ${localHour}h`);
-          event.startDate = localParsedDate.iso;
-          event.displayDate = localParsedDate.readable;
-        }
-      }
-    }
-
     // =========================================================================
     // 4. CRIAÇÃO DE EVENTO E INTEGRAÇÕES
     // =========================================================================
@@ -1083,7 +1068,7 @@ class WhatsAppBot {
           second: 0,
           millisecond: 0
         });
-        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`;
+        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
       });
     }
 
@@ -1096,7 +1081,7 @@ class WhatsAppBot {
           second: 0,
           millisecond: 0
         });
-        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`;
+        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
       });
     }
 
@@ -1149,7 +1134,7 @@ class WhatsAppBot {
           second: 0,
           millisecond: 0
         });
-        expanded.push(`${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`);
+        expanded.push(`${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`);
       }
 
       lastDateRef = dateRef;
