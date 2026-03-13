@@ -1000,8 +1000,24 @@ class WhatsAppBot {
       .filter((n) => n >= 1 && n <= 31);
     if (numbers.length === 0) return [];
 
+    // Se não houver marcador explícito de horário, em frases como
+    // "dias 14 16 18 19" o último número deve ser tratado como hora.
+    const hasExplicitTimeMarker =
+      /\b(?:às|as)\s*\d{1,2}(?::\d{2})?\s*h?\b/.test(normalized) ||
+      /\b\d{1,2}\s*h\b/.test(normalized) ||
+      /\b\d{1,2}:\d{2}\b/.test(normalized) ||
+      /\b\d{1,2}\s*(am|pm)\b/.test(normalized);
+
+    let dayNumbers = [...numbers];
+    if (!hasExplicitTimeMarker && dayNumbers.length >= 3) {
+      const maybeHour = dayNumbers[dayNumbers.length - 1];
+      if (maybeHour >= 0 && maybeHour <= 23) {
+        dayNumbers = dayNumbers.slice(0, -1);
+      }
+    }
+
     const now = DateTime.now().setZone(timezone);
-    const uniqueDays = [...new Set(numbers)];
+    const uniqueDays = [...new Set(dayNumbers)];
     const dates: DateTime[] = [];
 
     for (const day of uniqueDays) {
@@ -1028,13 +1044,15 @@ class WhatsAppBot {
       }
     }
 
-    // Fallback: "dias 14 16 18 19" (último número é horário)
-    match = lower.match(/\bdias?\b[\s\d,e]*\b(\d{1,2})(?::(\d{2}))?\s*h?\s*$/);
+    // Fallback: "dias 14 16 18 19" (último número é horário sem marcador)
+    match = lower.match(/\bdias?\s+([\d,\se]+)\s*$/i);
     if (match) {
-      const hour = Number(match[1]);
-      const minute = match[2] ? Number(match[2]) : 0;
-      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
-        return { hour, minute };
+      const numbers = (match[1].match(/\d{1,2}/g) || []).map((n) => Number(n));
+      if (numbers.length >= 3) {
+        const hour = numbers[numbers.length - 1];
+        if (hour >= 0 && hour <= 23) {
+          return { hour, minute: 0 };
+        }
       }
     }
 
