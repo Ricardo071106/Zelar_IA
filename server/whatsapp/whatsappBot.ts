@@ -1015,8 +1015,39 @@ class WhatsAppBot {
     return dates;
   }
 
+  private extractTimeFromDaysListContext(text: string): { hour: number; minute: number } | null {
+    const lower = text.toLowerCase();
+
+    // Caso clássico: "dias 14 16 18 às 19" (com ou sem minutos / h)
+    let match = lower.match(/\bdias?\b[\s\d,e]*\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+    if (match) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
+
+    // Fallback: "dias 14 16 18 19" (último número é horário)
+    match = lower.match(/\bdias?\b[\s\d,e]*\b(\d{1,2})(?::(\d{2}))?\s*h?\s*$/);
+    if (match) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
+
+    return null;
+  }
+
   private extractExplicitTimeFromText(text: string): { hour: number; minute: number } | null {
     const lower = text.toLowerCase();
+
+    const daysContextTime = this.extractTimeFromDaysListContext(lower);
+    if (daysContextTime) {
+      return daysContextTime;
+    }
 
     // Prioridade: formato com contexto explícito
     let match = lower.match(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/);
@@ -1055,7 +1086,11 @@ class WhatsAppBot {
   private expandMultipleCommitments(text: string, whatsappId: string): string[] {
     const settingsTimezone = getUserTimezone(whatsappId);
     const allTimes = this.extractExplicitTimesFromText(text);
-    const primaryTime = this.extractExplicitTimeFromText(text) || allTimes[0] || { hour: 9, minute: 0 };
+    const primaryTime =
+      this.extractTimeFromDaysListContext(text) ||
+      this.extractExplicitTimeFromText(text) ||
+      allTimes[0] ||
+      { hour: 9, minute: 0 };
     const weekdayDate = this.extractWeekdayDateFromText(text, settingsTimezone);
     const listedDays = this.extractDaysListFromText(text, settingsTimezone);
 
