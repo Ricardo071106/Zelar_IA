@@ -7,6 +7,7 @@ import { getWhatsAppBot } from "../whatsapp/whatsappBot";
 import { emailService } from "./emailService";
 
 type ReminderChannel = Reminder["channel"];
+const DEFAULT_REMINDER_OFFSETS_MINUTES = [720, 360, 60, 15, 5]; // 12h, 6h, 1h, 15m, 5m
 
 class ReminderService {
   private jobs = new Map<number, schedule.Job>();
@@ -128,9 +129,14 @@ class ReminderService {
     return target < now ? now.plus({ minutes: 1 }).toJSDate() : target.toJSDate();
   }
 
+  private calculateSendAtByMinutes(startDate: Date, minutesBefore: number): Date {
+    const eventDate = DateTime.fromJSDate(startDate);
+    const target = eventDate.minus({ minutes: minutesBefore });
+    const now = DateTime.now();
+    return target < now ? now.plus({ minutes: 1 }).toJSDate() : target.toJSDate();
+  }
+
   async ensureDefaultReminder(event: Event, channel: ReminderChannel): Promise<Reminder | undefined> {
-    const hoursBefore = 12;
-    const sendAt = this.calculateSendAt(event.startDate, hoursBefore);
     const message = this.buildReminderMessage({ message: undefined }, event, undefined);
 
     // Determine target phones
@@ -156,37 +162,57 @@ class ReminderService {
     if (ownerUser && ownerUser.email && !ownerUser.email.endsWith('@whatsapp.user') && !targetEmails.includes(ownerUser.email)) {
       targetEmails.push(ownerUser.email);
     }
-    const existing = reminders.find((item) => item.isDefault && item.channel === channel);
+    let primaryReminder: Reminder | undefined;
 
-    if (existing) {
-      const updated = await storage.updateReminder(existing.id, {
+    for (const minutesBefore of DEFAULT_REMINDER_OFFSETS_MINUTES) {
+      const sendAt = this.calculateSendAtByMinutes(event.startDate, minutesBefore);
+      const existing = reminders.find((item) =>
+        item.isDefault &&
+        item.channel === channel &&
+        (
+          item.reminderTime === minutesBefore ||
+          // Compatibilidade com lembrete legado salvo em horas (12)
+          (minutesBefore === 720 && item.reminderTime === 12)
+        )
+      );
+
+      if (existing) {
+        const updated = await storage.updateReminder(existing.id, {
+          sendAt,
+          sent: false,
+          message,
+          reminderTime: minutesBefore,
+          targetPhones: targetPhones,
+          targetEmails: targetEmails
+        });
+        if (updated) {
+          this.scheduleReminder(updated, event);
+          if (minutesBefore === 720) {
+            primaryReminder = updated;
+          }
+        }
+        continue;
+      }
+
+      const reminder = await storage.createReminder({
+        eventId: event.id,
+        userId: event.userId,
+        channel,
+        message,
         sendAt,
         sent: false,
-        message,
-        reminderTime: hoursBefore,
+        isDefault: true,
+        reminderTime: minutesBefore,
         targetPhones: targetPhones,
         targetEmails: targetEmails
       });
-      if (updated) {
-        this.scheduleReminder(updated, event);
+      this.scheduleReminder(reminder, event);
+      if (minutesBefore === 720) {
+        primaryReminder = reminder;
       }
-      return updated;
     }
 
-    const reminder = await storage.createReminder({
-      eventId: event.id,
-      userId: event.userId,
-      channel,
-      message,
-      sendAt,
-      sent: false,
-      isDefault: true,
-      reminderTime: hoursBefore,
-      targetPhones: targetPhones,
-      targetEmails: targetEmails
-    });
-    this.scheduleReminder(reminder, event);
-    return reminder;
+    return primaryReminder;
   }
 
   async createReminderWithOffset(
