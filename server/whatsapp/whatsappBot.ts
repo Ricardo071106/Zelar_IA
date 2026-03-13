@@ -1052,9 +1052,10 @@ class WhatsAppBot {
 
   private extractTimeFromDaysListContext(text: string): { hour: number; minute: number } | null {
     const lower = text.toLowerCase();
+    const normalized = lower.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
     // Caso clássico: "dias 14 16 18 às 19" (com ou sem minutos / h)
-    let match = lower.match(/\bdias?\b[\s\d,e]*\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+    let match = normalized.match(/\bdias?\b[\s\d,e]*\b(?:as)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
     if (match) {
       const hour = Number(match[1]);
       const minute = match[2] ? Number(match[2]) : 0;
@@ -1064,7 +1065,7 @@ class WhatsAppBot {
     }
 
     // Fallback: "dias 14 16 18 19" (último número é horário sem marcador)
-    match = lower.match(/\bdias?\s+([\d,\se]+)\s*$/i);
+    match = normalized.match(/\bdias?\s+([\d,\se]+)\s*$/i);
     if (match) {
       const numbers = (match[1].match(/\d{1,2}/g) || []).map((n) => Number(n));
       if (numbers.length >= 3) {
@@ -1084,9 +1085,9 @@ class WhatsAppBot {
     // Regra absoluta: "as/às + número" sempre é horário.
     const asMatches = [...lower.matchAll(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/g)];
     if (asMatches.length > 0) {
-      const last = asMatches[asMatches.length - 1];
-      const hour = Number(last[1]);
-      const minute = last[2] ? Number(last[2]) : 0;
+      const first = asMatches[0];
+      const hour = Number(first[1]);
+      const minute = first[2] ? Number(first[2]) : 0;
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
         return { hour, minute };
       }
@@ -1143,7 +1144,12 @@ class WhatsAppBot {
     const listedDays = this.extractDaysListFromText(text, settingsTimezone);
 
     if (listedDays.length > 1) {
-      const title = extractEventTitle(text) || 'Compromisso';
+      const titleSeed = text
+        .replace(/\bdias?\s+[\d,\se]+(?:\s*(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?)?/gi, ' ')
+        .replace(/\b(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const title = extractEventTitle(titleSeed) || 'Compromisso';
       return listedDays.map((d) => {
         const scheduled = d.set({
           hour: primaryTime.hour,
