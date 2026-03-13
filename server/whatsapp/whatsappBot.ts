@@ -234,7 +234,7 @@ class WhatsAppBot {
     return user;
   }
 
-  private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any) {
+  private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any, fromBatch = false) {
     const user = await this.getOrCreateUser(whatsappId, msg.pushName);
 
     // =========================================================================
@@ -312,6 +312,19 @@ class WhatsAppBot {
       const args = text.substring(command.length).trim();
       await this.handleCommand(remoteJid, user, command, args);
       return;
+    }
+
+    // Suporte a múltiplos compromissos em uma única mensagem.
+    // Exemplo: "reunião sábado às 13, às 14 e às 15".
+    if (!fromBatch) {
+      const expandedMessages = this.expandMultipleCommitments(text, whatsappId);
+      if (expandedMessages.length > 1) {
+        console.log(`🧩 Mensagem expandida em ${expandedMessages.length} compromissos.`);
+        for (const singleMessage of expandedMessages) {
+          await this.handleMessage(remoteJid, whatsappId, singleMessage, msg, true);
+        }
+        return;
+      }
     }
 
     // =========================================================================
@@ -907,6 +920,39 @@ class WhatsAppBot {
       || /\b(da manhã|de manhã|da tarde|de tarde|da noite|de noite)\b/.test(lower);
   }
 
+  private extractExplicitTimesFromText(text: string): Array<{ hour: number; minute: number }> {
+    const lower = text.toLowerCase();
+    const results: Array<{ hour: number; minute: number }> = [];
+
+    const twentyFourHour = [...lower.matchAll(/\b(?:às|as)?\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/g)];
+    for (const match of twentyFourHour) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        results.push({ hour, minute });
+      }
+    }
+
+    const amPm = [...lower.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/g)];
+    for (const match of amPm) {
+      let hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      const period = match[3];
+      if (period === 'pm' && hour < 12) hour += 12;
+      if (period === 'am' && hour === 12) hour = 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        results.push({ hour, minute });
+      }
+    }
+
+    const unique = new Map<string, { hour: number; minute: number }>();
+    for (const item of results) {
+      const key = `${item.hour}:${item.minute}`;
+      if (!unique.has(key)) unique.set(key, item);
+    }
+    return [...unique.values()];
+  }
+
   private extractExplicitTimeFromText(text: string): { hour: number; minute: number } | null {
     const lower = text.toLowerCase();
 
@@ -932,6 +978,68 @@ class WhatsAppBot {
     }
 
     return null;
+  }
+
+  private expandMultipleCommitments(text: string, whatsappId: string): string[] {
+    const allTimes = this.extractExplicitTimesFromText(text);
+    if (allTimes.length <= 1) return [text];
+
+    const settingsTimezone = getUserTimezone(whatsappId);
+    const baseSplit = text
+      .split(/\s+e\s+(?=(?:outra|outro|uma|um|a|call|reuni[aã]o|consulta|compromisso|mentoria|vendas)\b)/i)
+      .map((chunk) => chunk.trim())
+      .filter(Boolean);
+
+    const chunks = baseSplit.length > 0 ? baseSplit : [text];
+    const expanded: string[] = [];
+
+    let lastDateRef: DateTime | null = null;
+    let lastTitleRef = '';
+
+    for (const chunk of chunks) {
+      const chunkTimes = this.extractExplicitTimesFromText(chunk);
+      if (chunkTimes.length === 0) continue;
+
+      const parsedChunkDate = parseUserDateTime(chunk, whatsappId);
+      const parsedWholeDate = parseUserDateTime(text, whatsappId);
+
+      let dateRef = parsedChunkDate
+        ? DateTime.fromISO(parsedChunkDate.iso).setZone(settingsTimezone)
+        : parsedWholeDate
+          ? DateTime.fromISO(parsedWholeDate.iso).setZone(settingsTimezone)
+          : lastDateRef;
+
+      if (!dateRef || !dateRef.isValid) {
+        dateRef = DateTime.now().setZone(settingsTimezone);
+      }
+
+      const titleCandidateRaw = chunk
+        .replace(/\b(?:às|as)?\s*\d{1,2}(?::\d{2})?\s*h?\b/gi, ' ')
+        .replace(/\b\d{1,2}(?::\d{2})?\s*(am|pm)\b/gi, ' ')
+        .replace(/\b(lembre|lembrar|tenho|uma|um|outra|outro)\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      let title = extractEventTitle(titleCandidateRaw);
+      if (!title || title.toLowerCase() === 'evento') {
+        title = lastTitleRef || 'Compromisso';
+      }
+
+      for (const t of chunkTimes) {
+        const scheduled = dateRef.set({
+          hour: t.hour,
+          minute: t.minute,
+          second: 0,
+          millisecond: 0
+        });
+        expanded.push(`${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`);
+      }
+
+      lastDateRef = dateRef;
+      lastTitleRef = title;
+    }
+
+    return expanded.length > 1 ? expanded : [text];
   }
 
   private getMessageTimestampMs(msg: any): number | null {
