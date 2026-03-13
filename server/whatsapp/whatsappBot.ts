@@ -911,6 +911,25 @@ class WhatsAppBot {
 
     // Horário com contexto explícito: "às 19", "as 19:30"
     const withAs = [...lower.matchAll(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/g)];
+    if (withAs.length > 0) {
+      for (const match of withAs) {
+        const hour = Number(match[1]);
+        const minute = match[2] ? Number(match[2]) : 0;
+        if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+          results.push({ hour, minute });
+        }
+      }
+
+      const uniqueFromAs = new Map<string, { hour: number; minute: number }>();
+      for (const item of results) {
+        const key = `${item.hour}:${item.minute}`;
+        if (!uniqueFromAs.has(key)) uniqueFromAs.set(key, item);
+      }
+      return [...uniqueFromAs.values()];
+    }
+
+    // Sem "as/às", tenta demais formatos.
+    // Isso evita confundir números de dia com hora quando existe "as/às".
     for (const match of withAs) {
       const hour = Number(match[1]);
       const minute = match[2] ? Number(match[2]) : 0;
@@ -1061,6 +1080,17 @@ class WhatsAppBot {
 
   private extractExplicitTimeFromText(text: string): { hour: number; minute: number } | null {
     const lower = text.toLowerCase();
+
+    // Regra absoluta: "as/às + número" sempre é horário.
+    const asMatches = [...lower.matchAll(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/g)];
+    if (asMatches.length > 0) {
+      const last = asMatches[asMatches.length - 1];
+      const hour = Number(last[1]);
+      const minute = last[2] ? Number(last[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
 
     const daysContextTime = this.extractTimeFromDaysListContext(lower);
     if (daysContextTime) {
