@@ -924,10 +924,31 @@ class WhatsAppBot {
     const lower = text.toLowerCase();
     const results: Array<{ hour: number; minute: number }> = [];
 
-    const twentyFourHour = [...lower.matchAll(/\b(?:às|as)?\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/g)];
-    for (const match of twentyFourHour) {
+    // Horário com contexto explícito: "às 19", "as 19:30"
+    const withAs = [...lower.matchAll(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/g)];
+    for (const match of withAs) {
       const hour = Number(match[1]);
       const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        results.push({ hour, minute });
+      }
+    }
+
+    // Horário com "h": "19h", "19:30h"
+    const withH = [...lower.matchAll(/\b(\d{1,2})(?::(\d{2}))?\s*h\b/g)];
+    for (const match of withH) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        results.push({ hour, minute });
+      }
+    }
+
+    // Horário HH:mm sem prefixo (mais restrito que número simples para não confundir com dia)
+    const hhmm = [...lower.matchAll(/\b(\d{1,2}):(\d{2})\b/g)];
+    for (const match of hhmm) {
+      const hour = Number(match[1]);
+      const minute = Number(match[2]);
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
         results.push({ hour, minute });
       }
@@ -953,10 +974,76 @@ class WhatsAppBot {
     return [...unique.values()];
   }
 
+  private extractWeekdayDateFromText(text: string, timezone: string): DateTime | null {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const now = DateTime.now().setZone(timezone);
+
+    const weekdayMap: Record<string, number> = {
+      'segunda': 1,
+      'terca': 2,
+      'quarta': 3,
+      'quinta': 4,
+      'sexta': 5,
+      'sabado': 6,
+      'domingo': 7,
+    };
+
+    for (const [label, weekday] of Object.entries(weekdayMap)) {
+      if (!new RegExp(`\\b${label}(?:-feira)?\\b`).test(normalized)) continue;
+      let target = now.startOf('day');
+      while (target.weekday !== weekday || target <= now.startOf('day')) {
+        target = target.plus({ days: 1 });
+      }
+      return target;
+    }
+    return null;
+  }
+
+  private extractDaysListFromText(text: string, timezone: string): DateTime[] {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const match = normalized.match(/\bdias?\s+([\d,\se]+)/i);
+    if (!match) return [];
+
+    const numbers = (match[1].match(/\d{1,2}/g) || [])
+      .map((n) => Number(n))
+      .filter((n) => n >= 1 && n <= 31);
+    if (numbers.length === 0) return [];
+
+    const now = DateTime.now().setZone(timezone);
+    const uniqueDays = [...new Set(numbers)];
+    const dates: DateTime[] = [];
+
+    for (const day of uniqueDays) {
+      let candidate = now.set({ day }).startOf('day');
+      if (!candidate.isValid || candidate < now.startOf('day')) {
+        candidate = now.plus({ months: 1 }).set({ day }).startOf('day');
+      }
+      if (candidate.isValid) dates.push(candidate);
+    }
+
+    return dates;
+  }
+
   private extractExplicitTimeFromText(text: string): { hour: number; minute: number } | null {
     const lower = text.toLowerCase();
 
-    let match = lower.match(/\b(?:às|as)?\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+    // Prioridade: formato com contexto explícito
+    let match = lower.match(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/);
+    if (match) {
+      const hour = Number(match[1]);
+      const minute = match[2] ? Number(match[2]) : 0;
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        return { hour, minute };
+      }
+    }
+
+    match = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*h\b/);
     if (match) {
       const hour = Number(match[1]);
       const minute = match[2] ? Number(match[2]) : 0;
@@ -981,10 +1068,40 @@ class WhatsAppBot {
   }
 
   private expandMultipleCommitments(text: string, whatsappId: string): string[] {
+    const settingsTimezone = getUserTimezone(whatsappId);
     const allTimes = this.extractExplicitTimesFromText(text);
+    const primaryTime = this.extractExplicitTimeFromText(text) || allTimes[0] || { hour: 9, minute: 0 };
+    const weekdayDate = this.extractWeekdayDateFromText(text, settingsTimezone);
+    const listedDays = this.extractDaysListFromText(text, settingsTimezone);
+
+    if (listedDays.length > 1) {
+      const title = extractEventTitle(text) || 'Compromisso';
+      return listedDays.map((d) => {
+        const scheduled = d.set({
+          hour: primaryTime.hour,
+          minute: primaryTime.minute,
+          second: 0,
+          millisecond: 0
+        });
+        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`;
+      });
+    }
+
+    if (weekdayDate && allTimes.length > 1) {
+      const title = extractEventTitle(text) || 'Compromisso';
+      return allTimes.map((t) => {
+        const scheduled = weekdayDate.set({
+          hour: t.hour,
+          minute: t.minute,
+          second: 0,
+          millisecond: 0
+        });
+        return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} às ${scheduled.toFormat('HH:mm')}`;
+      });
+    }
+
     if (allTimes.length <= 1) return [text];
 
-    const settingsTimezone = getUserTimezone(whatsappId);
     const baseSplit = text
       .split(/\s+e\s+(?=(?:outra|outro|uma|um|a|call|reuni[aã]o|consulta|compromisso|mentoria|vendas)\b)/i)
       .map((chunk) => chunk.trim())
