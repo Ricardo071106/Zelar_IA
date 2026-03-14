@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, lte } from "drizzle-orm";
+import { eq, and, desc, gt, lte, sql } from "drizzle-orm";
 import {
   users,
   type User,
@@ -121,8 +121,49 @@ export class DatabaseStorage implements IStorage {
 
   async getUserSettings(userId: number): Promise<UserSettings | undefined> {
     if (!db) return undefined;
-    const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
-    return settings;
+    try {
+      const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
+      return settings;
+    } catch (error: any) {
+      // Fallback para bancos que ainda não receberam a migration de microsoft_tokens.
+      if (error?.code === '42703' && String(error?.message || '').includes('microsoft_tokens')) {
+        const legacyResult = await db.execute(sql`
+          SELECT
+            id,
+            user_id,
+            notifications_enabled,
+            reminder_times,
+            calendar_provider,
+            google_tokens,
+            apple_tokens,
+            language,
+            time_zone,
+            updated_at
+          FROM user_settings
+          WHERE user_id = ${userId}
+          LIMIT 1
+        `);
+
+        const row = (legacyResult as any)?.rows?.[0];
+        if (!row) return undefined;
+
+        return {
+          id: row.id,
+          userId: row.user_id,
+          notificationsEnabled: row.notifications_enabled,
+          reminderTimes: row.reminder_times,
+          calendarProvider: row.calendar_provider,
+          googleTokens: row.google_tokens,
+          microsoftTokens: null,
+          appleTokens: row.apple_tokens,
+          language: row.language,
+          timeZone: row.time_zone,
+          updatedAt: row.updated_at,
+        } as UserSettings;
+      }
+
+      throw error;
+    }
   }
 
   async createUserSettings(settings: InsertUserSettings): Promise<UserSettings> {

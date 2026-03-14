@@ -32,7 +32,6 @@ import {
   cancelMicrosoftCalendarEvent,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
-import { emailService } from '../services/emailService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,10 +52,6 @@ class WhatsAppBot {
 
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  }
-
-  private isGmailAddress(email: string): boolean {
-    return /@gmail\.com$/i.test(email.trim());
   }
 
   async initialize() {
@@ -487,6 +482,8 @@ class WhatsAppBot {
       // 4.2. Integração com calendário conectado (Google ou Microsoft)
       let syncedCalendarProvider: 'google' | 'microsoft' | null = null;
       let googleSyncErrorMessage = '';
+      let usedDefaultOrganizer = false;
+      const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
 
       if (userSettings?.calendarProvider === 'google' && userSettings.googleTokens) {
         try {
@@ -537,6 +534,43 @@ class WhatsAppBot {
         } catch (error) {
           console.error('Erro Microsoft Calendar:', error);
         }
+      } else if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+        try {
+          const organizerUser = await storage.getUser(defaultOrganizerId);
+          const organizerSettings = await storage.getUserSettings(defaultOrganizerId);
+
+          if (!organizerUser || !organizerSettings?.googleTokens) {
+            googleSyncErrorMessage = 'Conta organizadora padrão sem Google conectado.';
+          } else {
+            const fallbackAttendees = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+            setTokens(defaultOrganizerId, JSON.parse(organizerSettings.googleTokens));
+
+            const organizerEvent = {
+              ...newEvent,
+              startDate: new Date(event.startDate),
+              endDate: null,
+              attendeePhones: phones,
+              attendeeEmails: fallbackAttendees,
+            };
+
+            const googleResult = await addEventToGoogleCalendar(organizerEvent as any, defaultOrganizerId);
+            if (googleResult.success) {
+              syncedCalendarProvider = 'google';
+              usedDefaultOrganizer = true;
+              if (googleResult.conferenceLink) {
+                await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
+              }
+              if (googleResult.calendarEventId) {
+                await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
+              }
+            } else {
+              googleSyncErrorMessage = googleResult.message;
+            }
+          }
+        } catch (error) {
+          console.error('Erro ao sincronizar via conta organizadora padrão:', error);
+          googleSyncErrorMessage = 'Falha ao sincronizar via conta organizadora padrão.';
+        }
       }
 
       // =================== 4.3. NOTIFICAÇÕES (GUESTS vs CREATOR) ===================
@@ -572,48 +606,6 @@ class WhatsAppBot {
         }
       }
 
-      // A.2) NOTIFICAR CONVIDADOS (Emails)
-      // Se já houver sync com provedor (Google/Microsoft), evitamos disparo manual para não duplicar convites.
-      const nonGmailEmails = (emails || []).filter((email: string) => !this.isGmailAddress(email));
-      const gmailEmails = (emails || []).filter((email: string) => this.isGmailAddress(email));
-      const shouldSendManualEmailInvites = !syncedCalendarProvider;
-
-      // Não-Gmail: usa disparador apenas quando não houver sync no provider.
-      if (nonGmailEmails.length > 0 && shouldSendManualEmailInvites) {
-        const guestLinks = generateLinks(event);
-        const guestIcsLink = guestLinks.ics;
-
-        for (const email of nonGmailEmails) {
-          console.log(`📧 [DISPARADOR] Enviando convite para email não-Gmail: ${email}`);
-          void emailService
-            .sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink)
-            .catch((e) => console.error(`❌ Erro ao enviar email não-Gmail para ${email}`, e));
-        }
-      }
-
-      // Gmail: envia manualmente somente quando não houver sync de calendário.
-      if (gmailEmails.length > 0 && shouldSendManualEmailInvites) {
-        // Gerar links para o convidado também (pois não é sync automático)
-        const guestLinks = generateLinks(event);
-        const guestIcsLink = guestLinks.ics;
-
-        for (const email of gmailEmails) {
-          console.log(`📧 Enviando convite por email para: ${email}`);
-          void emailService
-            .sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink)
-            .catch((e) => console.error(`❌ Erro ao enviar email para ${email}`, e));
-        }
-      }
-
-      // A.3) NOTIFICAR CRIADOR (Email - se tiver email válido cadastrado)
-      if (user.email) {
-        console.log(`📧 Enviando confirmação por email para criador: ${user.email}`);
-        // Não bloqueia a resposta do WhatsApp por causa de email.
-        void emailService
-          .sendInvitation(user.email, newEvent, "Você (Via Zelar IA)")
-          .catch((e) => console.error(`❌ Erro ao enviar email para criador ${user.email}`, e));
-      }
-
       // B) NOTIFICAR CRIADOR (Creator)
       let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
         `📝 *${event.title}*\n` +
@@ -622,7 +614,11 @@ class WhatsAppBot {
 
       if (event.attendees && event.attendees.length > 0) {
         responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
-        responseText += '\n_Convites enviados por email_';
+        if (syncedCalendarProvider === 'google' && usedDefaultOrganizer) {
+          responseText += '\n_Convites enviados pelo Google Calendar organizador padrão_';
+        } else if (syncedCalendarProvider === 'google') {
+          responseText += '\n_Convites enviados pelo Google Calendar conectado_';
+        }
       }
 
       if (phones && phones.length > 0) {
@@ -636,7 +632,9 @@ class WhatsAppBot {
 
       // Lógica diferenciada para criador: Synced ou Link Manual
       if (syncedCalendarProvider === 'google') {
-        responseText += `\n\n✅ *Sincronizado com seu Google Calendar*`;
+        responseText += usedDefaultOrganizer
+          ? `\n\n✅ *Evento criado no Google Calendar organizador padrão*`
+          : `\n\n✅ *Sincronizado com seu Google Calendar*`;
         const evtWithLink = await storage.getEvent(newEvent.id);
         if (evtWithLink?.conferenceLink) {
           responseText += `\n📹 Meet: ${evtWithLink.conferenceLink}`;

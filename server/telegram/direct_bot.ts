@@ -42,6 +42,7 @@ interface Event {
 }
 
 let lastUpdateId = 0;
+let telegramConflictLoggedAt = 0;
 
 function getAxiosErrorSummary(error: any): string {
   if (error?.response) {
@@ -189,6 +190,16 @@ async function getUpdates(): Promise<TelegramUpdate[]> {
 
     return data.result;
   } catch (error: any) {
+    if (error?.response?.status === 409) {
+      // Evita flood de log quando há outra instância usando getUpdates.
+      const now = Date.now();
+      if (now - telegramConflictLoggedAt > 60000) {
+        console.warn('⚠️ Telegram 409: outra instância está consumindo getUpdates (polling duplicado).');
+        telegramConflictLoggedAt = now;
+      }
+      return [];
+    }
+
     console.error(`❌ Erro ao buscar updates: ${getAxiosErrorSummary(error)}`);
     return [];
   }
