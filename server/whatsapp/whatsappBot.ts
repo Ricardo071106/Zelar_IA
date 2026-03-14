@@ -585,11 +585,9 @@ class WhatsAppBot {
 
         for (const email of nonGmailEmails) {
           console.log(`📧 [DISPARADOR] Enviando convite para email não-Gmail: ${email}`);
-          try {
-            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink);
-          } catch (e) {
-            console.error(`❌ Erro ao enviar email não-Gmail para ${email}`, e);
-          }
+          void emailService
+            .sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink)
+            .catch((e) => console.error(`❌ Erro ao enviar email não-Gmail para ${email}`, e));
         }
       }
 
@@ -601,23 +599,19 @@ class WhatsAppBot {
 
         for (const email of gmailEmails) {
           console.log(`📧 Enviando convite por email para: ${email}`);
-          try {
-            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink);
-          } catch (e) {
-            console.error(`❌ Erro ao enviar email para ${email}`, e);
-          }
+          void emailService
+            .sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink)
+            .catch((e) => console.error(`❌ Erro ao enviar email para ${email}`, e));
         }
       }
 
       // A.3) NOTIFICAR CRIADOR (Email - se tiver email válido cadastrado)
       if (user.email) {
         console.log(`📧 Enviando confirmação por email para criador: ${user.email}`);
-        try {
-          // Reusing sendInvitation for now, or could be a specific template
-          await emailService.sendInvitation(user.email, newEvent, "Você (Via Zelar IA)");
-        } catch (e) {
-          console.error(`❌ Erro ao enviar email para criador ${user.email}`, e);
-        }
+        // Não bloqueia a resposta do WhatsApp por causa de email.
+        void emailService
+          .sendInvitation(user.email, newEvent, "Você (Via Zelar IA)")
+          .catch((e) => console.error(`❌ Erro ao enviar email para criador ${user.email}`, e));
       }
 
       // B) NOTIFICAR CRIADOR (Creator)
