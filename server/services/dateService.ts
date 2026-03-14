@@ -164,8 +164,11 @@ export function parseUserDateTime(
 
     // CORREÇÃO: Se não conseguiu extrair, tentar padrões mais simples
     if (!timeResult) {
-      // Tentar detectar números isolados após palavras de tempo
-      const simpleTimeMatch = input.toLowerCase().match(/\b(?:às|as|ate)\s+(\d{1,2})\b/);
+      // Tentar detectar números isolados após palavras de tempo.
+      // Evita \b com acentos (ex: "às"), pois pode falhar dependendo do locale.
+      const simpleTimeMatch = input
+        .toLowerCase()
+        .match(/(?:^|[\s,.;!?])(?:às|as|ate)\s+(\d{1,2})(?=$|[\s,.;!?])/);
       if (simpleTimeMatch) {
         const hourFound = parseInt(simpleTimeMatch[1]);
         if (hourFound >= 0 && hourFound <= 23) {
@@ -429,7 +432,7 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
   const text = input.toLowerCase().trim();
 
   // 1. Padrão completo: "às 20:00", "às 20h", "às 20"
-  let match = text.match(/\b(?:às|as|ate)\s*(\d{1,2})(?::(\d{2}))?\s*h?\b/);
+  let match = text.match(/(?:^|[\s,.;!?])(?:às|as|ate)\s*(\d{1,2})(?::(\d{2}))?\s*h?(?=$|[\s,.;!?])/);
   if (match) {
     const hour = parseInt(match[1]);
     const minute = match[2] ? parseInt(match[2]) : 0;
