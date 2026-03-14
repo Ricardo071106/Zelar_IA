@@ -43,6 +43,16 @@ interface Event {
 
 let lastUpdateId = 0;
 
+function getAxiosErrorSummary(error: any): string {
+  if (error?.response) {
+    return `status=${error.response.status} data=${JSON.stringify(error.response.data || {})}`;
+  }
+  if (error?.request) {
+    return `network_error code=${error.code || 'unknown'} message=${error.message || 'no_message'}`;
+  }
+  return error?.message || String(error);
+}
+
 function generateCalendarLinks(event: Event) {
   const startDate = new Date(event.startDate);
   const endDate = new Date(startDate.getTime() + 60 * 60 * 1000);
@@ -170,15 +180,16 @@ async function getUpdates(): Promise<TelegramUpdate[]> {
       params: {
         offset: lastUpdateId + 1,
         timeout: 10 // Aumentado para 10s para long polling funcionar melhor
-      }
+      },
+      timeout: 15000,
     });
 
     const data = response.data;
     if (!data.ok || !data.result) return [];
 
     return data.result;
-  } catch (error) {
-    console.error('❌ Erro ao buscar updates:', error);
+  } catch (error: any) {
+    console.error(`❌ Erro ao buscar updates: ${getAxiosErrorSummary(error)}`);
     return [];
   }
 }
@@ -1418,8 +1429,8 @@ export async function startDirectBot(): Promise<boolean> {
             await processUpdate(update);
           }
         }
-      } catch (error) {
-        console.error('❌ Erro no polling:', error);
+      } catch (error: any) {
+        console.error(`❌ Erro no polling: ${getAxiosErrorSummary(error)}`);
       }
     }, 2000);
 
