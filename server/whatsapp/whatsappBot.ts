@@ -648,8 +648,9 @@ class WhatsAppBot {
       } else {
         const links = generateLinks(event);
         responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
-        if (userSettings?.googleTokens && googleSyncErrorMessage) {
-          responseText += `\n\n⚠️ *Google Calendar não sincronizou:* ${googleSyncErrorMessage}\nUse */conectar* para reautorizar se necessário.`;
+        if (googleSyncErrorMessage) {
+          responseText += `\n\n⚠️ *Calendar não sincronizou:* ${googleSyncErrorMessage}\n` +
+            `Se necessário, reconecte com */conectar*.`;
         }
       }
 
