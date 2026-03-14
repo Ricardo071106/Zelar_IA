@@ -1,11 +1,11 @@
 # Zelar IA - WhatsApp Assistant 🤖
 
-Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembretes, integrado com Google Calendar e Google AI (Gemini/Claude).
+Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembretes, integrado com Google Calendar, Microsoft Calendar e Google AI (Gemini/Claude).
 
 ## 🚀 Funcionalidades
 
 - **Interpretação Inteligente**: Crie eventos com linguagem natural (ex: "Jantar com Maria sexta às 20h").
-- **Integração Google Calendar**: Sincronização automática com sua agenda e geração de links para Google Meet.
+- **Integração de Calendário**: Sincronização automática com Google Calendar ou Microsoft Calendar (Outlook).
 - **Sistema de Lembretes**: Lembretes automáticos 12h antes do evento via WhatsApp.
 - **Comandos Completos**: Gerencie tudo pelo chat (`/eventos`, `/deletar`, etc.).
 - **Multi-plataforma**: Suporte para múltiplos usuários com verificação de assinatura Premium.
@@ -22,7 +22,8 @@ Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembrete
 
 - Node.js 18+
 - PostgreSQL
-- Conta no Google Cloud (para Calendar API)
+- Conta no Google Cloud (opcional, para Google Calendar API)
+- Conta no Microsoft Entra/Azure (opcional, para Microsoft Calendar API)
 - Conta na OpenRouter (para IA)
 - Conta no Stripe (para assinaturas)
 
@@ -54,6 +55,12 @@ Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembrete
     GOOGLE_CLIENT_ID=seu_client_id
     GOOGLE_CLIENT_SECRET=seu_client_secret
     GOOGLE_REDIRECT_URI=https://seu-dominio-ngrok.app/api/auth/google/callback
+
+    # Microsoft Integration
+    MICROSOFT_CLIENT_ID=seu_app_client_id
+    MICROSOFT_CLIENT_SECRET=seu_app_client_secret
+    MICROSOFT_TENANT_ID=common
+    MICROSOFT_REDIRECT_URI=https://seu-dominio-ngrok.app/api/auth/microsoft/callback
 
     # AI (OpenRouter)
     OPENROUTER_API_KEY=sk-or-...
@@ -92,6 +99,7 @@ npm start
 
 - **/start**: Inicia a conversa e mostra boas-vindas.
 - **/conectar**: Gera link para conectar ao Google Calendar.
+- **/conectar_microsoft**: Gera link para conectar ao Microsoft Calendar.
 - **/eventos**: Lista seus próximos eventos agendados.
 - **/lembretes**: Mostra lembretes pendentes.
 - **/deletar ID**: Remove um evento pelo ID.

@@ -69,8 +69,9 @@ export const userSettings = pgTable("user_settings", {
   userId: integer("user_id").notNull().references(() => users.id),
   notificationsEnabled: boolean("notifications_enabled").default(true),
   reminderTimes: integer("reminder_times").array(), // Array de horas antes do evento para enviar lembretes
-  calendarProvider: varchar("calendar_provider", { length: 20 }), // google, apple
+  calendarProvider: varchar("calendar_provider", { length: 20 }), // google, microsoft, apple
   googleTokens: text("google_tokens"), // Tokens do Google Calendar em formato JSON
+  microsoftTokens: text("microsoft_tokens"), // Tokens do Microsoft Calendar em formato JSON
   appleTokens: text("apple_tokens"), // Tokens da Apple em formato JSON
   language: varchar("language", { length: 10 }).default("pt-BR"),
   timeZone: varchar("time_zone", { length: 50 }).default("America/Sao_Paulo"),
@@ -163,6 +164,7 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   reminderTimes: true,
   calendarProvider: true,
   googleTokens: true,
+  microsoftTokens: true,
   appleTokens: true,
   language: true,
   timeZone: true,

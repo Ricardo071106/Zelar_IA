@@ -7,6 +7,7 @@ import healthRoutes from './routes/health.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import analyticsRoutes from './routes/analytics.routes';
 import googleAuthRoutes from './routes/google-auth.routes';
+import microsoftAuthRoutes from './routes/microsoft-auth.routes';
 import paymentRoutes from './routes/payment.routes';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -30,6 +31,7 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
 
   // Google Calendar OAuth routes
   app.use('/api/auth/google', googleAuthRoutes);
+  app.use('/api/auth/microsoft', microsoftAuthRoutes);
 
   // Payment routes
   app.use('/api/payments', paymentRoutes);

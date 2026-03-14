@@ -1,4 +1,5 @@
 import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 import { Event } from '@shared/schema';
 
 if (!process.env.SENDGRID_API_KEY) {
@@ -9,25 +10,69 @@ if (!process.env.SENDGRID_API_KEY) {
 
 const FROM_EMAIL = 'no-reply@zelar.ia'; // Ajustar conforme sender verificado no SendGrid, ou usar var de ambiente
 
+function hasSmtpConfig(): boolean {
+  return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
+}
+
 export class EmailService {
+  private smtpTransporter = hasSmtpConfig()
+    ? nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: Number(process.env.SMTP_PORT || 465),
+        secure: String(process.env.SMTP_SECURE || 'true') === 'true',
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      })
+    : null;
+
   async sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
     console.log(`🔍 Tentando enviar email para ${to}. API Key Length: ${process.env.SENDGRID_API_KEY?.length}`);
-    if (!process.env.SENDGRID_API_KEY) {
-      console.log("⚠️ SENDGRID_API_KEY não configurada. Simulando envio de email:");
-      console.log(`Para: ${to}`);
-      console.log(`Assunto: ${subject}`);
-      // console.log(`Conteúdo: ${html}`); // Descomente para ver o HTML
-      return true;
-    }
 
+    const from = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || FROM_EMAIL;
     const msg = {
       to,
-      from: process.env.SENDGRID_FROM_EMAIL || 'zelar.ia.suporte@gmail.com', // Fallback
+      from, // Fallback
       subject,
       html,
       text: text || html.replace(/<[^>]*>?/gm, ''), // Fallback: remove tags se não houver texto explícito
     };
 
+    // 1) Prioridade: SendGrid
+    if (process.env.SENDGRID_API_KEY) {
+      try {
+        await sgMail.send(msg);
+        console.log(`✅ Email enviado via SendGrid para ${to}`);
+        return true;
+      } catch (error) {
+        console.error('❌ Erro ao enviar email via SendGrid:', error);
+        if ((error as any).response) {
+          console.error((error as any).response.body);
+        }
+        // Se SendGrid falhar e SMTP existir, tenta SMTP antes de desistir.
+      }
+    }
+
+    // 2) Fallback grátis: SMTP (ex: Gmail App Password)
+    if (this.smtpTransporter) {
+      try {
+        await this.smtpTransporter.sendMail(msg);
+        console.log(`✅ Email enviado via SMTP para ${to}`);
+        return true;
+      } catch (error) {
+        console.error('❌ Erro ao enviar email via SMTP:', error);
+        return false;
+      }
+    }
+
+    // 3) Modo simulado
+    console.log("⚠️ Nenhum provedor de email configurado (SendGrid/SMTP). Simulando envio:");
+    console.log(`Para: ${to}`);
+    console.log(`Assunto: ${subject}`);
+    return true;
+
+    /*
     try {
       await sgMail.send(msg);
       console.log(`✅ Email enviado para ${to}`);
@@ -39,6 +84,7 @@ export class EmailService {
       }
       return false;
     }
+    */
   }
 
   async sendInvitation(to: string, event: Event, creatorName: string = 'Alguém', calendarIcsLink?: string): Promise<boolean> {

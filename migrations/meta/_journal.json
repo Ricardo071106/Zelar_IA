@@ -22,6 +22,13 @@
       "when": 1767905304652,
       "tag": "0002_graceful_silver_samurai",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773500000000,
+      "tag": "0003_fancy_microsoft_calendar",
+      "breakpoints": true
     }
   ]
 }

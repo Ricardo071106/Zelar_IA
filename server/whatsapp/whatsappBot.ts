@@ -27,6 +27,10 @@ import {
   cancelGoogleCalendarEvent,
   setTokens
 } from '../telegram/googleCalendarIntegration';
+import {
+  addEventToMicrosoftCalendar,
+  cancelMicrosoftCalendarEvent,
+} from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
 
@@ -46,6 +50,14 @@ class WhatsAppBot {
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
+
+  private isValidEmail(email: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private isGmailAddress(email: string): boolean {
+    return /@gmail\.com$/i.test(email.trim());
+  }
 
   async initialize() {
     if (this.isInitializing) return;
@@ -236,6 +248,8 @@ class WhatsAppBot {
 
   private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any, fromBatch = false) {
     const user = await this.getOrCreateUser(whatsappId, msg.pushName);
+    const command = text.split(' ')[0].toLowerCase();
+    const args = text.substring(command.length).trim();
 
     // =========================================================================
     // 1. VERIFICAÇÃO ESTRITA DE ASSINATURA (PREMIUM CHECK)
@@ -258,6 +272,30 @@ class WhatsAppBot {
         'Após o pagamento, seu acesso será liberado automaticamente!'
       );
       return; // Bloqueia qualquer outra interação
+    }
+
+    // =========================================================================
+    // 1.2. VERIFICAÇÃO DE EMAIL OBRIGATÓRIO
+    // =========================================================================
+    const allowedWithoutEmail = new Set([
+      '/start',
+      '/iniciar',
+      '/help',
+      '/ajuda',
+      '/email',
+      '/cancelar',
+    ]);
+
+    if (!user.email && !allowedWithoutEmail.has(command)) {
+      await this.sendMessage(
+        remoteJid,
+        '📧 *Email obrigatório para usar o bot*\n\n' +
+          'Para continuar, cadastre seu email com:\n' +
+          '`/email seu.email@dominio.com`\n\n' +
+          'Exemplo:\n' +
+          '`/email ricardo@email.com`',
+      );
+      return;
     }
 
     // =========================================================================
@@ -308,8 +346,6 @@ class WhatsAppBot {
     // 2. PROCESSAMENTO DE COMANDOS
     // =========================================================================
     if (text.startsWith('/')) {
-      const command = text.split(' ')[0].toLowerCase();
-      const args = text.substring(command.length).trim();
       await this.handleCommand(remoteJid, user, command, args);
       return;
     }
@@ -448,22 +484,22 @@ class WhatsAppBot {
 
       // (Bloco de responseText original removido - será construído mais abaixo)
 
-      // 4.2. Integração com Google Calendar
-      let isSyncedWithGoogle = false;
+      // 4.2. Integração com calendário conectado (Google ou Microsoft)
+      let syncedCalendarProvider: 'google' | 'microsoft' | null = null;
       let googleSyncErrorMessage = '';
 
-      if (userSettings?.googleTokens) {
+      if (userSettings?.calendarProvider === 'google' && userSettings.googleTokens) {
         try {
           setTokens(user.id, JSON.parse(userSettings.googleTokens));
           const googleResult = await addEventToGoogleCalendar({
             ...newEvent,
             startDate: new Date(event.startDate),
             endDate: null,
-            attendeePhones: phones // Passando telefones para o helper do Google
+            attendeePhones: phones
           }, user.id);
 
           if (googleResult.success) {
-            isSyncedWithGoogle = true;
+            syncedCalendarProvider = 'google';
             if (googleResult.conferenceLink) {
               await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
             }
@@ -477,6 +513,29 @@ class WhatsAppBot {
         } catch (error) {
           console.error('Erro Google Calendar:', error);
           googleSyncErrorMessage = 'Falha ao sincronizar com Google Calendar.';
+        }
+      } else if (userSettings?.calendarProvider === 'microsoft' && userSettings.microsoftTokens) {
+        try {
+          const microsoftResult = await addEventToMicrosoftCalendar({
+            ...newEvent,
+            startDate: new Date(event.startDate),
+            endDate: null,
+            attendeePhones: phones
+          }, user.id);
+
+          if (microsoftResult.success) {
+            syncedCalendarProvider = 'microsoft';
+            if (microsoftResult.conferenceLink) {
+              await storage.updateEvent(newEvent.id, { conferenceLink: microsoftResult.conferenceLink });
+            }
+            if (microsoftResult.calendarEventId) {
+              await storage.updateEvent(newEvent.id, { calendarId: microsoftResult.calendarEventId });
+            }
+          } else {
+            console.error(`⚠️ Falha no Microsoft Calendar: ${microsoftResult.message}`);
+          }
+        } catch (error) {
+          console.error('Erro Microsoft Calendar:', error);
         }
       }
 
@@ -514,13 +573,33 @@ class WhatsAppBot {
       }
 
       // A.2) NOTIFICAR CONVIDADOS (Emails)
-      // Se sincronizado com Google, ele já envia os convites. Se não, enviamos manualmente.
-      if (emails && emails.length > 0 && !isSyncedWithGoogle) {
+      // Se já houver sync com provedor (Google/Microsoft), evitamos disparo manual para não duplicar convites.
+      const nonGmailEmails = (emails || []).filter((email: string) => !this.isGmailAddress(email));
+      const gmailEmails = (emails || []).filter((email: string) => this.isGmailAddress(email));
+      const shouldSendManualEmailInvites = !syncedCalendarProvider;
+
+      // Não-Gmail: usa disparador apenas quando não houver sync no provider.
+      if (nonGmailEmails.length > 0 && shouldSendManualEmailInvites) {
+        const guestLinks = generateLinks(event);
+        const guestIcsLink = guestLinks.ics;
+
+        for (const email of nonGmailEmails) {
+          console.log(`📧 [DISPARADOR] Enviando convite para email não-Gmail: ${email}`);
+          try {
+            await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink);
+          } catch (e) {
+            console.error(`❌ Erro ao enviar email não-Gmail para ${email}`, e);
+          }
+        }
+      }
+
+      // Gmail: envia manualmente somente quando não houver sync de calendário.
+      if (gmailEmails.length > 0 && shouldSendManualEmailInvites) {
         // Gerar links para o convidado também (pois não é sync automático)
         const guestLinks = generateLinks(event);
         const guestIcsLink = guestLinks.ics;
 
-        for (const email of emails) {
+        for (const email of gmailEmails) {
           console.log(`📧 Enviando convite por email para: ${email}`);
           try {
             await emailService.sendInvitation(email, newEvent, user.name || "Anfitrião", guestIcsLink);
@@ -562,11 +641,17 @@ class WhatsAppBot {
       }
 
       // Lógica diferenciada para criador: Synced ou Link Manual
-      if (isSyncedWithGoogle) {
+      if (syncedCalendarProvider === 'google') {
         responseText += `\n\n✅ *Sincronizado com seu Google Calendar*`;
         const evtWithLink = await storage.getEvent(newEvent.id);
         if (evtWithLink?.conferenceLink) {
           responseText += `\n📹 Meet: ${evtWithLink.conferenceLink}`;
+        }
+      } else if (syncedCalendarProvider === 'microsoft') {
+        responseText += `\n\n✅ *Sincronizado com seu Microsoft Calendar*`;
+        const evtWithLink = await storage.getEvent(newEvent.id);
+        if (evtWithLink?.conferenceLink) {
+          responseText += `\n📹 Teams: ${evtWithLink.conferenceLink}`;
         }
       } else {
         const links = generateLinks(event);
@@ -611,9 +696,9 @@ class WhatsAppBot {
       '📌 *O que eu posso fazer?*\n' +
       '• Criar eventos (ex: "Almoço com mãe amanhã 13h")\n' +
       '• Enviar lembretres para você e convidados\n' +
-      '• Sincronizar com seu Google Calendar\n\n' +
+      '• Sincronizar com Google ou Microsoft Calendar\n\n' +
       '🔗 *Recomendação:*\n' +
-      'Conecte seu Google Calendar para uma experiência completa!\n' +
+      'Conecte seu calendário para uma experiência completa!\n' +
       'Digite `/conectar` para começar.\n\n' +
       '❓ *Dúvidas?* Digite `/ajuda` para ver todos os comandos.'
     );
@@ -634,8 +719,10 @@ class WhatsAppBot {
             '🤖 *Central de Ajuda Zelar IA*\n\n' +
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
+            '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/conectar` - Conecta ao Google Calendar\n' +
-            '• `/desconectar` - Desconecta do Google Calendar\n' +
+            '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
+            '• `/desconectar` - Desconecta calendário integrado\n' +
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
@@ -643,10 +730,38 @@ class WhatsAppBot {
           );
           break;
 
+        case '/email':
+          if (!args) {
+            await this.sendMessage(
+              remoteJid,
+              `📧 Seu email atual: *${user.email || 'não cadastrado'}*\n\n` +
+                'Para cadastrar/atualizar, use:\n' +
+                '`/email seu.email@dominio.com`',
+            );
+            break;
+          }
+
+          const normalizedEmail = args.toLowerCase().trim();
+          if (!this.isValidEmail(normalizedEmail)) {
+            await this.sendMessage(
+              remoteJid,
+              '❌ Email inválido.\n\nUse o formato:\n`/email seu.email@dominio.com`',
+            );
+            break;
+          }
+
+          await storage.updateUser(user.id, { email: normalizedEmail });
+          user.email = normalizedEmail;
+          await this.sendMessage(
+            remoteJid,
+            `✅ Email cadastrado com sucesso: *${normalizedEmail}*`,
+          );
+          break;
+
         case '/conectar':
         case '/connect':
           const settings = await storage.getUserSettings(user.id);
-          if (settings?.googleTokens) {
+          if (settings?.calendarProvider === 'google' && settings.googleTokens) {
             await this.sendMessage(remoteJid, '✅ Você já está conectado ao Google Calendar.\nUse /desconectar se desejar sair.');
           } else {
             const authUrl = generateAuthUrl(user.id, 'whatsapp');
@@ -659,17 +774,35 @@ class WhatsAppBot {
           }
           break;
 
+        case '/conectar_microsoft':
+        case '/connect_microsoft':
+          const microsoftSettings = await storage.getUserSettings(user.id);
+          if (microsoftSettings?.calendarProvider === 'microsoft' && microsoftSettings.microsoftTokens) {
+            await this.sendMessage(remoteJid, '✅ Você já está conectado ao Microsoft Calendar.\nUse /desconectar se desejar sair.');
+          } else {
+            const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
+            const authUrl = `${baseUrl}/api/auth/microsoft/authorize?userId=${user.id}&platform=whatsapp`;
+            await this.sendMessage(remoteJid,
+              '🔐 *Conectar Microsoft Calendar*\n\n' +
+              'Clique no link abaixo para autorizar o acesso:\n' +
+              `${authUrl}\n\n` +
+              'Isso permite que eu adicione eventos diretamente na sua agenda Outlook!'
+            );
+          }
+          break;
+
         case '/desconectar':
         case '/disconnect':
           const currentSettings = await storage.getUserSettings(user.id);
-          if (!currentSettings || !currentSettings.googleTokens) {
-            await this.sendMessage(remoteJid, '❌ Você não está conectado ao Google Calendar.');
+          if (!currentSettings || (!currentSettings.googleTokens && !currentSettings.microsoftTokens)) {
+            await this.sendMessage(remoteJid, '❌ Você não está conectado a nenhum calendário.');
           } else {
             await storage.updateUserSettings(user.id, {
               googleTokens: null,
+              microsoftTokens: null,
               calendarProvider: null,
             });
-            await this.sendMessage(remoteJid, '✅ Google Calendar desconectado com sucesso!\n\nSeus eventos futuros não serão mais sincronizados automaticamente.');
+            await this.sendMessage(remoteJid, '✅ Calendário desconectado com sucesso!\n\nSeus eventos futuros não serão mais sincronizados automaticamente.');
           }
           break;
 
@@ -749,12 +882,14 @@ class WhatsAppBot {
               return;
             }
 
-            // Deletar do Google
+            // Deletar do calendário integrado
             if (ev.calendarId) {
               const settings = await storage.getUserSettings(user.id);
-              if (settings?.googleTokens) {
+              if (settings?.calendarProvider === 'google' && settings.googleTokens) {
                 setTokens(user.id, JSON.parse(settings.googleTokens));
                 await cancelGoogleCalendarEvent(ev.calendarId, user.id);
+              } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+                await cancelMicrosoftCalendarEvent(ev.calendarId, user.id);
               }
             }
 
