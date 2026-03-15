@@ -169,6 +169,7 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     // Salvar tokens no banco
     await storage.updateUserSettings(user.id, {
       googleTokens: JSON.stringify(tokens),
+      microsoftTokens: null,
       calendarProvider: 'google',
     });
 
@@ -338,9 +339,10 @@ router.post('/disconnect', asyncHandler(async (req: Request, res: Response) => {
   }
 
   // Remover tokens
+  const settings = await storage.getUserSettings(user.id);
   await storage.updateUserSettings(user.id, {
     googleTokens: null,
-    calendarProvider: null,
+    calendarProvider: settings?.calendarProvider === 'google' ? null : settings?.calendarProvider || null,
   });
 
   console.log(`🔓 Google Calendar desconectado para usuário ${user.username}`);

@@ -115,6 +115,7 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
 
     await storage.updateUserSettings(user.id, {
       microsoftTokens: JSON.stringify(tokens),
+      googleTokens: null,
       calendarProvider: 'microsoft',
     });
 
