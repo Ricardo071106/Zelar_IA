@@ -505,7 +505,7 @@ class WhatsAppBot {
 
       // 4.2. Integração com calendário conectado (Google ou Microsoft)
       let syncedCalendarProvider: 'google' | 'microsoft' | null = null;
-      let googleSyncErrorMessage = '';
+      let calendarSyncErrorMessage = '';
       let usedDefaultOrganizer = false;
       const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
       const defaultOrganizerIntegrationKey = process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
@@ -531,11 +531,11 @@ class WhatsAppBot {
             }
           } else {
             console.error(`⚠️ Falha no Google Calendar: ${googleResult.message}`);
-            googleSyncErrorMessage = googleResult.message;
+            calendarSyncErrorMessage = googleResult.message;
           }
         } catch (error) {
           console.error('Erro Google Calendar:', error);
-          googleSyncErrorMessage = 'Falha ao sincronizar com Google Calendar.';
+          calendarSyncErrorMessage = 'Falha ao sincronizar com Google Calendar.';
         }
       } else if (userSettings?.calendarProvider === 'microsoft' && userSettings.microsoftTokens) {
         try {
@@ -556,14 +556,16 @@ class WhatsAppBot {
             }
           } else {
             console.error(`⚠️ Falha no Microsoft Calendar: ${microsoftResult.message}`);
+            calendarSyncErrorMessage = microsoftResult.message;
           }
         } catch (error) {
           console.error('Erro Microsoft Calendar:', error);
+          calendarSyncErrorMessage = 'Falha ao sincronizar com Microsoft Calendar.';
         }
       } else if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
         try {
           if (!db) {
-            googleSyncErrorMessage = 'Banco indisponível para buscar integração organizadora.';
+            calendarSyncErrorMessage = 'Banco indisponível para buscar integração organizadora.';
           } else {
             const integrationResult = await db.execute(sql`
               SELECT organizer_email, tokens, active
@@ -580,7 +582,7 @@ class WhatsAppBot {
               : rawTokens;
 
             if (!integrationRow || !integrationRow.active || !organizerTokens) {
-              googleSyncErrorMessage = 'Integração organizadora padrão não encontrada/ativa.';
+              calendarSyncErrorMessage = 'Integração organizadora padrão não encontrada/ativa.';
             } else {
               defaultOrganizerEmail = integrationRow.organizer_email || null;
               setTokens(defaultOrganizerId, organizerTokens);
@@ -606,13 +608,13 @@ class WhatsAppBot {
                 await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
               }
             } else {
-              googleSyncErrorMessage = googleResult.message;
+              calendarSyncErrorMessage = googleResult.message;
             }
             }
           }
         } catch (error) {
           console.error('Erro ao sincronizar via conta organizadora padrão:', error);
-          googleSyncErrorMessage = 'Falha ao sincronizar via conta organizadora padrão.';
+          calendarSyncErrorMessage = 'Falha ao sincronizar via conta organizadora padrão.';
         }
       }
 
@@ -691,8 +693,8 @@ class WhatsAppBot {
       } else {
         const links = generateLinks(event);
         responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
-        if (googleSyncErrorMessage) {
-          responseText += `\n\n⚠️ *Calendar não sincronizou:* ${googleSyncErrorMessage}\n` +
+        if (calendarSyncErrorMessage) {
+          responseText += `\n\n⚠️ *Calendar não sincronizou:* ${calendarSyncErrorMessage}\n` +
             `Se necessário, reconecte com */conectar*.`;
         }
       }

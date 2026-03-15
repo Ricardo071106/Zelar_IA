@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { storage } from '../storage';
+import { getWhatsAppBot } from '../whatsapp/whatsappBot';
 import {
   exchangeMicrosoftCodeForTokens,
   generateMicrosoftAuthUrl,
@@ -118,6 +119,15 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     });
 
     console.log(`✅ Microsoft Calendar conectado para usuário ${user.username} (ID: ${user.id})`);
+
+    if (/^\d+$/.test(user.username)) {
+      const whatsappBot = getWhatsAppBot();
+      const jid = `${user.username}@s.whatsapp.net`;
+      await whatsappBot.sendMessage(
+        jid,
+        '✅ *Microsoft Calendar conectado!*\n\nAgora os eventos serão sincronizados automaticamente com seu Outlook.'
+      );
+    }
 
     return res.send(`
       <!DOCTYPE html>
