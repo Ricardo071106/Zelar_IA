@@ -46,6 +46,11 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
   }
 
   const authUrl = generateMicrosoftAuthUrl(userId, platform);
+  const shouldRedirect = req.query.redirect === '1' || req.query.redirect === 'true';
+  if (shouldRedirect) {
+    return res.redirect(authUrl);
+  }
+
   return res.json({
     success: true,
     data: {
@@ -94,6 +99,17 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
 
     if (!user) {
       return res.status(404).send('Usuário não encontrado');
+    }
+
+    let settings = await storage.getUserSettings(user.id);
+    if (!settings) {
+      settings = await storage.createUserSettings({
+        userId: user.id,
+        notificationsEnabled: true,
+        reminderTimes: [12],
+        language: 'pt-BR',
+        timeZone: 'America/Sao_Paulo',
+      });
     }
 
     await storage.updateUserSettings(user.id, {

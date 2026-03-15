@@ -68,6 +68,11 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
     prompt: 'consent', // Força exibir tela de consentimento para obter refresh token
   });
 
+  const shouldRedirect = req.query.redirect === '1' || req.query.redirect === 'true';
+  if (shouldRedirect) {
+    return res.redirect(authUrl);
+  }
+
   res.json({
     success: true,
     data: {

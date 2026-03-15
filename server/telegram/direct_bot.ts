@@ -9,6 +9,7 @@ import { getUserTimezone, extractEventTitle } from './utils/parseDate';
 import { storage } from '../storage';
 import type { InsertEvent } from '@shared/schema';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
+import { addEventToMicrosoftCalendar, cancelMicrosoftCalendarEvent } from './microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import axios from 'axios';
 
@@ -149,11 +150,11 @@ async function setupBotCommands(token: string): Promise<void> {
       },
       {
         command: 'conectar',
-        description: 'Conectar Google Calendar'
+        description: 'Conectar Google ou Microsoft'
       },
       {
         command: 'desconectar',
-        description: 'Desconectar Google Calendar'
+        description: 'Desconectar calendário'
       },
       {
         command: 'status',
@@ -247,10 +248,10 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
           return;
         }
 
-        // Deletar do Google Calendar se estiver conectado
+        // Deletar do calendário integrado se estiver conectado
         if (event.calendarId) {
           const settings = await storage.getUserSettings(dbUser.id);
-          if (settings?.googleTokens) {
+          if (settings?.calendarProvider === 'google' && settings.googleTokens) {
             const tokens = JSON.parse(settings.googleTokens);
             setTokens(dbUser.id, tokens);
 
@@ -259,6 +260,13 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
               console.log('✅ Evento deletado do Google Calendar');
             } else {
               console.log('⚠️ Não foi possível deletar do Google Calendar:', googleResult.message);
+            }
+          } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+            const microsoftResult = await cancelMicrosoftCalendarEvent(event.calendarId, dbUser.id);
+            if (microsoftResult.success) {
+              console.log('✅ Evento deletado do Microsoft Calendar');
+            } else {
+              console.log('⚠️ Não foi possível deletar do Microsoft Calendar:', microsoftResult.message);
             }
           }
         }
@@ -495,8 +503,8 @@ Comandos:
 /lembrete ID 2h - Criar lembrete (horas antes)
 /editarlembrete ID 1h - Editar lembrete
 /deletarlembrete ID - Remover lembrete
-/conectar - Conectar Google Calendar
-/desconectar - Desconectar Google Calendar
+/conectar - Conectar Google ou Microsoft
+/desconectar - Desconectar calendário integrado
 /status - Ver status da conex?o
 /timezone - Alterar fuso hor?rio
 /start - Mensagem inicial
@@ -510,7 +518,7 @@ Fuso atual: Brasil (UTC-3)
     return;
   }
 
-  // Comando /conectar - Conectar Google Calendar
+  // Comando /conectar - Mostrar opções de conexão
   if (message === '/conectar') {
     console.log('🔗 Comando /conectar detectado!');
     const telegramUserId = update.message?.from?.id?.toString();
@@ -542,48 +550,51 @@ Fuso atual: Brasil (UTC-3)
       const settings = await storage.getUserSettings(dbUser.id);
       console.log(`🔍 Settings: ${settings ? 'Encontrado' : 'Não encontrado'}`);
 
-      if (settings?.googleTokens) {
-        console.log('✅ Já está conectado ao Google Calendar');
-        await sendMessage(chatId,
-          '✅ *Você já está conectado!*\n\n' +
-          'Seu Google Calendar já está integrado.\n' +
-          'Use /desconectar se quiser remover a conexão.'
-        );
-        return;
-      }
-
-      // Gerar URL de autorização
-      console.log('🔗 Gerando URL de autorização...');
+      const isGoogleConnected = Boolean(settings?.googleTokens);
+      const isMicrosoftConnected = Boolean(settings?.microsoftTokens);
       const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
-      const authUrl = `${baseUrl}/api/auth/google/authorize?userId=${telegramUserId}&platform=telegram`;
-      console.log(`📎 URL gerada: ${authUrl}`);
+      const googleAuthUrl = `${baseUrl}/api/auth/google/authorize?userId=${telegramUserId}&platform=telegram&redirect=1`;
+      const microsoftAuthUrl = `${baseUrl}/api/auth/microsoft/authorize?userId=${telegramUserId}&platform=telegram&redirect=1`;
+      console.log(`📎 URLs geradas - Google: ${googleAuthUrl} | Microsoft: ${microsoftAuthUrl}`);
 
       console.log('📤 Enviando mensagem com botão...');
 
       // Se for localhost, enviar sem botão (Telegram não aceita localhost em botões)
-      if (authUrl.includes('localhost')) {
+      if (googleAuthUrl.includes('localhost') || microsoftAuthUrl.includes('localhost')) {
+        const providerName =
+          settings?.calendarProvider === 'microsoft' && isMicrosoftConnected
+            ? 'Microsoft Calendar'
+            : settings?.calendarProvider === 'google' && isGoogleConnected
+              ? 'Google Calendar'
+              : null;
+
         await sendMessage(chatId,
-          '🔐 *Conectar Google Calendar*\n\n' +
-          'Para criar eventos automaticamente no seu Google Calendar, ' +
-          'você precisa autorizar o acesso.\n\n' +
-          '🔗 Copie e cole este link no navegador:\n' +
-          `\`${authUrl}\`\n\n` +
+          '🔐 *Conectar Calendário*\n\n' +
+          (providerName
+            ? `✅ Você já está conectado ao *${providerName}*.\nUse os links abaixo para trocar de provedor:\n\n`
+            : 'Escolha o provedor e autorize o acesso:\n\n') +
+          '*Google:*\n' +
+          `\`${googleAuthUrl}\`\n\n` +
+          '*Microsoft:*\n' +
+          `\`${microsoftAuthUrl}\`\n\n` +
           '⚠️ *Nota:* Como você está usando localhost, não posso criar um botão. ' +
           'Use ngrok (https://ngrok.com) para ter uma URL pública e botões funcionais.\n\n' +
-          '✨ Após autorizar, seus eventos serão criados automaticamente!'
+          '✨ Após autorizar, seus eventos serão criados automaticamente no calendário selecionado.'
         );
       } else {
         // URL pública, pode usar botão
         await sendMessage(chatId,
-          '🔐 *Conectar Google Calendar*\n\n' +
-          'Para criar eventos automaticamente no seu Google Calendar, ' +
-          'você precisa autorizar o acesso.\n\n' +
-          '🔗 Clique no botão abaixo:\n\n' +
-          '✨ Após autorizar, seus eventos serão criados automaticamente!',
+          '🔐 *Conectar Calendário*\n\n' +
+          (isGoogleConnected || isMicrosoftConnected
+            ? `✅ Conexão atual: *${settings?.calendarProvider === 'microsoft' ? 'Microsoft' : 'Google'}*.\nVocê pode trocar o provedor abaixo.\n\n`
+            : 'Escolha o provedor para sincronizar seus eventos automaticamente:\n\n') +
+          '🔗 Clique no botão desejado:\n\n' +
+          '✨ Após autorizar, os eventos serão criados automaticamente no provedor escolhido.',
           {
             inline_keyboard: [[
-              { text: '🔗 Conectar Google Calendar', url: authUrl }
-            ]]
+              { text: '🔗 Conectar Google', url: googleAuthUrl },
+              { text: '🔗 Conectar Microsoft', url: microsoftAuthUrl }
+            ]],
           }
         );
       }
@@ -599,7 +610,7 @@ Fuso atual: Brasil (UTC-3)
     return;
   }
 
-  // Comando /desconectar - Desconectar Google Calendar
+  // Comando /desconectar - Desconectar calendário integrado
   if (message === '/desconectar') {
     const telegramUserId = update.message?.from?.id?.toString();
 
@@ -618,10 +629,13 @@ Fuso atual: Brasil (UTC-3)
 
       const settings = await storage.getUserSettings(dbUser.id);
 
-      if (!settings?.googleTokens) {
+      const hasGoogle = Boolean(settings?.googleTokens);
+      const hasMicrosoft = Boolean(settings?.microsoftTokens);
+
+      if (!hasGoogle && !hasMicrosoft) {
         await sendMessage(chatId,
           '📭 *Não conectado*\n\n' +
-          'Você não está conectado ao Google Calendar.\n' +
+          'Você não está conectado a nenhum calendário.\n' +
           'Use /conectar para fazer a conexão.'
         );
         return;
@@ -630,12 +644,13 @@ Fuso atual: Brasil (UTC-3)
       // Desconectar
       await storage.updateUserSettings(dbUser.id, {
         googleTokens: null,
+        microsoftTokens: null,
         calendarProvider: null,
       });
 
       await sendMessage(chatId,
         '✅ *Desconectado com sucesso!*\n\n' +
-        'Seu Google Calendar foi desconectado.\n' +
+        'Seu calendário integrado foi desconectado.\n' +
         'Use /conectar quando quiser conectar novamente.'
       );
     } catch (error) {
@@ -663,19 +678,30 @@ Fuso atual: Brasil (UTC-3)
       }
 
       const settings = await storage.getUserSettings(dbUser.id);
-      const isConnected = !!(settings?.googleTokens);
+      const isGoogleConnected = Boolean(settings?.googleTokens);
+      const isMicrosoftConnected = Boolean(settings?.microsoftTokens);
+      const activeProvider = settings?.calendarProvider;
 
-      if (isConnected) {
+      if (isGoogleConnected || isMicrosoftConnected) {
+        const providerLabel =
+          activeProvider === 'microsoft'
+            ? 'Microsoft Calendar'
+            : activeProvider === 'google'
+              ? 'Google Calendar'
+              : isMicrosoftConnected
+                ? 'Microsoft Calendar'
+                : 'Google Calendar';
+
         await sendMessage(chatId,
-          '✅ *Google Calendar Conectado*\n\n' +
-          '🔗 Seu Google Calendar está integrado\n' +
+          `✅ *${providerLabel} conectado*\n\n` +
+          `🔗 Provedor ativo: *${providerLabel}*\n` +
           '✨ Eventos são criados automaticamente\n\n' +
           'Use /desconectar para remover a conexão.'
         );
       } else {
         await sendMessage(chatId,
-          '📭 *Google Calendar não conectado*\n\n' +
-          '🔗 Use /conectar para integrar seu calendário\n' +
+          '📭 *Nenhum calendário conectado*\n\n' +
+          '🔗 Use /conectar para integrar Google ou Microsoft\n' +
           '✨ Eventos serão criados automaticamente após conectar!'
         );
       }
@@ -1153,10 +1179,10 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         await reminderService.ensureDefaultReminder(updatedEventRecord, 'telegram');
       }
 
-      // Atualizar no Google Calendar se conectado
+      // Atualizar no calendário integrado se conectado
       if (event.calendarId) {
         const settings = await storage.getUserSettings(dbUser.id);
-        if (settings?.googleTokens) {
+        if (settings?.calendarProvider === 'google' && settings.googleTokens) {
           try {
             const tokens = JSON.parse(settings.googleTokens);
             setTokens(dbUser.id, tokens);
@@ -1178,6 +1204,25 @@ Use o comando \`lembrete ID 2h\` para criar um.');
             console.log('✅ Evento atualizado no Google Calendar');
           } catch (error) {
             console.error('⚠️ Erro ao atualizar no Google Calendar:', error);
+          }
+        } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+          try {
+            await cancelMicrosoftCalendarEvent(event.calendarId, dbUser.id);
+
+            const updatedEvent = await storage.getEvent(eventId);
+            if (updatedEvent) {
+              const microsoftResult = await addEventToMicrosoftCalendar(updatedEvent, dbUser.id);
+
+              if (microsoftResult.success && microsoftResult.calendarEventId) {
+                await storage.updateEvent(eventId, {
+                  calendarId: microsoftResult.calendarEventId
+                });
+              }
+            }
+
+            console.log('✅ Evento atualizado no Microsoft Calendar');
+          } catch (error) {
+            console.error('⚠️ Erro ao atualizar no Microsoft Calendar:', error);
           }
         }
       }
@@ -1286,8 +1331,8 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         console.log(`✅ Evento salvo no banco: ${eventTitle} (ID: ${savedEvent.id})`);
         await reminderService.ensureDefaultReminder(savedEvent, 'telegram');
 
-        // =================== INTEGRAÇÃO GOOGLE CALENDAR ===================
-        // Verificar se usuário tem Google Calendar conectado
+        // =================== INTEGRAÇÃO CALENDAR (GOOGLE/MICROSOFT) ===================
+        // Verificar se usuário tem calendário conectado
         try {
           const telegramUserId = update.message?.from?.id?.toString();
           if (telegramUserId) {
@@ -1295,7 +1340,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
             if (dbUser) {
               const settings = await storage.getUserSettings(dbUser.id);
 
-              if (settings?.googleTokens) {
+              if (settings?.calendarProvider === 'google' && settings.googleTokens) {
                 console.log('🔗 Usuário tem Google Calendar conectado, criando evento...');
 
                 // Configurar tokens do Google
@@ -1321,13 +1366,31 @@ Use o comando \`lembrete ID 2h\` para criar um.');
                 } else {
                   console.log('⚠️ Não foi possível criar no Google Calendar:', googleResult.message);
                 }
+              } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+                console.log('🔗 Usuário tem Microsoft Calendar conectado, criando evento...');
+
+                const microsoftResult = await addEventToMicrosoftCalendar(savedEvent, dbUser.id);
+                if (microsoftResult.success) {
+                  console.log('✅ Evento criado no Microsoft Calendar!');
+
+                  if (microsoftResult.calendarEventId) {
+                    await storage.updateEvent(savedEvent.id, {
+                      calendarId: microsoftResult.calendarEventId,
+                      conferenceLink: microsoftResult.conferenceLink || null
+                    });
+                  }
+
+                  event.conferenceLink = microsoftResult.conferenceLink;
+                } else {
+                  console.log('⚠️ Não foi possível criar no Microsoft Calendar:', microsoftResult.message);
+                }
               } else {
-                console.log('ℹ️ Usuário não tem Google Calendar conectado');
+                console.log('ℹ️ Usuário não tem calendário conectado');
               }
             }
           }
         } catch (error) {
-          console.error('❌ Erro ao criar evento no Google Calendar:', error);
+          console.error('❌ Erro ao criar evento no calendário integrado:', error);
           // Continuar mesmo se falhar
         }
         // =================== FIM INTEGRAÇÃO ===================
@@ -1349,29 +1412,31 @@ Use o comando \`lembrete ID 2h\` para criar um.');
       ]
     };
 
-    // Mensagem com informação de Google Calendar se aplicável
+    // Mensagem com informação de calendário integrado
     let messageText = '✅ *Evento criado!*\n\n' +
       `🎯 *${event.title}*\n` +
       `📅 ${event.displayDate}`;
 
     if (event.conferenceLink) {
-      messageText += `\n\n📹 *Google Meet:*\n${event.conferenceLink}\n\n✨ *Evento adicionado automaticamente ao seu Google Calendar!*`;
-    } else {
-      // Verificar se usuário tem Google Calendar conectado
-      try {
-        const telegramUserId = update.message?.from?.id?.toString();
-        if (telegramUserId) {
-          const dbUser = await storage.getUserByTelegramId(telegramUserId);
-          if (dbUser) {
-            const settings = await storage.getUserSettings(dbUser.id);
-            if (settings?.googleTokens) {
-              messageText += '\n\n✨ *Evento adicionado ao seu Google Calendar!*';
-            }
+      messageText += `\n\n📹 *Link da reunião:*\n${event.conferenceLink}`;
+    }
+
+    // Verificar se usuário tem calendário conectado
+    try {
+      const telegramUserId = update.message?.from?.id?.toString();
+      if (telegramUserId) {
+        const dbUser = await storage.getUserByTelegramId(telegramUserId);
+        if (dbUser) {
+          const settings = await storage.getUserSettings(dbUser.id);
+          if (settings?.calendarProvider === 'google' && settings.googleTokens) {
+            messageText += '\n\n✨ *Evento adicionado ao seu Google Calendar!*';
+          } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+            messageText += '\n\n✨ *Evento adicionado ao seu Microsoft Calendar!*';
           }
         }
-      } catch (error) {
-        // Ignorar erro
       }
+    } catch (error) {
+      // Ignorar erro
     }
 
     await sendMessage(chatId, messageText, replyMarkup);

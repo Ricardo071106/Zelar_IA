@@ -24,7 +24,6 @@ import {
 import { storage } from '../storage';
 import {
   addEventToGoogleCalendar,
-  generateAuthUrl,
   cancelGoogleCalendarEvent,
   setTokens
 } from '../telegram/googleCalendarIntegration';
@@ -775,7 +774,7 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
-            '• `/conectar` - Conecta ao Google Calendar\n' +
+            '• `/conectar` - Conecta Google ou Microsoft Calendar\n' +
             '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
             '• `/desconectar` - Desconecta calendário integrado\n' +
             '• `/lembretes` - Vê lembretes pendentes\n' +
@@ -816,17 +815,25 @@ class WhatsAppBot {
         case '/conectar':
         case '/connect':
           const settings = await storage.getUserSettings(user.id);
-          if (settings?.calendarProvider === 'google' && settings.googleTokens) {
-            await this.sendMessage(remoteJid, '✅ Você já está conectado ao Google Calendar.\nUse /desconectar se desejar sair.');
-          } else {
-            const authUrl = generateAuthUrl(user.id, 'whatsapp');
-            await this.sendMessage(remoteJid,
-              '🔐 *Conectar Google Calendar*\n\n' +
-              'Clique no link abaixo para autorizar o acesso:\n' +
-              `${authUrl}\n\n` +
-              'Isso permite que eu adicione eventos diretamente na sua agenda oficial!'
-            );
-          }
+          const connectBaseUrl = process.env.BASE_URL || 'http://localhost:8080';
+          const googleAuthUrl = `${connectBaseUrl}/api/auth/google/authorize?userId=${user.id}&platform=whatsapp&redirect=1`;
+          const microsoftAuthUrl = `${connectBaseUrl}/api/auth/microsoft/authorize?userId=${user.id}&platform=whatsapp&redirect=1`;
+          const currentProvider =
+            settings?.calendarProvider === 'microsoft' && settings.microsoftTokens
+              ? 'Microsoft Calendar'
+              : settings?.calendarProvider === 'google' && settings.googleTokens
+                ? 'Google Calendar'
+                : null;
+
+          await this.sendMessage(remoteJid,
+            '🔐 *Conectar Calendário*\n\n' +
+            (currentProvider
+              ? `✅ Conexão atual: *${currentProvider}*.\nVocê pode trocar usando um dos links abaixo:\n\n`
+              : 'Escolha um provedor para sincronizar seus eventos automaticamente:\n\n') +
+            `🟢 *Google:*\n${googleAuthUrl}\n\n` +
+            `🔵 *Microsoft:*\n${microsoftAuthUrl}\n\n` +
+            'Após autorizar, seus eventos serão adicionados automaticamente no calendário escolhido.'
+          );
           break;
 
         case '/conectar_microsoft':
@@ -836,7 +843,7 @@ class WhatsAppBot {
             await this.sendMessage(remoteJid, '✅ Você já está conectado ao Microsoft Calendar.\nUse /desconectar se desejar sair.');
           } else {
             const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
-            const authUrl = `${baseUrl}/api/auth/microsoft/authorize?userId=${user.id}&platform=whatsapp`;
+            const authUrl = `${baseUrl}/api/auth/microsoft/authorize?userId=${user.id}&platform=whatsapp&redirect=1`;
             await this.sendMessage(remoteJid,
               '🔐 *Conectar Microsoft Calendar*\n\n' +
               'Clique no link abaixo para autorizar o acesso:\n' +
