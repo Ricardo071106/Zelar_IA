@@ -10,7 +10,11 @@ const AUTH_BASE_URL = `https://login.microsoftonline.com/${MICROSOFT_TENANT_ID}/
 const TOKEN_URL = `${AUTH_BASE_URL}/token`;
 const AUTHORIZE_URL = `${AUTH_BASE_URL}/authorize`;
 const GRAPH_BASE_URL = 'https://graph.microsoft.com/v1.0';
-const SCOPES = ['offline_access', 'User.Read', 'Calendars.ReadWrite'];
+const GRAPH_SCOPES = [
+  'https://graph.microsoft.com/User.Read',
+  'https://graph.microsoft.com/Calendars.ReadWrite',
+];
+const SCOPES = ['offline_access', ...GRAPH_SCOPES];
 
 interface MicrosoftStoredTokens {
   access_token: string;
@@ -88,6 +92,10 @@ async function refreshAccessTokenIfNeeded(userId: number, tokens: MicrosoftStore
     return tokens;
   }
 
+  return refreshAccessToken(userId, tokens);
+}
+
+async function refreshAccessToken(userId: number, tokens: MicrosoftStoredTokens): Promise<MicrosoftStoredTokens> {
   if (!tokens.refresh_token) {
     throw new Error('Refresh token não disponível. Reautentique o Microsoft Calendar.');
   }
@@ -129,7 +137,7 @@ async function refreshAccessTokenIfNeeded(userId: number, tokens: MicrosoftStore
   return mergedTokens;
 }
 
-async function getValidAccessToken(userId: number): Promise<string> {
+async function getValidAccessToken(userId: number, forceRefresh = false): Promise<string> {
   const settings = await storage.getUserSettings(userId);
   const tokens = parseTokens(settings?.microsoftTokens);
 
@@ -137,7 +145,9 @@ async function getValidAccessToken(userId: number): Promise<string> {
     throw new Error('Usuário não autenticado com Microsoft Calendar');
   }
 
-  const validTokens = await refreshAccessTokenIfNeeded(userId, tokens);
+  const validTokens = forceRefresh
+    ? await refreshAccessToken(userId, tokens)
+    : await refreshAccessTokenIfNeeded(userId, tokens);
   if (!validTokens.access_token) {
     throw new Error('Token de acesso Microsoft inválido');
   }
@@ -250,18 +260,29 @@ export async function addEventToMicrosoftCalendar(event: Event, userId: number):
       onlineMeetingProvider: detectConferenceIntent(event) ? 'teamsForBusiness' : undefined,
     };
 
-    const response = await fetch(`${GRAPH_BASE_URL}/me/events`, {
+    const requestWithToken = async (token: string) => fetch(`${GRAPH_BASE_URL}/me/events`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
 
+    let response = await requestWithToken(accessToken);
+    if (response.status === 401) {
+      const firstErrorBody = await response.text();
+      const firstAuthHeader = response.headers.get('www-authenticate') || '';
+      log(`401 ao criar evento no Microsoft Calendar (tentando renovar token). body=${firstErrorBody} header=${firstAuthHeader}`);
+
+      const refreshedAccessToken = await getValidAccessToken(userId, true);
+      response = await requestWithToken(refreshedAccessToken);
+    }
+
     if (!response.ok) {
       const errorData = await response.text();
-      throw new Error(`Falha ao criar evento no Microsoft Calendar: ${response.status} ${errorData}`);
+      const authHeader = response.headers.get('www-authenticate') || '';
+      throw new Error(`Falha ao criar evento no Microsoft Calendar: ${response.status} ${errorData} ${authHeader}`);
     }
 
     const createdEvent = await response.json() as { id?: string; onlineMeeting?: { joinUrl?: string } };
