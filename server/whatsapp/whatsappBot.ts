@@ -704,20 +704,13 @@ class WhatsAppBot {
             fallbackEmailFailedTo.push(recipient);
           }
         }
-
-        responseText += `\n\n⚠️ *Sem calendário conectado*`;
-        if (fallbackEmailSentTo.length > 0) {
-          responseText += `\n📧 *Convite enviado por email para:*\n` + fallbackEmailSentTo.map((email) => `• ${email}`).join('\n');
-        } else {
-          responseText += `\n📭 Nenhum convite por email foi enviado. Cadastre seu email com \`/email seu@email.com\`.`;
-        }
         if (fallbackEmailFailedTo.length > 0) {
-          responseText += `\n\n⚠️ *Falha ao enviar para:*\n` + fallbackEmailFailedTo.map((email) => `• ${email}`).join('\n');
+          console.warn('⚠️ Falha no envio de fallback por email para:', fallbackEmailFailedTo.join(', '));
         }
         if (calendarSyncErrorMessage) {
-          responseText += `\n\n⚠️ *Calendar não sincronizou:* ${calendarSyncErrorMessage}\n` +
-            `Se necessário, reconecte com */conectar*.`;
+          console.warn('⚠️ Calendar não sincronizou (fallback email aplicado):', calendarSyncErrorMessage);
         }
+        responseText += `\n\n✅ *Evento criado*`;
       }
 
       // 4.4. Criar lembretes sem quebrar criação do evento
