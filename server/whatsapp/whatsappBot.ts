@@ -14,7 +14,7 @@ import pino from 'pino';
 import QRCode from 'qrcode';
 import { DateTime } from 'luxon';
 import { sql } from 'drizzle-orm';
-import { parseEvent, extractEventTitle } from '../services/eventParser';
+import { parseEvent, generateLinks, extractEventTitle } from '../services/eventParser';
 import {
   setUserTimezone,
   getUserTimezone,
@@ -565,7 +565,10 @@ class WhatsAppBot {
           console.error('Erro Microsoft Calendar:', error);
           calendarSyncErrorMessage = 'Falha ao sincronizar com Microsoft Calendar.';
         }
-      } else if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+      }
+
+      // Se o provedor do usuário falhar (ou não existir), tenta conta organizadora Google.
+      if (!syncedCalendarProvider && Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
         try {
           if (!db) {
             calendarSyncErrorMessage = 'Banco indisponível para buscar integração organizadora.';
@@ -590,29 +593,29 @@ class WhatsAppBot {
               defaultOrganizerEmail = integrationRow.organizer_email || null;
               setTokens(defaultOrganizerId, organizerTokens);
 
-            const fallbackAttendees = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+              const fallbackAttendees = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
 
-            const organizerEvent = {
-              ...newEvent,
-              startDate: new Date(event.startDate),
-              endDate: null,
-              attendeePhones: phones,
-              attendeeEmails: fallbackAttendees,
-            };
+              const organizerEvent = {
+                ...newEvent,
+                startDate: new Date(event.startDate),
+                endDate: null,
+                attendeePhones: phones,
+                attendeeEmails: fallbackAttendees,
+              };
 
-            const googleResult = await addEventToGoogleCalendar(organizerEvent as any, defaultOrganizerId);
-            if (googleResult.success) {
-              syncedCalendarProvider = 'google';
-              usedDefaultOrganizer = true;
-              if (googleResult.conferenceLink) {
-                await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
+              const googleResult = await addEventToGoogleCalendar(organizerEvent as any, defaultOrganizerId);
+              if (googleResult.success) {
+                syncedCalendarProvider = 'google';
+                usedDefaultOrganizer = true;
+                if (googleResult.conferenceLink) {
+                  await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
+                }
+                if (googleResult.calendarEventId) {
+                  await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
+                }
+              } else {
+                calendarSyncErrorMessage = googleResult.message;
               }
-              if (googleResult.calendarEventId) {
-                await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
-              }
-            } else {
-              calendarSyncErrorMessage = googleResult.message;
-            }
             }
           }
         } catch (error) {
@@ -692,11 +695,13 @@ class WhatsAppBot {
         }
       } else {
         const fallbackRecipients = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+        const fallbackIcsLink = generateLinks(event).ics;
         for (const recipient of fallbackRecipients) {
           const sent = await emailService.sendInvitation(
             recipient,
             newEvent,
-            user.name || user.username || 'Zelar IA'
+            user.name || user.username || 'Zelar IA',
+            fallbackIcsLink
           );
           if (sent) {
             fallbackEmailSentTo.push(recipient);
