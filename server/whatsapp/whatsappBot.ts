@@ -13,6 +13,7 @@ import { fileURLToPath } from 'url';
 import pino from 'pino';
 import QRCode from 'qrcode';
 import { DateTime } from 'luxon';
+import { sql } from 'drizzle-orm';
 import { parseEvent, generateLinks, extractEventTitle } from '../services/eventParser';
 import {
   setUserTimezone,
@@ -32,6 +33,7 @@ import {
   cancelMicrosoftCalendarEvent,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
+import { db } from '../db';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -52,6 +54,20 @@ class WhatsAppBot {
 
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
+  private formatReminderOffset(reminderTime: number): string {
+    // Compatibilidade com legado: valores <= 24 eram salvos em horas.
+    const minutes = reminderTime <= 24 ? reminderTime * 60 : reminderTime;
+    if (minutes % 60 === 0) {
+      return `${minutes / 60}h`;
+    }
+    if (minutes > 60) {
+      const h = Math.floor(minutes / 60);
+      const m = minutes % 60;
+      return `${h}h${m}min`;
+    }
+    return `${minutes}min`;
   }
 
   async initialize() {
@@ -484,6 +500,8 @@ class WhatsAppBot {
       let googleSyncErrorMessage = '';
       let usedDefaultOrganizer = false;
       const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
+      const defaultOrganizerIntegrationKey = process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
+      let defaultOrganizerEmail: string | null = null;
 
       if (userSettings?.calendarProvider === 'google' && userSettings.googleTokens) {
         try {
@@ -536,14 +554,30 @@ class WhatsAppBot {
         }
       } else if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
         try {
-          const organizerUser = await storage.getUser(defaultOrganizerId);
-          const organizerSettings = await storage.getUserSettings(defaultOrganizerId);
-
-          if (!organizerUser || !organizerSettings?.googleTokens) {
-            googleSyncErrorMessage = 'Conta organizadora padrão sem Google conectado.';
+          if (!db) {
+            googleSyncErrorMessage = 'Banco indisponível para buscar integração organizadora.';
           } else {
+            const integrationResult = await db.execute(sql`
+              SELECT organizer_email, tokens, active
+              FROM public.system_calendar_integrations
+              WHERE integration_key = ${defaultOrganizerIntegrationKey}
+                AND provider = 'google'
+              LIMIT 1
+            `);
+
+            const integrationRow = (integrationResult as any)?.rows?.[0];
+            const rawTokens = integrationRow?.tokens;
+            const organizerTokens = typeof rawTokens === 'string'
+              ? JSON.parse(rawTokens)
+              : rawTokens;
+
+            if (!integrationRow || !integrationRow.active || !organizerTokens) {
+              googleSyncErrorMessage = 'Integração organizadora padrão não encontrada/ativa.';
+            } else {
+              defaultOrganizerEmail = integrationRow.organizer_email || null;
+              setTokens(defaultOrganizerId, organizerTokens);
+
             const fallbackAttendees = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
-            setTokens(defaultOrganizerId, JSON.parse(organizerSettings.googleTokens));
 
             const organizerEvent = {
               ...newEvent,
@@ -565,6 +599,7 @@ class WhatsAppBot {
               }
             } else {
               googleSyncErrorMessage = googleResult.message;
+            }
             }
           }
         } catch (error) {
@@ -633,7 +668,7 @@ class WhatsAppBot {
       // Lógica diferenciada para criador: Synced ou Link Manual
       if (syncedCalendarProvider === 'google') {
         responseText += usedDefaultOrganizer
-          ? `\n\n✅ *Evento criado no Google Calendar organizador padrão*`
+          ? `\n\n✅ *Evento criado no Google Calendar organizador padrão*${defaultOrganizerEmail ? `\n👤 Organizador: ${defaultOrganizerEmail}` : ''}`
           : `\n\n✅ *Sincronizado com seu Google Calendar*`;
         const evtWithLink = await storage.getEvent(newEvent.id);
         if (evtWithLink?.conferenceLink) {
@@ -669,7 +704,25 @@ class WhatsAppBot {
       }
 
       if (reminderCreated) {
-        responseText += `\n\n🔔 Lembrete automático criado (12h antes).`;
+        let reminderSummary = '12h antes';
+        try {
+          const savedReminders = await storage.getEventReminders(newEvent.id);
+          const reminderOffsets = [...new Set(
+            savedReminders
+              .filter((item) => item.isDefault && item.channel === 'whatsapp')
+              .map((item) => item.reminderTime)
+              .filter((value): value is number => typeof value === 'number')
+          )];
+
+          if (reminderOffsets.length > 0) {
+            reminderOffsets.sort((a, b) => b - a);
+            reminderSummary = reminderOffsets.map((offset) => this.formatReminderOffset(offset)).join(', ');
+          }
+        } catch (summaryError) {
+          console.error('⚠️ Não foi possível montar resumo de lembretes:', summaryError);
+        }
+
+        responseText += `\n\n🔔 Lembretes automáticos criados: ${reminderSummary} antes.`;
       } else {
         responseText += `\n\n⚠️ Evento criado, mas o lembrete automático não foi configurado.`;
       }
