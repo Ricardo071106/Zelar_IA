@@ -29,6 +29,25 @@ function log(message: string): void {
   console.log(`${new Date().toISOString()} [MICROSOFT] ${message}`);
 }
 
+function getTokenClaimsSummary(token?: string): string {
+  if (!token) return 'token_absent';
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return 'token_not_jwt';
+    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const normalizedPayload = payload + '='.repeat((4 - (payload.length % 4)) % 4);
+    const claims = JSON.parse(Buffer.from(normalizedPayload, 'base64').toString('utf8')) as Record<string, unknown>;
+    const aud = String(claims.aud || '');
+    const scp = String(claims.scp || '');
+    const tid = String(claims.tid || '');
+    const appid = String(claims.appid || '');
+    const exp = String(claims.exp || '');
+    return `aud=${aud} scp=${scp} tid=${tid} appid=${appid} exp=${exp}`;
+  } catch {
+    return 'token_claims_unreadable';
+  }
+}
+
 function detectConferenceIntent(event: Event): boolean {
   const fieldsToCheck = [event.description, event.location, event.title]
     .filter(Boolean)
@@ -206,6 +225,7 @@ export async function addEventToMicrosoftCalendar(event: Event, userId: number):
 }> {
   try {
     const accessToken = await getValidAccessToken(userId);
+    log(`Criando evento com token: ${getTokenClaimsSummary(accessToken)}`);
 
     if (!event.startDate) {
       return { success: false, message: 'A data de início do evento é obrigatória' };
@@ -276,6 +296,7 @@ export async function addEventToMicrosoftCalendar(event: Event, userId: number):
       log(`401 ao criar evento no Microsoft Calendar (tentando renovar token). body=${firstErrorBody} header=${firstAuthHeader}`);
 
       const refreshedAccessToken = await getValidAccessToken(userId, true);
+      log(`Retry com token renovado: ${getTokenClaimsSummary(refreshedAccessToken)}`);
       response = await requestWithToken(refreshedAccessToken);
     }
 
