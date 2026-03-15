@@ -441,14 +441,23 @@ class WhatsAppBot {
       // Sanidade de ano/data: se IA vier com ano inconsistente e sem ano explícito no texto, usa fallback local.
       const fallbackDate = parseUserDateTime(text, whatsappId);
       const hasExplicitYear = /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b20\d{2}\b/.test(text);
+      const hasExplicitWeekday = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/i.test(text);
       if (fallbackDate) {
         const fallbackStart = new Date(fallbackDate.iso);
         const now = new Date();
         const aiInPast = finalStartDate.getTime() < (now.getTime() - 6 * 60 * 60 * 1000);
         const fallbackInFuture = fallbackStart.getTime() > now.getTime();
         const yearMismatch = finalStartDate.getFullYear() !== fallbackStart.getFullYear();
+        const weekdayMismatch = finalStartDate.getDay() !== fallbackStart.getDay();
 
-        if (!hasExplicitYear && (yearMismatch || (aiInPast && fallbackInFuture))) {
+        // Se o usuário informou dia da semana explicitamente, prioriza parser local
+        // quando IA divergir no dia da semana (ex.: "segunda" e IA retornar terça).
+        if (hasExplicitWeekday && weekdayMismatch) {
+          console.log(`🛠️ Ajustando data por divergência de dia da semana: ${event.startDate} -> ${fallbackDate.iso}`);
+          event.startDate = fallbackDate.iso;
+          event.displayDate = fallbackDate.readable;
+          finalStartDate = fallbackStart;
+        } else if (!hasExplicitYear && (yearMismatch || (aiInPast && fallbackInFuture))) {
           console.log(`🛠️ Ajustando data para fallback local: ${event.startDate} -> ${fallbackDate.iso}`);
           event.startDate = fallbackDate.iso;
           event.displayDate = fallbackDate.readable;
@@ -668,7 +677,7 @@ class WhatsAppBot {
       // Lógica diferenciada para criador: Synced ou Link Manual
       if (syncedCalendarProvider === 'google') {
         responseText += usedDefaultOrganizer
-          ? `\n\n✅ *Evento criado no Google Calendar organizador padrão*${defaultOrganizerEmail ? `\n👤 Organizador: ${defaultOrganizerEmail}` : ''}`
+          ? `\n\n✅ *Evento criado*`
           : `\n\n✅ *Sincronizado com seu Google Calendar*`;
         const evtWithLink = await storage.getEvent(newEvent.id);
         if (evtWithLink?.conferenceLink) {
