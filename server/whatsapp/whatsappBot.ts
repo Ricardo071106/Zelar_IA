@@ -14,7 +14,7 @@ import pino from 'pino';
 import QRCode from 'qrcode';
 import { DateTime } from 'luxon';
 import { sql } from 'drizzle-orm';
-import { parseEvent, generateLinks, extractEventTitle } from '../services/eventParser';
+import { parseEvent, extractEventTitle } from '../services/eventParser';
 import {
   setUserTimezone,
   getUserTimezone,
@@ -32,6 +32,7 @@ import {
   cancelMicrosoftCalendarEvent,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
+import { emailService } from '../services/emailService';
 import { db } from '../db';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -510,6 +511,8 @@ class WhatsAppBot {
       const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
       const defaultOrganizerIntegrationKey = process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
       let defaultOrganizerEmail: string | null = null;
+      let fallbackEmailSentTo: string[] = [];
+      let fallbackEmailFailedTo: string[] = [];
 
       if (userSettings?.calendarProvider === 'google' && userSettings.googleTokens) {
         try {
@@ -622,9 +625,6 @@ class WhatsAppBot {
 
       // A) NOTIFICAR CONVIDADOS (Guests)
       if (phones && phones.length > 0) {
-        const guestLinks = generateLinks(event);
-        const guestLinkMsg = guestLinks.ics;
-
         for (const phone of phones) {
           // Normalizar telefone (remover @s.whatsapp.net se vier)
           const guestJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
@@ -645,7 +645,7 @@ class WhatsAppBot {
             `📅 *Você foi convidado para um evento!*\n\n` +
             `📝 *${event.title}*\n` +
             `🗓️ ${event.displayDate}\n\n` +
-            `📎 *Arquivo .ICS para adicionar ao calendário:*\n${guestLinkMsg}\n\n` +
+            `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
             `_Enviado via Zelar IA pelo anfitrião_`
           );
         }
@@ -691,8 +691,29 @@ class WhatsAppBot {
           responseText += `\n📹 Teams: ${evtWithLink.conferenceLink}`;
         }
       } else {
-        const links = generateLinks(event);
-        responseText += `\n\n📎 *Arquivo .ICS do evento:*\n${links.ics}`;
+        const fallbackRecipients = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+        for (const recipient of fallbackRecipients) {
+          const sent = await emailService.sendInvitation(
+            recipient,
+            newEvent,
+            user.name || user.username || 'Zelar IA'
+          );
+          if (sent) {
+            fallbackEmailSentTo.push(recipient);
+          } else {
+            fallbackEmailFailedTo.push(recipient);
+          }
+        }
+
+        responseText += `\n\n⚠️ *Sem calendário conectado*`;
+        if (fallbackEmailSentTo.length > 0) {
+          responseText += `\n📧 *Convite enviado por email para:*\n` + fallbackEmailSentTo.map((email) => `• ${email}`).join('\n');
+        } else {
+          responseText += `\n📭 Nenhum convite por email foi enviado. Cadastre seu email com \`/email seu@email.com\`.`;
+        }
+        if (fallbackEmailFailedTo.length > 0) {
+          responseText += `\n\n⚠️ *Falha ao enviar para:*\n` + fallbackEmailFailedTo.map((email) => `• ${email}`).join('\n');
+        }
         if (calendarSyncErrorMessage) {
           responseText += `\n\n⚠️ *Calendar não sincronizou:* ${calendarSyncErrorMessage}\n` +
             `Se necessário, reconecte com */conectar*.`;

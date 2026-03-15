@@ -8,7 +8,7 @@ if (!process.env.SENDGRID_API_KEY) {
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 }
 
-const FROM_EMAIL = 'no-reply@zelar.ia'; // Ajustar conforme sender verificado no SendGrid, ou usar var de ambiente
+const FROM_EMAIL = 'zelar.ia.messages@gmail.com';
 
 function hasSmtpConfig(): boolean {
   return Boolean(process.env.SMTP_HOST && process.env.SMTP_PORT && process.env.SMTP_USER && process.env.SMTP_PASS);
@@ -30,7 +30,7 @@ export class EmailService {
   async sendEmail(to: string, subject: string, html: string, text?: string): Promise<boolean> {
     console.log(`🔍 Tentando enviar email para ${to}. API Key Length: ${process.env.SENDGRID_API_KEY?.length}`);
 
-    const from = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_FROM || process.env.SMTP_USER || FROM_EMAIL;
+    const from = process.env.SENDGRID_FROM_EMAIL || process.env.SMTP_FROM || FROM_EMAIL;
     const msg = {
       to,
       from, // Fallback
