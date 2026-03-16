@@ -293,16 +293,24 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       ? phonesFromClaude.filter((phone) => phonesFromText.includes(phone))
       : phonesFromText;
 
+    const cleanedClaudeTitle = extractEventTitle(claudeResult.title || text);
+    const fallbackTitle = extractEventTitle(text);
+    const normalizedTitle =
+      (cleanedClaudeTitle && cleanedClaudeTitle.length > 2 ? cleanedClaudeTitle : '') ||
+      (fallbackTitle && fallbackTitle.length > 2 ? fallbackTitle : '') ||
+      claudeResult.title ||
+      'Compromisso';
+
     event = {
-      title: claudeResult.title,
+      title: normalizedTitle,
       startDate: eventDate.toISO() || eventDate.toString(),
-      description: claudeResult.title,
+      description: normalizedTitle,
       displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
       attendees: claudeResult.attendees,
       targetPhones: [...new Set(filteredPhones)],
     };
 
-    console.log(`✅ Claude interpretou: ${claudeResult.title} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
+    console.log(`✅ Claude interpretou: ${normalizedTitle} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
   } else {
     // Fallback
     const learnedPattern = checkLearnedPatterns(text, userTimezone);
