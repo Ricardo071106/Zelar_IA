@@ -724,10 +724,7 @@ class WhatsAppBot {
         await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
         reminderCreated = true;
 
-        // Criar lembrete por email se houver convidados por email OU se o criador tiver email
-        if ((emails && emails.length > 0) || user.email) {
-          await reminderService.ensureDefaultReminder(newEvent as any, 'email');
-        }
+        // Email reminders desativados: mantemos apenas convites por email no fluxo de fallback.
       } catch (reminderError) {
         console.error('⚠️ Erro ao criar lembrete automático (evento mantido):', reminderError);
       }

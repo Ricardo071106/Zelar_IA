@@ -8,6 +8,7 @@ import { emailService } from "./emailService";
 
 type ReminderChannel = Reminder["channel"];
 const DEFAULT_REMINDER_OFFSETS_MINUTES = [720, 360, 60, 15, 5]; // 12h, 6h, 1h, 15m, 5m
+const EMAIL_REMINDERS_ENABLED = process.env.EMAIL_REMINDERS_ENABLED === 'true';
 
 class ReminderService {
   private jobs = new Map<number, schedule.Job>();
@@ -109,7 +110,9 @@ class ReminderService {
           }
         }
       } else if (reminder.channel === "email") {
-        if (reminder.targetEmails && reminder.targetEmails.length > 0) {
+        if (!EMAIL_REMINDERS_ENABLED) {
+          console.log(`ℹ️ Email reminders desativados (eventId=${event.id}, reminderId=${reminder.id})`);
+        } else if (reminder.targetEmails && reminder.targetEmails.length > 0) {
           for (const email of reminder.targetEmails) {
             console.log(`📤 Sending email reminder to: ${email}`);
             await emailService.sendReminder(email, event);
