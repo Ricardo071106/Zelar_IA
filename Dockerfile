@@ -29,5 +29,5 @@ RUN npm run build
 # Prune dev dependencies to keep image size small
 RUN npm prune --production
 
-# Start the application with migrations
-CMD ["npm", "run", "start:prod"]
+# Apply database migrations before starting the application
+CMD ["sh", "-c", "npm run db:migrate && npm run start:prod"]

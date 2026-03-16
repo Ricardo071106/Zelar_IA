@@ -1105,7 +1105,6 @@ class WhatsAppBot {
 
       this.qrRecoveryAttempts += 1;
       console.log(`⚠️ Sem conexão e sem QR. Forçando regeneração (tentativa ${this.qrRecoveryAttempts})...`);
-      this.clearAuthState();
       this.startSock(version);
 
       // agenda próxima verificação caso continue sem conexão

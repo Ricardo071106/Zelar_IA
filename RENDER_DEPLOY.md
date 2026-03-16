@@ -44,7 +44,9 @@ This guide explains how to deploy the Zelar IA application to [Render](https://r
 - This setup uses a **Docker** environment to ensure all system dependencies for Puppeteer (Chrome) are present.
 - The `Dockerfile` installs `google-chrome-stable` and fonts, so the bot can generate QR codes and render pages correctly.
 - To persist WhatsApp login between restarts, attach a **Render Disk** and mount it to the same path configured in `WHATSAPP_AUTH_DIR`.
-- For daily midnight restarts, use the cron service defined in `render.yaml` and point `RESTART_WEBHOOK_URL` to:
+- For daily midnight restarts, use the cron service defined in `render.yaml`.
+- The schedule is `0 3 * * *`, which corresponds to `00:00` in `America/Sao_Paulo` (UTC-3).
+- Point `RESTART_WEBHOOK_URL` to:
   - `https://<your-service-domain>/health/restart`
   - with `Authorization: Bearer <RESTART_WEBHOOK_TOKEN>`
 - Simpler option (without Render Cron): enable internal restart in the app:

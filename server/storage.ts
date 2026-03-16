@@ -177,12 +177,24 @@ export class DatabaseStorage implements IStorage {
 
   async updateUserSettings(userId: number, data: Partial<InsertUserSettings>): Promise<UserSettings | undefined> {
     if (!db) return undefined;
-    const [updatedSettings] = await db
-      .update(userSettings)
-      .set(data)
-      .where(eq(userSettings.userId, userId))
-      .returning();
-    return updatedSettings;
+    try {
+      const [updatedSettings] = await db
+        .update(userSettings)
+        .set(data)
+        .where(eq(userSettings.userId, userId))
+        .returning();
+      return updatedSettings;
+    } catch (error: any) {
+      if (
+        error?.code === '42703' &&
+        String(error?.message || '').includes('microsoft_tokens') &&
+        Object.prototype.hasOwnProperty.call(data, 'microsoftTokens')
+      ) {
+        throw new Error('A coluna user_settings.microsoft_tokens nao existe no banco atual. Execute as migrations no Supabase antes de conectar o Microsoft Calendar.');
+      }
+
+      throw error;
+    }
   }
 
   // =================== EVENTOS ===================
