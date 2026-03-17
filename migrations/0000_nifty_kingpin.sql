@@ -1,9 +1,3 @@
-DROP TABLE IF EXISTS "reminders";
-DROP TABLE IF EXISTS "user_settings";
-DROP TABLE IF EXISTS "events";
-DROP TABLE IF EXISTS "users";
-
-
 CREATE TABLE IF NOT EXISTS "events" (
 	"id" serial PRIMARY KEY NOT NULL,
 	"user_id" integer NOT NULL,
