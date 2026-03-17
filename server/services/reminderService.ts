@@ -14,6 +14,10 @@ const EMAIL_REMINDERS_ENABLED = process.env.EMAIL_REMINDERS_ENABLED === 'true';
 class ReminderService {
   private jobs = new Map<number, schedule.Job>();
 
+  private normalizePhone(value?: string | null): string {
+    return String(value || "").replace(/\D/g, "");
+  }
+
   async start(): Promise<void> {
     try {
       await this.rescheduleAll();
@@ -100,23 +104,24 @@ class ReminderService {
           console.log(`ℹ️ WhatsApp reminders desativados (eventId=${event.id}, reminderId=${reminder.id})`);
         } else {
           const bot = getWhatsAppBot();
+          const ownerPhone = this.normalizePhone(user.username);
 
           // Prioritize targetPhones
           if (reminder.targetPhones && reminder.targetPhones.length > 0) {
-            for (const phone of reminder.targetPhones) {
+            const targets = [...new Set(reminder.targetPhones
+              .map((phone) => this.normalizePhone(phone))
+              .filter((phone) => phone.length > 0 && phone !== ownerPhone))];
+
+            for (const phone of targets) {
               // Ensure phone has country code or strict format if needed.
               // Assuming stored format is compatible (e.g. 5511...)
               console.log(`📤 Sending reminder to target: ${phone}`);
               await bot.sendMessage(phone, message);
             }
-          } else if (user.username) {
+          } else if (ownerPhone) {
             // Fallback to owner
             // Verify if username looks like a phone number (digits only)
-            if (/^\d+$/.test(user.username)) {
-              await bot.sendMessage(user.username, message);
-            } else {
-              console.log(`⚠️ Username '${user.username}' is not a phone number. Skipping WhatsApp reminder fallback.`);
-            }
+            await bot.sendMessage(ownerPhone, message);
           }
         }
       } else if (reminder.channel === "email") {

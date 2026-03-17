@@ -377,41 +377,45 @@ class WhatsAppBot {
     // =========================================================================
     // 3. PROCESSAMENTO DE EVENTOS (INTEGRAÇÃO COM CLAUDE)
     // =========================================================================
-    const userSettings = await storage.getUserSettings(user.id);
-    const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
+    const processingNoticeTimer = setTimeout(() => {
+      void this.sendMessage(remoteJid, "⏳ Processando sua solicitação, já te respondo.");
+    }, 5000);
 
-    console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-    let event = await parseEvent(text, whatsappId, userTimezone);
-    const localParsedDate = parseUserDateTime(text, whatsappId);
+    try {
+      const userSettings = await storage.getUserSettings(user.id);
+      const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
 
-    if (!event) {
-      // Fallback local para evitar falhas por interpretação da IA
-      const fallbackDate = parseUserDateTime(text, whatsappId);
-      if (!fallbackDate) {
-        console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
-        await this.sendMessage(remoteJid,
-          '❓ Não consegui entender a data/hora.\n\n' +
-          'Tente assim:\n' +
-          '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h"*.\n\n' +
-          'Use /ajuda para ver mais exemplos.'
-        );
-        return;
+      console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
+      let event = await parseEvent(text, whatsappId, userTimezone);
+      const localParsedDate = parseUserDateTime(text, whatsappId);
+
+      if (!event) {
+        // Fallback local para evitar falhas por interpretação da IA
+        const fallbackDate = parseUserDateTime(text, whatsappId);
+        if (!fallbackDate) {
+          console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
+          await this.sendMessage(remoteJid,
+            '❓ Não consegui entender a data/hora.\n\n' +
+            'Tente assim:\n' +
+            '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h"*.\n\n' +
+            'Use /ajuda para ver mais exemplos.'
+          );
+          return;
+        }
+
+        event = {
+          title: extractEventTitle(text) || 'Evento',
+          startDate: fallbackDate.iso,
+          description: text,
+          displayDate: fallbackDate.readable,
+          attendees: [],
+          targetPhones: [],
+        };
       }
 
-      event = {
-        title: extractEventTitle(text) || 'Evento',
-        startDate: fallbackDate.iso,
-        description: text,
-        displayDate: fallbackDate.readable,
-        attendees: [],
-        targetPhones: [],
-      };
-    }
-
-    // =========================================================================
-    // 4. CRIAÇÃO DE EVENTO E INTEGRAÇÕES
-    // =========================================================================
-    try {
+      // =========================================================================
+      // 4. CRIAÇÃO DE EVENTO E INTEGRAÇÕES
+      // =========================================================================
       // Adiciona o próprio usuário aos telefones alvo (se não estiver lá)
       if (!(event as any).targetPhones) {
         (event as any).targetPhones = [];
@@ -629,44 +633,7 @@ class WhatsAppBot {
       // A) NOTIFICAR CONVIDADOS (Guests)
       const creatorPhone = whatsappId.replace(/\D/g, '');
       const normalizedOtherGuestPhones = (phones || []).filter((p: string) => p.replace(/\D/g, '') !== creatorPhone);
-
-      if (phones && phones.length > 0) {
-        for (const phone of phones) {
-          // Normalizar telefone (remover @s.whatsapp.net se vier)
-          const guestJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
-
-          // Normalizar IDs para comparação numérica pura (remove @s.whatsapp.net e outros caracteres)
-          const guestIdOnly = guestJid.split('@')[0].replace(/\D/g, '');
-          const creatorIdOnly = whatsappId.replace(/\D/g, '');
-
-          // Pula se for o mesmo número (evita mandar "você foi convidado" para o criador)
-          if (guestIdOnly === creatorIdOnly) {
-            console.log(`🔄 Pulando envio de convite para o próprio criador (${guestIdOnly})`);
-            continue;
-          }
-
-          console.log(`📤 Enviando convite para convidado: ${guestJid}`);
-
-          await this.sendMessage(guestJid,
-            `📅 *Você foi convidado para um evento!*\n\n` +
-            `📝 *${event.title}*\n` +
-            `🗓️ ${event.displayDate}\n\n` +
-            `🔔 *Lembretes automáticos:* 3h, 1h e 15min antes.\n\n` +
-            `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
-            `_Enviado via Zelar IA pelo anfitrião_`
-          );
-        }
-      }
-
-      let guestReminderScheduled = false;
-      if (normalizedOtherGuestPhones.length > 0) {
-        try {
-          await reminderService.createWhatsAppGuestReminders(newEvent as any, normalizedOtherGuestPhones, [180, 60, 15]);
-          guestReminderScheduled = true;
-        } catch (guestReminderError) {
-          console.error('⚠️ Erro ao criar lembretes para convidados via WhatsApp:', guestReminderError);
-        }
-      }
+      const hasGuestPhones = normalizedOtherGuestPhones.length > 0;
 
       // B) NOTIFICAR CRIADOR (Creator)
       let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
@@ -683,11 +650,9 @@ class WhatsAppBot {
         }
       }
 
-      if (normalizedOtherGuestPhones.length > 0) {
+      if (hasGuestPhones) {
         responseText += '\n📱 *Convidados Notificados:*\n' + normalizedOtherGuestPhones.map((p: string) => `• ${p}`).join('\n');
-        if (guestReminderScheduled) {
-          responseText += '\n🔔 *Lembretes para convidados:* 3h, 1h e 15min antes.';
-        }
+        responseText += '\n🔔 *Lembretes para convidados:* 3h, 1h e 15min antes.';
       }
 
       // Lógica diferenciada para criador: Synced ou Link Manual
@@ -732,9 +697,35 @@ class WhatsAppBot {
 
       await this.sendMessage(remoteJid, responseText);
 
+      // Envio para convidados em background para evitar atrasar resposta ao anfitrião.
+      if (hasGuestPhones) {
+        void (async () => {
+          for (const phone of normalizedOtherGuestPhones) {
+            const guestJid = phone.includes('@') ? phone : `${phone}@s.whatsapp.net`;
+            console.log(`📤 Enviando convite para convidado: ${guestJid}`);
+            await this.sendMessage(guestJid,
+              `📅 *Você foi convidado para um evento!*\n\n` +
+              `📝 *${event.title}*\n` +
+              `🗓️ ${event.displayDate}\n\n` +
+              `🔔 *Lembretes automáticos:* 3h, 1h e 15min antes.\n\n` +
+              `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
+              `_Enviado via Zelar IA pelo anfitrião_`
+            );
+          }
+
+          try {
+            await reminderService.createWhatsAppGuestReminders(newEvent as any, normalizedOtherGuestPhones, [180, 60, 15]);
+          } catch (guestReminderError) {
+            console.error('⚠️ Erro ao criar lembretes para convidados via WhatsApp:', guestReminderError);
+          }
+        })();
+      }
+
     } catch (err) {
       console.error('Erro fatal ao criar evento:', err);
       await this.sendMessage(remoteJid, '❌ Ocorreu um erro interno ao criar seu evento. Tente novamente.');
+    } finally {
+      clearTimeout(processingNoticeTimer);
     }
   }
 
