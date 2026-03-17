@@ -718,41 +718,6 @@ class WhatsAppBot {
         responseText += `\n\n✅ *Evento criado*`;
       }
 
-      // 4.4. Criar lembretes sem quebrar criação do evento
-      let reminderCreated = false;
-      try {
-        await reminderService.ensureDefaultReminder(newEvent as any, 'whatsapp');
-        reminderCreated = true;
-
-        // Email reminders desativados: mantemos apenas convites por email no fluxo de fallback.
-      } catch (reminderError) {
-        console.error('⚠️ Erro ao criar lembrete automático (evento mantido):', reminderError);
-      }
-
-      if (reminderCreated) {
-        let reminderSummary = '12h antes';
-        try {
-          const savedReminders = await storage.getEventReminders(newEvent.id);
-          const reminderOffsets = [...new Set(
-            savedReminders
-              .filter((item) => item.isDefault && item.channel === 'whatsapp')
-              .map((item) => item.reminderTime)
-              .filter((value): value is number => typeof value === 'number')
-          )];
-
-          if (reminderOffsets.length > 0) {
-            reminderOffsets.sort((a, b) => b - a);
-            reminderSummary = reminderOffsets.map((offset) => this.formatReminderOffset(offset)).join(', ');
-          }
-        } catch (summaryError) {
-          console.error('⚠️ Não foi possível montar resumo de lembretes:', summaryError);
-        }
-
-        responseText += `\n\n🔔 Lembretes automáticos criados: ${reminderSummary} antes.`;
-      } else {
-        responseText += `\n\n⚠️ Evento criado, mas o lembrete automático não foi configurado.`;
-      }
-
       await this.sendMessage(remoteJid, responseText);
 
     } catch (err) {

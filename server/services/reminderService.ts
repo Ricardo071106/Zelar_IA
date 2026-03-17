@@ -8,6 +8,7 @@ import { emailService } from "./emailService";
 
 type ReminderChannel = Reminder["channel"];
 const DEFAULT_REMINDER_OFFSETS_MINUTES = [720, 360, 60, 15, 5]; // 12h, 6h, 1h, 15m, 5m
+const WHATSAPP_REMINDERS_ENABLED = process.env.WHATSAPP_REMINDERS_ENABLED === 'true';
 const EMAIL_REMINDERS_ENABLED = process.env.EMAIL_REMINDERS_ENABLED === 'true';
 
 class ReminderService {
@@ -90,23 +91,27 @@ class ReminderService {
       if (reminder.channel === "telegram" && user.telegramId) {
         await sendTelegramNotification(Number(user.telegramId), message);
       } else if (reminder.channel === "whatsapp") {
-        const bot = getWhatsAppBot();
+        if (!WHATSAPP_REMINDERS_ENABLED) {
+          console.log(`ℹ️ WhatsApp reminders desativados (eventId=${event.id}, reminderId=${reminder.id})`);
+        } else {
+          const bot = getWhatsAppBot();
 
-        // Prioritize targetPhones
-        if (reminder.targetPhones && reminder.targetPhones.length > 0) {
-          for (const phone of reminder.targetPhones) {
-            // Ensure phone has country code or strict format if needed. 
-            // Assuming stored format is compatible (e.g. 5511...)
-            console.log(`📤 Sending reminder to target: ${phone}`);
-            await bot.sendMessage(phone, message);
-          }
-        } else if (user.username) {
-          // Fallback to owner
-          // Verify if username looks like a phone number (digits only)
-          if (/^\d+$/.test(user.username)) {
-            await bot.sendMessage(user.username, message);
-          } else {
-            console.log(`⚠️ Username '${user.username}' is not a phone number. Skipping WhatsApp reminder fallback.`);
+          // Prioritize targetPhones
+          if (reminder.targetPhones && reminder.targetPhones.length > 0) {
+            for (const phone of reminder.targetPhones) {
+              // Ensure phone has country code or strict format if needed.
+              // Assuming stored format is compatible (e.g. 5511...)
+              console.log(`📤 Sending reminder to target: ${phone}`);
+              await bot.sendMessage(phone, message);
+            }
+          } else if (user.username) {
+            // Fallback to owner
+            // Verify if username looks like a phone number (digits only)
+            if (/^\d+$/.test(user.username)) {
+              await bot.sendMessage(user.username, message);
+            } else {
+              console.log(`⚠️ Username '${user.username}' is not a phone number. Skipping WhatsApp reminder fallback.`);
+            }
           }
         }
       } else if (reminder.channel === "email") {
