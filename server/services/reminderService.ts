@@ -95,7 +95,8 @@ class ReminderService {
       if (reminder.channel === "telegram" && user.telegramId) {
         await sendTelegramNotification(Number(user.telegramId), message);
       } else if (reminder.channel === "whatsapp") {
-        if (!WHATSAPP_REMINDERS_ENABLED) {
+        const hasExplicitTargets = Boolean(reminder.targetPhones && reminder.targetPhones.length > 0);
+        if (!WHATSAPP_REMINDERS_ENABLED && !hasExplicitTargets) {
           console.log(`ℹ️ WhatsApp reminders desativados (eventId=${event.id}, reminderId=${reminder.id})`);
         } else {
           const bot = getWhatsAppBot();
@@ -246,6 +247,37 @@ class ReminderService {
     });
     this.scheduleReminder(reminder, event);
     return reminder;
+  }
+
+  async createWhatsAppGuestReminders(
+    event: Event,
+    targetPhones: string[],
+    offsetsMinutes: number[] = [180, 60, 15],
+    message?: string
+  ): Promise<Reminder[]> {
+    const uniquePhones = [...new Set((targetPhones || []).map((phone) => String(phone).trim()).filter(Boolean))];
+    if (uniquePhones.length === 0) return [];
+
+    const reminders: Reminder[] = [];
+    for (const minutesBefore of offsetsMinutes) {
+      const sendAt = this.calculateSendAtByMinutes(event.startDate, minutesBefore);
+      const reminder = await storage.createReminder({
+        eventId: event.id,
+        userId: event.userId,
+        channel: "whatsapp",
+        message: message || undefined,
+        sendAt,
+        sent: false,
+        isDefault: false,
+        reminderTime: minutesBefore,
+        targetPhones: uniquePhones,
+      });
+
+      this.scheduleReminder(reminder, event);
+      reminders.push(reminder);
+    }
+
+    return reminders;
   }
 
   async updateReminderWithOffset(

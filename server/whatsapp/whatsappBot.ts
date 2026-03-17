@@ -627,6 +627,9 @@ class WhatsAppBot {
       // =================== 4.3. NOTIFICAÇÕES (GUESTS vs CREATOR) ===================
 
       // A) NOTIFICAR CONVIDADOS (Guests)
+      const creatorPhone = whatsappId.replace(/\D/g, '');
+      const normalizedOtherGuestPhones = (phones || []).filter((p: string) => p.replace(/\D/g, '') !== creatorPhone);
+
       if (phones && phones.length > 0) {
         for (const phone of phones) {
           // Normalizar telefone (remover @s.whatsapp.net se vier)
@@ -648,9 +651,20 @@ class WhatsAppBot {
             `📅 *Você foi convidado para um evento!*\n\n` +
             `📝 *${event.title}*\n` +
             `🗓️ ${event.displayDate}\n\n` +
+            `🔔 *Lembretes automáticos:* 3h, 1h e 15min antes.\n\n` +
             `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
             `_Enviado via Zelar IA pelo anfitrião_`
           );
+        }
+      }
+
+      let guestReminderScheduled = false;
+      if (normalizedOtherGuestPhones.length > 0) {
+        try {
+          await reminderService.createWhatsAppGuestReminders(newEvent as any, normalizedOtherGuestPhones, [180, 60, 15]);
+          guestReminderScheduled = true;
+        } catch (guestReminderError) {
+          console.error('⚠️ Erro ao criar lembretes para convidados via WhatsApp:', guestReminderError);
         }
       }
 
@@ -669,12 +683,10 @@ class WhatsAppBot {
         }
       }
 
-      if (phones && phones.length > 0) {
-        const creatorPhone = whatsappId.replace(/\D/g, '');
-        const otherGuests = phones.filter((p: string) => p.replace(/\D/g, '') !== creatorPhone);
-
-        if (otherGuests.length > 0) {
-          responseText += '\n📱 *Convidados Notificados:*\n' + otherGuests.map((p: string) => `• ${p}`).join('\n');
+      if (normalizedOtherGuestPhones.length > 0) {
+        responseText += '\n📱 *Convidados Notificados:*\n' + normalizedOtherGuestPhones.map((p: string) => `• ${p}`).join('\n');
+        if (guestReminderScheduled) {
+          responseText += '\n🔔 *Lembretes para convidados:* 3h, 1h e 15min antes.';
         }
       }
 
