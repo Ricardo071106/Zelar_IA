@@ -34,6 +34,7 @@ import {
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
 import { db } from '../db';
+import { parseDeleteCommandWithOpenRouter, parseYesNoWithOpenRouter } from '../utils/openRouterCommandParser';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,7 @@ class WhatsAppBot {
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
+  private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string }>();
 
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -257,6 +259,72 @@ class WhatsAppBot {
     return user;
   }
 
+  private normalizeForComparison(value: string): string {
+    return value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  private calculateTitleSimilarity(left: string, right: string): number {
+    const l = this.normalizeForComparison(left);
+    const r = this.normalizeForComparison(right);
+    if (!l || !r) return 0;
+    if (l === r) return 1;
+    if (l.includes(r) || r.includes(l)) return 0.92;
+
+    const leftTokens = new Set(l.split(' ').filter((token) => token.length > 2));
+    const rightTokens = new Set(r.split(' ').filter((token) => token.length > 2));
+    if (leftTokens.size === 0 || rightTokens.size === 0) return 0;
+
+    let intersections = 0;
+    for (const token of leftTokens) {
+      if (rightTokens.has(token)) intersections += 1;
+    }
+    return intersections / Math.max(leftTokens.size, rightTokens.size);
+  }
+
+  private findEventsByTitle(events: any[], targetTitle: string, targetDateISO?: string | null): any[] {
+    const targetDateMs = targetDateISO ? DateTime.fromISO(targetDateISO).toMillis() : null;
+
+    return events
+      .map((event) => ({
+        event,
+        score: this.calculateTitleSimilarity(event.title || '', targetTitle),
+      }))
+      .filter((item) => item.score >= 0.45)
+      .sort((a, b) => {
+        if (targetDateMs) {
+          const aDistance = Math.abs(new Date(a.event.startDate).getTime() - targetDateMs);
+          const bDistance = Math.abs(new Date(b.event.startDate).getTime() - targetDateMs);
+          if (aDistance !== bDistance) return aDistance - bDistance;
+        }
+
+        const scoreDelta = b.score - a.score;
+        if (Math.abs(scoreDelta) > 0.001) return scoreDelta;
+        return new Date(a.event.startDate).getTime() - new Date(b.event.startDate).getTime();
+      })
+      .map((item) => item.event);
+  }
+
+  private async deleteEventFromIntegrationsAndDb(user: any, event: any): Promise<void> {
+    if (event.calendarId) {
+      const settings = await storage.getUserSettings(user.id);
+      if (settings?.calendarProvider === 'google' && settings.googleTokens) {
+        setTokens(user.id, JSON.parse(settings.googleTokens));
+        await cancelGoogleCalendarEvent(event.calendarId, user.id);
+      } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+        await cancelMicrosoftCalendarEvent(event.calendarId, user.id);
+      }
+    }
+
+    await reminderService.deleteEventReminders(event.id);
+    await storage.deleteEvent(event.id);
+  }
+
   private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any, fromBatch = false) {
     const user = await this.getOrCreateUser(whatsappId, msg.pushName);
     const command = text.split(' ')[0].toLowerCase();
@@ -309,9 +377,63 @@ class WhatsAppBot {
       return;
     }
 
+    const userSettings = await storage.getUserSettings(user.id);
+    const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
+
     // =========================================================================
     // 1.5. PROCESSAMENTO DE ESTADOS (CONFIRMAÇÕES)
     // =========================================================================
+    const pendingDeleteAll = this.pendingDeleteAllConfirmations.get(remoteJid);
+    if (pendingDeleteAll) {
+      if (text.startsWith('/')) {
+        this.pendingDeleteAllConfirmations.delete(remoteJid);
+      } else {
+        const answer = await parseYesNoWithOpenRouter(text);
+        if (answer === 'yes') {
+          const upcomingEvents = await storage.getUpcomingEvents(user.id, 200);
+          const matches = this.findEventsByTitle(upcomingEvents, pendingDeleteAll.targetTitle);
+
+          if (matches.length === 0) {
+            await this.sendMessage(
+              remoteJid,
+              '✅ Não encontrei outros eventos com esse nome para apagar.',
+            );
+            this.pendingDeleteAllConfirmations.delete(remoteJid);
+            return;
+          }
+
+          let deletedCount = 0;
+          for (const event of matches) {
+            try {
+              await this.deleteEventFromIntegrationsAndDb(user, event);
+              deletedCount += 1;
+            } catch (error) {
+              console.error(`Erro ao apagar evento em lote (${event.id}):`, error);
+            }
+          }
+
+          this.pendingDeleteAllConfirmations.delete(remoteJid);
+          await this.sendMessage(
+            remoteJid,
+            `🗑️ Pronto! Apaguei *${deletedCount}* evento(s) com o nome parecido com "*${pendingDeleteAll.targetTitle}*".`,
+          );
+          return;
+        }
+
+        if (answer === 'no') {
+          this.pendingDeleteAllConfirmations.delete(remoteJid);
+          await this.sendMessage(remoteJid, '✅ Perfeito, mantive os outros eventos.');
+          return;
+        }
+
+        await this.sendMessage(
+          remoteJid,
+          'Responda com *sim*/*s* ou *não*/*n* para eu confirmar se apago todos com esse nome.',
+        );
+        return;
+      }
+    }
+
     const currentState = this.userStates.get(remoteJid);
     if (currentState === 'AWAITING_CANCEL_CONFIRMATION') {
       const response = text.toLowerCase().trim();
@@ -361,6 +483,52 @@ class WhatsAppBot {
       return;
     }
 
+    const deleteIntent = await parseDeleteCommandWithOpenRouter(text, userTimezone);
+    if (deleteIntent.isDeleteIntent) {
+      const targetTitle = (deleteIntent.targetTitle || '').trim();
+      if (targetTitle.length < 2) {
+        await this.sendMessage(
+          remoteJid,
+          'Entendi que você quer cancelar um evento, mas preciso do nome. Exemplo: *"cancele a aula com Ricardo amanhã"*.',
+        );
+        return;
+      }
+
+      const upcomingEvents = await storage.getUpcomingEvents(user.id, 200);
+      const matches = this.findEventsByTitle(upcomingEvents, targetTitle, deleteIntent.targetDateISO);
+
+      if (matches.length === 0) {
+        await this.sendMessage(
+          remoteJid,
+          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para listar os IDs.`,
+        );
+        return;
+      }
+
+      const eventToDelete = matches[0];
+      try {
+        await this.deleteEventFromIntegrationsAndDb(user, eventToDelete);
+        const eventDate = DateTime
+          .fromJSDate(new Date(eventToDelete.startDate))
+          .setZone(userTimezone)
+          .toFormat('dd/MM/yyyy HH:mm');
+
+        await this.sendMessage(
+          remoteJid,
+          `🗑️ Evento apagado com sucesso:\n*${eventToDelete.title}*\n📅 ${eventDate}\n\nDeseja apagar *todos* os eventos com esse nome?\nResponda com *sim/s* ou *não/n*.`,
+        );
+
+        this.pendingDeleteAllConfirmations.set(remoteJid, {
+          userId: user.id,
+          targetTitle,
+        });
+      } catch (error) {
+        console.error('Erro ao apagar evento por linguagem natural:', error);
+        await this.sendMessage(remoteJid, '❌ Não consegui apagar esse evento agora. Tente novamente.');
+      }
+      return;
+    }
+
     // Suporte a múltiplos compromissos em uma única mensagem.
     // Exemplo: "reunião sábado às 13, às 14 e às 15".
     if (!fromBatch) {
@@ -382,9 +550,6 @@ class WhatsAppBot {
     }, 5000);
 
     try {
-      const userSettings = await storage.getUserSettings(user.id);
-      const userTimezone = userSettings?.timeZone || getUserTimezone(whatsappId);
-
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
       let event = await parseEvent(text, whatsappId, userTimezone);
       const localParsedDate = parseUserDateTime(text, whatsappId);
@@ -930,18 +1095,7 @@ class WhatsAppBot {
               return;
             }
 
-            // Deletar do calendário integrado
-            if (ev.calendarId) {
-              const settings = await storage.getUserSettings(user.id);
-              if (settings?.calendarProvider === 'google' && settings.googleTokens) {
-                setTokens(user.id, JSON.parse(settings.googleTokens));
-                await cancelGoogleCalendarEvent(ev.calendarId, user.id);
-              } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
-                await cancelMicrosoftCalendarEvent(ev.calendarId, user.id);
-              }
-            }
-
-            await storage.deleteEvent(eventId);
+            await this.deleteEventFromIntegrationsAndDb(user, ev);
             await this.sendMessage(remoteJid, `🗑️ Evento "${ev.title}" removido com sucesso.`);
           }
           break;
