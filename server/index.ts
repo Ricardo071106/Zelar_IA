@@ -158,7 +158,11 @@ async function startServer() {
 
     // Inicializar bots apenas se as variáveis estiverem configuradas
     const botsInitialized = await initializeBots();
-    await reminderService.start();
+    try {
+      await reminderService.start();
+    } catch (error) {
+      log(`⚠️ Falha ao iniciar reminder service: ${error}`, 'warn');
+    }
     setupDailyRestart();
 
     // Validar e iniciar servidor

@@ -15,7 +15,11 @@ class ReminderService {
   private jobs = new Map<number, schedule.Job>();
 
   async start(): Promise<void> {
-    await this.rescheduleAll();
+    try {
+      await this.rescheduleAll();
+    } catch (error) {
+      console.error("⚠️ Falha ao reagendar lembretes na inicialização. Tentando novamente em background:", error);
+    }
     // Verificador de segurança para lembretes atrasados
     setInterval(() => {
       this.runDueReminders().catch((err) => console.error("Erro ao processar lembretes pendentes:", err));
