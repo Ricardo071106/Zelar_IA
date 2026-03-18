@@ -1742,6 +1742,62 @@ class WhatsAppBot {
     return null;
   }
 
+  private extractRelativeDayRange(text: string): number | null {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    const match = normalized.match(/\bproxim(?:os|as)\s+(\d{1,3})\s+dias?\b/);
+    if (!match) return null;
+    const totalDays = Number(match[1]);
+    if (!Number.isFinite(totalDays) || totalDays <= 0) return null;
+    return Math.min(totalDays, 120);
+  }
+
+  private buildRelativeRangeDates(
+    text: string,
+    timezone: string,
+    totalDays: number,
+  ): DateTime[] {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    const onlyEvenDays = /\bpares?\b/.test(normalized);
+    const onlyOddDays = /\bimpares?\b/.test(normalized);
+    const skipWeekend = /\bsem\s+fins?\s+de\s+semana\b|\bsem\s+fim\s+de\s+semana\b/.test(normalized);
+
+    const now = DateTime.now().setZone(timezone).startOf('day');
+    const result: DateTime[] = [];
+
+    for (let i = 1; i <= totalDays; i += 1) {
+      const candidate = now.plus({ days: i });
+      const isWeekend = candidate.weekday === 6 || candidate.weekday === 7;
+      if (skipWeekend && isWeekend) continue;
+
+      if (onlyEvenDays && candidate.day % 2 !== 0) continue;
+      if (onlyOddDays && candidate.day % 2 === 0) continue;
+
+      result.push(candidate);
+    }
+
+    return result;
+  }
+
+  private buildTitleSeedForRelativeRange(text: string): string {
+    return text
+      .replace(/\bpel[oa]s?\b/gi, ' ')
+      .replace(/\bproxim(?:os|as)\s+\d{1,3}\s+dias?\b/gi, ' ')
+      .replace(/\bpares?\b/gi, ' ')
+      .replace(/\bimpares?\b/gi, ' ')
+      .replace(/\bsem\s+fins?\s+de\s+semana\b/gi, ' ')
+      .replace(/\bsem\s+fim\s+de\s+semana\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   private expandMultipleCommitments(text: string, whatsappId: string): string[] {
     const settingsTimezone = getUserTimezone(whatsappId);
     const allTimes = this.extractExplicitTimesFromText(text);
@@ -1752,6 +1808,26 @@ class WhatsAppBot {
       { hour: 9, minute: 0 };
     const weekdayDate = this.extractWeekdayDateFromText(text, settingsTimezone);
     const listedDays = this.extractDaysListFromText(text, settingsTimezone);
+    const relativeRangeDays = this.extractRelativeDayRange(text);
+
+    if (relativeRangeDays && relativeRangeDays > 1) {
+      const relativeDates = this.buildRelativeRangeDates(text, settingsTimezone, relativeRangeDays);
+      if (relativeDates.length > 1) {
+        const titleSeed = this.buildTitleSeedForRelativeRange(text);
+        const title = extractEventTitle(titleSeed || text) || 'Compromisso';
+
+        return relativeDates.map((d) => {
+          const scheduled = d.set({
+            hour: primaryTime.hour,
+            minute: primaryTime.minute,
+            second: 0,
+            millisecond: 0,
+          });
+
+          return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
+        });
+      }
+    }
 
     if (listedDays.length > 1) {
       const titleSeed = text
