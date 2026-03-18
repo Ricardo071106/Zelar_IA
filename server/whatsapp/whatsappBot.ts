@@ -4,7 +4,8 @@ import makeWASocket, {
   useMultiFileAuthState,
   fetchLatestBaileysVersion,
   BaileysEventMap,
-  jidNormalizedUser
+  jidNormalizedUser,
+  downloadContentFromMessage
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import * as fs from 'fs';
@@ -35,6 +36,7 @@ import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
 import { db } from '../db';
 import { parseDeleteCommandWithOpenRouter, parseYesNoWithOpenRouter } from '../utils/openRouterCommandParser';
+import { transcribeAudioWithOpenRouter } from '../utils/audioTranscription';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -53,6 +55,16 @@ class WhatsAppBot {
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
   private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string }>();
+
+  private isAudioAuditEnabled(): boolean {
+    return String(process.env.AUDIO_TRANSCRIPTION_AUDIT_LOG || 'false').toLowerCase() === 'true';
+  }
+
+  private summarizeTranscriptForAudit(text: string): string {
+    const normalized = text.replace(/\s+/g, ' ').trim();
+    if (normalized.length <= 80) return normalized;
+    return `${normalized.slice(0, 77)}...`;
+  }
 
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -181,9 +193,17 @@ class WhatsAppBot {
         }
 
         try {
-          const text = msg.message.conversation || msg.message.extendedTextMessage?.text || msg.message.imageMessage?.caption || '';
-
-          if (!text) continue;
+          const text = await this.extractIncomingText(msg);
+          if (!text) {
+            const hasAudio = Boolean(msg.message?.audioMessage);
+            if (hasAudio) {
+              await this.sendMessage(
+                msg.key.remoteJid,
+                '🎙️ Recebi seu áudio, mas não consegui transcrever agora. Tente novamente com áudio mais curto e claro.',
+              );
+            }
+            continue;
+          }
 
           console.log(`📩 WhatsApp msg de ${msg.key.remoteJid}: ${text}`);
           console.log('DEBUG MSG KEY:', JSON.stringify(msg.key, null, 2));
@@ -257,6 +277,47 @@ class WhatsAppBot {
       });
     }
     return user;
+  }
+
+  private async streamToBuffer(stream: AsyncIterable<Buffer>): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks);
+  }
+
+  private async extractIncomingText(msg: any): Promise<string | null> {
+    const directText =
+      msg.message?.conversation ||
+      msg.message?.extendedTextMessage?.text ||
+      msg.message?.imageMessage?.caption ||
+      msg.message?.videoMessage?.caption ||
+      '';
+
+    if (directText && directText.trim()) {
+      return directText.trim();
+    }
+
+    const audioMessage = msg.message?.audioMessage;
+    if (!audioMessage) {
+      return null;
+    }
+
+    try {
+      const stream = await downloadContentFromMessage(audioMessage, 'audio');
+      const audioBuffer = await this.streamToBuffer(stream as AsyncIterable<Buffer>);
+      const transcription = await transcribeAudioWithOpenRouter(audioBuffer, audioMessage.mimetype);
+      if (transcription && this.isAudioAuditEnabled()) {
+        console.log(
+          `📝 [AUDIO_AUDIT] jid=${msg?.key?.remoteJid || 'unknown'} bytes=${audioBuffer.length} mimetype=${audioMessage.mimetype || 'unknown'} transcript="${this.summarizeTranscriptForAudit(transcription)}"`,
+        );
+      }
+      return transcription?.trim() || null;
+    } catch (error) {
+      console.error('❌ Erro ao processar áudio recebido:', error);
+      return null;
+    }
   }
 
   private normalizeForComparison(value: string): string {
@@ -900,6 +961,7 @@ class WhatsAppBot {
       'Estou aqui para organizar sua agenda de forma rápida e inteligente.\n\n' +
       '📌 *O que eu posso fazer?*\n' +
       '• Criar eventos (ex: "Almoço com mãe amanhã 13h")\n' +
+      '• Entender áudios/voz e transformar em agendamento\n' +
       '• Enviar lembretres para você e convidados\n' +
       '• Sincronizar com Google ou Microsoft Calendar\n\n' +
       '🔗 *Recomendação:*\n' +
@@ -931,7 +993,7 @@ class WhatsAppBot {
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
-            '💡 *Dica:* Apenas escreva o evento naturalmente, como "Reunião de equipe terça 14h", e eu cuido do resto!'
+            '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
           break;
 
