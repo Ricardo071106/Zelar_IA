@@ -1828,6 +1828,77 @@ class WhatsAppBot {
       .trim();
   }
 
+  private extractRelativeWeekdayRange(text: string): { occurrences: number; weekday: number } | null {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    const match = normalized.match(
+      /\bproxim(?:os|as)\s+(\d{1,3})\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/
+    );
+    if (!match) return null;
+
+    const occurrences = Number(match[1]);
+    if (!Number.isFinite(occurrences) || occurrences <= 0) return null;
+
+    const weekdayToken = match[2];
+    const weekdayMap: Record<string, number> = {
+      segunda: 1,
+      segundas: 1,
+      terca: 2,
+      tercas: 2,
+      quarta: 3,
+      quartas: 3,
+      quinta: 4,
+      quintas: 4,
+      sexta: 5,
+      sextas: 5,
+      sabado: 6,
+      sabados: 6,
+      domingo: 7,
+      domingos: 7,
+    };
+
+    const weekday = weekdayMap[weekdayToken];
+    if (!weekday) return null;
+
+    return { occurrences: Math.min(occurrences, 104), weekday };
+  }
+
+  private buildRelativeWeekdayDates(
+    timezone: string,
+    weekday: number,
+    occurrences: number,
+  ): DateTime[] {
+    const dates: DateTime[] = [];
+    let cursor = DateTime.now().setZone(timezone).startOf('day').plus({ days: 1 });
+
+    while (dates.length < occurrences) {
+      if (cursor.weekday === weekday) {
+        dates.push(cursor);
+      }
+      cursor = cursor.plus({ days: 1 });
+    }
+
+    return dates;
+  }
+
+  private applyFinalTagToLastCommitment(messages: string[]): string[] {
+    if (messages.length <= 1) return messages;
+
+    const updated = [...messages];
+    const lastIdx = updated.length - 1;
+    const last = updated[lastIdx];
+
+    if (/\(final\)\s+dia\s+\d{2}\/\d{2}\/\d{4}\s+as\s+\d{2}:\d{2}$/i.test(last)) {
+      return updated;
+    }
+
+    updated[lastIdx] = last.replace(/^(.+?)\s+dia\s+(\d{2}\/\d{2}\/\d{4}\s+as\s+\d{2}:\d{2})$/i, '$1 (final) dia $2');
+    return updated;
+  }
+
   private expandMultipleCommitments(text: string, whatsappId: string): string[] {
     const settingsTimezone = getUserTimezone(whatsappId);
     const allTimes = this.extractExplicitTimesFromText(text);
@@ -1839,14 +1910,24 @@ class WhatsAppBot {
     const weekdayDate = this.extractWeekdayDateFromText(text, settingsTimezone);
     const listedDays = this.extractDaysListFromText(text, settingsTimezone);
     const relativeRangeDays = this.extractRelativeDayRange(text);
+    const relativeWeekdayRange = this.extractRelativeWeekdayRange(text);
 
-    if (relativeRangeDays && relativeRangeDays > 1) {
-      const relativeDates = this.buildRelativeRangeDates(text, settingsTimezone, relativeRangeDays);
-      if (relativeDates.length > 1) {
-        const titleSeed = this.buildTitleSeedForRelativeRange(text);
+    if (relativeWeekdayRange) {
+      const relativeWeekdayDates = this.buildRelativeWeekdayDates(
+        settingsTimezone,
+        relativeWeekdayRange.weekday,
+        relativeWeekdayRange.occurrences
+      );
+
+      if (relativeWeekdayDates.length > 1) {
+        const titleSeed = text
+          .replace(/\bpel[oa]s?\b/gi, ' ')
+          .replace(/\bproxim(?:os|as)\s+\d{1,3}\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
         const title = extractEventTitle(titleSeed || text) || 'Compromisso';
 
-        return relativeDates.map((d) => {
+        const messages = relativeWeekdayDates.map((d) => {
           const scheduled = d.set({
             hour: primaryTime.hour,
             minute: primaryTime.minute,
@@ -1856,6 +1937,29 @@ class WhatsAppBot {
 
           return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
         });
+
+        return this.applyFinalTagToLastCommitment(messages);
+      }
+    }
+
+    if (relativeRangeDays && relativeRangeDays > 1) {
+      const relativeDates = this.buildRelativeRangeDates(text, settingsTimezone, relativeRangeDays);
+      if (relativeDates.length > 1) {
+        const titleSeed = this.buildTitleSeedForRelativeRange(text);
+        const title = extractEventTitle(titleSeed || text) || 'Compromisso';
+
+        const messages = relativeDates.map((d) => {
+          const scheduled = d.set({
+            hour: primaryTime.hour,
+            minute: primaryTime.minute,
+            second: 0,
+            millisecond: 0,
+          });
+
+          return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
+        });
+
+        return this.applyFinalTagToLastCommitment(messages);
       }
     }
 
@@ -1866,7 +1970,7 @@ class WhatsAppBot {
         .replace(/\s+/g, ' ')
         .trim();
       const title = extractEventTitle(titleSeed) || 'Compromisso';
-      return listedDays.map((d) => {
+      const messages = listedDays.map((d) => {
         const scheduled = d.set({
           hour: primaryTime.hour,
           minute: primaryTime.minute,
@@ -1875,11 +1979,12 @@ class WhatsAppBot {
         });
         return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
       });
+      return this.applyFinalTagToLastCommitment(messages);
     }
 
     if (weekdayDate && allTimes.length > 1) {
       const title = extractEventTitle(text) || 'Compromisso';
-      return allTimes.map((t) => {
+      const messages = allTimes.map((t) => {
         const scheduled = weekdayDate.set({
           hour: t.hour,
           minute: t.minute,
@@ -1888,6 +1993,7 @@ class WhatsAppBot {
         });
         return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
       });
+      return this.applyFinalTagToLastCommitment(messages);
     }
 
     if (allTimes.length <= 1) return [text];
@@ -1946,7 +2052,10 @@ class WhatsAppBot {
       lastTitleRef = title;
     }
 
-    return expanded.length > 1 ? expanded : [text];
+    if (expanded.length > 1) {
+      return this.applyFinalTagToLastCommitment(expanded);
+    }
+    return [text];
   }
 
   private getMessageTimestampMs(msg: any): number | null {
