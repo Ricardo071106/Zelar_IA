@@ -26,11 +26,13 @@ import { storage } from '../storage';
 import {
   addEventToGoogleCalendar,
   cancelGoogleCalendarEvent,
+  listUpcomingEvents as listGoogleUpcomingEvents,
   setTokens
 } from '../telegram/googleCalendarIntegration';
 import {
   addEventToMicrosoftCalendar,
   cancelMicrosoftCalendarEvent,
+  listUpcomingMicrosoftEvents,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
@@ -371,6 +373,206 @@ class WhatsAppBot {
       .map((item) => item.event);
   }
 
+  private getDeletionSourcePriority(source: 'both' | 'calendar_only' | 'db_local'): number {
+    if (source === 'both') return 3;
+    if (source === 'calendar_only') return 2;
+    return 1;
+  }
+
+  private buildDeletionCandidates(
+    dbEvents: any[],
+    calendarEvents: Array<{ provider: 'google' | 'microsoft'; calendarId: string; title: string; startDate: Date }>,
+  ): {
+    candidates: Array<{
+      source: 'both' | 'calendar_only' | 'db_local';
+      provider: 'google' | 'microsoft' | null;
+      calendarId?: string;
+      title: string;
+      startDate: Date;
+      dbEvent?: any;
+    }>;
+    bothCount: number;
+    calendarOnlyCount: number;
+    dbLocalCount: number;
+    dbStaleCount: number;
+  } {
+    const calendarById = new Map<string, { provider: 'google' | 'microsoft'; calendarId: string; title: string; startDate: Date }>();
+    for (const item of calendarEvents) {
+      if (item.calendarId) {
+        calendarById.set(item.calendarId, item);
+      }
+    }
+
+    const matchedCalendarIds = new Set<string>();
+    const candidates: Array<{
+      source: 'both' | 'calendar_only' | 'db_local';
+      provider: 'google' | 'microsoft' | null;
+      calendarId?: string;
+      title: string;
+      startDate: Date;
+      dbEvent?: any;
+    }> = [];
+
+    let bothCount = 0;
+    let dbLocalCount = 0;
+    let dbStaleCount = 0;
+
+    for (const dbEvent of dbEvents) {
+      if (dbEvent.calendarId) {
+        const calendarMatch = calendarById.get(dbEvent.calendarId);
+        if (calendarMatch) {
+          bothCount += 1;
+          matchedCalendarIds.add(dbEvent.calendarId);
+          candidates.push({
+            source: 'both',
+            provider: calendarMatch.provider,
+            calendarId: calendarMatch.calendarId,
+            title: dbEvent.title || calendarMatch.title,
+            startDate: new Date(dbEvent.startDate || calendarMatch.startDate),
+            dbEvent,
+          });
+        } else {
+          // Evento existe no banco, mas não está mais na agenda integrada.
+          dbStaleCount += 1;
+        }
+      } else {
+        // Evento local sem calendarId (não sincronizado com Google/Microsoft).
+        dbLocalCount += 1;
+        candidates.push({
+          source: 'db_local',
+          provider: null,
+          title: dbEvent.title,
+          startDate: new Date(dbEvent.startDate),
+          dbEvent,
+        });
+      }
+    }
+
+    let calendarOnlyCount = 0;
+    for (const item of calendarEvents) {
+      if (!item.calendarId || matchedCalendarIds.has(item.calendarId)) continue;
+      calendarOnlyCount += 1;
+      candidates.push({
+        source: 'calendar_only',
+        provider: item.provider,
+        calendarId: item.calendarId,
+        title: item.title,
+        startDate: new Date(item.startDate),
+      });
+    }
+
+    return {
+      candidates,
+      bothCount,
+      calendarOnlyCount,
+      dbLocalCount,
+      dbStaleCount,
+    };
+  }
+
+  private async getCalendarEventsForDeletion(user: any): Promise<Array<{
+    provider: 'google' | 'microsoft';
+    calendarId: string;
+    title: string;
+    startDate: Date;
+  }>> {
+    const settings = await storage.getUserSettings(user.id);
+    if (!settings?.calendarProvider) return [];
+
+    if (settings.calendarProvider === 'google' && settings.googleTokens) {
+      try {
+        setTokens(user.id, JSON.parse(settings.googleTokens));
+        const response = await listGoogleUpcomingEvents(user.id, 250);
+        if (!response.success || !response.events) return [];
+
+        return response.events
+          .map((event: any) => {
+            const startRaw = event?.start?.dateTime || event?.start?.date;
+            const startDate = startRaw ? new Date(startRaw) : null;
+            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) return null;
+            return {
+              provider: 'google' as const,
+              calendarId: String(event.id),
+              title: String(event.summary || 'Evento'),
+              startDate,
+            };
+          })
+          .filter((item): item is { provider: 'google'; calendarId: string; title: string; startDate: Date } => !!item);
+      } catch (error) {
+        console.error('Erro ao listar eventos Google para cruzamento:', error);
+        return [];
+      }
+    }
+
+    if (settings.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+      try {
+        const response = await listUpcomingMicrosoftEvents(user.id, 250);
+        if (!response.success || !response.events) return [];
+
+        return response.events
+          .map((event: any) => {
+            const startRaw = event?.start?.dateTime;
+            const startDate = startRaw ? new Date(startRaw) : null;
+            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) return null;
+            return {
+              provider: 'microsoft' as const,
+              calendarId: String(event.id),
+              title: String(event.subject || 'Evento'),
+              startDate,
+            };
+          })
+          .filter((item): item is { provider: 'microsoft'; calendarId: string; title: string; startDate: Date } => !!item);
+      } catch (error) {
+        console.error('Erro ao listar eventos Microsoft para cruzamento:', error);
+        return [];
+      }
+    }
+
+    return [];
+  }
+
+  private async getDeletionCandidates(user: any): Promise<{
+    candidates: Array<{
+      source: 'both' | 'calendar_only' | 'db_local';
+      provider: 'google' | 'microsoft' | null;
+      calendarId?: string;
+      title: string;
+      startDate: Date;
+      dbEvent?: any;
+    }>;
+    bothCount: number;
+    calendarOnlyCount: number;
+    dbLocalCount: number;
+    dbStaleCount: number;
+  }> {
+    const [dbEvents, calendarEvents] = await Promise.all([
+      storage.getUpcomingEvents(user.id, 250),
+      this.getCalendarEventsForDeletion(user),
+    ]);
+
+    return this.buildDeletionCandidates(dbEvents, calendarEvents);
+  }
+
+  private async deleteCandidate(user: any, candidate: {
+    source: 'both' | 'calendar_only' | 'db_local';
+    provider: 'google' | 'microsoft' | null;
+    calendarId?: string;
+    dbEvent?: any;
+  }): Promise<void> {
+    if ((candidate.source === 'both' || candidate.source === 'calendar_only') && candidate.calendarId) {
+      if (candidate.provider === 'google') {
+        await cancelGoogleCalendarEvent(candidate.calendarId, user.id);
+      } else if (candidate.provider === 'microsoft') {
+        await cancelMicrosoftCalendarEvent(candidate.calendarId, user.id);
+      }
+    }
+
+    if ((candidate.source === 'both' || candidate.source === 'db_local') && candidate.dbEvent?.id) {
+      await reminderService.deleteEventReminders(candidate.dbEvent.id);
+      await storage.deleteEvent(candidate.dbEvent.id);
+    }
+  }
+
   private async deleteEventFromIntegrationsAndDb(user: any, event: any): Promise<void> {
     if (event.calendarId) {
       const settings = await storage.getUserSettings(user.id);
@@ -451,8 +653,9 @@ class WhatsAppBot {
       } else {
         const answer = await parseYesNoWithOpenRouter(text);
         if (answer === 'yes') {
-          const upcomingEvents = await storage.getUpcomingEvents(user.id, 200);
-          const matches = this.findEventsByTitle(upcomingEvents, pendingDeleteAll.targetTitle);
+          const deletionScope = await this.getDeletionCandidates(user);
+          const matches = this.findEventsByTitle(deletionScope.candidates, pendingDeleteAll.targetTitle)
+            .sort((a: any, b: any) => this.getDeletionSourcePriority(b.source) - this.getDeletionSourcePriority(a.source));
 
           if (matches.length === 0) {
             await this.sendMessage(
@@ -466,10 +669,10 @@ class WhatsAppBot {
           let deletedCount = 0;
           for (const event of matches) {
             try {
-              await this.deleteEventFromIntegrationsAndDb(user, event);
+              await this.deleteCandidate(user, event);
               deletedCount += 1;
             } catch (error) {
-              console.error(`Erro ao apagar evento em lote (${event.id}):`, error);
+              console.error(`Erro ao apagar evento em lote (${event?.calendarId || event?.dbEvent?.id || 'unknown'}):`, error);
             }
           }
 
@@ -555,28 +758,37 @@ class WhatsAppBot {
         return;
       }
 
-      const upcomingEvents = await storage.getUpcomingEvents(user.id, 200);
-      const matches = this.findEventsByTitle(upcomingEvents, targetTitle, deleteIntent.targetDateISO);
+      const deletionScope = await this.getDeletionCandidates(user);
+      const matches = this.findEventsByTitle(deletionScope.candidates, targetTitle, deleteIntent.targetDateISO)
+        .sort((a: any, b: any) => this.getDeletionSourcePriority(b.source) - this.getDeletionSourcePriority(a.source));
 
       if (matches.length === 0) {
+        const staleHint = deletionScope.dbStaleCount > 0
+          ? `\n\nℹ️ Detectei *${deletionScope.dbStaleCount}* evento(s) no banco que já não existem na agenda e ignorei eles para evitar confusão.`
+          : '';
         await this.sendMessage(
           remoteJid,
-          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para listar os IDs.`,
+          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para listar os IDs.${staleHint}`,
         );
         return;
       }
 
       const eventToDelete = matches[0];
       try {
-        await this.deleteEventFromIntegrationsAndDb(user, eventToDelete);
+        await this.deleteCandidate(user, eventToDelete);
         const eventDate = DateTime
           .fromJSDate(new Date(eventToDelete.startDate))
           .setZone(userTimezone)
           .toFormat('dd/MM/yyyy HH:mm');
+        const sourceLabel = eventToDelete.source === 'both'
+          ? 'agenda + banco'
+          : eventToDelete.source === 'calendar_only'
+            ? 'agenda (convite/externo)'
+            : 'banco local';
 
         await this.sendMessage(
           remoteJid,
-          `🗑️ Evento apagado com sucesso:\n*${eventToDelete.title}*\n📅 ${eventDate}\n\nDeseja apagar *todos* os eventos com esse nome?\nResponda com *sim/s* ou *não/n*.`,
+          `🗑️ Evento apagado com sucesso:\n*${eventToDelete.title}*\n📅 ${eventDate}\n📌 Origem: *${sourceLabel}*\n\n🔎 Cruzamento atual: *${deletionScope.bothCount}* em ambos, *${deletionScope.calendarOnlyCount}* só na agenda, *${deletionScope.dbLocalCount}* só no banco local.\n\nDeseja apagar *todos* os eventos com esse nome?\nResponda com *sim/s* ou *não/n*.`,
         );
 
         this.pendingDeleteAllConfirmations.set(remoteJid, {

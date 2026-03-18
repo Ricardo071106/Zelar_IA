@@ -356,3 +356,55 @@ export async function cancelMicrosoftCalendarEvent(calendarEventId: string, user
     };
   }
 }
+
+export async function listUpcomingMicrosoftEvents(userId: number, maxResults = 50): Promise<{
+  success: boolean;
+  message: string;
+  events?: any[];
+}> {
+  try {
+    const accessToken = await getValidAccessToken(userId);
+    const nowIso = new Date().toISOString();
+    const query = new URLSearchParams({
+      $orderby: 'start/dateTime',
+      $top: String(maxResults),
+      $filter: `start/dateTime ge '${nowIso}'`,
+      $select: 'id,subject,start,end',
+    });
+
+    const requestWithToken = async (token: string) => fetch(`${GRAPH_BASE_URL}/me/events?${query.toString()}`, {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Prefer: 'outlook.timezone="America/Sao_Paulo"',
+      },
+    });
+
+    let response = await requestWithToken(accessToken);
+    if (response.status === 401) {
+      const refreshedAccessToken = await getValidAccessToken(userId, true);
+      response = await requestWithToken(refreshedAccessToken);
+    }
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Falha ao listar eventos no Microsoft Calendar: ${response.status} ${errorData}`);
+    }
+
+    const payload = await response.json() as { value?: any[] };
+    const events = payload.value || [];
+
+    return {
+      success: true,
+      message: `${events.length} eventos encontrados.`,
+      events,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao listar eventos no Microsoft Calendar: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Erro ao listar eventos no Microsoft Calendar: ${errorMessage}`,
+    };
+  }
+}
