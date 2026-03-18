@@ -37,7 +37,7 @@ import {
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
 import { db } from '../db';
-import { parseDeleteCommandWithOpenRouter, parseYesNoWithOpenRouter } from '../utils/openRouterCommandParser';
+import { parseDeleteCommandWithOpenRouter } from '../utils/openRouterCommandParser';
 import { transcribeAudioWithOpenRouter } from '../utils/audioTranscription';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -56,7 +56,8 @@ class WhatsAppBot {
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
-  private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string }>();
+  private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string; createdAtMs: number }>();
+  private activeRunByJid = new Map<string, number>();
 
   private isAudioAuditEnabled(): boolean {
     return String(process.env.AUDIO_TRANSCRIPTION_AUDIT_LOG || 'false').toLowerCase() === 'true';
@@ -80,6 +81,15 @@ class WhatsAppBot {
     if (['s', 'sim', 'yes', 'y'].includes(normalized)) return 'yes';
     if (['n', 'nao', 'no'].includes(normalized)) return 'no';
     return 'unknown';
+  }
+
+  private hasExplicitDeleteVerb(text: string): boolean {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+    return /\b(cancele|cancelar|apague|apagar|deletar|delete|remova|remover|exclua|excluir)\b/.test(normalized);
   }
 
   private isValidEmail(email: string): boolean {
@@ -602,7 +612,23 @@ class WhatsAppBot {
     await storage.deleteEvent(event.id);
   }
 
-  private async handleMessage(remoteJid: string, whatsappId: string, text: string, msg: any, fromBatch = false) {
+  private async handleMessage(
+    remoteJid: string,
+    whatsappId: string,
+    text: string,
+    msg: any,
+    fromBatch = false,
+    runId?: number,
+  ) {
+    if (!fromBatch) {
+      const nextRunId = (this.activeRunByJid.get(remoteJid) || 0) + 1;
+      this.activeRunByJid.set(remoteJid, nextRunId);
+      runId = nextRunId;
+    }
+
+    const currentRunId = runId ?? this.activeRunByJid.get(remoteJid) ?? 0;
+    const isRunStillActive = () => this.activeRunByJid.get(remoteJid) === currentRunId;
+
     const user = await this.getOrCreateUser(whatsappId, msg.pushName);
     const command = text.split(' ')[0].toLowerCase();
     const args = text.substring(command.length).trim();
@@ -662,6 +688,10 @@ class WhatsAppBot {
     // =========================================================================
     const pendingDeleteAll = this.pendingDeleteAllConfirmations.get(remoteJid);
     if (pendingDeleteAll) {
+      // Expira confirmações antigas para evitar ações tardias inesperadas.
+      if ((Date.now() - pendingDeleteAll.createdAtMs) > 5 * 60 * 1000) {
+        this.pendingDeleteAllConfirmations.delete(remoteJid);
+      } else
       if (text.startsWith('/')) {
         this.pendingDeleteAllConfirmations.delete(remoteJid);
       } else {
@@ -680,8 +710,7 @@ class WhatsAppBot {
             return;
           }
         }
-
-        const answer = strictAnswer === 'unknown' ? await parseYesNoWithOpenRouter(text) : strictAnswer;
+        const answer = strictAnswer;
         if (answer === 'yes') {
           const deletionScope = await this.getDeletionCandidates(user);
           const matches = this.findEventsByTitle(deletionScope.candidates, pendingDeleteAll.targetTitle)
@@ -777,7 +806,11 @@ class WhatsAppBot {
       return;
     }
 
-    const deleteIntent = await parseDeleteCommandWithOpenRouter(text, userTimezone);
+    // Segurança extra: só entra no fluxo de apagar se o texto contiver verbo explícito de exclusão.
+    const hasDeleteVerb = this.hasExplicitDeleteVerb(text);
+    const deleteIntent = hasDeleteVerb
+      ? await parseDeleteCommandWithOpenRouter(text, userTimezone)
+      : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
     if (deleteIntent.isDeleteIntent) {
       const targetTitle = (deleteIntent.targetTitle || '').trim();
       if (targetTitle.length < 2) {
@@ -824,6 +857,7 @@ class WhatsAppBot {
         this.pendingDeleteAllConfirmations.set(remoteJid, {
           userId: user.id,
           targetTitle,
+          createdAtMs: Date.now(),
         });
       } catch (error) {
         console.error('Erro ao apagar evento por linguagem natural:', error);
@@ -839,7 +873,11 @@ class WhatsAppBot {
       if (expandedMessages.length > 1) {
         console.log(`🧩 Mensagem expandida em ${expandedMessages.length} compromissos.`);
         for (const singleMessage of expandedMessages) {
-          await this.handleMessage(remoteJid, whatsappId, singleMessage, msg, true);
+          if (!isRunStillActive()) {
+            console.log(`⏹️ Lote interrompido para ${remoteJid}: nova mensagem recebida.`);
+            break;
+          }
+          await this.handleMessage(remoteJid, whatsappId, singleMessage, msg, true, currentRunId);
         }
         return;
       }
@@ -853,6 +891,10 @@ class WhatsAppBot {
     }, 5000);
 
     try {
+      if (!isRunStillActive()) {
+        return;
+      }
+
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
       let event = await parseEvent(text, whatsappId, userTimezone);
       const localParsedDate = parseUserDateTime(text, whatsappId);
@@ -879,6 +921,10 @@ class WhatsAppBot {
           attendees: [],
           targetPhones: [],
         };
+      }
+
+      if (!isRunStillActive()) {
+        return;
       }
 
       // =========================================================================
@@ -969,6 +1015,10 @@ class WhatsAppBot {
         attendeeEmails: event.attendees || [], // Salvando emails identificados
         rawData: JSON.parse(JSON.stringify(event)),
       });
+
+      if (!isRunStillActive()) {
+        return;
+      }
 
       // Definir phones e emails para uso abaixo
       const phones = (event as any).targetPhones;
