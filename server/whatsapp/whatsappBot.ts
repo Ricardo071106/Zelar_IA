@@ -68,6 +68,20 @@ class WhatsAppBot {
     return `${normalized.slice(0, 77)}...`;
   }
 
+  private parseStrictYesNo(text: string): 'yes' | 'no' | 'unknown' {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (['s', 'sim', 'yes', 'y'].includes(normalized)) return 'yes';
+    if (['n', 'nao', 'no'].includes(normalized)) return 'no';
+    return 'unknown';
+  }
+
   private isValidEmail(email: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
   }
@@ -651,7 +665,23 @@ class WhatsAppBot {
       if (text.startsWith('/')) {
         this.pendingDeleteAllConfirmations.delete(remoteJid);
       } else {
-        const answer = await parseYesNoWithOpenRouter(text);
+        // Segurança: confirmação de exclusão em lote só aceita respostas curtas e explícitas.
+        // Qualquer frase longa deve ser tratada como nova solicitação do usuário.
+        const strictAnswer = this.parseStrictYesNo(text);
+        if (strictAnswer === 'unknown') {
+          const looksLikeNewRequest = text.trim().split(/\s+/).length > 2;
+          if (looksLikeNewRequest) {
+            this.pendingDeleteAllConfirmations.delete(remoteJid);
+          } else {
+            await this.sendMessage(
+              remoteJid,
+              'Responda com *sim*/*s* ou *não*/*n* para confirmar exclusão em lote.',
+            );
+            return;
+          }
+        }
+
+        const answer = strictAnswer === 'unknown' ? await parseYesNoWithOpenRouter(text) : strictAnswer;
         if (answer === 'yes') {
           const deletionScope = await this.getDeletionCandidates(user);
           const matches = this.findEventsByTitle(deletionScope.candidates, pendingDeleteAll.targetTitle)
