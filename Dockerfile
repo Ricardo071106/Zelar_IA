@@ -1,5 +1,6 @@
 FROM node:20-slim
 
+# Chrome + fonts (Puppeteer); ffmpeg/whisper/tesseract para mídia WhatsApp
 RUN apt-get update \
   && apt-get install -y wget gnupg \
   && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
