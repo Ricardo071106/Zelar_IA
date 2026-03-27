@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: zelar-ia
+    runtime: docker
+    plan: free
+    branch: main
+    disk:
+      name: whatsapp-auth
+      mountPath: /opt/render/project/src/.whatsapp-auth
+      sizeGB: 1
+    envVars:
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/google-chrome-stable
+      - key: NODE_ENV
+        value: production
+      - key: WHATSAPP_AUTH_DIR
+        value: /opt/render/project/src/.whatsapp-auth
+  - type: cron
+    name: zelar-ia-midnight-restart
+    runtime: node
+    schedule: "0 3 * * *"
+    buildCommand: "true"
+    startCommand: >
+      node -e "const url = process.env.RESTART_WEBHOOK_URL; const token = process.env.RESTART_WEBHOOK_TOKEN; if (!url || !token) { console.error('RESTART_WEBHOOK_URL/RESTART_WEBHOOK_TOKEN ausentes'); process.exit(1); } fetch(url, { method: 'POST', headers: { Authorization: 'Bearer ' + token } }).then(async (res) => { const body = await res.text(); console.log(body); process.exit(res.ok ? 0 : 1); }).catch((error) => { console.error(error); process.exit(1); });"
+    envVars:
+      - key: RESTART_WEBHOOK_URL
+        sync: false
+      - key: RESTART_WEBHOOK_TOKEN
+        sync: false

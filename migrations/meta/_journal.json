@@ -1,0 +1,34 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1763796474943,
+      "tag": "0000_nifty_kingpin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766713142655,
+      "tag": "0001_smart_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767905304652,
+      "tag": "0002_graceful_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773500000000,
+      "tag": "0003_fancy_microsoft_calendar",
+      "breakpoints": true
+    }
+  ]
+}
