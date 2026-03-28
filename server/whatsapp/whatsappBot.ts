@@ -919,7 +919,7 @@ class WhatsAppBot {
       }
 
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-      let event = await parseEvent(text, whatsappId, userTimezone, undefined, user.id);
+      let event = await parseEvent(text, whatsappId, userTimezone, undefined, user.id, user.email);
       const localParsedDate = parseUserDateTime(text, whatsappId);
 
       if (!event) {
@@ -1148,7 +1148,8 @@ class WhatsAppBot {
               defaultOrganizerEmail = integrationRow.organizer_email || null;
               setTokens(defaultOrganizerId, organizerTokens);
 
-              const fallbackAttendees = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+              // Organizador já é dono do calendário; não adicionar o email cadastrado como convidado por padrão.
+              const fallbackAttendees = [...new Set([...(emails || [])].filter(Boolean))] as string[];
 
               const organizerEvent = {
                 ...newEvent,
@@ -1222,7 +1223,13 @@ class WhatsAppBot {
           responseText += `\n📹 Teams: ${evtWithLink.conferenceLink}`;
         }
       } else {
-        const fallbackRecipients = [...new Set([...(emails || []), user.email].filter(Boolean))] as string[];
+        // ICS por e-mail: só endereços explícitos como convidados; se não houver, envia cópia ao organizador.
+        const fallbackRecipients =
+          (emails || []).length > 0
+            ? ([...new Set(emails || [])] as string[])
+            : user.email
+              ? [user.email]
+              : [];
         const fallbackIcsLink = generateLinks(event).ics;
         for (const recipient of fallbackRecipients) {
           const sent = await emailService.sendInvitation(

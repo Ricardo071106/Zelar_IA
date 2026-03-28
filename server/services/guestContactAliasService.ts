@@ -31,6 +31,20 @@ function fuzzyNameInText(normalizedText: string, key: string): boolean {
   return false;
 }
 
+/**
+ * Evita convidar por apelido quando o nome aparece só como sobrenome de evento familiar
+ * (ex.: "Encontro dos Abrahão" não deve casar apelido "abrahao" → email).
+ */
+function isFamilyGatheringTitleWithSurname(normalizedText: string, key: string): boolean {
+  if (key.length < 4) return false;
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(
+    `\\b(?:encontro|festa|reunião|reuniao|jantar|almoço|almoco|churrasco|aniversário|aniversario|casamento|batizado)\\s+(?:do|da|dos|das)\\s+${escaped}\\b`,
+    'i',
+  );
+  return re.test(normalizedText);
+}
+
 export async function resolveGuestEmailsFromAliases(ownerUserId: number, text: string): Promise<string[]> {
   const rows = await storage.listUserGuestContacts(ownerUserId);
   if (!rows.length) return [];
@@ -41,6 +55,7 @@ export async function resolveGuestEmailsFromAliases(ownerUserId: number, text: s
     for (const alias of row.aliasNames ?? []) {
       const key = normalizeAliasKey(alias);
       if (key.length < 2) continue;
+      if (isFamilyGatheringTitleWithSurname(t, key)) continue;
       if (t.includes(key)) {
         emails.push(em);
         break;

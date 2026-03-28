@@ -220,6 +220,7 @@ export async function startZelarBot(): Promise<boolean> {
           userTimezone,
           ctx.from?.language_code,
           dbUser?.id,
+          dbUser?.email,
         );
 
         if (!event) {

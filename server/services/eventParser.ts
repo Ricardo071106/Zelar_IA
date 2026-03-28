@@ -195,6 +195,22 @@ function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+/** Remove o email da conta do anfitrião dos convidados, salvo se o endereço aparecer explicitamente no texto. */
+function stripOwnerEmailUnlessInText(
+  attendees: string[] | undefined,
+  ownerAccountEmail: string | null | undefined,
+  text: string,
+): string[] {
+  if (!attendees?.length) return [];
+  const owner = ownerAccountEmail?.trim().toLowerCase();
+  if (!owner) return attendees;
+  const literal = new Set(filterPlausibleGuestEmails(extractEmails(text)).map((e) => e.toLowerCase()));
+  return attendees.filter((e) => {
+    if (e.trim().toLowerCase() !== owner) return true;
+    return literal.has(owner);
+  });
+}
+
 /**
  * Processa mensagem usando interpretação avançada de datas com detecção de fuso horário
  */
@@ -245,6 +261,7 @@ export async function parseEvent(
   userTimezone: string,
   languageCode?: string,
   ownerDbUserId?: number,
+  ownerAccountEmail?: string | null,
 ): Promise<Event | null> {
   const textNorm = normalizeTranscriptionForCalendarText(text);
   console.log(`🤖 Usando Claude Haiku para interpretar: "${textNorm}"`);
@@ -252,7 +269,10 @@ export async function parseEvent(
   await recordTypedGuestEmailsFromText(ownerDbUserId, textNorm);
 
   const savedGuestRows = await listSavedGuestEmailRows(ownerDbUserId);
-  const knownGuestEmails = savedGuestRows.map((r) => r.canonicalEmail);
+  const ownerEmailLower = ownerAccountEmail?.trim().toLowerCase() ?? '';
+  const knownGuestEmails = savedGuestRows
+    .map((r) => r.canonicalEmail)
+    .filter((e) => !ownerEmailLower || e.trim().toLowerCase() !== ownerEmailLower);
 
   let claudeResult: ClaudeEventResponse = {
     title: '',
@@ -344,6 +364,10 @@ export async function parseEvent(
 
   if (event && ownerDbUserId != null) {
     event.attendees = await applyCanonicalAndFuzzyGuestEmails(ownerDbUserId, event.attendees ?? []);
+  }
+
+  if (event) {
+    event.attendees = stripOwnerEmailUnlessInText(event.attendees, ownerAccountEmail, textNorm);
   }
 
   return event;
