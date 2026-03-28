@@ -248,9 +248,14 @@ async function initializeBots(): Promise<{ whatsapp: boolean; telegram: boolean 
     }
   }
 
-  // Inicializar bot do Telegram
+  // Inicializar bot do Telegram (polling getUpdates — desligue no Render se usar só WhatsApp)
+  const telegramExplicitlyDisabled =
+    process.env.TELEGRAM_BOT_ENABLED === 'false' || process.env.DISABLE_TELEGRAM_BOT === 'true';
+
   try {
-    if (process.env.TELEGRAM_BOT_TOKEN) {
+    if (telegramExplicitlyDisabled) {
+      log('ℹ️ Telegram desligado por TELEGRAM_BOT_ENABLED=false ou DISABLE_TELEGRAM_BOT=true', 'info');
+    } else if (process.env.TELEGRAM_BOT_TOKEN) {
       log('🤖 Inicializando bot do Telegram...');
       await startDirectBot();
       log('✅ Bot do Telegram inicializado com sucesso!');
