@@ -21,11 +21,17 @@ const ClaudeEventSchema = z.object({
 
 export type ClaudeEventResponse = z.infer<typeof ClaudeEventSchema>;
 
+export type ParseEventWithClaudeOptions = {
+  /** E-mails já salvos pelo usuário — priorizar se a transcrição estiver distorcida */
+  knownGuestEmails?: string[];
+};
+
 // =================== Main Function ===================
 
 export async function parseEventWithClaude(
   userMessage: string,
-  userTimezone: string = 'America/Sao_Paulo'
+  userTimezone: string = 'America/Sao_Paulo',
+  options?: ParseEventWithClaudeOptions,
 ): Promise<ClaudeEventResponse> {
   try {
     // Usando Luxon para garantir que "Hoje" seja "Hoje" no fuso do usuário, não em UTC
@@ -61,7 +67,7 @@ Instructions:
      - If a mobile number has only 8 digits (old format), insert '9' after the DDD.
      - FINAL FORMAT MUST BE: DDI (2 digits) + DDD (2 digits) + NUMBER (9 digits) = 13 digits total (e.g. 5511999998888).
      - Valid numbers only. Never invent digits not implied by the user message.
-5. Extract emails mentioned as 'attendees' only if the exact email string appears in the user message (transcription may garble emails; omit if unsure).
+5. Extract emails as 'attendees'. Transcription often garbles addresses. If a list of "Known guest emails" is provided below, you MUST choose the single best match from that list when the user clearly refers to inviting someone by email; never invent a different domain or local part. If nothing in the list fits, use only an email substring that visibly appears in the user message; if still unsure, use [].
 6. Return JSON only. DO NOT output conversational text.
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
    { "isValid": false, "title": "", "date": "", "hour": 0, "minute": 0 }
@@ -80,13 +86,18 @@ Example Output (Reference only):
   "isValid": true
 }`;
 
+    const knownBlock =
+      options?.knownGuestEmails?.length ?
+        `\n\nKnown guest emails (use the best match when the message is about inviting by email; do not fabricate other addresses):\n${options.knownGuestEmails.map((e) => `- ${e}`).join('\n')}`
+        : '';
+
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
         model: 'anthropic/claude-3-haiku',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMessage }
+          { role: 'system', content: systemPrompt + knownBlock },
+          { role: 'user', content: userMessage },
         ],
         response_format: { type: 'json_object' }
       },

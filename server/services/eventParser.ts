@@ -10,6 +10,7 @@ import {
   listSavedGuestEmailRows,
   resolveGuestEmailFromRows,
 } from './guestSavedEmailService';
+import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
 // =================== SISTEMA DE APRENDIZADO SIMPLES ===================
 export interface LearnedPattern {
@@ -238,9 +239,13 @@ export async function parseEvent(
   languageCode?: string,
   ownerDbUserId?: number,
 ): Promise<Event | null> {
-  console.log(`🤖 Usando Claude Haiku para interpretar: "${text}"`);
+  const textNorm = normalizeTranscriptionForCalendarText(text);
+  console.log(`🤖 Usando Claude Haiku para interpretar: "${textNorm}"`);
 
-  await recordTypedGuestEmailsFromText(ownerDbUserId, text);
+  await recordTypedGuestEmailsFromText(ownerDbUserId, textNorm);
+
+  const savedGuestRows = await listSavedGuestEmailRows(ownerDbUserId);
+  const knownGuestEmails = savedGuestRows.map((r) => r.canonicalEmail);
 
   let claudeResult: ClaudeEventResponse = {
     title: '',
@@ -253,7 +258,9 @@ export async function parseEvent(
   };
 
   try {
-    claudeResult = await parseEventWithClaude(text, userTimezone);
+    claudeResult = await parseEventWithClaude(textNorm, userTimezone, {
+      knownGuestEmails: knownGuestEmails.length ? knownGuestEmails : undefined,
+    });
   } catch (error) {
     console.warn('⚠️ Erro ao usar Claude (ignorando e usando fallback):', error);
   }
@@ -269,7 +276,7 @@ export async function parseEvent(
       minute: claudeResult.minute
     }, { zone: userTimezone });
 
-    const phonesFromText = extractPhonesFromWrittenAndSpoken(text);
+    const phonesFromText = extractPhonesFromWrittenAndSpoken(textNorm);
     const phonesFromClaude = (claudeResult.target_phones || [])
       .map((phone) => normalizeBrazilianPhone(phone))
       .filter((phone): phone is string => !!phone);
@@ -280,10 +287,9 @@ export async function parseEvent(
         ? [...new Set([...phonesFromText, ...filteredClaudePhones])]
         : [...new Set(phonesFromClaude)];
 
-    const emailsInText = extractEmails(text);
+    const emailsInText = extractEmails(textNorm);
     const fromAliases =
-      ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
-    const savedGuestRows = await listSavedGuestEmailRows(ownerDbUserId);
+      ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
     const rawClaudeEmails = (claudeResult.attendees || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
     const claudeEmailsSafe = rawClaudeEmails.filter(
       (e) =>
@@ -293,8 +299,8 @@ export async function parseEvent(
     );
     const attendees = [...new Set([...emailsInText, ...fromAliases, ...claudeEmailsSafe])];
 
-    const cleanedClaudeTitle = extractEventTitle(claudeResult.title || text);
-    const fallbackTitle = extractEventTitle(text);
+    const cleanedClaudeTitle = extractEventTitle(claudeResult.title || textNorm);
+    const fallbackTitle = extractEventTitle(textNorm);
     const normalizedTitle =
       (cleanedClaudeTitle && cleanedClaudeTitle.length > 2 ? cleanedClaudeTitle : '') ||
       (fallbackTitle && fallbackTitle.length > 2 ? fallbackTitle : '') ||
@@ -319,7 +325,7 @@ export async function parseEvent(
       event.title = extractEventTitle(text);
       event.description = event.title;
     } else {
-      event = await processMessage(text, userId, languageCode, ownerDbUserId);
+      event = await processMessage(textNorm, userId, languageCode, ownerDbUserId);
     }
   }
 
