@@ -32,19 +32,23 @@ function fuzzyNameInText(normalizedText: string, key: string): boolean {
 }
 
 export async function resolveGuestEmailsFromAliases(ownerUserId: number, text: string): Promise<string[]> {
-  const rows = await storage.listGuestContactAliases(ownerUserId);
+  const rows = await storage.listUserGuestContacts(ownerUserId);
   if (!rows.length) return [];
   const t = normalizeAliasKey(text);
   const emails: string[] = [];
   for (const row of rows) {
-    const key = normalizeAliasKey(row.aliasName);
-    if (key.length < 2) continue;
-    if (t.includes(key)) {
-      emails.push(row.email.toLowerCase());
-      continue;
-    }
-    if (fuzzyNameInText(t, key)) {
-      emails.push(row.email.toLowerCase());
+    const em = row.canonicalEmail.toLowerCase();
+    for (const alias of row.aliasNames ?? []) {
+      const key = normalizeAliasKey(alias);
+      if (key.length < 2) continue;
+      if (t.includes(key)) {
+        emails.push(em);
+        break;
+      }
+      if (fuzzyNameInText(t, key)) {
+        emails.push(em);
+        break;
+      }
     }
   }
   return [...new Set(emails)];

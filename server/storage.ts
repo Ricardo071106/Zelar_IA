@@ -13,10 +13,17 @@ import {
   reminders,
   type Reminder,
   type InsertReminder,
-  guestContactAliases,
-  userSavedGuestEmails,
+  userGuestContacts,
 } from "@shared/schema";
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
+
+export type UserGuestContactRow = {
+  id: number;
+  userId: number;
+  normalizedEmail: string;
+  canonicalEmail: string;
+  aliasNames: string[];
+};
 
 export interface IStorage {
   // Usuários
@@ -55,12 +62,11 @@ export interface IStorage {
   deleteReminder(reminderId: number): Promise<boolean>;
   deleteRemindersByEvent(eventId: number): Promise<void>;
 
-  listGuestContactAliases(userId: number): Promise<{ id: number; userId: number; aliasName: string; email: string }[]>;
-  upsertGuestContactAlias(userId: number, aliasName: string, email: string): Promise<void>;
-  deleteGuestContactAlias(userId: number, aliasName: string): Promise<boolean>;
-
-  listUserSavedGuestEmails(userId: number): Promise<{ normalizedEmail: string; canonicalEmail: string }[]>;
-  upsertUserSavedGuestEmail(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void>;
+  /** Planilha única: convidados por /convidado + e-mails do convite escrito */
+  listUserGuestContacts(userId: number): Promise<UserGuestContactRow[]>;
+  upsertUserGuestContactWithAlias(userId: number, displayName: string, emailRaw: string): Promise<void>;
+  upsertUserGuestContactEmailTyped(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void>;
+  deleteUserGuestContactAlias(userId: number, aliasSearch: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -335,76 +341,107 @@ export class DatabaseStorage implements IStorage {
     await db.delete(reminders).where(eq(reminders.eventId, eventId));
   }
 
-  async listGuestContactAliases(userId: number) {
+  async listUserGuestContacts(userId: number): Promise<UserGuestContactRow[]> {
     if (!db) return [];
-    return db
-      .select({
-        id: guestContactAliases.id,
-        userId: guestContactAliases.userId,
-        aliasName: guestContactAliases.aliasName,
-        email: guestContactAliases.email,
-      })
-      .from(guestContactAliases)
-      .where(eq(guestContactAliases.userId, userId))
-      .orderBy(asc(guestContactAliases.aliasName));
+    const rows = await db
+      .select()
+      .from(userGuestContacts)
+      .where(eq(userGuestContacts.userId, userId))
+      .orderBy(asc(userGuestContacts.canonicalEmail));
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.userId,
+      normalizedEmail: r.normalizedEmail,
+      canonicalEmail: r.canonicalEmail,
+      aliasNames: r.aliasNames ?? [],
+    }));
   }
 
-  async upsertGuestContactAlias(userId: number, aliasName: string, email: string): Promise<void> {
+  async upsertUserGuestContactWithAlias(userId: number, displayName: string, emailRaw: string): Promise<void> {
     if (!db) throw new Error("Database not connected");
-    const key = normalizeAliasKey(aliasName);
-    const em = email.trim().toLowerCase();
-    if (!key || !em) throw new Error("alias e email obrigatorios");
-    await db
-      .insert(guestContactAliases)
-      .values({
+    const key = normalizeAliasKey(displayName);
+    const ne = emailRaw.trim().toLowerCase();
+    const canonical = emailRaw.trim();
+    if (!key || !ne) throw new Error("alias e email obrigatorios");
+
+    const all = await db.select().from(userGuestContacts).where(eq(userGuestContacts.userId, userId));
+    for (const row of all) {
+      const names = row.aliasNames ?? [];
+      const filtered = names.filter((a) => normalizeAliasKey(a) !== key);
+      if (filtered.length !== names.length) {
+        await db
+          .update(userGuestContacts)
+          .set({ aliasNames: filtered, updatedAt: new Date() })
+          .where(eq(userGuestContacts.id, row.id));
+      }
+    }
+
+    const [existing] = await db
+      .select()
+      .from(userGuestContacts)
+      .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
+
+    if (existing) {
+      const merged = [...new Set([...(existing.aliasNames ?? []), key])];
+      await db
+        .update(userGuestContacts)
+        .set({
+          aliasNames: merged,
+          canonicalEmail: canonical,
+          updatedAt: new Date(),
+        })
+        .where(eq(userGuestContacts.id, existing.id));
+    } else {
+      await db.insert(userGuestContacts).values({
         userId,
-        aliasName: key,
-        email: em,
+        normalizedEmail: ne,
+        canonicalEmail: canonical,
+        aliasNames: [key],
         updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [guestContactAliases.userId, guestContactAliases.aliasName],
-        set: { email: em, updatedAt: new Date() },
       });
+    }
   }
 
-  async deleteGuestContactAlias(userId: number, aliasName: string): Promise<boolean> {
-    if (!db) return false;
-    const key = normalizeAliasKey(aliasName);
-    const result = await db
-      .delete(guestContactAliases)
-      .where(and(eq(guestContactAliases.userId, userId), eq(guestContactAliases.aliasName, key)));
-    return (result.rowCount ?? 0) > 0;
-  }
-
-  async listUserSavedGuestEmails(userId: number) {
-    if (!db) return [];
-    return db
-      .select({
-        normalizedEmail: userSavedGuestEmails.normalizedEmail,
-        canonicalEmail: userSavedGuestEmails.canonicalEmail,
-      })
-      .from(userSavedGuestEmails)
-      .where(eq(userSavedGuestEmails.userId, userId));
-  }
-
-  async upsertUserSavedGuestEmail(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void> {
+  async upsertUserGuestContactEmailTyped(
+    userId: number,
+    normalizedEmail: string,
+    canonicalEmail: string,
+  ): Promise<void> {
     if (!db) throw new Error("Database not connected");
     const ne = normalizedEmail.trim().toLowerCase();
     const ce = canonicalEmail.trim();
     if (!ne || !ce) return;
     await db
-      .insert(userSavedGuestEmails)
+      .insert(userGuestContacts)
       .values({
         userId,
         normalizedEmail: ne,
         canonicalEmail: ce,
+        aliasNames: [],
         updatedAt: new Date(),
       })
       .onConflictDoUpdate({
-        target: [userSavedGuestEmails.userId, userSavedGuestEmails.normalizedEmail],
+        target: [userGuestContacts.userId, userGuestContacts.normalizedEmail],
         set: { canonicalEmail: ce, updatedAt: new Date() },
       });
+  }
+
+  async deleteUserGuestContactAlias(userId: number, aliasSearch: string): Promise<boolean> {
+    if (!db) return false;
+    const key = normalizeAliasKey(aliasSearch);
+    if (!key) return false;
+    const rows = await db.select().from(userGuestContacts).where(eq(userGuestContacts.userId, userId));
+    for (const row of rows) {
+      const names = row.aliasNames ?? [];
+      const filtered = names.filter((a) => normalizeAliasKey(a) !== key);
+      if (filtered.length === names.length) continue;
+      await db
+        .update(userGuestContacts)
+        .set({ aliasNames: filtered, updatedAt: new Date() })
+        .where(eq(userGuestContacts.id, row.id));
+      return true;
+    }
+    return false;
   }
 }
 

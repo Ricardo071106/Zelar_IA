@@ -107,7 +107,8 @@ export function resolveGuestEmailFromRows(rows: SavedGuestEmailRow[], rawEmail: 
 
 export async function listSavedGuestEmailRows(ownerUserId: number | undefined): Promise<SavedGuestEmailRow[]> {
   if (ownerUserId == null) return [];
-  return storage.listUserSavedGuestEmails(ownerUserId);
+  const rows = await storage.listUserGuestContacts(ownerUserId);
+  return rows.map((r) => ({ normalizedEmail: r.normalizedEmail, canonicalEmail: r.canonicalEmail }));
 }
 
 /** Persiste e-mails claramente digitados (regex) com a grafia da primeira ocorrência no texto. */
@@ -115,7 +116,7 @@ export async function recordTypedGuestEmailsFromText(ownerUserId: number | undef
   if (ownerUserId == null || !text?.trim()) return;
   for (const { normalized, canonical } of extractEmailsWithCanonical(text)) {
     if (!isPlausibleGuestEmail(canonical)) continue;
-    await storage.upsertUserSavedGuestEmail(ownerUserId, normalized, canonical);
+    await storage.upsertUserGuestContactEmailTyped(ownerUserId, normalized, canonical);
   }
 }
 

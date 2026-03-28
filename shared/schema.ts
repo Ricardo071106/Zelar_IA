@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { pgTable, text, serial, integer, boolean, timestamp, primaryKey, foreignKey, json, varchar, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -17,43 +18,27 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const guestContactAliases = pgTable(
-  "guest_contact_aliases",
-  {
-    id: serial("id").primaryKey(),
-    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    aliasName: text("alias_name").notNull(),
-    email: text("email").notNull(),
-    createdAt: timestamp("created_at").defaultNow().notNull(),
-    updatedAt: timestamp("updated_at").defaultNow().notNull(),
-  },
-  (t) => [uniqueIndex("guest_contact_aliases_user_alias").on(t.userId, t.aliasName)],
-);
-
-/** E-mails de convidados vistos digitados pelo dono; canonical = grafia salva; match por normalized. */
-export const userSavedGuestEmails = pgTable(
-  "user_saved_guest_emails",
+/**
+ * Planilha única de convidados: /convidado (alias_names) + e-mails do convite escrito (alias vazio).
+ * Uma linha por (user_id, normalized_email).
+ */
+export const userGuestContacts = pgTable(
+  "user_guest_contacts",
   {
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
     normalizedEmail: text("normalized_email").notNull(),
     canonicalEmail: text("canonical_email").notNull(),
+    aliasNames: text("alias_names").array().notNull().default(sql`'{}'::text[]`),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("user_saved_guest_emails_user_normalized").on(t.userId, t.normalizedEmail)],
+  (t) => [uniqueIndex("user_guest_contacts_user_email").on(t.userId, t.normalizedEmail)],
 );
 
-export const guestContactAliasesRelations = relations(guestContactAliases, ({ one }) => ({
+export const userGuestContactsRelations = relations(userGuestContacts, ({ one }) => ({
   user: one(users, {
-    fields: [guestContactAliases.userId],
-    references: [users.id],
-  }),
-}));
-
-export const userSavedGuestEmailsRelations = relations(userSavedGuestEmails, ({ one }) => ({
-  user: one(users, {
-    fields: [userSavedGuestEmails.userId],
+    fields: [userGuestContacts.userId],
     references: [users.id],
   }),
 }));
@@ -62,8 +47,7 @@ export const userRelations = relations(users, ({ many }) => ({
   events: many(events),
   settings: many(userSettings),
   payments: many(payments),
-  guestContactAliases: many(guestContactAliases),
-  userSavedGuestEmails: many(userSavedGuestEmails),
+  userGuestContacts: many(userGuestContacts),
 }));
 
 // Pagamentos

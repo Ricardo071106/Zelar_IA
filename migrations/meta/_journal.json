@@ -43,6 +43,13 @@
       "when": 1773700000000,
       "tag": "0005_user_saved_guest_emails",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773800000000,
+      "tag": "0006_user_guest_contacts",
+      "breakpoints": true
     }
   ]
 }

@@ -1310,8 +1310,8 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
-            '• `/convidado Nome email@...` - Salva convidado (áudio reconhece o nome)\n' +
-            '• `/convidados` - Lista convidados salvos\n' +
+            '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
+            '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
             '• `/conectar` - Conecta Google ou Microsoft Calendar\n' +
             '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
             '• `/desconectar` - Desconecta calendário integrado\n' +
@@ -1513,43 +1513,49 @@ class WhatsAppBot {
             );
             break;
           }
-          const email = emailMatch[0].toLowerCase();
+          const emailRaw = emailMatch[0].trim();
+          const emailLower = emailRaw.toLowerCase();
           const name = args.replace(emailMatch[0], '').trim().replace(/\s+/g, ' ');
           if (!name || name.length < 2) {
             await this.sendMessage(remoteJid, '❌ Informe o *nome* antes do email.\nEx: `/convidado Carol carol@email.com`');
             break;
           }
-          if (!this.isValidEmail(email)) {
+          if (!this.isValidEmail(emailLower)) {
             await this.sendMessage(remoteJid, '❌ Email inválido.');
             break;
           }
           try {
-            await storage.upsertGuestContactAlias(user.id, name, email);
+            await storage.upsertUserGuestContactWithAlias(user.id, name, emailRaw);
             await this.sendMessage(
               remoteJid,
-              `✅ Convidado salvo: *${name}* → \`${email}\`\n\nEm mensagens ou áudio, quando você mencionar esse nome, eu adiciono o email ao evento.`,
+              `✅ Convidado salvo: *${name}* → \`${emailLower}\`\n\nEm mensagens ou áudio, quando você mencionar esse nome, eu adiciono o email ao evento.`,
             );
           } catch (e: any) {
-            console.error('upsertGuestContactAlias', e);
+            console.error('upsertUserGuestContactWithAlias', e);
             await this.sendMessage(remoteJid, `❌ Não consegui salvar: ${e?.message || e}`);
           }
           break;
         }
 
         case '/convidados': {
-          const list = await storage.listGuestContactAliases(user.id);
+          const list = await storage.listUserGuestContacts(user.id);
           if (list.length === 0) {
             await this.sendMessage(
               remoteJid,
-              '📭 Nenhum convidado cadastrado.\nUse `/convidado Nome email@...` para adicionar.',
+              '📭 Nenhum convidado na planilha.\nUse `/convidado Nome email@...` ou envie um convite com e-mail no texto.',
             );
             break;
           }
-          let msg = '👥 *Seus convidados salvos:*\n\n';
+          let msg = '👥 *Sua planilha de convidados:*\n\n';
           for (const row of list) {
-            msg += `• *${row.aliasName}* → \`${row.email}\`\n`;
+            const aliases = (row.aliasNames ?? []).filter(Boolean);
+            if (aliases.length) {
+              msg += `• *${aliases.join(', ')}* → \`${row.canonicalEmail}\`\n`;
+            } else {
+              msg += `• \`${row.canonicalEmail}\` _· do convite escrito_\n`;
+            }
           }
-          msg += '\nRemover: `/convidado_remover nome`';
+          msg += '\nRemover nome (/convidado): `/convidado_remover nome`';
           await this.sendMessage(remoteJid, msg);
           break;
         }
@@ -1560,7 +1566,7 @@ class WhatsAppBot {
             await this.sendMessage(remoteJid, 'Use: `/convidado_remover Nome` (o mesmo nome que você cadastrou).');
             break;
           }
-          const ok = await storage.deleteGuestContactAlias(user.id, args);
+          const ok = await storage.deleteUserGuestContactAlias(user.id, args);
           await this.sendMessage(
             remoteJid,
             ok ? `✅ Removido: *${args.trim()}*` : '❌ Não encontrei esse nome na sua lista. Use `/convidados`.',
