@@ -56,7 +56,7 @@ Current Context:
 Instructions:
 1. Extract event title (remove time/date references).
 2. Extract date (YYYY-MM-DD). "Amanhã" = next day. "Segunda" = next Monday.
-3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified.
+3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified. If the user clearly says "da tarde" / "à tarde" / "de tarde" with NO explicit hour, use 15:00 (3pm) as a typical Brazilian afternoon time unless context implies otherwise.
 4. Extract phone numbers mentioned as 'target_phones'. FORMAT RULES:
      - Remove all non-digit characters.
      - Users may dictate digits in Portuguese (um, dois, três, quatro, cinco, seis, meia, sete, oito, nove, dez, onze, doze...) or as comma-separated digit groups after "para/pra" (e.g. "pra 11, 9, 8, 5, 4, 4, 4, 4, 4"). Concatenate all digit groups in order to form the full national number before normalizing.

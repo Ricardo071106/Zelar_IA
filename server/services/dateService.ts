@@ -1,5 +1,6 @@
 import { DateTime, IANAZone } from 'luxon';
 import * as chrono from 'chrono-node';
+import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
 /**
  * Mapeamento de códigos de idioma para fusos horários prováveis
@@ -146,8 +147,9 @@ export function parseUserDateTime(
   userId: string,
   languageCode?: string
 ): { iso: string; readable: string } | null {
+  const text = normalizeTranscriptionForCalendarText(input);
   try {
-    console.log(`🔍 Analisando "${input}" para usuário ${userId}`);
+    console.log(`🔍 Analisando "${text}" para usuário ${userId}`);
 
     // Obter fuso horário do usuário com validação
     let userTimezone = getUserTimezone(userId, languageCode);
@@ -160,13 +162,13 @@ export function parseUserDateTime(
 
     // =================== CORREÇÃO: PARSING SIMPLIFICADO E ROBUSTO ===================
     // Extrair hora com múltiplas tentativas antes de usar padrão
-    let timeResult = extractTimeFromText(input);
+    let timeResult = extractTimeFromText(text);
 
     // CORREÇÃO: Se não conseguiu extrair, tentar padrões mais simples
     if (!timeResult) {
       // Tentar detectar números isolados após palavras de tempo.
       // Evita \b com acentos (ex: "às"), pois pode falhar dependendo do locale.
-      const simpleTimeMatch = input
+      const simpleTimeMatch = text
         .toLowerCase()
         .match(/(?:^|[\s,.;!?])(?:às|as|ate)\s+(\d{1,2})(?=$|[\s,.;!?])/);
       if (simpleTimeMatch) {
@@ -184,10 +186,10 @@ export function parseUserDateTime(
     console.log(`🕐 Hora extraída: ${timeResult ? `${hour}:${minute}` : 'padrão 9:00'}`);
 
     // Extrair data passando horário para lógica inteligente de "hoje"
-    const dateResult = extractDateFromText(input, userTimezone, hour, minute);
+    const dateResult = extractDateFromText(text, userTimezone, hour, minute);
 
     if (!dateResult) {
-      console.log(`❌ Não conseguiu extrair data de: "${input}"`);
+      console.log(`❌ Não conseguiu extrair data de: "${text}"`);
       return null;
     }
 
@@ -223,7 +225,7 @@ export function parseUserDateTime(
     return { iso, readable };
 
   } catch (error) {
-    console.error(`❌ Erro ao interpretar "${input}":`, error);
+    console.error(`❌ Erro ao interpretar "${text}":`, error);
     return null;
   }
 }
@@ -533,6 +535,12 @@ function extractTimeFromText(input: string): { hour: number, minute: number } | 
       console.log(`🕐 Por extenso com contexto: ${word} → ${hour}:00`);
       return { hour, minute: 0 };
     }
+  }
+
+  // Tarde sem hora explícita (ex.: STT "acelco da tarde" → "da tarde") — convenção BR ~15h
+  if (/\b(da\s+tarde|de\s+tarde|à\s+tarde|a\s+tarde)\b/.test(text)) {
+    console.log(`🕐 "da/à tarde" sem hora explícita → 15:00`);
+    return { hour: 15, minute: 0 };
   }
 
   console.log(`❌ Nenhum horário encontrado em: "${input}"`);

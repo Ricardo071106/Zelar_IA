@@ -16,5 +16,16 @@ export function normalizeTranscriptionForCalendarText(input: string): string {
   // "envie para" → STT: "envi para"
   s = s.replace(/\benvi(\s+para\b)/gi, 'envie$1');
 
+  // "à tarde / da tarde" → STT: "acelco da tarde", "a celco da tarde", "ancelo da tarde"
+  s = s.replace(/\b(?:a\s*)?acelc[oa]\s+da\s+tarde\b/gi, 'da tarde');
+  s = s.replace(/\bancelo\s+da\s+tarde\b/gi, 'da tarde');
+  s = s.replace(/\bace[lt]o\s+da\s+tarde\b/gi, 'da tarde');
+
+  // "@luno." em instituição LSB → quase sempre "aluno." (STT corta o "a")
+  s = s.replace(/@luno\.(lsb\.com\.br)\b/gi, 'aluno.$1');
+
+  // "mande para" → "manda para" comum em áudio
+  s = s.replace(/\bmande(\s+para\b)/gi, 'manda$1');
+
   return s;
 }

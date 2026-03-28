@@ -1,18 +1,32 @@
-const EMAIL_REGEX = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
+const EMAIL_STANDARD = /\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/gi;
+
+/** STT: ", @luno.dominio.com" — um @ só; reconstrói local@domínio (não casa @ interno de e-mail válido). */
+const EMAIL_STRAY_AT = /(?:^|[\s,;])@([\w][\w.-]{0,64})\.((?:[\w-]+\.)+[a-z]{2,})\b/gi;
+
+function pushEmail(
+  seen: Set<string>,
+  out: { normalized: string; canonical: string }[],
+  canonical: string,
+) {
+  const normalized = canonical.trim().toLowerCase();
+  if (seen.has(normalized)) return;
+  seen.add(normalized);
+  out.push({ normalized, canonical: canonical.trim() });
+}
 
 /** Primeira ocorrência no texto preserva a grafia digitada; `normalized` é chave de busca. */
 export function extractEmailsWithCanonical(text: string | undefined | null): { normalized: string; canonical: string }[] {
   if (!text) return [];
   const seen = new Set<string>();
   const out: { normalized: string; canonical: string }[] = [];
-  const re = new RegExp(EMAIL_REGEX.source, 'gi');
   let m: RegExpExecArray | null;
-  while ((m = re.exec(text)) !== null) {
-    const canonical = m[0].trim();
-    const normalized = canonical.toLowerCase();
-    if (seen.has(normalized)) continue;
-    seen.add(normalized);
-    out.push({ normalized, canonical });
+  const re1 = new RegExp(EMAIL_STANDARD.source, 'gi');
+  while ((m = re1.exec(text)) !== null) {
+    pushEmail(seen, out, m[0]);
+  }
+  const re2 = new RegExp(EMAIL_STRAY_AT.source, 'gi');
+  while ((m = re2.exec(text)) !== null) {
+    pushEmail(seen, out, `${m[1]}@${m[2]}`);
   }
   return out;
 }
@@ -56,7 +70,11 @@ export function filterPlausibleGuestEmails(emails: string[] | undefined | null):
 
 export function stripEmails(text: string | undefined | null): string {
   if (!text) return '';
-  return text.replace(EMAIL_REGEX, ' ').replace(/\s{2,}/g, ' ').trim();
+  return text
+    .replace(EMAIL_STANDARD, ' ')
+    .replace(EMAIL_STRAY_AT, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
 }
 
 export default extractEmails;
