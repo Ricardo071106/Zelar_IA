@@ -1312,6 +1312,7 @@ class WhatsAppBot {
             '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
             '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
+            '• `/apagar convidado Nome ou email@...` - Remove da planilha\n' +
             '• `/conectar` - Conecta Google ou Microsoft Calendar\n' +
             '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
             '• `/desconectar` - Desconecta calendário integrado\n' +
@@ -1555,21 +1556,53 @@ class WhatsAppBot {
               msg += `• \`${row.canonicalEmail}\` _· do convite escrito_\n`;
             }
           }
-          msg += '\nRemover nome (/convidado): `/convidado_remover nome`';
+          msg += '\nRemover: `/apagar convidado Nome` ou `/apagar convidado email@...`\n(também: `/convidado_remover` com nome ou e-mail)';
           await this.sendMessage(remoteJid, msg);
           break;
         }
 
-        case '/convidado_remover':
-        case '/convidado_apagar': {
-          if (!args.trim()) {
-            await this.sendMessage(remoteJid, 'Use: `/convidado_remover Nome` (o mesmo nome que você cadastrou).');
+        case '/apagar': {
+          const a = args.trim();
+          if (!/^convidado\b/i.test(a)) {
+            await this.sendMessage(
+              remoteJid,
+              'Para apagar um *convidado* da planilha:\n\n`/apagar convidado Nome`\nou\n`/apagar convidado email@dominio.com`\n\n' +
+                '_(Também funciona: `/convidado_remover` com nome ou e-mail.)_',
+            );
             break;
           }
-          const ok = await storage.deleteUserGuestContactAlias(user.id, args);
+          const payload = a.replace(/^convidado\s+/i, '').trim();
+          if (!payload) {
+            await this.sendMessage(
+              remoteJid,
+              'Informe o nome ou o e-mail.\nEx: `/apagar convidado Maria` ou `/apagar convidado maria@email.com`',
+            );
+            break;
+          }
+          const ok = await storage.deleteUserGuestContactEntry(user.id, payload);
           await this.sendMessage(
             remoteJid,
-            ok ? `✅ Removido: *${args.trim()}*` : '❌ Não encontrei esse nome na sua lista. Use `/convidados`.',
+            ok
+              ? `✅ Removido da planilha: *${payload}*`
+              : '❌ Não encontrei na planilha. Use `/convidados` para ver nomes e e-mails.',
+          );
+          break;
+        }
+
+        case '/convidado_remover': {
+          if (!args.trim()) {
+            await this.sendMessage(
+              remoteJid,
+              'Use:\n`/convidado_remover Nome`\nou\n`/convidado_remover email@dominio.com`\n\nOu: `/apagar convidado …`',
+            );
+            break;
+          }
+          const ok = await storage.deleteUserGuestContactEntry(user.id, args);
+          await this.sendMessage(
+            remoteJid,
+            ok
+              ? `✅ Removido da planilha: *${args.trim()}*`
+              : '❌ Não encontrei na planilha. Use `/convidados` para ver nomes e e-mails.',
           );
           break;
         }

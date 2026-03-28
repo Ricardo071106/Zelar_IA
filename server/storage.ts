@@ -66,7 +66,8 @@ export interface IStorage {
   listUserGuestContacts(userId: number): Promise<UserGuestContactRow[]>;
   upsertUserGuestContactWithAlias(userId: number, displayName: string, emailRaw: string): Promise<void>;
   upsertUserGuestContactEmailTyped(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void>;
-  deleteUserGuestContactAlias(userId: number, aliasSearch: string): Promise<boolean>;
+  /** Remove por *nome* (alias) ou por *e-mail* (apaga a linha inteira na planilha). */
+  deleteUserGuestContactEntry(userId: number, nameOrEmail: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -426,9 +427,21 @@ export class DatabaseStorage implements IStorage {
       });
   }
 
-  async deleteUserGuestContactAlias(userId: number, aliasSearch: string): Promise<boolean> {
+  async deleteUserGuestContactEntry(userId: number, nameOrEmail: string): Promise<boolean> {
     if (!db) return false;
-    const key = normalizeAliasKey(aliasSearch);
+    const raw = nameOrEmail.trim();
+    if (!raw) return false;
+
+    const emailMatch = raw.match(/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/i);
+    if (emailMatch) {
+      const ne = emailMatch[0].trim().toLowerCase();
+      const result = await db
+        .delete(userGuestContacts)
+        .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
+      return (result.rowCount ?? 0) > 0;
+    }
+
+    const key = normalizeAliasKey(raw);
     if (!key) return false;
     const rows = await db.select().from(userGuestContacts).where(eq(userGuestContacts.userId, userId));
     for (const row of rows) {
