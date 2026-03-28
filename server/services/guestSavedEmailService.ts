@@ -126,7 +126,7 @@ export async function applyCanonicalAndFuzzyGuestEmails(
   emails: string[],
 ): Promise<string[]> {
   if (ownerUserId == null || !emails.length) return emails;
-  const rows = await storage.listUserSavedGuestEmails(ownerUserId);
+  const rows = await listSavedGuestEmailRows(ownerUserId);
   if (!rows.length) return emails;
   const seen = new Set<string>();
   const out: string[] = [];
