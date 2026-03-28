@@ -31,7 +31,7 @@ export type ParseEventWithClaudeOptions = {
 export async function parseEventWithClaude(
   userMessage: string,
   userTimezone: string = 'America/Sao_Paulo',
-  options?: ParseEventWithClaudeOptions,
+  _options?: ParseEventWithClaudeOptions,
 ): Promise<ClaudeEventResponse> {
   try {
     // Usando Luxon para garantir que "Hoje" seja "Hoje" no fuso do usuário, não em UTC
@@ -67,7 +67,7 @@ Instructions:
      - If a mobile number has only 8 digits (old format), insert '9' after the DDD.
      - FINAL FORMAT MUST BE: DDI (2 digits) + DDD (2 digits) + NUMBER (9 digits) = 13 digits total (e.g. 5511999998888).
      - Valid numbers only. Never invent digits not implied by the user message.
-5. Extract emails as 'attendees'. Transcription often garbles addresses. If a list of "Known guest emails" is provided below, you MAY choose the single best match from that list ONLY when the user clearly asks to invite someone by email or names a person in an invitation context—not from family names or event titles alone (e.g. "Encontro dos Silva" is NOT an email invite). Never put the organizer's own address in attendees unless it literally appears in the message. Never output junk addresses (e.g. one-letter local part like o@...). If nothing fits, use []. Prefer at most one attendee email unless the user clearly names multiple distinct people with email.
+5. Always set "attendees" to []. Guest emails are extracted server-side from the message text only—do not output any email in this JSON (avoids hallucinated invites).
 6. Return JSON only. DO NOT output conversational text.
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
    { "isValid": false, "title": "", "date": "", "hour": 0, "minute": 0 }
@@ -86,17 +86,12 @@ Example Output (Reference only):
   "isValid": true
 }`;
 
-    const knownBlock =
-      options?.knownGuestEmails?.length ?
-        `\n\nKnown guest emails (use the best match when the message is about inviting by email; do not fabricate other addresses):\n${options.knownGuestEmails.map((e) => `- ${e}`).join('\n')}`
-        : '';
-
     const response = await axios.post(
       'https://openrouter.ai/api/v1/chat/completions',
       {
         model: 'anthropic/claude-3-haiku',
         messages: [
-          { role: 'system', content: systemPrompt + knownBlock },
+          { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
         response_format: { type: 'json_object' }
@@ -149,9 +144,10 @@ Example Output (Reference only):
       };
     }
 
-    console.log(`🤖 Claude Output:`, JSON.stringify(result.data));
+    const data = { ...result.data, attendees: [] as string[] };
+    console.log(`🤖 Claude Output:`, JSON.stringify(data));
 
-    return result.data;
+    return data;
 
   } catch (error) {
     console.error('Claude Parse Error:', error);

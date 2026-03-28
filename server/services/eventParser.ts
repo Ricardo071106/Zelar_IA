@@ -12,8 +12,6 @@ import { resolveGuestEmailsFromAliases } from './guestContactAliasService';
 import {
   recordTypedGuestEmailsFromText,
   applyCanonicalAndFuzzyGuestEmails,
-  listSavedGuestEmailRows,
-  resolveGuestEmailFromRows,
 } from './guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
@@ -268,12 +266,6 @@ export async function parseEvent(
 
   await recordTypedGuestEmailsFromText(ownerDbUserId, textNorm);
 
-  const savedGuestRows = await listSavedGuestEmailRows(ownerDbUserId);
-  const ownerEmailLower = ownerAccountEmail?.trim().toLowerCase() ?? '';
-  const knownGuestEmails = savedGuestRows
-    .map((r) => r.canonicalEmail)
-    .filter((e) => !ownerEmailLower || e.trim().toLowerCase() !== ownerEmailLower);
-
   let claudeResult: ClaudeEventResponse = {
     title: '',
     isValid: false,
@@ -285,9 +277,8 @@ export async function parseEvent(
   };
 
   try {
-    claudeResult = await parseEventWithClaude(textNorm, userTimezone, {
-      knownGuestEmails: knownGuestEmails.length ? knownGuestEmails : undefined,
-    });
+    // E-mails de convidados vêm só do texto + aliases no servidor — não passar lista ao LLM (evita “escolher” contato salvo).
+    claudeResult = await parseEventWithClaude(textNorm, userTimezone);
   } catch (error) {
     console.warn('⚠️ Erro ao usar Claude (ignorando e usando fallback):', error);
   }
@@ -321,16 +312,8 @@ export async function parseEvent(
     const emailsInText = filterPlausibleGuestEmails(extractEmails(textNorm));
     const fromAliases =
       ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
-    const rawClaudeEmails = (claudeResult.attendees || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
-    const claudeEmailsSafe = rawClaudeEmails.filter(
-      (e) =>
-        emailsInText.includes(e) ||
-        fromAliases.includes(e) ||
-        resolveGuestEmailFromRows(savedGuestRows, e) != null,
-    );
-    const attendees = filterPlausibleGuestEmails([
-      ...new Set([...emailsInText, ...fromAliases, ...claudeEmailsSafe]),
-    ]);
+    // Ignorar attendees do Claude: o modelo costumava repetir e-mails salvos sem aparecerem no texto.
+    const attendees = filterPlausibleGuestEmails([...new Set([...emailsInText, ...fromAliases])]);
 
     const cleanedClaudeTitle = extractEventTitle(claudeResult.title || textNorm);
     const fallbackTitle = extractEventTitle(textNorm);
