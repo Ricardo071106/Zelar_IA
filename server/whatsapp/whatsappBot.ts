@@ -39,8 +39,8 @@ import { db } from '../db';
 import { parseDeleteCommandWithOpenRouter } from '../utils/openRouterCommandParser';
 import { detectMessageType } from '../utils/detectMessageType';
 import { mediaProcessor } from '../services/mediaProcessor';
-import { extractEmails } from '../utils/attendeeExtractor';
-import { extractPhonesFromWrittenAndSpoken } from '../utils/phoneExtraction';
+import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtractor';
+import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases } from '../services/guestContactAliasService';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 
@@ -937,8 +937,10 @@ class WhatsAppBot {
 
         const fbEmails = extractEmails(text);
         const fbAliases = await resolveGuestEmailsFromAliases(user.id, text);
-        const fbAttendees = [...new Set([...fbEmails, ...fbAliases])];
-        const fbPhones = extractPhonesFromWrittenAndSpoken(text);
+        const fbAttendees = filterPlausibleGuestEmails([...new Set([...fbEmails, ...fbAliases])]);
+        const fbPhones = extractPhonesFromWrittenAndSpoken(text).filter(
+          (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+        );
 
         event = {
           title: extractEventTitle(text) || 'Evento',

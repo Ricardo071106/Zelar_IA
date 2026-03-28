@@ -1,8 +1,13 @@
 import { DateTime } from 'luxon';
 import { parseUserDateTime } from './dateService';
-import { extractEmails, stripEmails } from '../utils/attendeeExtractor';
+import { extractEmails, stripEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtractor';
 import { parseEventWithClaude, ClaudeEventResponse } from '../utils/claudeParser';
-import { extractPhonesFromWrittenAndSpoken, normalizeBrazilianPhone } from '../utils/phoneExtraction';
+import {
+  extractPhonesFromWrittenAndSpoken,
+  normalizeBrazilianPhone,
+  phoneDigitsCorroboratedInText,
+  isPlaceholderOrFakePhoneDigits,
+} from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases } from './guestContactAliasService';
 import {
   recordTypedGuestEmailsFromText,
@@ -216,8 +221,10 @@ export async function processMessage(
   const emailsFromText = extractEmails(text);
   const fromAliases =
     ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
-  const attendees = [...new Set([...emailsFromText, ...fromAliases])];
-  const targetPhones = extractPhonesFromWrittenAndSpoken(text);
+  const attendees = filterPlausibleGuestEmails([...new Set([...emailsFromText, ...fromAliases])]);
+  const targetPhones = extractPhonesFromWrittenAndSpoken(text).filter(
+    (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+  );
 
   return {
     title,
@@ -281,13 +288,17 @@ export async function parseEvent(
       .map((phone) => normalizeBrazilianPhone(phone))
       .filter((phone): phone is string => !!phone);
 
-    const filteredClaudePhones = phonesFromClaude.filter((phone) => phonesFromText.includes(phone));
-    const targetPhones =
-      phonesFromText.length > 0
-        ? [...new Set([...phonesFromText, ...filteredClaudePhones])]
-        : [...new Set(phonesFromClaude)];
+    const filteredClaudePhones = phonesFromClaude.filter((phone) => {
+      const d = phone.replace(/\D/g, '');
+      if (isPlaceholderOrFakePhoneDigits(d)) return false;
+      if (phonesFromText.includes(phone)) return true;
+      return phoneDigitsCorroboratedInText(phone, textNorm);
+    });
+    const targetPhones = [...new Set([...phonesFromText, ...filteredClaudePhones])].filter(
+      (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+    );
 
-    const emailsInText = extractEmails(textNorm);
+    const emailsInText = filterPlausibleGuestEmails(extractEmails(textNorm));
     const fromAliases =
       ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
     const rawClaudeEmails = (claudeResult.attendees || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
@@ -297,7 +308,9 @@ export async function parseEvent(
         fromAliases.includes(e) ||
         resolveGuestEmailFromRows(savedGuestRows, e) != null,
     );
-    const attendees = [...new Set([...emailsInText, ...fromAliases, ...claudeEmailsSafe])];
+    const attendees = filterPlausibleGuestEmails([
+      ...new Set([...emailsInText, ...fromAliases, ...claudeEmailsSafe]),
+    ]);
 
     const cleanedClaudeTitle = extractEventTitle(claudeResult.title || textNorm);
     const fallbackTitle = extractEventTitle(textNorm);

@@ -1,5 +1,5 @@
 import { storage } from '../storage';
-import { extractEmailsWithCanonical } from '../utils/attendeeExtractor';
+import { extractEmailsWithCanonical, isPlausibleGuestEmail } from '../utils/attendeeExtractor';
 
 function levenshtein(a: string, b: string): number {
   const m = a.length;
@@ -114,6 +114,7 @@ export async function listSavedGuestEmailRows(ownerUserId: number | undefined): 
 export async function recordTypedGuestEmailsFromText(ownerUserId: number | undefined, text: string): Promise<void> {
   if (ownerUserId == null || !text?.trim()) return;
   for (const { normalized, canonical } of extractEmailsWithCanonical(text)) {
+    if (!isPlausibleGuestEmail(canonical)) continue;
     await storage.upsertUserSavedGuestEmail(ownerUserId, normalized, canonical);
   }
 }

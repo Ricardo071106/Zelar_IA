@@ -171,3 +171,36 @@ export function extractPhonesFromWrittenAndSpoken(text: string): string[] {
   const b = extractPhonesFromTriggeredLists(text);
   return [...new Set([...a, ...b])];
 }
+
+/** Números que a IA costuma inventar em exemplos — nunca usar como destino real. */
+const PLACEHOLDER_PHONE_DIGITS = new Set([
+  '5511999998888',
+  '5511999999999',
+  '5511888888888',
+  '11999998888',
+  '11999999999',
+]);
+
+export function isPlaceholderOrFakePhoneDigits(digits: string): boolean {
+  const d = digits.replace(/\D/g, '');
+  return PLACEHOLDER_PHONE_DIGITS.has(d);
+}
+
+/**
+ * True se os dígitos do celular aparecem no texto (transcrição), para aceitar sugestão da IA só quando há evidência.
+ */
+export function phoneDigitsCorroboratedInText(e164Digits: string, text: string): boolean {
+  const digits = e164Digits.replace(/\D/g, '');
+  if (digits.length < 10) return false;
+  if (isPlaceholderOrFakePhoneDigits(digits)) return false;
+  const compact = text.replace(/\D/g, '');
+  if (compact.length < 8) return false;
+  if (compact.includes(digits)) return true;
+  const tail11 = digits.slice(-11);
+  const tail9 = digits.slice(-9);
+  const tail8 = digits.slice(-8);
+  if (tail11.length === 11 && compact.includes(tail11)) return true;
+  if (tail9.length >= 8 && compact.includes(tail9)) return true;
+  if (tail8.length >= 8 && compact.includes(tail8)) return true;
+  return false;
+}
