@@ -140,6 +140,25 @@ function preprocessPortugueseText(input: string): string {
 }
 
 /**
+ * Indica se o texto traz data de calendário explícita (dia + mês por extenso ou DD/MM).
+ * Evita que "próximo domingo" no parser local venha antes de "14 de dezembro" em outro fluxo.
+ */
+export function hasExplicitCalendarDateInText(input: string): boolean {
+  const text = normalizeTranscriptionForCalendarText(input).toLowerCase();
+  if (
+    /\b\d{1,2}\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/i.test(
+      text
+    )
+  ) {
+    return true;
+  }
+  if (/\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * Função principal para interpretar datas com fuso horário do usuário (híbrida)
  */
 export function parseUserDateTime(
@@ -296,6 +315,51 @@ function extractDateFromText(input: string, userTimezone: string = 'America/Sao_
       console.log(`[extractDateFromText][DEBUG] 'daqui X sábados': semanas=${semanas}, resultado=${date.toFormat('dd/MM/yyyy HH:mm')}`);
       if (!date.isValid) return null;
       return date.toJSDate();
+    }
+
+    // Data por extenso ("14 de dezembro", "14 de dezembro de 2026") — antes de dia da semana solto,
+    // para não preferir "próximo domingo" quando o texto também menciona o dia calendário.
+    const writtenMonthNames: Record<string, number> = {
+      janeiro: 1,
+      fevereiro: 2,
+      março: 3,
+      marco: 3,
+      abril: 4,
+      maio: 5,
+      junho: 6,
+      julho: 7,
+      agosto: 8,
+      setembro: 9,
+      outubro: 10,
+      novembro: 11,
+      dezembro: 12,
+    };
+    const writtenDateMatch = text.match(
+      /\b(\d{1,2})\s+de\s+(janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)(?:\s+de\s+(\d{4}))?\b/i
+    );
+    if (writtenDateMatch) {
+      const day = parseInt(writtenDateMatch[1], 10);
+      const monthWord = writtenDateMatch[2].toLowerCase();
+      const month = writtenMonthNames[monthWord];
+      if (month !== undefined && day >= 1 && day <= 31) {
+        const now = DateTime.now().setZone(userTimezone);
+        let year = writtenDateMatch[3] ? parseInt(writtenDateMatch[3], 10) : now.year;
+        let dt = DateTime.fromObject(
+          { year, month, day, hour, minute, second: 0, millisecond: 0 },
+          { zone: userTimezone }
+        );
+        if (!writtenDateMatch[3] && dt < now.startOf('day')) {
+          year += 1;
+          dt = DateTime.fromObject(
+            { year, month, day, hour, minute, second: 0, millisecond: 0 },
+            { zone: userTimezone }
+          );
+        }
+        if (dt.isValid) {
+          console.log(`📅 Detectado data por extenso (dia de mês): ${dt.toFormat('dd/MM/yyyy HH:mm')}`);
+          return dt.toJSDate();
+        }
+      }
     }
 
     // =================== CORREÇÃO: LÓGICA DE DIAS DA SEMANA COM LUXON ===================

@@ -19,7 +19,8 @@ import {
   setUserTimezone,
   getUserTimezone,
   COMMON_TIMEZONES,
-  parseUserDateTime
+  parseUserDateTime,
+  hasExplicitCalendarDateInText,
 } from '../services/dateService';
 import { storage } from '../storage';
 import {
@@ -1001,7 +1002,8 @@ class WhatsAppBot {
 
         // Se o usuário informou dia da semana explicitamente, prioriza parser local
         // quando IA divergir no dia da semana (ex.: "segunda" e IA retornar terça).
-        if (hasExplicitWeekday && weekdayMismatch) {
+        // Não aplicar se já houver data de calendário explícita (ex.: "14 de dezembro" + "domingo" no flyer).
+        if (hasExplicitWeekday && weekdayMismatch && !hasExplicitCalendarDateInText(text)) {
           console.log(`🛠️ Ajustando data por divergência de dia da semana: ${event.startDate} -> ${fallbackDate.iso}`);
           event.startDate = fallbackDate.iso;
           event.displayDate = fallbackDate.readable;
