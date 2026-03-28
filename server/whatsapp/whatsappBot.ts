@@ -43,6 +43,29 @@ import { mediaProcessor } from '../services/mediaProcessor';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function disconnectReasonLabel(code: number | undefined): string {
+  if (code === undefined) return 'indefinido';
+  const known: Record<number, string> = {
+    [DisconnectReason.badSession]: 'badSession',
+    [DisconnectReason.connectionClosed]: 'connectionClosed',
+    [DisconnectReason.connectionLost]: 'connectionLost',
+    [DisconnectReason.connectionReplaced]: 'connectionReplaced',
+    [DisconnectReason.loggedOut]: 'loggedOut',
+    [DisconnectReason.restartRequired]: 'restartRequired',
+    [DisconnectReason.multideviceMismatch]: 'multideviceMismatch',
+    [DisconnectReason.forbidden]: 'forbidden',
+    [DisconnectReason.unavailableService]: 'unavailableService',
+  };
+  return known[code] ?? `codigo_${code}`;
+}
+
+function baileysLogger() {
+  const level =
+    process.env.WHATSAPP_BAILEYS_LOG_LEVEL ||
+    (process.env.WHATSAPP_DEBUG_LOGS === 'true' ? 'info' : 'warn');
+  return pino({ level }) as any;
+}
+
 class WhatsAppBot {
   private sock: any = null;
   private authState: any = null;
@@ -58,6 +81,19 @@ class WhatsAppBot {
   private userStates = new Map<string, string>();
   private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string; createdAtMs: number }>();
   private activeRunByJid = new Map<string, number>();
+  private lastReconnectScheduledAt = 0;
+
+  private closePreviousSocket(reason: string): void {
+    const s = this.sock;
+    if (!s) return;
+    console.log(`[WhatsApp] Encerrando socket anterior (${reason})`);
+    try {
+      s.end(undefined);
+    } catch (e) {
+      console.warn('[WhatsApp] Falha ao encerrar socket (ignorado):', e);
+    }
+    this.sock = null;
+  }
 
   private parseStrictYesNo(text: string): 'yes' | 'no' | 'unknown' {
     const normalized = text
@@ -133,12 +169,14 @@ class WhatsAppBot {
   }
 
   private startSock(version?: any) {
+    this.closePreviousSocket('reinício de sessão Baileys');
+
     this.socketStartedAtMs = Date.now();
     this.sock = makeWASocket({
       version: version,
       printQRInTerminal: false,
       auth: this.authState,
-      logger: pino({ level: 'silent' }) as any,
+      logger: baileysLogger(),
       browser: ['Zelar IA', 'Chrome', '1.0.0'],
     });
 
@@ -146,6 +184,19 @@ class WhatsAppBot {
 
     this.sock.ev.on('connection.update', (update: any) => {
       const { connection, lastDisconnect, qr } = update;
+      const boom = lastDisconnect?.error as Boom | undefined;
+      const statusCode = boom?.output?.statusCode;
+
+      if (process.env.WHATSAPP_VERBOSE_CONNECTION === 'true') {
+        console.log('[WhatsApp] connection.update', {
+          connection,
+          statusCode,
+          reason: statusCode !== undefined ? disconnectReasonLabel(statusCode) : undefined,
+          boomMessage: boom?.message,
+          hasQr: Boolean(qr),
+          at: new Date().toISOString(),
+        });
+      }
 
       if (qr) {
         this.lastQrCode = qr;
@@ -161,26 +212,43 @@ class WhatsAppBot {
       if (connection === 'close') {
         this.isConnected = false;
         this.lastQrCode = null;
-        const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
-        console.log('Conexão fechada devido a ', lastDisconnect?.error, ', status: ', statusCode);
+        const reasonLabel = disconnectReasonLabel(statusCode);
+        console.log(
+          `[WhatsApp] Conexão fechada | ${new Date().toISOString()} | motivo=${reasonLabel} (${statusCode}) | boom=${boom?.message || 'n/a'}`,
+        );
+        if (boom?.stack) {
+          console.log('[WhatsApp] stack:', boom.stack);
+        }
 
         if (isLoggedOut) {
-          console.log('🔓 Sessão WhatsApp encerrada. Limpando credenciais e gerando novo QR...');
+          console.log('🔓 Sessão WhatsApp encerrada (loggedOut). Limpando credenciais e gerando novo QR...');
           this.clearAuthState();
           setTimeout(() => this.initialize(), 1000);
           return;
         }
 
-        const shouldReconnect = true;
-        if (shouldReconnect) {
-          this.startSock(version);
+        const delay = Math.max(
+          1000,
+          Number.parseInt(process.env.WHATSAPP_RECONNECT_DELAY_MS || '4000', 10) || 4000,
+        );
+        const now = Date.now();
+        if (now - this.lastReconnectScheduledAt < 1500) {
+          console.warn('[WhatsApp] Reconexão ignorada (debounce) — já há uma agendada.');
+          return;
         }
+        this.lastReconnectScheduledAt = now;
+        console.log(`[WhatsApp] Reagendando reconexão em ${delay}ms...`);
+        setTimeout(() => {
+          this.startSock(version);
+        }, delay);
       } else if (connection === 'open') {
         this.isConnected = true;
         this.lastQrCode = null;
         this.qrRecoveryAttempts = 0;
-        console.log('✅ Conexão WhatsApp aberta!');
+        console.log(`✅ Conexão WhatsApp aberta | ${new Date().toISOString()}`);
+      } else if (connection === 'connecting') {
+        console.log(`[WhatsApp] Conectando... | ${new Date().toISOString()}`);
       }
     });
 
