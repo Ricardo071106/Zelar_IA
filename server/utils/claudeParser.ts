@@ -53,14 +53,15 @@ Instructions:
 3. Extract time (0-23 hour, 0-59 minute). Default 09:00 if not specified.
 4. Extract phone numbers mentioned as 'target_phones'. FORMAT RULES:
      - Remove all non-digit characters.
+     - Users may dictate digits in Portuguese (um, dois, três, quatro, cinco, seis, meia, sete, oito, nove, dez, onze, doze...) or as comma-separated digit groups after "para/pra" (e.g. "pra 11, 9, 8, 5, 4, 4, 4, 4, 4"). Concatenate all digit groups in order to form the full national number before normalizing.
      - DDI Default: If the number starts with DDD (2 digits from 11-99) but NO DDI, prepend '55'.
      - Example: "11999998888" becomes "5511999998888".
      - DDI Check: If it already starts with "55", keep it.
      - 9th Digit: For Brazilian mobile numbers (DDD 11-99), ensure the number part has 9 digits (total 11 digits without DDI, or 13 with DDI).
      - If a mobile number has only 8 digits (old format), insert '9' after the DDD.
      - FINAL FORMAT MUST BE: DDI (2 digits) + DDD (2 digits) + NUMBER (9 digits) = 13 digits total (e.g. 5511999998888).
-     - Valid numbers only.
-5. Extract emails mentioned as 'attendees'.
+     - Valid numbers only. Never invent digits not implied by the user message.
+5. Extract emails mentioned as 'attendees' only if the exact email string appears in the user message (transcription may garble emails; omit if unsure).
 6. Return JSON only. DO NOT output conversational text.
 7. If the user text DOES NOT contain a clear event or appointment request (e.g., just "oi", "bom dia", questions), return exactly:
    { "isValid": false, "title": "", "date": "", "hour": 0, "minute": 0 }

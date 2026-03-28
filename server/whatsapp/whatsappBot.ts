@@ -39,6 +39,10 @@ import { db } from '../db';
 import { parseDeleteCommandWithOpenRouter } from '../utils/openRouterCommandParser';
 import { detectMessageType } from '../utils/detectMessageType';
 import { mediaProcessor } from '../services/mediaProcessor';
+import { extractEmails } from '../utils/attendeeExtractor';
+import { extractPhonesFromWrittenAndSpoken } from '../utils/phoneExtraction';
+import { resolveGuestEmailsFromAliases } from '../services/guestContactAliasService';
+import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -914,7 +918,7 @@ class WhatsAppBot {
       }
 
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-      let event = await parseEvent(text, whatsappId, userTimezone);
+      let event = await parseEvent(text, whatsappId, userTimezone, undefined, user.id);
       const localParsedDate = parseUserDateTime(text, whatsappId);
 
       if (!event) {
@@ -931,15 +935,22 @@ class WhatsAppBot {
           return;
         }
 
+        const fbEmails = extractEmails(text);
+        const fbAliases = await resolveGuestEmailsFromAliases(user.id, text);
+        const fbAttendees = [...new Set([...fbEmails, ...fbAliases])];
+        const fbPhones = extractPhonesFromWrittenAndSpoken(text);
+
         event = {
           title: extractEventTitle(text) || 'Evento',
           startDate: fallbackDate.iso,
           description: text,
           displayDate: fallbackDate.readable,
-          attendees: [],
-          targetPhones: [],
+          attendees: fbAttendees,
+          targetPhones: fbPhones,
         };
       }
+
+      event.attendees = await applyCanonicalAndFuzzyGuestEmails(user.id, event.attendees ?? []);
 
       if (!isRunStillActive()) {
         return;
@@ -1297,6 +1308,8 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
+            '• `/convidado Nome email@...` - Salva convidado (áudio reconhece o nome)\n' +
+            '• `/convidados` - Lista convidados salvos\n' +
             '• `/conectar` - Conecta Google ou Microsoft Calendar\n' +
             '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
             '• `/desconectar` - Desconecta calendário integrado\n' +
@@ -1481,6 +1494,77 @@ class WhatsAppBot {
             await this.sendMessage(remoteJid, `✅ Fuso alterado para ${args}`);
           }
           break;
+
+        case '/convidado':
+        case '/contato_convidado': {
+          const emailMatch = args.match(/\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b/i);
+          if (!emailMatch || !args.trim()) {
+            await this.sendMessage(
+              remoteJid,
+              '👤 *Cadastrar convidado (nome → email)*\n\n' +
+                'Use assim:\n' +
+                '`/convidado Nome Completo email@dominio.com`\n\n' +
+                'Exemplo:\n' +
+                '`/convidado Carol Silva carol@email.com`\n\n' +
+                'Depois, em áudio ou texto, quando você falar o *nome*, eu incluo o email no convite.\n' +
+                'Ver lista: `/convidados`',
+            );
+            break;
+          }
+          const email = emailMatch[0].toLowerCase();
+          const name = args.replace(emailMatch[0], '').trim().replace(/\s+/g, ' ');
+          if (!name || name.length < 2) {
+            await this.sendMessage(remoteJid, '❌ Informe o *nome* antes do email.\nEx: `/convidado Carol carol@email.com`');
+            break;
+          }
+          if (!this.isValidEmail(email)) {
+            await this.sendMessage(remoteJid, '❌ Email inválido.');
+            break;
+          }
+          try {
+            await storage.upsertGuestContactAlias(user.id, name, email);
+            await this.sendMessage(
+              remoteJid,
+              `✅ Convidado salvo: *${name}* → \`${email}\`\n\nEm mensagens ou áudio, quando você mencionar esse nome, eu adiciono o email ao evento.`,
+            );
+          } catch (e: any) {
+            console.error('upsertGuestContactAlias', e);
+            await this.sendMessage(remoteJid, `❌ Não consegui salvar: ${e?.message || e}`);
+          }
+          break;
+        }
+
+        case '/convidados': {
+          const list = await storage.listGuestContactAliases(user.id);
+          if (list.length === 0) {
+            await this.sendMessage(
+              remoteJid,
+              '📭 Nenhum convidado cadastrado.\nUse `/convidado Nome email@...` para adicionar.',
+            );
+            break;
+          }
+          let msg = '👥 *Seus convidados salvos:*\n\n';
+          for (const row of list) {
+            msg += `• *${row.aliasName}* → \`${row.email}\`\n`;
+          }
+          msg += '\nRemover: `/convidado_remover nome`';
+          await this.sendMessage(remoteJid, msg);
+          break;
+        }
+
+        case '/convidado_remover':
+        case '/convidado_apagar': {
+          if (!args.trim()) {
+            await this.sendMessage(remoteJid, 'Use: `/convidado_remover Nome` (o mesmo nome que você cadastrou).');
+            break;
+          }
+          const ok = await storage.deleteGuestContactAlias(user.id, args);
+          await this.sendMessage(
+            remoteJid,
+            ok ? `✅ Removido: *${args.trim()}*` : '❌ Não encontrei esse nome na sua lista. Use `/convidados`.',
+          );
+          break;
+        }
 
         default:
           await this.sendMessage(remoteJid, '❌ Comando não reconhecido. Digite `/ajuda` para ver a lista.');

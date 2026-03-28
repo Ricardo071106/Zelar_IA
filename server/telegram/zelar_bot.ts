@@ -212,8 +212,15 @@ export async function startZelarBot(): Promise<boolean> {
 
         const userTimezone = getUserTimezone(userId, ctx.from?.language_code);
 
-        // Usar serviço centralizado de parsing
-        const event = await parseEvent(message, userId, userTimezone, ctx.from?.language_code);
+        const { storage } = await import('../storage');
+        const dbUser = await storage.getUserByTelegramId(userId);
+        const event = await parseEvent(
+          message,
+          userId,
+          userTimezone,
+          ctx.from?.language_code,
+          dbUser?.id,
+        );
 
         if (!event) {
           await ctx.reply(

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gt, lte, sql, asc } from "drizzle-orm";
 import {
   users,
   type User,
@@ -13,7 +13,10 @@ import {
   reminders,
   type Reminder,
   type InsertReminder,
+  guestContactAliases,
+  userSavedGuestEmails,
 } from "@shared/schema";
+import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 
 export interface IStorage {
   // Usuários
@@ -51,6 +54,13 @@ export interface IStorage {
   markReminderSent(reminderId: number): Promise<void>;
   deleteReminder(reminderId: number): Promise<boolean>;
   deleteRemindersByEvent(eventId: number): Promise<void>;
+
+  listGuestContactAliases(userId: number): Promise<{ id: number; userId: number; aliasName: string; email: string }[]>;
+  upsertGuestContactAlias(userId: number, aliasName: string, email: string): Promise<void>;
+  deleteGuestContactAlias(userId: number, aliasName: string): Promise<boolean>;
+
+  listUserSavedGuestEmails(userId: number): Promise<{ normalizedEmail: string; canonicalEmail: string }[]>;
+  upsertUserSavedGuestEmail(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -323,6 +333,78 @@ export class DatabaseStorage implements IStorage {
   async deleteRemindersByEvent(eventId: number): Promise<void> {
     if (!db) return;
     await db.delete(reminders).where(eq(reminders.eventId, eventId));
+  }
+
+  async listGuestContactAliases(userId: number) {
+    if (!db) return [];
+    return db
+      .select({
+        id: guestContactAliases.id,
+        userId: guestContactAliases.userId,
+        aliasName: guestContactAliases.aliasName,
+        email: guestContactAliases.email,
+      })
+      .from(guestContactAliases)
+      .where(eq(guestContactAliases.userId, userId))
+      .orderBy(asc(guestContactAliases.aliasName));
+  }
+
+  async upsertGuestContactAlias(userId: number, aliasName: string, email: string): Promise<void> {
+    if (!db) throw new Error("Database not connected");
+    const key = normalizeAliasKey(aliasName);
+    const em = email.trim().toLowerCase();
+    if (!key || !em) throw new Error("alias e email obrigatorios");
+    await db
+      .insert(guestContactAliases)
+      .values({
+        userId,
+        aliasName: key,
+        email: em,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [guestContactAliases.userId, guestContactAliases.aliasName],
+        set: { email: em, updatedAt: new Date() },
+      });
+  }
+
+  async deleteGuestContactAlias(userId: number, aliasName: string): Promise<boolean> {
+    if (!db) return false;
+    const key = normalizeAliasKey(aliasName);
+    const result = await db
+      .delete(guestContactAliases)
+      .where(and(eq(guestContactAliases.userId, userId), eq(guestContactAliases.aliasName, key)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async listUserSavedGuestEmails(userId: number) {
+    if (!db) return [];
+    return db
+      .select({
+        normalizedEmail: userSavedGuestEmails.normalizedEmail,
+        canonicalEmail: userSavedGuestEmails.canonicalEmail,
+      })
+      .from(userSavedGuestEmails)
+      .where(eq(userSavedGuestEmails.userId, userId));
+  }
+
+  async upsertUserSavedGuestEmail(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void> {
+    if (!db) throw new Error("Database not connected");
+    const ne = normalizedEmail.trim().toLowerCase();
+    const ce = canonicalEmail.trim();
+    if (!ne || !ce) return;
+    await db
+      .insert(userSavedGuestEmails)
+      .values({
+        userId,
+        normalizedEmail: ne,
+        canonicalEmail: ce,
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: [userSavedGuestEmails.userId, userSavedGuestEmails.normalizedEmail],
+        set: { canonicalEmail: ce, updatedAt: new Date() },
+      });
   }
 }
 

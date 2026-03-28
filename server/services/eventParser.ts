@@ -2,6 +2,14 @@ import { DateTime } from 'luxon';
 import { parseUserDateTime } from './dateService';
 import { extractEmails, stripEmails } from '../utils/attendeeExtractor';
 import { parseEventWithClaude, ClaudeEventResponse } from '../utils/claudeParser';
+import { extractPhonesFromWrittenAndSpoken, normalizeBrazilianPhone } from '../utils/phoneExtraction';
+import { resolveGuestEmailsFromAliases } from './guestContactAliasService';
+import {
+  recordTypedGuestEmailsFromText,
+  applyCanonicalAndFuzzyGuestEmails,
+  listSavedGuestEmailRows,
+  resolveGuestEmailFromRows,
+} from './guestSavedEmailService';
 
 // =================== SISTEMA DE APRENDIZADO SIMPLES ===================
 export interface LearnedPattern {
@@ -65,47 +73,6 @@ export interface Event {
   displayDate: string; // Formatted date for display
   attendees?: string[];
   targetPhones?: string[];
-}
-
-function normalizeBrazilianPhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, '');
-  if (!digits) return null;
-
-  let normalized = digits;
-  if (normalized.startsWith('0')) {
-    normalized = normalized.replace(/^0+/, '');
-  }
-
-  // DDD + 9 dígitos (11): adiciona DDI 55
-  if (normalized.length === 11 && /^[1-9]{2}9\d{8}$/.test(normalized)) {
-    return `55${normalized}`;
-  }
-
-  // DDI 55 + DDD + 9 dígitos (13): já está no padrão
-  if (normalized.length === 13 && /^55[1-9]{2}9\d{8}$/.test(normalized)) {
-    return normalized;
-  }
-
-  // DDD + 8 dígitos (10): formato antigo, adiciona 9
-  if (normalized.length === 10 && /^[1-9]{2}\d{8}$/.test(normalized)) {
-    return `55${normalized.slice(0, 2)}9${normalized.slice(2)}`;
-  }
-
-  // DDI 55 + DDD + 8 dígitos (12): formato antigo, adiciona 9
-  if (normalized.length === 12 && /^55[1-9]{2}\d{8}$/.test(normalized)) {
-    return `${normalized.slice(0, 4)}9${normalized.slice(4)}`;
-  }
-
-  return null;
-}
-
-function extractPhonesFromText(text: string): string[] {
-  const phoneCandidates = text.match(/(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?(?:9?\d{4})[-\s]?\d{4}/g) || [];
-  const normalized = phoneCandidates
-    .map((candidate) => normalizeBrazilianPhone(candidate))
-    .filter((phone): phone is string => !!phone);
-
-  return [...new Set(normalized)];
 }
 
 /**
@@ -225,7 +192,12 @@ function capitalizeFirst(str: string): string {
 /**
  * Processa mensagem usando interpretação avançada de datas com detecção de fuso horário
  */
-export async function processMessage(text: string, userId: string, languageCode?: string): Promise<Event | null> {
+export async function processMessage(
+  text: string,
+  userId: string,
+  languageCode?: string,
+  ownerDbUserId?: number,
+): Promise<Event | null> {
   console.log(`🔍 Processando com detecção de fuso: "${text}"`);
 
   const result = parseUserDateTime(text, userId, languageCode);
@@ -240,20 +212,35 @@ export async function processMessage(text: string, userId: string, languageCode?
   console.log(`📝 Título extraído: "${title}"`);
   console.log(`📅 Data interpretada: ${result.readable}`);
 
+  const emailsFromText = extractEmails(text);
+  const fromAliases =
+    ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
+  const attendees = [...new Set([...emailsFromText, ...fromAliases])];
+  const targetPhones = extractPhonesFromWrittenAndSpoken(text);
+
   return {
     title,
     startDate: result.iso,
     description: stripEmails(text),
     displayDate: result.readable,
-    attendees: extractEmails(text)
+    attendees,
+    targetPhones,
   };
 }
 
 /**
  * Processa mensagem completa usando Claude ou fallback
  */
-export async function parseEvent(text: string, userId: string, userTimezone: string, languageCode?: string): Promise<Event | null> {
+export async function parseEvent(
+  text: string,
+  userId: string,
+  userTimezone: string,
+  languageCode?: string,
+  ownerDbUserId?: number,
+): Promise<Event | null> {
   console.log(`🤖 Usando Claude Haiku para interpretar: "${text}"`);
+
+  await recordTypedGuestEmailsFromText(ownerDbUserId, text);
 
   let claudeResult: ClaudeEventResponse = {
     title: '',
@@ -282,16 +269,29 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       minute: claudeResult.minute
     }, { zone: userTimezone });
 
-    const phonesFromText = extractPhonesFromText(text);
+    const phonesFromText = extractPhonesFromWrittenAndSpoken(text);
     const phonesFromClaude = (claudeResult.target_phones || [])
       .map((phone) => normalizeBrazilianPhone(phone))
       .filter((phone): phone is string => !!phone);
 
-    // Proteção contra alucinação de telefone: só aceita telefone que apareceu no texto.
-    // Se Claude não retornar telefone, usamos os encontrados via regex local.
-    const filteredPhones = phonesFromClaude.length > 0
-      ? phonesFromClaude.filter((phone) => phonesFromText.includes(phone))
-      : phonesFromText;
+    const filteredClaudePhones = phonesFromClaude.filter((phone) => phonesFromText.includes(phone));
+    const targetPhones =
+      phonesFromText.length > 0
+        ? [...new Set([...phonesFromText, ...filteredClaudePhones])]
+        : [...new Set(phonesFromClaude)];
+
+    const emailsInText = extractEmails(text);
+    const fromAliases =
+      ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
+    const savedGuestRows = await listSavedGuestEmailRows(ownerDbUserId);
+    const rawClaudeEmails = (claudeResult.attendees || []).map((e) => e.trim().toLowerCase()).filter(Boolean);
+    const claudeEmailsSafe = rawClaudeEmails.filter(
+      (e) =>
+        emailsInText.includes(e) ||
+        fromAliases.includes(e) ||
+        resolveGuestEmailFromRows(savedGuestRows, e) != null,
+    );
+    const attendees = [...new Set([...emailsInText, ...fromAliases, ...claudeEmailsSafe])];
 
     const cleanedClaudeTitle = extractEventTitle(claudeResult.title || text);
     const fallbackTitle = extractEventTitle(text);
@@ -306,8 +306,8 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       startDate: eventDate.toISO() || eventDate.toString(),
       description: normalizedTitle,
       displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
-      attendees: claudeResult.attendees,
-      targetPhones: [...new Set(filteredPhones)],
+      attendees,
+      targetPhones,
     };
 
     console.log(`✅ Claude interpretou: ${normalizedTitle} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
@@ -319,8 +319,12 @@ export async function parseEvent(text: string, userId: string, userTimezone: str
       event.title = extractEventTitle(text);
       event.description = event.title;
     } else {
-      event = await processMessage(text, userId, languageCode);
+      event = await processMessage(text, userId, languageCode, ownerDbUserId);
     }
+  }
+
+  if (event && ownerDbUserId != null) {
+    event.attendees = await applyCanonicalAndFuzzyGuestEmails(ownerDbUserId, event.attendees ?? []);
   }
 
   return event;

@@ -29,6 +29,20 @@
       "when": 1773500000000,
       "tag": "0003_fancy_microsoft_calendar",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773600000000,
+      "tag": "0004_guest_contact_aliases",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773700000000,
+      "tag": "0005_user_saved_guest_emails",
+      "breakpoints": true
     }
   ]
 }
