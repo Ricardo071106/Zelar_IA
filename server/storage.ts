@@ -17,6 +17,23 @@ import {
 } from "@shared/schema";
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 
+function levenshteinDistance(a: string, b: string): number {
+  const m = a.length;
+  const n = b.length;
+  if (!m) return n;
+  if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, () => new Array<number>(n + 1).fill(0));
+  for (let i = 0; i <= m; i++) dp[i][0] = i;
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+    }
+  }
+  return dp[m][n];
+}
+
 export type UserGuestContactRow = {
   id: number;
   userId: number;
@@ -435,10 +452,32 @@ export class DatabaseStorage implements IStorage {
     const emailMatch = raw.match(/\b[\w.+-]+@[\w-]+(?:\.[\w-]+)+\b/i);
     if (emailMatch) {
       const ne = emailMatch[0].trim().toLowerCase();
-      const result = await db
+
+      const exact = await db
         .delete(userGuestContacts)
-        .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
-      return (result.rowCount ?? 0) > 0;
+        .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)))
+        .returning({ id: userGuestContacts.id });
+      if (exact.length > 0) return true;
+
+      const candidates = await db
+        .select({ id: userGuestContacts.id, normalizedEmail: userGuestContacts.normalizedEmail })
+        .from(userGuestContacts)
+        .where(eq(userGuestContacts.userId, userId));
+      if (!candidates.length) return false;
+
+      const maxDist = Math.min(12, Math.max(4, Math.ceil(ne.length * 0.55)));
+      const scored = candidates
+        .map((c) => ({ id: c.id, d: levenshteinDistance(ne, c.normalizedEmail) }))
+        .filter((x) => x.d <= maxDist)
+        .sort((a, b) => a.d - b.d);
+      if (scored.length === 0) return false;
+      if (scored.length > 1 && scored[0].d === scored[1].d) return false;
+
+      const fuzzy = await db
+        .delete(userGuestContacts)
+        .where(eq(userGuestContacts.id, scored[0].id))
+        .returning({ id: userGuestContacts.id });
+      return fuzzy.length > 0;
     }
 
     const key = normalizeAliasKey(raw);
