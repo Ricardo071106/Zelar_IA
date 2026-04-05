@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import axios from 'axios';
+import { transcribeAudioWithOpenRouter } from '../utils/audioTranscription';
 
 function extensionFromMime(mimeType?: string): string {
   if (!mimeType) return '.bin';
@@ -66,11 +67,6 @@ export async function transcribeAudio(input: TranscribeAudioInput): Promise<stri
     Number.parseInt(process.env.AUDIO_TRANSCRIBE_TIMEOUT_MS || '120000', 10) || 120000,
   );
 
-  if (!modelPath) {
-    console.warn('⚠️ WHISPER_MODEL_PATH não definido; transcrição local ignorada.');
-    return null;
-  }
-
   let buffer: Buffer;
   let mimeType: string | undefined;
 
@@ -89,6 +85,20 @@ export async function transcribeAudio(input: TranscribeAudioInput): Promise<stri
   }
 
   if (!buffer?.length) return null;
+
+  const tryOpenRouter = async (): Promise<string | null> => {
+    const t = await transcribeAudioWithOpenRouter(buffer, mimeType);
+    if (t?.trim()) {
+      console.log('🎙️ Transcrição via OpenRouter (fallback/sem Whisper local).');
+      return t.trim();
+    }
+    return null;
+  };
+
+  if (!modelPath) {
+    console.warn('⚠️ WHISPER_MODEL_PATH não definido; usando OpenRouter para transcrição.');
+    return tryOpenRouter();
+  }
 
   const tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'zelar-audio-'));
   const ext = extensionFromMime(mimeType);
@@ -138,10 +148,14 @@ export async function transcribeAudio(input: TranscribeAudioInput): Promise<stri
       }
     }
 
+    if (!text) {
+      return tryOpenRouter();
+    }
+
     return text;
   } catch (error) {
-    console.error('❌ transcribeAudio:', error);
-    return null;
+    console.error('❌ transcribeAudio (Whisper):', error);
+    return tryOpenRouter();
   } finally {
     await ensureDirCleanup(tmpRoot);
   }

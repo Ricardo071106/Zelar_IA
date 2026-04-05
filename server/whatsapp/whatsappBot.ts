@@ -44,6 +44,7 @@ import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtr
 import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases } from '../services/guestContactAliasService';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
+import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -829,10 +830,13 @@ class WhatsAppBot {
       return;
     }
 
+    // Áudio/STT: mesmas correções do parser de data (segunda vs segundo, tarde, meses, etc.)
+    const calendarText = normalizeTranscriptionForCalendarText(text);
+
     // Segurança extra: só entra no fluxo de apagar se o texto contiver verbo explícito de exclusão.
-    const hasDeleteVerb = this.hasExplicitDeleteVerb(text);
+    const hasDeleteVerb = this.hasExplicitDeleteVerb(calendarText);
     const deleteIntent = hasDeleteVerb
-      ? await parseDeleteCommandWithOpenRouter(text, userTimezone)
+      ? await parseDeleteCommandWithOpenRouter(calendarText, userTimezone)
       : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
     if (deleteIntent.isDeleteIntent) {
       const targetTitle = (deleteIntent.targetTitle || '').trim();
@@ -892,7 +896,7 @@ class WhatsAppBot {
     // Suporte a múltiplos compromissos em uma única mensagem.
     // Exemplo: "reunião sábado às 13, às 14 e às 15".
     if (!fromBatch) {
-      const expandedMessages = this.expandMultipleCommitments(text, whatsappId);
+      const expandedMessages = this.expandMultipleCommitments(calendarText, whatsappId);
       if (expandedMessages.length > 1) {
         console.log(`🧩 Mensagem expandida em ${expandedMessages.length} compromissos.`);
         for (const singleMessage of expandedMessages) {
@@ -919,14 +923,14 @@ class WhatsAppBot {
       }
 
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-      let event = await parseEvent(text, whatsappId, userTimezone, undefined, user.id, user.email);
-      const localParsedDate = parseUserDateTime(text, whatsappId);
+      let event = await parseEvent(calendarText, whatsappId, userTimezone, undefined, user.id, user.email);
+      const localParsedDate = parseUserDateTime(calendarText, whatsappId);
 
       if (!event) {
         // Fallback local para evitar falhas por interpretação da IA
-        const fallbackDate = parseUserDateTime(text, whatsappId);
+        const fallbackDate = parseUserDateTime(calendarText, whatsappId);
         if (!fallbackDate) {
-          console.log(`⚠️ Mensagem não interpretada como evento: "${text}"`);
+          console.log(`⚠️ Mensagem não interpretada como evento: "${calendarText}"`);
           await this.sendMessage(remoteJid,
             '❓ Não consegui entender a data/hora.\n\n' +
             'Tente assim:\n' +
@@ -936,17 +940,17 @@ class WhatsAppBot {
           return;
         }
 
-        const fbEmails = extractEmails(text);
-        const fbAliases = await resolveGuestEmailsFromAliases(user.id, text);
+        const fbEmails = extractEmails(calendarText);
+        const fbAliases = await resolveGuestEmailsFromAliases(user.id, calendarText);
         const fbAttendees = filterPlausibleGuestEmails([...new Set([...fbEmails, ...fbAliases])]);
-        const fbPhones = extractPhonesFromWrittenAndSpoken(text).filter(
+        const fbPhones = extractPhonesFromWrittenAndSpoken(calendarText).filter(
           (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
         );
 
         event = {
-          title: extractEventTitle(text) || 'Evento',
+          title: extractEventTitle(calendarText) || 'Evento',
           startDate: fallbackDate.iso,
-          description: text,
+          description: calendarText,
           displayDate: fallbackDate.readable,
           attendees: fbAttendees,
           targetPhones: fbPhones,
@@ -972,7 +976,7 @@ class WhatsAppBot {
 
       let finalStartDate = new Date(event.startDate);
       if (Number.isNaN(finalStartDate.getTime())) {
-        const fallbackDate = parseUserDateTime(text, whatsappId);
+        const fallbackDate = parseUserDateTime(calendarText, whatsappId);
         if (!fallbackDate) {
           console.warn(`⚠️ Data inválida recebida do parser sem fallback: ${event.startDate}`);
           await this.sendMessage(remoteJid,
@@ -989,9 +993,9 @@ class WhatsAppBot {
       }
 
       // Sanidade de ano/data: se IA vier com ano inconsistente e sem ano explícito no texto, usa fallback local.
-      const fallbackDate = parseUserDateTime(text, whatsappId);
-      const hasExplicitYear = /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b20\d{2}\b/.test(text);
-      const hasExplicitWeekday = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/i.test(text);
+      const fallbackDate = parseUserDateTime(calendarText, whatsappId);
+      const hasExplicitYear = /\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b|\b20\d{2}\b/.test(calendarText);
+      const hasExplicitWeekday = /\b(segunda|terça|terca|quarta|quinta|sexta|sábado|sabado|domingo)(-feira)?\b/i.test(calendarText);
       if (fallbackDate) {
         const fallbackStart = new Date(fallbackDate.iso);
         const now = new Date();
@@ -1003,7 +1007,7 @@ class WhatsAppBot {
         // Se o usuário informou dia da semana explicitamente, prioriza parser local
         // quando IA divergir no dia da semana (ex.: "segunda" e IA retornar terça).
         // Não aplicar se já houver data de calendário explícita (ex.: "14 de dezembro" + "domingo" no flyer).
-        if (hasExplicitWeekday && weekdayMismatch && !hasExplicitCalendarDateInText(text)) {
+        if (hasExplicitWeekday && weekdayMismatch && !hasExplicitCalendarDateInText(calendarText)) {
           console.log(`🛠️ Ajustando data por divergência de dia da semana: ${event.startDate} -> ${fallbackDate.iso}`);
           event.startDate = fallbackDate.iso;
           event.displayDate = fallbackDate.readable;
@@ -1017,7 +1021,7 @@ class WhatsAppBot {
       }
 
       // Se houver horário explícito no texto, ele sempre prevalece.
-      const explicitTime = this.extractExplicitTimeFromText(text);
+      const explicitTime = this.extractExplicitTimeFromText(calendarText);
       if (explicitTime) {
         const adjusted = DateTime.fromJSDate(finalStartDate)
           .setZone(userTimezone)

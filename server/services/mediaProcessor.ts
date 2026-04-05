@@ -2,6 +2,7 @@ import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 import type { DetectedMessageType } from '../utils/detectMessageType';
 import { transcribeAudio } from './audioTranscriber';
 import { extractTextFromImage } from './imageOCR';
+import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
 async function streamToBuffer(stream: AsyncIterable<Buffer | Uint8Array>): Promise<Buffer> {
   const chunks: Buffer[] = [];
@@ -60,8 +61,9 @@ export async function mediaProcessor(
       );
       const audioBuffer = await streamToBuffer(stream as AsyncIterable<Buffer | Uint8Array>);
       const mime = audioMessage.mimetype as string | undefined;
-      const text = await transcribeAudio({ buffer: audioBuffer, mimeType: mime });
-      return text?.trim() || null;
+      const raw = await transcribeAudio({ buffer: audioBuffer, mimeType: mime });
+      const text = raw?.trim() ? normalizeTranscriptionForCalendarText(raw.trim()) : null;
+      return text || null;
     } catch (error) {
       console.error('❌ mediaProcessor audio:', error);
       return null;
