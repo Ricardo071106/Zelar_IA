@@ -51,16 +51,16 @@ function getToken(): string | null {
 }
 
 const shellClass =
-  "min-h-screen relative overflow-hidden bg-gradient-to-b from-[#1a0d2e] via-[#25143f] to-[#0a0f1a] text-violet-100";
+  "min-h-screen relative overflow-hidden bg-gradient-to-b from-white via-emerald-50/70 to-green-50 text-slate-800";
 
 const orbClass =
-  "pointer-events-none absolute rounded-full blur-3xl opacity-40 mix-blend-screen";
+  "pointer-events-none absolute rounded-full blur-3xl opacity-35 mix-blend-multiply";
 
 const cardClass =
-  "rounded-2xl border border-violet-400/15 bg-violet-950/25 backdrop-blur-md shadow-[0_0_48px_rgba(124,58,237,0.08)]";
+  "rounded-2xl border border-emerald-200/70 bg-white/85 backdrop-blur-md shadow-[0_0_48px_rgba(16,185,129,0.07)]";
 
 const inputClass =
-  "border-violet-500/25 bg-violet-950/40 text-violet-50 placeholder:text-violet-400/50 focus-visible:ring-amber-400/40";
+  "border-emerald-200 bg-white text-slate-800 placeholder:text-slate-400 focus-visible:ring-emerald-500/35 focus-visible:border-emerald-400";
 
 export default function UserPanelPage() {
   const { toast } = useToast();
@@ -270,12 +270,12 @@ export default function UserPanelPage() {
   if (loadError) {
     return (
       <div className={`${shellClass} flex items-center justify-center p-6`}>
-        <div className={`${orbClass} left-1/4 top-20 h-64 w-64 bg-violet-600`} />
-        <div className={`${orbClass} right-1/4 bottom-32 h-48 w-48 bg-amber-500`} />
-        <Card className={`${cardClass} relative z-10 max-w-lg w-full border-amber-500/20`}>
+        <div className={`${orbClass} left-1/4 top-20 h-64 w-64 bg-emerald-400`} />
+        <div className={`${orbClass} right-1/4 bottom-32 h-48 w-48 bg-green-300`} />
+        <Card className={`${cardClass} relative z-10 max-w-lg w-full border-emerald-300`}>
           <CardHeader>
-            <CardTitle className="font-mago text-2xl text-amber-100">Portal Zelar</CardTitle>
-            <CardDescription className="text-violet-200/90">{loadError}</CardDescription>
+            <CardTitle className="font-mago text-2xl text-emerald-900">Portal Zelar</CardTitle>
+            <CardDescription className="text-slate-600">{loadError}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -285,8 +285,8 @@ export default function UserPanelPage() {
   if (!me) {
     return (
       <div className={`${shellClass} flex items-center justify-center`}>
-        <div className={`${orbClass} left-1/3 top-1/3 h-56 w-56 bg-indigo-500`} />
-        <p className="relative z-10 font-mago text-xl text-amber-100/90 animate-pulse">Evocando seu painel…</p>
+        <div className={`${orbClass} left-1/3 top-1/3 h-56 w-56 bg-emerald-400`} />
+        <p className="relative z-10 font-mago text-xl text-emerald-800 animate-pulse">Carregando seu painel…</p>
       </div>
     );
   }
@@ -295,40 +295,40 @@ export default function UserPanelPage() {
 
   return (
     <div className={shellClass}>
-      <div className={`${orbClass} -left-20 top-0 h-72 w-72 bg-violet-600`} />
-      <div className={`${orbClass} right-0 top-1/3 h-96 w-96 bg-indigo-600`} />
-      <div className={`${orbClass} left-1/3 bottom-0 h-64 w-64 bg-amber-600/80`} />
+      <div className={`${orbClass} -left-20 top-0 h-72 w-72 bg-emerald-400`} />
+      <div className={`${orbClass} right-0 top-1/3 h-96 w-96 bg-green-400`} />
+      <div className={`${orbClass} left-1/3 bottom-0 h-64 w-64 bg-teal-300`} />
 
       <div className="relative z-10 max-w-3xl mx-auto py-10 px-4 space-y-8">
         <header className="text-center sm:text-left space-y-2">
-          <p className="text-sm uppercase tracking-[0.2em] text-amber-200/70 font-medium">Zelar · espaço do organizador</p>
-          <h1 className="font-mago text-4xl sm:text-5xl text-amber-50 drop-shadow-[0_0_24px_rgba(251,191,36,0.15)]">
+          <p className="text-sm uppercase tracking-[0.2em] text-emerald-700/80 font-medium">Zelar · espaço do organizador</p>
+          <h1 className="font-mago text-4xl sm:text-5xl text-emerald-950 drop-shadow-[0_0_28px_rgba(16,185,129,0.2)]">
             Painel do tempo
           </h1>
-          <p className="text-violet-200/85 text-sm max-w-xl">
+          <p className="text-slate-600 text-sm max-w-xl">
             Ajuste sua conta e sua constelação de convidados com calma — aqui a agenda obedece a você.
           </p>
-          <p className="text-sm text-violet-300/80">
-            Telefone: <span className="font-mono text-amber-100/90">{me.user.phone}</span>
+          <p className="text-sm text-slate-600">
+            Telefone: <span className="font-mono text-emerald-900 font-medium">{me.user.phone}</span>
             {me.user.subscriptionStatus === "active" ? (
-              <span className="ml-2 text-emerald-300">· Assinatura ativa</span>
+              <span className="ml-2 text-emerald-700 font-medium">· Assinatura ativa</span>
             ) : (
-              <span className="ml-2 text-amber-300/90">· Assinatura inativa</span>
+              <span className="ml-2 text-slate-500 font-medium">· Assinatura inativa</span>
             )}
           </p>
         </header>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2 h-12 rounded-xl border border-violet-500/20 bg-violet-950/40 p-1">
+          <TabsList className="grid w-full max-w-md grid-cols-2 h-12 rounded-xl border border-emerald-200 bg-white/70 p-1 shadow-sm">
             <TabsTrigger
               value="config"
-              className="rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-50 data-[state=active]:shadow-[0_0_20px_rgba(245,158,11,0.15)] text-violet-300"
+              className="rounded-lg text-slate-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
             >
-              Conta &amp; magias
+              Conta
             </TabsTrigger>
             <TabsTrigger
               value="guests"
-              className="rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-50 data-[state=active]:shadow-[0_0_20px_rgba(245,158,11,0.15)] text-violet-300"
+              className="rounded-lg text-slate-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
             >
               Convidados
             </TabsTrigger>
@@ -337,14 +337,14 @@ export default function UserPanelPage() {
           <TabsContent value="config" className="space-y-5 mt-6">
             <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="font-mago text-2xl text-amber-50">Sua identidade</CardTitle>
-                <CardDescription className="text-violet-200/80">
+                <CardTitle className="font-mago text-2xl text-emerald-900">Sua identidade</CardTitle>
+                <CardDescription className="text-slate-600">
                   E-mail obrigatório para o bot no WhatsApp reconhecer você nos envios.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email" className="text-violet-200">
+                  <Label htmlFor="email" className="text-slate-700">
                     E-mail
                   </Label>
                   <Input
@@ -358,14 +358,14 @@ export default function UserPanelPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-violet-200">Fuso horário</Label>
+                  <Label className="text-slate-700">Fuso horário</Label>
                   <Select value={timeZone} onValueChange={setTimeZone}>
                     <SelectTrigger className={inputClass}>
                       <SelectValue placeholder="Fuso" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-72 bg-violet-950 border-violet-500/30 text-violet-100">
+                    <SelectContent className="max-h-72 bg-white border-emerald-200 text-slate-800">
                       {me.timezones.map((tz) => (
-                        <SelectItem key={tz} value={tz} className="focus:bg-violet-800/50">
+                        <SelectItem key={tz} value={tz} className="focus:bg-emerald-50">
                           {tz}
                         </SelectItem>
                       ))}
@@ -374,7 +374,7 @@ export default function UserPanelPage() {
                 </div>
                 <Button
                   type="button"
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold shadow-lg shadow-amber-900/20"
+                  className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-lg shadow-emerald-900/15"
                   onClick={saveProfile}
                 >
                   Gravar e-mail e fuso
@@ -384,8 +384,8 @@ export default function UserPanelPage() {
 
             <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="font-mago text-2xl text-amber-50">Calendário</CardTitle>
-                <CardDescription className="text-violet-200/80">
+                <CardTitle className="font-mago text-2xl text-emerald-900">Calendário</CardTitle>
+                <CardDescription className="text-slate-600">
                   {cal
                     ? `Vínculo ativo: ${cal === "google" ? "Google" : "Microsoft"}.`
                     : "Escolha uma torre: Google ou Microsoft para sincronizar eventos."}
@@ -411,7 +411,7 @@ export default function UserPanelPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-violet-400/40 text-violet-100 hover:bg-violet-800/30 hover:text-amber-50"
+                    className="border-emerald-500 text-emerald-800 bg-white hover:bg-emerald-50"
                     onClick={disconnectCalendar}
                   >
                     Encerrar vínculo do calendário
@@ -422,13 +422,13 @@ export default function UserPanelPage() {
 
             <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="font-mago text-2xl text-amber-50">Oferta &amp; renovação</CardTitle>
-                <CardDescription className="text-violet-200/80">Caminho pelo Stripe.</CardDescription>
+                <CardTitle className="font-mago text-2xl text-emerald-900">Oferta &amp; renovação</CardTitle>
+                <CardDescription className="text-slate-600">Caminho pelo Stripe.</CardDescription>
               </CardHeader>
               <CardContent className="flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold"
+                  className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-md"
                   onClick={openStripe}
                 >
                   {me.user.subscriptionStatus === "active" ? "Abrir Stripe" : "Assinar com Stripe"}
@@ -437,7 +437,7 @@ export default function UserPanelPage() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="border-red-400/40 text-red-200 hover:bg-red-950/40 hover:text-red-100"
+                    className="border-2 border-red-600 bg-white text-red-700 font-semibold hover:bg-red-600 hover:text-white hover:border-red-600"
                     onClick={cancelSubscription}
                   >
                     Cancelar assinatura
@@ -450,16 +450,17 @@ export default function UserPanelPage() {
           <TabsContent value="guests" className="space-y-5 mt-6">
             <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="font-mago text-2xl text-amber-50">Círculo de convidados</CardTitle>
-                <CardDescription className="text-violet-200/80">
-                  Preencha nome (opcional) e <strong className="text-amber-200/90">pelo menos e-mail ou telefone</strong>.
-                  A tabela atualiza sozinha a cada instantes.
+                <CardTitle className="font-mago text-2xl text-emerald-900">Círculo de convidados</CardTitle>
+                <CardDescription className="text-slate-600">
+                  Preencha nome (opcional) e{" "}
+                  <strong className="text-emerald-800">pelo menos e-mail ou telefone</strong>. A tabela atualiza sozinha a
+                  cada instantes.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
-                <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border border-violet-500/20 bg-violet-950/30 p-5">
+                <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5">
                   <div className="space-y-2 sm:col-span-1">
-                    <Label className="text-violet-200">Nome</Label>
+                    <Label className="text-slate-700">Nome</Label>
                     <Input
                       className={inputClass}
                       value={gName}
@@ -468,7 +469,7 @@ export default function UserPanelPage() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-1">
-                    <Label className="text-violet-200">E-mail</Label>
+                    <Label className="text-slate-700">E-mail</Label>
                     <Input
                       className={inputClass}
                       value={gEmail}
@@ -478,7 +479,7 @@ export default function UserPanelPage() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-1">
-                    <Label className="text-violet-200">Telefone (WhatsApp)</Label>
+                    <Label className="text-slate-700">Telefone (WhatsApp)</Label>
                     <Input
                       className={inputClass}
                       value={gPhone}
@@ -489,7 +490,7 @@ export default function UserPanelPage() {
                   <div className="sm:col-span-3 flex flex-wrap gap-2">
                     <Button
                       type="button"
-                      className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold"
+                      className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-md"
                       onClick={saveGuest}
                     >
                       {editingId ? "Salvar alterações" : "Adicionar à mesa"}
@@ -498,7 +499,7 @@ export default function UserPanelPage() {
                       <Button
                         type="button"
                         variant="ghost"
-                        className="text-violet-300 hover:text-amber-100 hover:bg-violet-800/30"
+                        className="text-slate-600 hover:text-emerald-900 hover:bg-emerald-100/80"
                         onClick={resetGuestForm}
                       >
                         Cancelar edição
@@ -507,35 +508,35 @@ export default function UserPanelPage() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-violet-500/20 bg-violet-950/20 overflow-x-auto">
+                <div className="rounded-2xl border border-emerald-200/80 bg-white/60 overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow className="border-violet-500/20 hover:bg-transparent">
-                        <TableHead className="font-mago text-amber-100/90">Nome</TableHead>
-                        <TableHead className="font-mago text-amber-100/90">E-mail</TableHead>
-                        <TableHead className="font-mago text-amber-100/90">Telefone</TableHead>
-                        <TableHead className="w-[150px] font-mago text-amber-100/90" />
+                      <TableRow className="border-emerald-100 hover:bg-transparent">
+                        <TableHead className="font-mago text-emerald-900">Nome</TableHead>
+                        <TableHead className="font-mago text-emerald-900">E-mail</TableHead>
+                        <TableHead className="font-mago text-emerald-900">Telefone</TableHead>
+                        <TableHead className="w-[150px] font-mago text-emerald-900" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {guests.length === 0 ? (
-                        <TableRow className="border-violet-500/15 hover:bg-transparent">
-                          <TableCell colSpan={4} className="text-center text-violet-300/70 py-10">
+                        <TableRow className="border-emerald-100 hover:bg-transparent">
+                          <TableCell colSpan={4} className="text-center text-slate-500 py-10">
                             Nenhum convidado ainda. Preencha o formulário acima e toque em &quot;Adicionar à mesa&quot;.
                           </TableCell>
                         </TableRow>
                       ) : (
                         guests.map((g) => (
-                          <TableRow key={g.id} className="border-violet-500/15 hover:bg-violet-900/20">
-                            <TableCell className="text-violet-100">{g.name || "—"}</TableCell>
-                            <TableCell className="font-mono text-sm text-violet-200">{g.email || "—"}</TableCell>
-                            <TableCell className="font-mono text-sm text-violet-200">{g.phone || "—"}</TableCell>
+                          <TableRow key={g.id} className="border-emerald-100 hover:bg-emerald-50/60">
+                            <TableCell className="text-slate-800">{g.name || "—"}</TableCell>
+                            <TableCell className="font-mono text-sm text-slate-700">{g.email || "—"}</TableCell>
+                            <TableCell className="font-mono text-sm text-slate-700">{g.phone || "—"}</TableCell>
                             <TableCell className="space-x-2">
                               <Button
                                 type="button"
                                 variant="outline"
                                 size="sm"
-                                className="border-violet-400/35 text-violet-100 hover:bg-violet-800/40"
+                                className="border-emerald-300 text-emerald-800 bg-white hover:bg-emerald-50"
                                 onClick={() => editGuest(g)}
                               >
                                 Editar
@@ -544,7 +545,7 @@ export default function UserPanelPage() {
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-300 hover:text-red-200 hover:bg-red-950/30"
+                                className="text-red-700 font-medium hover:text-white hover:bg-red-600"
                                 onClick={() => deleteGuest(g.id)}
                               >
                                 Apagar
