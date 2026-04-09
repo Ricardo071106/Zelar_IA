@@ -30,6 +30,10 @@ export const userGuestContacts = pgTable(
     normalizedEmail: text("normalized_email").notNull(),
     canonicalEmail: text("canonical_email").notNull(),
     aliasNames: text("alias_names").array().notNull().default(sql`'{}'::text[]`),
+    /** Dígitos E.164 normalizados (ex.: 5511999999999), opcional */
+    guestPhoneE164: text("guest_phone_e164"),
+    /** Quando já enviamos aviso de cadastro na planilha (painel) */
+    identityNotifiedAt: timestamp("identity_notified_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },

@@ -9,6 +9,7 @@ import analyticsRoutes from './routes/analytics.routes';
 import googleAuthRoutes from './routes/google-auth.routes';
 import microsoftAuthRoutes from './routes/microsoft-auth.routes';
 import paymentRoutes from './routes/payment.routes';
+import panelRoutes from './routes/panel.routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -36,6 +37,8 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
   // Payment routes
   app.use('/api/payments', paymentRoutes);
 
+  // Painel web (token assinado por usuário WhatsApp)
+  app.use('/api/panel', panelRoutes);
 
   // =================== STATIC FILES & FRONTEND ===================
 

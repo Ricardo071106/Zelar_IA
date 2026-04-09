@@ -16,6 +16,11 @@ import {
   userGuestContacts,
 } from "@shared/schema";
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
+import { normalizeBrazilianPhone } from "./utils/phoneExtraction";
+
+function isValidEmailFormat(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 function levenshteinDistance(a: string, b: string): number {
   const m = a.length;
@@ -40,6 +45,8 @@ export type UserGuestContactRow = {
   normalizedEmail: string;
   canonicalEmail: string;
   aliasNames: string[];
+  guestPhoneE164: string | null;
+  identityNotifiedAt: Date | null;
 };
 
 export interface IStorage {
@@ -85,6 +92,12 @@ export interface IStorage {
   upsertUserGuestContactEmailTyped(userId: number, normalizedEmail: string, canonicalEmail: string): Promise<void>;
   /** Remove por *nome* (alias) ou por *e-mail* (apaga a linha inteira na planilha). */
   deleteUserGuestContactEntry(userId: number, nameOrEmail: string): Promise<boolean>;
+  deleteUserGuestContactById(userId: number, id: number): Promise<boolean>;
+  upsertGuestFromPanel(
+    userId: number,
+    data: { id?: number; email: string; name?: string; phone?: string | null },
+  ): Promise<UserGuestContactRow>;
+  markGuestIdentityNotified(userId: number, contactId: number): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -372,6 +385,8 @@ export class DatabaseStorage implements IStorage {
       normalizedEmail: r.normalizedEmail,
       canonicalEmail: r.canonicalEmail,
       aliasNames: r.aliasNames ?? [],
+      guestPhoneE164: r.guestPhoneE164 ?? null,
+      identityNotifiedAt: r.identityNotifiedAt ?? null,
     }));
   }
 
@@ -494,6 +509,135 @@ export class DatabaseStorage implements IStorage {
       return true;
     }
     return false;
+  }
+
+  async deleteUserGuestContactById(userId: number, id: number): Promise<boolean> {
+    if (!db) return false;
+    const del = await db
+      .delete(userGuestContacts)
+      .where(and(eq(userGuestContacts.id, id), eq(userGuestContacts.userId, userId)))
+      .returning({ id: userGuestContacts.id });
+    return del.length > 0;
+  }
+
+  async markGuestIdentityNotified(userId: number, contactId: number): Promise<void> {
+    if (!db) return;
+    await db
+      .update(userGuestContacts)
+      .set({ identityNotifiedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(userGuestContacts.id, contactId), eq(userGuestContacts.userId, userId)));
+  }
+
+  async upsertGuestFromPanel(
+    userId: number,
+    data: { id?: number; email: string; name?: string; phone?: string | null },
+  ): Promise<UserGuestContactRow> {
+    if (!db) throw new Error("Database not connected");
+    const canonical = data.email.trim();
+    const ne = canonical.toLowerCase();
+    if (!ne || !isValidEmailFormat(ne)) {
+      throw new Error("email invalido");
+    }
+
+    let phoneNorm: string | null | undefined = undefined;
+    if (data.phone !== undefined) {
+      if (!data.phone || !String(data.phone).trim()) {
+        phoneNorm = null;
+      } else {
+        const n = normalizeBrazilianPhone(String(data.phone).trim());
+        const digits = n ? n.replace(/\D/g, '') : null;
+        if (!digits) {
+          throw new Error("telefone invalido");
+        }
+        phoneNorm = digits;
+      }
+    }
+
+    const mapDbRow = (r: typeof userGuestContacts.$inferSelect): UserGuestContactRow => ({
+      id: r.id,
+      userId: r.userId,
+      normalizedEmail: r.normalizedEmail,
+      canonicalEmail: r.canonicalEmail,
+      aliasNames: r.aliasNames ?? [],
+      guestPhoneE164: r.guestPhoneE164 ?? null,
+      identityNotifiedAt: r.identityNotifiedAt ?? null,
+    });
+
+    if (data.id != null) {
+      const [row] = await db
+        .select()
+        .from(userGuestContacts)
+        .where(and(eq(userGuestContacts.id, data.id), eq(userGuestContacts.userId, userId)));
+      if (!row) {
+        throw new Error("contato nao encontrado");
+      }
+
+      if (ne !== row.normalizedEmail) {
+        throw new Error("nao e permitido alterar o email desta linha");
+      }
+
+      const nextPhone =
+        phoneNorm === undefined ? (row.guestPhoneE164 ?? null) : phoneNorm;
+
+      const patch: Partial<typeof userGuestContacts.$inferInsert> = {
+        updatedAt: new Date(),
+        guestPhoneE164: nextPhone,
+      };
+
+      const prevPhone = row.guestPhoneE164 ?? null;
+      if (prevPhone !== nextPhone) {
+        patch.identityNotifiedAt = null;
+      }
+
+      if (data.name !== undefined && data.name.trim().length >= 2) {
+        const key = normalizeAliasKey(data.name.trim());
+        if (!key) {
+          throw new Error("nome invalido");
+        }
+        const merged = [...new Set([...(row.aliasNames ?? []), key])];
+        patch.aliasNames = merged;
+      }
+
+      const [updated] = await db
+        .update(userGuestContacts)
+        .set(patch)
+        .where(eq(userGuestContacts.id, data.id))
+        .returning();
+      if (!updated) throw new Error("falha ao atualizar");
+      return mapDbRow(updated);
+    }
+
+    if (data.name != null && data.name.trim().length >= 2) {
+      await this.upsertUserGuestContactWithAlias(userId, data.name.trim(), canonical);
+    } else {
+      await this.upsertUserGuestContactEmailTyped(userId, ne, canonical);
+    }
+
+    const [inserted] = await db
+      .select()
+      .from(userGuestContacts)
+      .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
+
+    if (!inserted) {
+      throw new Error("falha ao salvar contato");
+    }
+
+    const insertedPhone = phoneNorm === undefined ? null : phoneNorm;
+    const notifyPatch: Partial<typeof userGuestContacts.$inferInsert> = {
+      guestPhoneE164: insertedPhone,
+      updatedAt: new Date(),
+    };
+    if (insertedPhone !== (inserted.guestPhoneE164 ?? null)) {
+      notifyPatch.identityNotifiedAt = null;
+    }
+
+    const [finalRow] = await db
+      .update(userGuestContacts)
+      .set(notifyPatch)
+      .where(eq(userGuestContacts.id, inserted.id))
+      .returning();
+
+    return mapDbRow(finalRow ?? inserted);
   }
 }
 

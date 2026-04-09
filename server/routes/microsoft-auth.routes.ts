@@ -6,6 +6,7 @@ import {
   exchangeMicrosoftCodeForTokens,
   generateMicrosoftAuthUrl,
 } from '../telegram/microsoftCalendarIntegration';
+import { isSafePanelOAuthReturn } from '../utils/panelToken';
 
 const router = Router();
 
@@ -35,6 +36,8 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
 
   const userId = req.query.userId as string;
   const platform = (req.query.platform as string) || 'telegram';
+  const nextRaw = req.query.next as string | undefined;
+  const next = isSafePanelOAuthReturn(nextRaw) ? nextRaw : undefined;
 
   if (!userId) {
     return res.status(400).json({
@@ -46,7 +49,7 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
     });
   }
 
-  const authUrl = generateMicrosoftAuthUrl(userId, platform);
+  const authUrl = generateMicrosoftAuthUrl(userId, platform, next);
   const shouldRedirect = req.query.redirect === '1' || req.query.redirect === 'true';
   if (shouldRedirect) {
     return res.redirect(authUrl);
@@ -79,9 +82,10 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
 
   try {
     const tokens = await exchangeMicrosoftCodeForTokens(code);
-    const parsedState = JSON.parse(state) as { userId?: string; platform?: string };
+    const parsedState = JSON.parse(state) as { userId?: string; platform?: string; next?: string };
     const userId = parsedState.userId;
     const platform = parsedState.platform || 'telegram';
+    const next = parsedState.next;
 
     if (!userId) {
       return res.status(400).send('userId não informado no state');
@@ -128,6 +132,11 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
         jid,
         '✅ *Microsoft Calendar conectado!*\n\nAgora os eventos serão sincronizados automaticamente com seu Outlook.'
       );
+    }
+
+    if (isSafePanelOAuthReturn(next)) {
+      const join = next.includes('?') ? '&' : '?';
+      return res.redirect(`${next}${join}microsoft=1`);
     }
 
     return res.send(`

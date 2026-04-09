@@ -7,6 +7,7 @@ import { google } from 'googleapis';
 import { asyncHandler } from '../middleware/errorHandler';
 import { storage } from '../storage';
 import { getWhatsAppBot } from 'server/whatsapp/whatsappBot';
+import { isSafePanelOAuthReturn } from '../utils/panelToken';
 
 const router = Router();
 
@@ -49,6 +50,8 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
 
   const userId = req.query.userId as string;
   const platform = req.query.platform as string; // telegram ou whatsapp
+  const nextRaw = req.query.next as string | undefined;
+  const next = isSafePanelOAuthReturn(nextRaw) ? nextRaw : undefined;
 
   if (!userId) {
     return res.status(400).json({
@@ -64,7 +67,7 @@ router.get('/authorize', asyncHandler(async (req: Request, res: Response) => {
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: SCOPES,
-    state: JSON.stringify({ userId, platform }), // Para identificar o usuário no callback
+    state: JSON.stringify(next ? { userId, platform, next } : { userId, platform }),
     prompt: 'consent', // Força exibir tela de consentimento para obter refresh token
   });
 
@@ -103,7 +106,11 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
     const { tokens } = await oauth2Client.getToken(code);
 
     // Extrair informações do state
-    const { userId, platform } = JSON.parse(state);
+    const { userId, platform, next } = JSON.parse(state) as {
+      userId: string;
+      platform?: string;
+      next?: string;
+    };
 
     // Buscar usuário no banco
     let user;
@@ -190,6 +197,11 @@ router.get('/callback', asyncHandler(async (req: Request, res: Response) => {
 
         await whatsappBot.sendMessage(jid, confirmMsg);
       }
+    }
+
+    if (isSafePanelOAuthReturn(next)) {
+      const join = next.includes('?') ? '&' : '?';
+      return res.redirect(`${next}${join}google=1`);
     }
 
     // Página de sucesso

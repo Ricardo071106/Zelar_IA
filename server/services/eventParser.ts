@@ -8,7 +8,7 @@ import {
   phoneDigitsCorroboratedInText,
   isPlaceholderOrFakePhoneDigits,
 } from '../utils/phoneExtraction';
-import { resolveGuestEmailsFromAliases } from './guestContactAliasService';
+import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from './guestContactAliasService';
 import {
   recordTypedGuestEmailsFromText,
   applyCanonicalAndFuzzyGuestEmails,
@@ -236,7 +236,12 @@ export async function processMessage(
   const fromAliases =
     ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
   const attendees = filterPlausibleGuestEmails([...new Set([...emailsFromText, ...fromAliases])]);
-  const targetPhones = extractPhonesFromWrittenAndSpoken(text).filter(
+  const phonesFromText = extractPhonesFromWrittenAndSpoken(text).filter(
+    (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+  );
+  const fromAliasPhones =
+    ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, text) : [];
+  const targetPhones = [...new Set([...phonesFromText, ...fromAliasPhones])].filter(
     (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
   );
 
@@ -305,7 +310,9 @@ export async function parseEvent(
       if (phonesFromText.includes(phone)) return true;
       return phoneDigitsCorroboratedInText(phone, textNorm);
     });
-    const targetPhones = [...new Set([...phonesFromText, ...filteredClaudePhones])].filter(
+    const fromAliasPhones =
+      ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, textNorm) : [];
+    const targetPhones = [...new Set([...phonesFromText, ...filteredClaudePhones, ...fromAliasPhones])].filter(
       (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
     );
 

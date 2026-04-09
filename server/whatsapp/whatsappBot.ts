@@ -42,7 +42,8 @@ import { detectMessageType } from '../utils/detectMessageType';
 import { mediaProcessor } from '../services/mediaProcessor';
 import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtractor';
 import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
-import { resolveGuestEmailsFromAliases } from '../services/guestContactAliasService';
+import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from '../services/guestContactAliasService';
+import { signPanelToken, buildPanelUrl } from '../utils/panelToken';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 
@@ -341,7 +342,7 @@ class WhatsAppBot {
     });
   }
 
-  private async getOrCreateUser(whatsappId: string, name?: string) {
+  private async getOrCreateUser(whatsappId: string, name?: string): Promise<{ user: any; created: boolean }> {
     let user = await storage.getUserByWhatsApp(whatsappId);
 
     if (!user) {
@@ -366,8 +367,9 @@ class WhatsAppBot {
         language: 'pt-BR',
         timeZone: 'America/Sao_Paulo',
       });
+      return { user, created: true };
     }
-    return user;
+    return { user, created: false };
   }
 
   private normalizeForComparison(value: string): string {
@@ -378,6 +380,17 @@ class WhatsAppBot {
       .replace(/[^\w\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+  }
+
+  private panelLinkForUser(user: { id: number; username: string }): string {
+    try {
+      const t = signPanelToken(user.id, user.username);
+      return buildPanelUrl(t);
+    } catch (e) {
+      console.warn('[WhatsApp] Falha ao gerar link do painel:', e);
+      const base = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+      return `${base}/painel`;
+    }
   }
 
   private calculateTitleSimilarity(left: string, right: string): number {
@@ -653,7 +666,7 @@ class WhatsAppBot {
     const currentRunId = runId ?? this.activeRunByJid.get(remoteJid) ?? 0;
     const isRunStillActive = () => this.activeRunByJid.get(remoteJid) === currentRunId;
 
-    const user = await this.getOrCreateUser(whatsappId, msg.pushName);
+    const { user, created } = await this.getOrCreateUser(whatsappId, msg.pushName);
     const command = text.split(' ')[0].toLowerCase();
     const args = text.substring(command.length).trim();
 
@@ -661,23 +674,25 @@ class WhatsAppBot {
     // 1. VERIFICAÇÃO ESTRITA DE ASSINATURA (PREMIUM CHECK)
     // =========================================================================
     if (user.subscriptionStatus !== 'active') {
-      const baseUrl = process.env.STRIPE_PAYMENT_LINK;
-      if (!baseUrl) {
-        console.error("❌ STRIPE_PAYMENT_LINK não configurado no .env");
-        await this.sendMessage(remoteJid, "⚠️ Erro de configuração: Link de pagamento não disponível. Contate o suporte.");
-        return;
-      }
-      const paymentLink = `${baseUrl}?client_reference_id=${user.id}`;
-      console.log(`🚫 Usuário ${user.username} sem assinatura ativa. Enviando link de pagamento.`);
+      const panelUrl = this.panelLinkForUser(user);
+      console.log(`🚫 Usuário ${user.username} sem assinatura ativa. Enviando painel + pagamento.`);
 
       await this.sendMessage(remoteJid,
-        '⚠️ *Assinatura Necessária*\n\n' +
-        'Para continuar usando o Zelar IA e ter acesso a agendamentos ilimitados, você precisa de uma assinatura ativa.\n\n' +
-        '🚀 *Assine agora e libere seu acesso:*\n' +
-        `${paymentLink}\n\n` +
-        'Após o pagamento, seu acesso será liberado automaticamente!'
+        '⚠️ *Assinatura necessária*\n\n' +
+        '🎛️ Abra seu *painel Zelar* para assinar e configurar e-mail, calendário e convidados — *sem usar comandos com barra* (/):\n' +
+        `${panelUrl}\n\n` +
+        'No painel use o botão para pagar com Stripe. Depois do pagamento seu acesso libera automaticamente.',
       );
       return; // Bloqueia qualquer outra interação
+    }
+
+    if (created) {
+      await this.sendMessage(
+        remoteJid,
+        '👋 *Conta criada!*\n\n' +
+          '🎛️ Guarde o link do seu painel — por lá você ajusta e-mail, fuso, Google/Microsoft e convidados sem precisar de comandos / no WhatsApp:\n' +
+          this.panelLinkForUser(user),
+      );
     }
 
     // =========================================================================
@@ -695,11 +710,9 @@ class WhatsAppBot {
     if (!user.email && !allowedWithoutEmail.has(command)) {
       await this.sendMessage(
         remoteJid,
-        '📧 *Email obrigatório para usar o bot*\n\n' +
-          'Para continuar, cadastre seu email com:\n' +
-          '`/email seu.email@dominio.com`\n\n' +
-          'Exemplo:\n' +
-          '`/email ricardo@email.com`',
+        '📧 *E-mail obrigatório*\n\n' +
+          'Cadastre no seu painel (sem comandos /):\n' +
+          this.panelLinkForUser(user),
       );
       return;
     }
@@ -826,6 +839,37 @@ class WhatsAppBot {
     // 2. PROCESSAMENTO DE COMANDOS
     // =========================================================================
     if (text.startsWith('/')) {
+      const panelFirst = new Set([
+        '/email',
+        '/conectar',
+        '/connect',
+        '/conectar_microsoft',
+        '/connect_microsoft',
+        '/desconectar',
+        '/disconnect',
+        '/fuso',
+        '/convidado',
+        '/contato_convidado',
+        '/convidados',
+        '/apagar',
+        '/convidado_remover',
+        '/cancelar',
+        '/ajuda',
+        '/help',
+        '/start',
+        '/iniciar',
+      ]);
+      if (panelFirst.has(command)) {
+        await this.sendMessage(
+          remoteJid,
+          '🎛️ *Painel Zelar*\n\n' +
+            'E-mail, calendário (Google/Microsoft), fuso, convidados e assinatura ficam no painel — sem barra (/):\n' +
+            this.panelLinkForUser(user) +
+            '\n\n' +
+            '_Aqui no WhatsApp você continua criando eventos por texto ou áudio._',
+        );
+        return;
+      }
       await this.handleCommand(remoteJid, user, command, args);
       return;
     }
@@ -935,7 +979,7 @@ class WhatsAppBot {
             '❓ Não consegui entender a data/hora.\n\n' +
             'Tente assim:\n' +
             '*"Reunião amanhã às 15h"* ou *"Dentista dia 15 às 14h"*.\n\n' +
-            'Use /ajuda para ver mais exemplos.'
+            'Peça o link do painel ao anfitrião ou suporte para ver exemplos.'
           );
           return;
         }
@@ -943,7 +987,11 @@ class WhatsAppBot {
         const fbEmails = extractEmails(calendarText);
         const fbAliases = await resolveGuestEmailsFromAliases(user.id, calendarText);
         const fbAttendees = filterPlausibleGuestEmails([...new Set([...fbEmails, ...fbAliases])]);
-        const fbPhones = extractPhonesFromWrittenAndSpoken(calendarText).filter(
+        const fbPhonesText = extractPhonesFromWrittenAndSpoken(calendarText).filter(
+          (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+        );
+        const fbPhonesAlias = await resolveGuestPhonesFromAliases(user.id, calendarText);
+        const fbPhones = [...new Set([...fbPhonesText, ...fbPhonesAlias])].filter(
           (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
         );
 
@@ -1292,18 +1340,18 @@ class WhatsAppBot {
   }
 
   private async sendWelcomeMessage(remoteJid: string, user: any) {
+    const panelUrl = this.panelLinkForUser(user);
     await this.sendMessage(remoteJid,
       `👋 *Olá${user.name ? `, ${user.name}` : ''}!* Bem-vindo ao Zelar IA.\n\n` +
       'Estou aqui para organizar sua agenda de forma rápida e inteligente.\n\n' +
       '📌 *O que eu posso fazer?*\n' +
       '• Criar eventos (ex: "Almoço com mãe amanhã 13h")\n' +
       '• Entender áudios/voz e transformar em agendamento\n' +
-      '• Enviar lembretres para você e convidados\n' +
+      '• Enviar lembretes para você e convidados\n' +
       '• Sincronizar com Google ou Microsoft Calendar\n\n' +
-      '🔗 *Recomendação:*\n' +
-      'Conecte seu calendário para uma experiência completa!\n' +
-      'Digite `/conectar` para começar.\n\n' +
-      '❓ *Dúvidas?* Digite `/ajuda` para ver todos os comandos.'
+      '🎛️ *Configurações (e-mail, calendário, convidados):*\n' +
+      `Abra seu painel — sem comandos com barra (/):\n${panelUrl}\n\n` +
+      '💡 *Dica:* Por aqui você só manda o compromisso em texto ou áudio; o resto é no painel.',
     );
   }
 

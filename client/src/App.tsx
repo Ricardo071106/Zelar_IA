@@ -7,11 +7,13 @@ import NotFound from "@/pages/not-found";
 import Home from "@/pages/home";
 import SystemDashboard from "@/pages/SystemDashboard";
 import AnalyticsDashboardPage from "@/pages/analytics-dashboard";
+import UserPanelPage from "@/pages/UserPanelPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/painel" component={UserPanelPage} />
       <Route path="/system" component={SystemDashboard} />
       <Route path="/analytics-dashboard" component={AnalyticsDashboardPage} />
       <Route component={NotFound} />

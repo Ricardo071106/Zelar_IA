@@ -68,3 +68,29 @@ export async function resolveGuestEmailsFromAliases(ownerUserId: number, text: s
   }
   return [...new Set(emails)];
 }
+
+/** Telefones cadastrados na planilha quando o nome (alias) aparece no texto/áudio. */
+export async function resolveGuestPhonesFromAliases(ownerUserId: number, text: string): Promise<string[]> {
+  const rows = await storage.listUserGuestContacts(ownerUserId);
+  if (!rows.length) return [];
+  const t = normalizeAliasKey(text);
+  const phones: string[] = [];
+  for (const row of rows) {
+    const p = row.guestPhoneE164?.replace(/\D/g, '') || '';
+    if (!p) continue;
+    for (const alias of row.aliasNames ?? []) {
+      const key = normalizeAliasKey(alias);
+      if (key.length < 2) continue;
+      if (isFamilyGatheringTitleWithSurname(t, key)) continue;
+      if (t.includes(key)) {
+        phones.push(p);
+        break;
+      }
+      if (fuzzyNameInText(t, key)) {
+        phones.push(p);
+        break;
+      }
+    }
+  }
+  return [...new Set(phones)];
+}

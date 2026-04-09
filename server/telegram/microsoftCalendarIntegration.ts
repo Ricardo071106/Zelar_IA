@@ -174,8 +174,20 @@ async function getValidAccessToken(userId: number, forceRefresh = false): Promis
   return validTokens.access_token;
 }
 
-export function generateMicrosoftAuthUrl(userId: number | string, platform: string = 'telegram'): string {
+export function generateMicrosoftAuthUrl(
+  userId: number | string,
+  platform: string = 'telegram',
+  next?: string,
+): string {
   ensureMicrosoftConfig();
+
+  const stateObj: { userId: string; platform: string; next?: string } = {
+    userId: String(userId),
+    platform,
+  };
+  if (next) {
+    stateObj.next = next;
+  }
 
   const params = new URLSearchParams({
     client_id: MICROSOFT_CLIENT_ID!,
@@ -183,7 +195,7 @@ export function generateMicrosoftAuthUrl(userId: number | string, platform: stri
     redirect_uri: MICROSOFT_REDIRECT_URI,
     response_mode: 'query',
     scope: SCOPES.join(' '),
-    state: JSON.stringify({ userId: String(userId), platform }),
+    state: JSON.stringify(stateObj),
     prompt: 'consent',
   });
 

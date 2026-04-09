@@ -50,6 +50,13 @@
       "when": 1773800000000,
       "tag": "0006_user_guest_contacts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773900000000,
+      "tag": "0007_guest_contact_phone",
+      "breakpoints": true
     }
   ]
 }
