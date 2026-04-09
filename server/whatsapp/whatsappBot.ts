@@ -1623,10 +1623,12 @@ class WhatsAppBot {
           let msg = '👥 *Sua planilha de convidados:*\n\n';
           for (const row of list) {
             const aliases = (row.aliasNames ?? []).filter(Boolean);
+            const emailPart = row.canonicalEmail ? `\`${row.canonicalEmail}\`` : '_sem e-mail_';
+            const phonePart = row.guestPhoneE164 ? ` · 📱 ${row.guestPhoneE164}` : '';
             if (aliases.length) {
-              msg += `• *${aliases.join(', ')}* → \`${row.canonicalEmail}\`\n`;
+              msg += `• *${aliases.join(', ')}* → ${emailPart}${phonePart}\n`;
             } else {
-              msg += `• \`${row.canonicalEmail}\` _· do convite escrito_\n`;
+              msg += `• ${emailPart}${phonePart} _· planilha / convite_\n`;
             }
           }
           msg += '\nRemover: `/apagar convidado Nome` ou `/apagar convidado email@...`\n(também: `/convidado_remover` com nome ou e-mail)';

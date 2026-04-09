@@ -51,17 +51,18 @@ export async function resolveGuestEmailsFromAliases(ownerUserId: number, text: s
   const t = normalizeAliasKey(text);
   const emails: string[] = [];
   for (const row of rows) {
-    const em = row.canonicalEmail.toLowerCase();
+    const canon = row.canonicalEmail?.trim();
+    if (!canon) continue;
     for (const alias of row.aliasNames ?? []) {
       const key = normalizeAliasKey(alias);
       if (key.length < 2) continue;
       if (isFamilyGatheringTitleWithSurname(t, key)) continue;
       if (t.includes(key)) {
-        emails.push(em);
+        emails.push(canon.toLowerCase());
         break;
       }
       if (fuzzyNameInText(t, key)) {
-        emails.push(em);
+        emails.push(canon.toLowerCase());
         break;
       }
     }

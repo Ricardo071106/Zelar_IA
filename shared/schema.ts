@@ -19,16 +19,15 @@ export const users = pgTable("users", {
 });
 
 /**
- * Planilha única de convidados: /convidado (alias_names) + e-mails do convite escrito (alias vazio).
- * Uma linha por (user_id, normalized_email).
+ * Planilha de convidados: e-mail e/ou telefone; pelo menos um identificador por linha.
  */
 export const userGuestContacts = pgTable(
   "user_guest_contacts",
   {
     id: serial("id").primaryKey(),
     userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-    normalizedEmail: text("normalized_email").notNull(),
-    canonicalEmail: text("canonical_email").notNull(),
+    normalizedEmail: text("normalized_email"),
+    canonicalEmail: text("canonical_email"),
     aliasNames: text("alias_names").array().notNull().default(sql`'{}'::text[]`),
     /** Dígitos E.164 normalizados (ex.: 5511999999999), opcional */
     guestPhoneE164: text("guest_phone_e164"),
@@ -37,7 +36,14 @@ export const userGuestContacts = pgTable(
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
   },
-  (t) => [uniqueIndex("user_guest_contacts_user_email").on(t.userId, t.normalizedEmail)],
+  (t) => [
+    uniqueIndex("user_guest_contacts_user_email_partial")
+      .on(t.userId, t.normalizedEmail)
+      .where(sql`${t.normalizedEmail} is not null`),
+    uniqueIndex("user_guest_contacts_user_phone_partial")
+      .on(t.userId, t.guestPhoneE164)
+      .where(sql`${t.guestPhoneE164} is not null`),
+  ],
 );
 
 export const userGuestContactsRelations = relations(userGuestContacts, ({ one }) => ({

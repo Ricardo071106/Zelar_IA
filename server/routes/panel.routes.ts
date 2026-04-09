@@ -26,10 +26,16 @@ async function panelUser(req: Request): Promise<{ user: NonNullable<Awaited<Retu
   return { user };
 }
 
-function displayNameFromAliases(aliasNames: string[] | null | undefined, email: string): string {
+function displayNameFromAliases(
+  aliasNames: string[] | null | undefined,
+  canonicalEmail: string | null | undefined,
+  guestPhone?: string | null,
+): string {
   const a = (aliasNames ?? []).filter(Boolean);
   if (a.length) return a.join(', ');
-  return email.split('@')[0] || '';
+  if (canonicalEmail) return canonicalEmail.split('@')[0] || canonicalEmail;
+  if (guestPhone) return `WhatsApp ${guestPhone}`;
+  return 'Convidado';
 }
 
 router.get(
@@ -181,8 +187,8 @@ router.get(
     res.json({
       guests: rows.map((r) => ({
         id: r.id,
-        name: displayNameFromAliases(r.aliasNames, r.canonicalEmail),
-        email: r.canonicalEmail,
+        name: displayNameFromAliases(r.aliasNames, r.canonicalEmail, r.guestPhoneE164),
+        email: r.canonicalEmail ?? '',
         phone: r.guestPhoneE164 || '',
       })),
     });
@@ -208,8 +214,10 @@ router.post(
       return res.status(400).json({ error: 'id invalido' });
     }
 
-    if (!email) {
-      return res.status(400).json({ error: 'email obrigatorio' });
+    const hasEmail = email.length > 0;
+    const hasPhone = typeof phone === 'string' && phone.trim().length > 0;
+    if (id === undefined && !hasEmail && !hasPhone) {
+      return res.status(400).json({ error: 'informe email ou telefone' });
     }
 
     try {
@@ -222,8 +230,8 @@ router.post(
       res.json({
         guest: {
           id: row.id,
-          name: displayNameFromAliases(row.aliasNames, row.canonicalEmail),
-          email: row.canonicalEmail,
+          name: displayNameFromAliases(row.aliasNames, row.canonicalEmail, row.guestPhoneE164),
+          email: row.canonicalEmail ?? '',
           phone: row.guestPhoneE164 || '',
         },
       });

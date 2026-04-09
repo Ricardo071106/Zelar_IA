@@ -50,6 +50,18 @@ function getToken(): string | null {
   return q && q.trim() ? q.trim() : null;
 }
 
+const shellClass =
+  "min-h-screen relative overflow-hidden bg-gradient-to-b from-[#1a0d2e] via-[#25143f] to-[#0a0f1a] text-violet-100";
+
+const orbClass =
+  "pointer-events-none absolute rounded-full blur-3xl opacity-40 mix-blend-screen";
+
+const cardClass =
+  "rounded-2xl border border-violet-400/15 bg-violet-950/25 backdrop-blur-md shadow-[0_0_48px_rgba(124,58,237,0.08)]";
+
+const inputClass =
+  "border-violet-500/25 bg-violet-950/40 text-violet-50 placeholder:text-violet-400/50 focus-visible:ring-amber-400/40";
+
 export default function UserPanelPage() {
   const { toast } = useToast();
   const token = useMemo(() => getToken(), []);
@@ -105,11 +117,11 @@ export default function UserPanelPage() {
     if (!token) return;
     const p = new URLSearchParams(window.location.search);
     if (p.get("google") === "1") {
-      toast({ title: "Google Calendar conectado" });
+      toast({ title: "Google Calendar conectado ✨" });
       window.history.replaceState({}, "", `/painel?t=${encodeURIComponent(token)}`);
     }
     if (p.get("microsoft") === "1") {
-      toast({ title: "Microsoft Calendar conectado" });
+      toast({ title: "Microsoft Calendar conectado ✨" });
       window.history.replaceState({}, "", `/painel?t=${encodeURIComponent(token)}`);
     }
   }, [token, toast]);
@@ -200,8 +212,14 @@ export default function UserPanelPage() {
 
   const saveGuest = async () => {
     if (!token) return;
-    if (!gEmail.trim()) {
-      toast({ title: "E-mail obrigatório", variant: "destructive" });
+    const hasE = gEmail.trim().length > 0;
+    const hasP = gPhone.trim().length > 0;
+    if (!hasE && !hasP) {
+      toast({
+        title: "E-mail ou telefone",
+        description: "Preencha pelo menos um dos dois.",
+        variant: "destructive",
+      });
       return;
     }
     const r = await fetch("/api/panel/guests", {
@@ -243,38 +261,21 @@ export default function UserPanelPage() {
 
   const editGuest = (g: GuestRow) => {
     setEditingId(g.id);
-    setGName(g.name);
+    setGName(g.name.startsWith("WhatsApp ") || g.name === "Convidado" ? "" : g.name);
     setGEmail(g.email);
     setGPhone(g.phone);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const notifyGuests = async () => {
-    if (!token) return;
-    const r = await fetch("/api/panel/guests/notify", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader },
-      body: JSON.stringify({ t: token }),
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) {
-      toast({ title: "Erro", description: j.error, variant: "destructive" });
-      return;
-    }
-    toast({
-      title: "Concluído",
-      description: `E-mails: ${j.emailed ?? 0} · WhatsApp: ${j.whatsapped ?? 0}`,
-    });
-    loadGuests();
-  };
-
   if (loadError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6">
-        <Card className="max-w-lg w-full">
+      <div className={`${shellClass} flex items-center justify-center p-6`}>
+        <div className={`${orbClass} left-1/4 top-20 h-64 w-64 bg-violet-600`} />
+        <div className={`${orbClass} right-1/4 bottom-32 h-48 w-48 bg-amber-500`} />
+        <Card className={`${cardClass} relative z-10 max-w-lg w-full border-amber-500/20`}>
           <CardHeader>
-            <CardTitle>Painel Zelar</CardTitle>
-            <CardDescription>{loadError}</CardDescription>
+            <CardTitle className="font-mago text-2xl text-amber-100">Portal Zelar</CardTitle>
+            <CardDescription className="text-violet-200/90">{loadError}</CardDescription>
           </CardHeader>
         </Card>
       </div>
@@ -283,8 +284,9 @@ export default function UserPanelPage() {
 
   if (!me) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Carregando…</p>
+      <div className={`${shellClass} flex items-center justify-center`}>
+        <div className={`${orbClass} left-1/3 top-1/3 h-56 w-56 bg-indigo-500`} />
+        <p className="relative z-10 font-mago text-xl text-amber-100/90 animate-pulse">Evocando seu painel…</p>
       </div>
     );
   }
@@ -292,38 +294,63 @@ export default function UserPanelPage() {
   const cal = me.settings.calendarConnected;
 
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4">
-      <div className="max-w-3xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Painel Zelar</h1>
-          <p className="text-sm text-slate-600 mt-1">
-            Telefone: <span className="font-mono">{me.user.phone}</span>
+    <div className={shellClass}>
+      <div className={`${orbClass} -left-20 top-0 h-72 w-72 bg-violet-600`} />
+      <div className={`${orbClass} right-0 top-1/3 h-96 w-96 bg-indigo-600`} />
+      <div className={`${orbClass} left-1/3 bottom-0 h-64 w-64 bg-amber-600/80`} />
+
+      <div className="relative z-10 max-w-3xl mx-auto py-10 px-4 space-y-8">
+        <header className="text-center sm:text-left space-y-2">
+          <p className="text-sm uppercase tracking-[0.2em] text-amber-200/70 font-medium">Zelar · espaço do organizador</p>
+          <h1 className="font-mago text-4xl sm:text-5xl text-amber-50 drop-shadow-[0_0_24px_rgba(251,191,36,0.15)]">
+            Painel do tempo
+          </h1>
+          <p className="text-violet-200/85 text-sm max-w-xl">
+            Ajuste sua conta e sua constelação de convidados com calma — aqui a agenda obedece a você.
+          </p>
+          <p className="text-sm text-violet-300/80">
+            Telefone: <span className="font-mono text-amber-100/90">{me.user.phone}</span>
             {me.user.subscriptionStatus === "active" ? (
-              <span className="ml-2 text-emerald-600">· Assinatura ativa</span>
+              <span className="ml-2 text-emerald-300">· Assinatura ativa</span>
             ) : (
-              <span className="ml-2 text-amber-600">· Assinatura inativa</span>
+              <span className="ml-2 text-amber-300/90">· Assinatura inativa</span>
             )}
           </p>
-        </div>
+        </header>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full grid-cols-2 max-w-md">
-            <TabsTrigger value="config">Configurações</TabsTrigger>
-            <TabsTrigger value="guests">Convidados</TabsTrigger>
+          <TabsList className="grid w-full max-w-md grid-cols-2 h-12 rounded-xl border border-violet-500/20 bg-violet-950/40 p-1">
+            <TabsTrigger
+              value="config"
+              className="rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-50 data-[state=active]:shadow-[0_0_20px_rgba(245,158,11,0.15)] text-violet-300"
+            >
+              Conta &amp; magias
+            </TabsTrigger>
+            <TabsTrigger
+              value="guests"
+              className="rounded-lg data-[state=active]:bg-amber-500/20 data-[state=active]:text-amber-50 data-[state=active]:shadow-[0_0_20px_rgba(245,158,11,0.15)] text-violet-300"
+            >
+              Convidados
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="config" className="space-y-4 mt-4">
-            <Card>
+          <TabsContent value="config" className="space-y-5 mt-6">
+            <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="text-lg">Conta</CardTitle>
-                <CardDescription>E-mail obrigatório para usar o bot no WhatsApp.</CardDescription>
+                <CardTitle className="font-mago text-2xl text-amber-50">Sua identidade</CardTitle>
+                <CardDescription className="text-violet-200/80">
+                  E-mail obrigatório para o bot no WhatsApp reconhecer você nos envios.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="email">E-mail</Label>
+                  <Label htmlFor="email" className="text-violet-200">
+                    E-mail
+                  </Label>
                   <Input
                     id="email"
                     type="email"
+                    className={inputClass}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="voce@email.com"
@@ -331,64 +358,88 @@ export default function UserPanelPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Fuso horário</Label>
+                  <Label className="text-violet-200">Fuso horário</Label>
                   <Select value={timeZone} onValueChange={setTimeZone}>
-                    <SelectTrigger>
+                    <SelectTrigger className={inputClass}>
                       <SelectValue placeholder="Fuso" />
                     </SelectTrigger>
-                    <SelectContent className="max-h-72">
+                    <SelectContent className="max-h-72 bg-violet-950 border-violet-500/30 text-violet-100">
                       {me.timezones.map((tz) => (
-                        <SelectItem key={tz} value={tz}>
+                        <SelectItem key={tz} value={tz} className="focus:bg-violet-800/50">
                           {tz}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <Button type="button" onClick={saveProfile}>
-                  Salvar e-mail e fuso
+                <Button
+                  type="button"
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold shadow-lg shadow-amber-900/20"
+                  onClick={saveProfile}
+                >
+                  Gravar e-mail e fuso
                 </Button>
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="text-lg">Calendário</CardTitle>
-                <CardDescription>
+                <CardTitle className="font-mago text-2xl text-amber-50">Calendário</CardTitle>
+                <CardDescription className="text-violet-200/80">
                   {cal
-                    ? `Conectado: ${cal === "google" ? "Google" : "Microsoft"}.`
-                    : "Conecte Google ou Microsoft para sincronizar eventos."}
+                    ? `Vínculo ativo: ${cal === "google" ? "Google" : "Microsoft"}.`
+                    : "Escolha uma torre: Google ou Microsoft para sincronizar eventos."}
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
+              <CardContent className="flex flex-wrap gap-3">
                 {!cal ? (
                   <>
-                    <Button type="button" variant="secondary" asChild>
-                      <a href={me.links.googleConnect}>Conectar Google</a>
-                    </Button>
-                    <Button type="button" variant="secondary" asChild>
-                      <a href={me.links.microsoftConnect}>Conectar Microsoft</a>
-                    </Button>
+                    <a
+                      href={me.links.googleConnect}
+                      className="inline-flex items-center justify-center rounded-xl bg-[#4285F4] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#3367d6] hover:shadow-lg"
+                    >
+                      Conectar Google
+                    </a>
+                    <a
+                      href={me.links.microsoftConnect}
+                      className="inline-flex items-center justify-center rounded-xl bg-[#0078d4] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#106ebe] hover:shadow-lg"
+                    >
+                      Conectar Microsoft
+                    </a>
                   </>
                 ) : (
-                  <Button type="button" variant="outline" onClick={disconnectCalendar}>
-                    Desconectar calendário
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-violet-400/40 text-violet-100 hover:bg-violet-800/30 hover:text-amber-50"
+                    onClick={disconnectCalendar}
+                  >
+                    Encerrar vínculo do calendário
                   </Button>
                 )}
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="text-lg">Assinatura</CardTitle>
-                <CardDescription>Pagamento via Stripe.</CardDescription>
+                <CardTitle className="font-mago text-2xl text-amber-50">Oferta &amp; renovação</CardTitle>
+                <CardDescription className="text-violet-200/80">Caminho pelo Stripe.</CardDescription>
               </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                <Button type="button" onClick={openStripe}>
-                  {me.user.subscriptionStatus === "active" ? "Gerenciar / renovar (Stripe)" : "Assinar com Stripe"}
+              <CardContent className="flex flex-wrap gap-3">
+                <Button
+                  type="button"
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold"
+                  onClick={openStripe}
+                >
+                  {me.user.subscriptionStatus === "active" ? "Abrir Stripe" : "Assinar com Stripe"}
                 </Button>
                 {me.user.subscriptionStatus === "active" && (
-                  <Button type="button" variant="destructive" onClick={cancelSubscription}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-red-400/40 text-red-200 hover:bg-red-950/40 hover:text-red-100"
+                    onClick={cancelSubscription}
+                  >
                     Cancelar assinatura
                   </Button>
                 )}
@@ -396,88 +447,104 @@ export default function UserPanelPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="guests" className="space-y-4 mt-4">
-            <Card>
-              <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
-                <div>
-                  <CardTitle className="text-lg">Planilha de convidados</CardTitle>
-                  <CardDescription>
-                    Nome, e-mail e telefone (atualiza em tempo quase real). Use Concluído para avisar convidados
-                    ainda não notificados.
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="secondary" onClick={resetGuestForm}>
-                    Novo convidado
-                  </Button>
-                  <Button type="button" onClick={notifyGuests}>
-                    Concluído
-                  </Button>
-                </div>
+          <TabsContent value="guests" className="space-y-5 mt-6">
+            <Card className={cardClass}>
+              <CardHeader>
+                <CardTitle className="font-mago text-2xl text-amber-50">Círculo de convidados</CardTitle>
+                <CardDescription className="text-violet-200/80">
+                  Preencha nome (opcional) e <strong className="text-amber-200/90">pelo menos e-mail ou telefone</strong>.
+                  A tabela atualiza sozinha a cada instantes.
+                </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-3 border rounded-lg p-4 bg-white">
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border border-violet-500/20 bg-violet-950/30 p-5">
                   <div className="space-y-2 sm:col-span-1">
-                    <Label>Nome</Label>
-                    <Input value={gName} onChange={(e) => setGName(e.target.value)} placeholder="Opcional" />
+                    <Label className="text-violet-200">Nome</Label>
+                    <Input
+                      className={inputClass}
+                      value={gName}
+                      onChange={(e) => setGName(e.target.value)}
+                      placeholder="Como você chama no áudio…"
+                    />
                   </div>
                   <div className="space-y-2 sm:col-span-1">
-                    <Label>E-mail</Label>
+                    <Label className="text-violet-200">E-mail</Label>
                     <Input
+                      className={inputClass}
                       value={gEmail}
                       onChange={(e) => setGEmail(e.target.value)}
-                      placeholder="Obrigatório"
+                      placeholder="Se não tiver telefone, use e-mail"
                       type="email"
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-1">
-                    <Label>Telefone (WhatsApp)</Label>
-                    <Input value={gPhone} onChange={(e) => setGPhone(e.target.value)} placeholder="Opcional" />
+                    <Label className="text-violet-200">Telefone (WhatsApp)</Label>
+                    <Input
+                      className={inputClass}
+                      value={gPhone}
+                      onChange={(e) => setGPhone(e.target.value)}
+                      placeholder="Se não tiver e-mail, use o número"
+                    />
                   </div>
-                  <div className="sm:col-span-3 flex gap-2">
-                    <Button type="button" onClick={saveGuest}>
-                      {editingId ? "Salvar alterações" : "Adicionar à tabela"}
+                  <div className="sm:col-span-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      className="bg-gradient-to-r from-amber-500 to-amber-600 text-violet-950 hover:from-amber-400 hover:to-amber-500 font-semibold"
+                      onClick={saveGuest}
+                    >
+                      {editingId ? "Salvar alterações" : "Adicionar à mesa"}
                     </Button>
                     {editingId != null && (
-                      <Button type="button" variant="ghost" onClick={resetGuestForm}>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-violet-300 hover:text-amber-100 hover:bg-violet-800/30"
+                        onClick={resetGuestForm}
+                      >
                         Cancelar edição
                       </Button>
                     )}
                   </div>
                 </div>
 
-                <div className="rounded-md border bg-white overflow-x-auto">
+                <div className="rounded-2xl border border-violet-500/20 bg-violet-950/20 overflow-x-auto">
                   <Table>
                     <TableHeader>
-                      <TableRow>
-                        <TableHead>Nome</TableHead>
-                        <TableHead>E-mail</TableHead>
-                        <TableHead>Telefone</TableHead>
-                        <TableHead className="w-[140px]" />
+                      <TableRow className="border-violet-500/20 hover:bg-transparent">
+                        <TableHead className="font-mago text-amber-100/90">Nome</TableHead>
+                        <TableHead className="font-mago text-amber-100/90">E-mail</TableHead>
+                        <TableHead className="font-mago text-amber-100/90">Telefone</TableHead>
+                        <TableHead className="w-[150px] font-mago text-amber-100/90" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {guests.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="text-center text-slate-500 py-8">
-                            Nenhum convidado. Clique em &quot;Novo convidado&quot;, preencha e adicione.
+                        <TableRow className="border-violet-500/15 hover:bg-transparent">
+                          <TableCell colSpan={4} className="text-center text-violet-300/70 py-10">
+                            Nenhum convidado ainda. Preencha o formulário acima e toque em &quot;Adicionar à mesa&quot;.
                           </TableCell>
                         </TableRow>
                       ) : (
                         guests.map((g) => (
-                          <TableRow key={g.id}>
-                            <TableCell>{g.name || "—"}</TableCell>
-                            <TableCell className="font-mono text-sm">{g.email}</TableCell>
-                            <TableCell className="font-mono text-sm">{g.phone || "—"}</TableCell>
+                          <TableRow key={g.id} className="border-violet-500/15 hover:bg-violet-900/20">
+                            <TableCell className="text-violet-100">{g.name || "—"}</TableCell>
+                            <TableCell className="font-mono text-sm text-violet-200">{g.email || "—"}</TableCell>
+                            <TableCell className="font-mono text-sm text-violet-200">{g.phone || "—"}</TableCell>
                             <TableCell className="space-x-2">
-                              <Button type="button" variant="outline" size="sm" onClick={() => editGuest(g)}>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="border-violet-400/35 text-violet-100 hover:bg-violet-800/40"
+                                onClick={() => editGuest(g)}
+                              >
                                 Editar
                               </Button>
                               <Button
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="text-red-600"
+                                className="text-red-300 hover:text-red-200 hover:bg-red-950/30"
                                 onClick={() => deleteGuest(g.id)}
                               >
                                 Apagar

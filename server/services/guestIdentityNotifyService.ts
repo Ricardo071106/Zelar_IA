@@ -5,12 +5,18 @@ import { getWhatsAppBot } from '../whatsapp/whatsappBot';
 function displayNameFromRow(row: UserGuestContactRow): string {
   const a = (row.aliasNames ?? []).filter(Boolean);
   if (a.length) return a.join(', ');
-  return row.canonicalEmail.split('@')[0] || 'Convidado';
+  if (row.canonicalEmail) {
+    return row.canonicalEmail.split('@')[0] || row.canonicalEmail;
+  }
+  if (row.guestPhoneE164) {
+    return `WhatsApp ${row.guestPhoneE164}`;
+  }
+  return 'Convidado';
 }
 
 /**
  * Envia aviso único de que o contato foi incluído na planilha do anfitrião (painel).
- * Disparado pelo botão "Concluído" no painel para linhas ainda não notificadas.
+ * Pode ser chamado pela API POST /api/panel/guests/notify quando necessário.
  */
 export async function notifyPendingGuestIdentities(
   ownerUserId: number,

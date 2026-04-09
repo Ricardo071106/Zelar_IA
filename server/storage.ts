@@ -42,8 +42,8 @@ function levenshteinDistance(a: string, b: string): number {
 export type UserGuestContactRow = {
   id: number;
   userId: number;
-  normalizedEmail: string;
-  canonicalEmail: string;
+  normalizedEmail: string | null;
+  canonicalEmail: string | null;
   aliasNames: string[];
   guestPhoneE164: string | null;
   identityNotifiedAt: Date | null;
@@ -95,7 +95,7 @@ export interface IStorage {
   deleteUserGuestContactById(userId: number, id: number): Promise<boolean>;
   upsertGuestFromPanel(
     userId: number,
-    data: { id?: number; email: string; name?: string; phone?: string | null },
+    data: { id?: number; email?: string; name?: string; phone?: string | null },
   ): Promise<UserGuestContactRow>;
   markGuestIdentityNotified(userId: number, contactId: number): Promise<void>;
 }
@@ -378,7 +378,7 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(userGuestContacts)
       .where(eq(userGuestContacts.userId, userId))
-      .orderBy(asc(userGuestContacts.canonicalEmail));
+      .orderBy(asc(userGuestContacts.id));
     return rows.map((r) => ({
       id: r.id,
       userId: r.userId,
@@ -482,7 +482,8 @@ export class DatabaseStorage implements IStorage {
 
       const maxDist = Math.min(12, Math.max(4, Math.ceil(ne.length * 0.55)));
       const scored = candidates
-        .map((c) => ({ id: c.id, d: levenshteinDistance(ne, c.normalizedEmail) }))
+        .filter((c) => c.normalizedEmail != null && c.normalizedEmail !== '')
+        .map((c) => ({ id: c.id, d: levenshteinDistance(ne, c.normalizedEmail!) }))
         .filter((x) => x.d <= maxDist)
         .sort((a, b) => a.d - b.d);
       if (scored.length === 0) return false;
@@ -530,38 +531,48 @@ export class DatabaseStorage implements IStorage {
 
   async upsertGuestFromPanel(
     userId: number,
-    data: { id?: number; email: string; name?: string; phone?: string | null },
+    data: { id?: number; email?: string; name?: string; phone?: string | null },
   ): Promise<UserGuestContactRow> {
     if (!db) throw new Error("Database not connected");
-    const canonical = data.email.trim();
-    const ne = canonical.toLowerCase();
-    if (!ne || !isValidEmailFormat(ne)) {
-      throw new Error("email invalido");
+
+    const emailTrim = (data.email ?? "").trim();
+    let ne: string | null = null;
+    let canonical: string | null = null;
+    if (emailTrim.length > 0) {
+      const low = emailTrim.toLowerCase();
+      if (!isValidEmailFormat(low)) {
+        throw new Error("email invalido");
+      }
+      ne = low;
+      canonical = emailTrim;
     }
 
-    let phoneNorm: string | null | undefined = undefined;
-    if (data.phone !== undefined) {
-      if (!data.phone || !String(data.phone).trim()) {
-        phoneNorm = null;
-      } else {
-        const n = normalizeBrazilianPhone(String(data.phone).trim());
-        const digits = n ? n.replace(/\D/g, '') : null;
-        if (!digits) {
-          throw new Error("telefone invalido");
-        }
-        phoneNorm = digits;
+    let phoneNorm: string | null = null;
+    if (data.phone != null && String(data.phone).trim()) {
+      const n = normalizeBrazilianPhone(String(data.phone).trim());
+      const digits = n ? n.replace(/\D/g, "") : null;
+      if (!digits) {
+        throw new Error("telefone invalido");
       }
+      phoneNorm = digits;
     }
 
     const mapDbRow = (r: typeof userGuestContacts.$inferSelect): UserGuestContactRow => ({
       id: r.id,
       userId: r.userId,
-      normalizedEmail: r.normalizedEmail,
-      canonicalEmail: r.canonicalEmail,
+      normalizedEmail: r.normalizedEmail ?? null,
+      canonicalEmail: r.canonicalEmail ?? null,
       aliasNames: r.aliasNames ?? [],
       guestPhoneE164: r.guestPhoneE164 ?? null,
       identityNotifiedAt: r.identityNotifiedAt ?? null,
     });
+
+    const aliasesFromName = (name?: string): string[] => {
+      const t = name?.trim() ?? "";
+      if (t.length < 2) return [];
+      const key = normalizeAliasKey(t);
+      return key ? [key] : [];
+    };
 
     if (data.id != null) {
       const [row] = await db
@@ -572,20 +583,46 @@ export class DatabaseStorage implements IStorage {
         throw new Error("contato nao encontrado");
       }
 
-      if (ne !== row.normalizedEmail) {
-        throw new Error("nao e permitido alterar o email desta linha");
+      const emailTrimUpd = (data.email ?? "").trim();
+      let nextNe: string | null = null;
+      let nextCanon: string | null = null;
+      if (emailTrimUpd) {
+        const low = emailTrimUpd.toLowerCase();
+        if (!isValidEmailFormat(low)) {
+          throw new Error("email invalido");
+        }
+        nextNe = low;
+        nextCanon = emailTrimUpd;
       }
 
-      const nextPhone =
-        phoneNorm === undefined ? (row.guestPhoneE164 ?? null) : phoneNorm;
+      let nextPhone: string | null = row.guestPhoneE164 ?? null;
+      if (data.phone !== undefined) {
+        if (!data.phone || !String(data.phone).trim()) {
+          nextPhone = null;
+        } else {
+          const n = normalizeBrazilianPhone(String(data.phone).trim());
+          const digits = n ? n.replace(/\D/g, "") : null;
+          if (!digits) {
+            throw new Error("telefone invalido");
+          }
+          nextPhone = digits;
+        }
+      }
+
+      if (!nextNe && !nextPhone) {
+        throw new Error("informe email ou telefone");
+      }
 
       const patch: Partial<typeof userGuestContacts.$inferInsert> = {
-        updatedAt: new Date(),
+        normalizedEmail: nextNe,
+        canonicalEmail: nextCanon,
         guestPhoneE164: nextPhone,
+        updatedAt: new Date(),
       };
 
-      const prevPhone = row.guestPhoneE164 ?? null;
-      if (prevPhone !== nextPhone) {
+      const emailChanged = nextNe !== row.normalizedEmail || nextCanon !== row.canonicalEmail;
+      const phoneChanged = nextPhone !== (row.guestPhoneE164 ?? null);
+      if (emailChanged || phoneChanged) {
         patch.identityNotifiedAt = null;
       }
 
@@ -594,8 +631,7 @@ export class DatabaseStorage implements IStorage {
         if (!key) {
           throw new Error("nome invalido");
         }
-        const merged = [...new Set([...(row.aliasNames ?? []), key])];
-        patch.aliasNames = merged;
+        patch.aliasNames = [...new Set([...(row.aliasNames ?? []), key])];
       }
 
       const [updated] = await db
@@ -607,37 +643,77 @@ export class DatabaseStorage implements IStorage {
       return mapDbRow(updated);
     }
 
-    if (data.name != null && data.name.trim().length >= 2) {
-      await this.upsertUserGuestContactWithAlias(userId, data.name.trim(), canonical);
-    } else {
-      await this.upsertUserGuestContactEmailTyped(userId, ne, canonical);
+    if (!ne && !phoneNorm) {
+      throw new Error("informe email ou telefone");
     }
 
-    const [inserted] = await db
-      .select()
-      .from(userGuestContacts)
-      .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
-
-    if (!inserted) {
-      throw new Error("falha ao salvar contato");
+    if (!ne && phoneNorm) {
+      const [existing] = await db
+        .select()
+        .from(userGuestContacts)
+        .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.guestPhoneE164, phoneNorm)));
+      const addAliases = aliasesFromName(data.name);
+      if (existing) {
+        const merged = [...new Set([...(existing.aliasNames ?? []), ...addAliases])];
+        const [upd] = await db
+          .update(userGuestContacts)
+          .set({
+            aliasNames: merged,
+            updatedAt: new Date(),
+            identityNotifiedAt: null,
+          })
+          .where(eq(userGuestContacts.id, existing.id))
+          .returning();
+        return mapDbRow(upd);
+      }
+      const [ins] = await db
+        .insert(userGuestContacts)
+        .values({
+          userId,
+          normalizedEmail: null,
+          canonicalEmail: null,
+          aliasNames: addAliases,
+          guestPhoneE164: phoneNorm,
+          updatedAt: new Date(),
+        })
+        .returning();
+      return mapDbRow(ins);
     }
 
-    const insertedPhone = phoneNorm === undefined ? null : phoneNorm;
-    const notifyPatch: Partial<typeof userGuestContacts.$inferInsert> = {
-      guestPhoneE164: insertedPhone,
-      updatedAt: new Date(),
-    };
-    if (insertedPhone !== (inserted.guestPhoneE164 ?? null)) {
-      notifyPatch.identityNotifiedAt = null;
+    if (ne && canonical) {
+      if (data.name != null && data.name.trim().length >= 2) {
+        await this.upsertUserGuestContactWithAlias(userId, data.name.trim(), canonical);
+      } else {
+        await this.upsertUserGuestContactEmailTyped(userId, ne, canonical);
+      }
+
+      const [inserted] = await db
+        .select()
+        .from(userGuestContacts)
+        .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
+
+      if (!inserted) {
+        throw new Error("falha ao salvar contato");
+      }
+
+      const notifyPatch: Partial<typeof userGuestContacts.$inferInsert> = {
+        guestPhoneE164: phoneNorm,
+        updatedAt: new Date(),
+      };
+      if (phoneNorm !== (inserted.guestPhoneE164 ?? null)) {
+        notifyPatch.identityNotifiedAt = null;
+      }
+
+      const [finalRow] = await db
+        .update(userGuestContacts)
+        .set(notifyPatch)
+        .where(eq(userGuestContacts.id, inserted.id))
+        .returning();
+
+      return mapDbRow(finalRow ?? inserted);
     }
 
-    const [finalRow] = await db
-      .update(userGuestContacts)
-      .set(notifyPatch)
-      .where(eq(userGuestContacts.id, inserted.id))
-      .returning();
-
-    return mapDbRow(finalRow ?? inserted);
+    throw new Error("informe email ou telefone");
   }
 }
 
