@@ -91,7 +91,11 @@ export default function UserPanelPage() {
 
   useEffect(() => {
     if (!token) {
-      setLoadError("Link inválido ou incompleto (falta o token de acesso). Abra o link enviado pelo Zelar no WhatsApp.");
+      setLoadError(
+        "Este endereço precisa incluir o token na URL (ex.: …/painel?t=…). " +
+          "Abra o link completo enviado pelo bot no WhatsApp. " +
+          "Se o servidor não tiver PANEL_TOKEN_SECRET configurado no Render, o bot não consegue gerar o link — peça ao administrador para adicionar essa variável e fazer redeploy.",
+      );
       return;
     }
     loadMe().catch((e) => setLoadError(String(e.message || e)));

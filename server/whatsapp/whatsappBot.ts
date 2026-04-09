@@ -382,15 +382,29 @@ class WhatsAppBot {
       .trim();
   }
 
-  private panelLinkForUser(user: { id: number; username: string }): string {
+  /** URL completa com ?t=… ou null se PANEL_TOKEN_SECRET não estiver definido (nunca envie /painel sem token). */
+  private panelLinkForUser(user: { id: number; username: string }): string | null {
     try {
       const t = signPanelToken(user.id, user.username);
       return buildPanelUrl(t);
     } catch (e) {
       console.warn('[WhatsApp] Falha ao gerar link do painel:', e);
-      const base = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
-      return `${base}/painel`;
+      return null;
     }
+  }
+
+  private panelLinkInMessage(user: { id: number; username: string }): string {
+    const link = this.panelLinkForUser(user);
+    if (link) {
+      return link;
+    }
+    return (
+      '⚠️ *Painel indisponível no servidor*\n\n' +
+      'Falta a variável *PANEL_TOKEN_SECRET* no Render (Environment → Add Environment Variable). ' +
+      'Use um texto longo e aleatório, salve e faça *Manual Deploy*. ' +
+      'Sem isso o link pessoal com token não pode ser gerado.\n\n' +
+      '_O endereço /painel sozinho sempre pede token; isso é normal._'
+    );
   }
 
   private calculateTitleSimilarity(left: string, right: string): number {
@@ -674,13 +688,12 @@ class WhatsAppBot {
     // 1. VERIFICAÇÃO ESTRITA DE ASSINATURA (PREMIUM CHECK)
     // =========================================================================
     if (user.subscriptionStatus !== 'active') {
-      const panelUrl = this.panelLinkForUser(user);
       console.log(`🚫 Usuário ${user.username} sem assinatura ativa. Enviando painel + pagamento.`);
 
       await this.sendMessage(remoteJid,
         '⚠️ *Assinatura necessária*\n\n' +
         '🎛️ Abra seu *painel Zelar* para assinar e configurar e-mail, calendário e convidados — *sem usar comandos com barra* (/):\n' +
-        `${panelUrl}\n\n` +
+        `${this.panelLinkInMessage(user)}\n\n` +
         'No painel use o botão para pagar com Stripe. Depois do pagamento seu acesso libera automaticamente.',
       );
       return; // Bloqueia qualquer outra interação
@@ -691,7 +704,7 @@ class WhatsAppBot {
         remoteJid,
         '👋 *Conta criada!*\n\n' +
           '🎛️ Guarde o link do seu painel — por lá você ajusta e-mail, fuso, Google/Microsoft e convidados sem precisar de comandos / no WhatsApp:\n' +
-          this.panelLinkForUser(user),
+          this.panelLinkInMessage(user),
       );
     }
 
@@ -712,7 +725,7 @@ class WhatsAppBot {
         remoteJid,
         '📧 *E-mail obrigatório*\n\n' +
           'Cadastre no seu painel (sem comandos /):\n' +
-          this.panelLinkForUser(user),
+          this.panelLinkInMessage(user),
       );
       return;
     }
@@ -864,7 +877,7 @@ class WhatsAppBot {
           remoteJid,
           '🎛️ *Painel Zelar*\n\n' +
             'E-mail, calendário (Google/Microsoft), fuso, convidados e assinatura ficam no painel — sem barra (/):\n' +
-            this.panelLinkForUser(user) +
+            this.panelLinkInMessage(user) +
             '\n\n' +
             '_Aqui no WhatsApp você continua criando eventos por texto ou áudio._',
         );
@@ -1340,7 +1353,6 @@ class WhatsAppBot {
   }
 
   private async sendWelcomeMessage(remoteJid: string, user: any) {
-    const panelUrl = this.panelLinkForUser(user);
     await this.sendMessage(remoteJid,
       `👋 *Olá${user.name ? `, ${user.name}` : ''}!* Bem-vindo ao Zelar IA.\n\n` +
       'Estou aqui para organizar sua agenda de forma rápida e inteligente.\n\n' +
@@ -1350,7 +1362,7 @@ class WhatsAppBot {
       '• Enviar lembretes para você e convidados\n' +
       '• Sincronizar com Google ou Microsoft Calendar\n\n' +
       '🎛️ *Configurações (e-mail, calendário, convidados):*\n' +
-      `Abra seu painel — sem comandos com barra (/):\n${panelUrl}\n\n` +
+      `Abra seu painel — sem comandos com barra (/):\n${this.panelLinkInMessage(user)}\n\n` +
       '💡 *Dica:* Por aqui você só manda o compromisso em texto ou áudio; o resto é no painel.',
     );
   }

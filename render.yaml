@@ -9,6 +9,8 @@ services:
       mountPath: /opt/render/project/src/.whatsapp-auth
       sizeGB: 1
     envVars:
+      - key: PANEL_TOKEN_SECRET
+        generateValue: true
       - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
         value: "true"
       - key: PUPPETEER_EXECUTABLE_PATH
