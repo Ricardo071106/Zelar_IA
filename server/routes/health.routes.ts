@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { systemHealth } from '../utils/healthCheck';
+import { isTelegramBotEnabled } from '../telegram/telegramEnabled';
 
 const router = Router();
 
@@ -19,7 +20,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'development',
       services: {
-        telegram: !!process.env.TELEGRAM_BOT_TOKEN,
+        telegram: isTelegramBotEnabled() && !!process.env.TELEGRAM_BOT_TOKEN,
         whatsapp: true,
         database: !!process.env.DATABASE_URL,
         ai: !!process.env.OPENROUTER_API_KEY || !!process.env.ANTHROPIC_API_KEY,

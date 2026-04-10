@@ -1239,12 +1239,19 @@ class WhatsAppBot {
 
         setTokens(oauthUserId, organizerTokens);
 
+        const hostEmail = user.email?.trim();
+        const serviceAttendeeEmails = [
+          ...new Set(
+            [...(emailsMerged || []), ...(hostEmail ? [hostEmail] : [])].filter(Boolean),
+          ),
+        ] as string[];
+
         const organizerEvent = {
           ...newEvent,
           startDate: new Date(event.startDate),
           endDate: null,
           attendeePhones: phones,
-          attendeeEmails: [...new Set([...(emailsMerged || [])].filter(Boolean))] as string[],
+          attendeeEmails: serviceAttendeeEmails,
         };
 
         const googleResult = await addEventToGoogleCalendar(organizerEvent as any, oauthUserId);

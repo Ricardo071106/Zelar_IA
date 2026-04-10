@@ -11,6 +11,7 @@ import type { InsertEvent } from '@shared/schema';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
 import { addEventToMicrosoftCalendar, cancelMicrosoftCalendarEvent } from './microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
+import { isTelegramBotEnabled } from './telegramEnabled';
 import axios from 'axios';
 
 const TELEGRAM_API = 'https://api.telegram.org/bot';
@@ -1453,6 +1454,10 @@ let isRunning = false;
 
 export async function startDirectBot(): Promise<boolean> {
   try {
+    if (!isTelegramBotEnabled()) {
+      console.log('ℹ️ startDirectBot ignorado: Telegram desligado (TELEGRAM_BOT_ENABLED≠true)');
+      return false;
+    }
     if (!process.env.TELEGRAM_BOT_TOKEN) {
       console.error('❌ Token não configurado');
       return false;

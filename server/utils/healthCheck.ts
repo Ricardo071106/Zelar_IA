@@ -2,6 +2,8 @@
  * Sistema de verificação de saúde dos componentes
  */
 
+import { isTelegramBotEnabled } from '../telegram/telegramEnabled';
+
 interface HealthCheckResult {
   component: string;
   status: 'healthy' | 'degraded' | 'unhealthy';
@@ -29,19 +31,41 @@ export class HealthChecker {
 
   async checkTelegramBot(): Promise<HealthCheckResult> {
     const start = Date.now();
-    
-    try {
-      // Verificação simples - se chegamos até aqui, o bot está rodando
-      const responseTime = Date.now() - start;
-      
+    const responseTime = Date.now() - start;
+
+    if (!isTelegramBotEnabled()) {
       const result: HealthCheckResult = {
         component: 'telegram_bot',
         status: 'healthy',
         responseTime,
-        details: 'Bot ativo e processando mensagens',
-        timestamp: new Date()
+        details: 'Telegram desabilitado por configuração (TELEGRAM_BOT_ENABLED≠true)',
+        timestamp: new Date(),
       };
-      
+      this.lastChecks.set('telegram_bot', result);
+      return result;
+    }
+
+    if (!process.env.TELEGRAM_BOT_TOKEN) {
+      const result: HealthCheckResult = {
+        component: 'telegram_bot',
+        status: 'degraded',
+        responseTime,
+        details: 'Telegram habilitado mas TELEGRAM_BOT_TOKEN ausente',
+        timestamp: new Date(),
+      };
+      this.lastChecks.set('telegram_bot', result);
+      return result;
+    }
+
+    try {
+      const result: HealthCheckResult = {
+        component: 'telegram_bot',
+        status: 'healthy',
+        responseTime: Date.now() - start,
+        details: 'Telegram configurado para iniciar com o servidor',
+        timestamp: new Date(),
+      };
+
       this.lastChecks.set('telegram_bot', result);
       return result;
     } catch (error) {

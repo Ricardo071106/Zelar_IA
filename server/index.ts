@@ -13,6 +13,7 @@ import schedule from "node-schedule";
 import { registerRoutes } from "./routes";
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { startDirectBot } from "./telegram/direct_bot";
+import { isTelegramBotEnabled } from "./telegram/telegramEnabled";
 import { getWhatsAppBot } from "./whatsapp/whatsappBot";
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -178,8 +179,11 @@ async function startServer() {
       log(`🤖 Telegram: ${botsInitialized.telegram ? '✅' : '❌'}`);
       log('═══════════════════════════════════════════════════════');
 
-      if (!process.env.TELEGRAM_BOT_TOKEN) {
-        log('⚠️ Para ativar o bot do Telegram, configure TELEGRAM_BOT_TOKEN', 'warn');
+      if (isTelegramBotEnabled() && !process.env.TELEGRAM_BOT_TOKEN) {
+        log('⚠️ TELEGRAM_BOT_ENABLED=true mas TELEGRAM_BOT_TOKEN não está configurado', 'warn');
+      }
+      if (!isTelegramBotEnabled()) {
+        log('ℹ️ Telegram desligado (defina TELEGRAM_BOT_ENABLED=true e o token para ativar)', 'info');
       }
       if (!process.env.DATABASE_URL) {
         log('⚠️ Para funcionalidades completas, configure DATABASE_URL', 'warn');
@@ -248,20 +252,17 @@ async function initializeBots(): Promise<{ whatsapp: boolean; telegram: boolean 
     }
   }
 
-  // Inicializar bot do Telegram (polling getUpdates — desligue no Render se usar só WhatsApp)
-  const telegramExplicitlyDisabled =
-    process.env.TELEGRAM_BOT_ENABLED === 'false' || process.env.DISABLE_TELEGRAM_BOT === 'true';
-
+  // Telegram: opt-in (TELEGRAM_BOT_ENABLED=true); só token não basta mais
   try {
-    if (telegramExplicitlyDisabled) {
-      log('ℹ️ Telegram desligado por TELEGRAM_BOT_ENABLED=false ou DISABLE_TELEGRAM_BOT=true', 'info');
+    if (!isTelegramBotEnabled()) {
+      log('ℹ️ Telegram desligado (TELEGRAM_BOT_ENABLED não é true, ou DISABLE_TELEGRAM_BOT=true)', 'info');
     } else if (process.env.TELEGRAM_BOT_TOKEN) {
       log('🤖 Inicializando bot do Telegram...');
       await startDirectBot();
       log('✅ Bot do Telegram inicializado com sucesso!');
       results.telegram = true;
     } else {
-      log('⚠️ TELEGRAM_BOT_TOKEN não configurado - bot do Telegram desabilitado', 'warn');
+      log('⚠️ TELEGRAM_BOT_ENABLED=true mas TELEGRAM_BOT_TOKEN ausente — bot do Telegram não iniciado', 'warn');
     }
   } catch (error) {
     log(`❌ Erro ao inicializar bot do Telegram: ${error}`, 'error');
