@@ -444,19 +444,27 @@ export class DatabaseStorage implements IStorage {
     const ne = normalizedEmail.trim().toLowerCase();
     const ce = canonicalEmail.trim();
     if (!ne || !ce) return;
-    await db
-      .insert(userGuestContacts)
-      .values({
+
+    // Índice único é parcial (WHERE normalized_email IS NOT NULL) — ON CONFLICT não casa com 42P10.
+    const [existing] = await db
+      .select()
+      .from(userGuestContacts)
+      .where(and(eq(userGuestContacts.userId, userId), eq(userGuestContacts.normalizedEmail, ne)));
+
+    if (existing) {
+      await db
+        .update(userGuestContacts)
+        .set({ canonicalEmail: ce, updatedAt: new Date() })
+        .where(eq(userGuestContacts.id, existing.id));
+    } else {
+      await db.insert(userGuestContacts).values({
         userId,
         normalizedEmail: ne,
         canonicalEmail: ce,
         aliasNames: [],
         updatedAt: new Date(),
-      })
-      .onConflictDoUpdate({
-        target: [userGuestContacts.userId, userGuestContacts.normalizedEmail],
-        set: { canonicalEmail: ce, updatedAt: new Date() },
       });
+    }
   }
 
   async deleteUserGuestContactEntry(userId: number, nameOrEmail: string): Promise<boolean> {
