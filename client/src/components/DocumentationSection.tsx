@@ -217,7 +217,7 @@ export default function DocumentationSection() {
                       <p className="text-green-800 text-sm">
                         O sistema detecta automaticamente seu fuso horário baseado no idioma do dispositivo. 
                         Para configurar manualmente, use o comando <code className="bg-green-100 px-1 rounded">/timezone [fuso]</code> 
-                        no Telegram ou WhatsApp.
+                        no WhatsApp.
                       </p>
                     </div>
                   </div>

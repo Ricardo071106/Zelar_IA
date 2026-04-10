@@ -86,7 +86,7 @@ export default function TestimonialsSection() {
     },
     {
       stars: 4.5,
-      text: "\"Adoro não precisar de outro app - o Zelar funciona direto no Telegram onde já converso com amigos e colegas. A IA é impressionante ao entender até meus pedidos de agenda mais complicados. Os lembretes garantem que nunca perca compromissos.\"",
+      text: "\"Adoro não precisar de outro app: o Zelar funciona no WhatsApp, onde já falo com o time. A IA entende pedidos confusos e os lembretes me salvam.\"",
       initials: "SK",
       name: "Sarah Costa",
       role: "Gerente de Projetos"

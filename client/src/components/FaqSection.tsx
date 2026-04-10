@@ -44,7 +44,8 @@ export default function FaqSection() {
   const faqItems = [
     {
       question: "Como começar a usar o Zelar?",
-      answer: "Começar é fácil! Basta clicar no botão \"Começar a Usar o Zelar\" nesta página, que abrirá um chat com o bot Zelar no Telegram. Siga as instruções simples de configuração e você estará pronto para começar a agendar com mensagens de texto."
+      answer:
+        'Toque em "Começar no WhatsApp" nesta página para abrir o chat com o Zelar. Depois, use o link do painel que enviamos para conectar Google ou Microsoft Calendar, e-mail e fuso.',
     },
     {
       question: "Quais aplicativos de calendário o Zelar suporta?",
@@ -60,7 +61,8 @@ export default function FaqSection() {
     },
     {
       question: "O Zelar é gratuito?",
-      answer: "Sim, o Zelar é completamente gratuito! Oferecemos todas as funcionalidades essenciais de agendamento sem custo. Basta acessar nosso bot no Telegram e começar a usar imediatamente."
+      answer:
+        "O Zelar oferece um período para você experimentar no WhatsApp; planos e pagamentos ficam no painel quando aplicável. Em dúvida, escreva para zelar.ia.messages@gmail.com.",
     }
   ];
 

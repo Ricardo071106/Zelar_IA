@@ -55,8 +55,9 @@ export default function FeaturesSection() {
     },
     {
       icon: <Send className="text-primary text-2xl" />,
-      title: "100% no Telegram e WhatsApp",
-      description: "Nenhum aplicativo extra: crie, liste ou ajuste eventos diretamente nas conversas com o bot tanto no Telegram quanto no WhatsApp."
+      title: "Direto no WhatsApp",
+      description:
+        "Sem app extra: crie, liste ou ajuste eventos na conversa com o bot. O painel web complementa com calendário e convidados.",
     }
   ];
 
@@ -72,7 +73,7 @@ export default function FeaturesSection() {
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">Por Que Escolher o Zelar</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            O Zelar combina o poder da IA com a conveniência do Telegram para tornar o agendamento sem esforço.
+            O Zelar une IA e WhatsApp para você agendar sem fricção — com o visual e a calma do nosso painel.
           </p>
         </motion.div>
         

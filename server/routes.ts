@@ -6,6 +6,7 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/health.routes';
 import whatsappRoutes from './routes/whatsapp.routes';
 import analyticsRoutes from './routes/analytics.routes';
+import systemRoutes from './routes/system.routes';
 import googleAuthRoutes from './routes/google-auth.routes';
 import microsoftAuthRoutes from './routes/microsoft-auth.routes';
 import paymentRoutes from './routes/payment.routes';
@@ -26,6 +27,8 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
 
   // Analytics routes
   app.use('/api/analytics', analyticsRoutes);
+
+  app.use('/api/system', systemRoutes);
 
   // WhatsApp routes
   app.use('/api/whatsapp', whatsappRoutes);
