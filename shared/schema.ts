@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, serial, integer, boolean, timestamp, primaryKey, foreignKey, json, varchar, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, primaryKey, foreignKey, json, jsonb, varchar, uniqueIndex } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 import { relations } from "drizzle-orm";
@@ -52,6 +52,24 @@ export const userGuestContactsRelations = relations(userGuestContacts, ({ one })
     references: [users.id],
   }),
 }));
+
+/** OAuth Google (JSON) para convites quando o usuário não conectou agenda — ex.: zelar.ia.messages@gmail.com */
+export const systemCalendarIntegrations = pgTable(
+  "system_calendar_integrations",
+  {
+    id: serial("id").primaryKey(),
+    integrationKey: varchar("integration_key", { length: 128 }).notNull(),
+    provider: varchar("provider", { length: 32 }).notNull(),
+    accountEmail: text("account_email"),
+    tokens: jsonb("tokens").notNull().default(sql`'{}'::jsonb`),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [
+    uniqueIndex("system_calendar_integrations_key_provider").on(t.integrationKey, t.provider),
+  ],
+);
 
 export const userRelations = relations(users, ({ many }) => ({
   events: many(events),

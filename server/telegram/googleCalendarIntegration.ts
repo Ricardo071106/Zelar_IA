@@ -311,11 +311,12 @@ export async function addEventToGoogleCalendar(event: Event, userId: number): Pr
       };
     }
 
-    // Insere o evento no calendário
+    // Insere o evento no calendário; com convidados, o Google envia convites por e-mail na agenda.
     const response = await calendar.events.insert({
       calendarId: 'primary',
       requestBody: googleEvent,
       conferenceDataVersion: googleEvent.conferenceData ? 1 : 0,
+      sendUpdates: attendees.length > 0 ? 'all' : 'none',
     });
 
     const meetLink = response.data.hangoutLink;

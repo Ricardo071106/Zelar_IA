@@ -1121,16 +1121,24 @@ class WhatsAppBot {
       // Definir phones e emails para uso abaixo
       const phones = (event as any).targetPhones;
       const emails = event.attendees;
+      const emailsFromRawText = filterPlausibleGuestEmails(extractEmails(calendarText));
+      const emailsMerged = await applyCanonicalAndFuzzyGuestEmails(user.id, [
+        ...new Set([...(emails || []), ...emailsFromRawText].filter(Boolean)),
+      ] as string[]);
+      if (emailsMerged.length > 0) {
+        await storage.updateEvent(newEvent.id, { attendeeEmails: emailsMerged });
+      }
 
       // (Bloco de responseText original removido - será construído mais abaixo)
 
       // 4.2. Integração com calendário conectado (Google ou Microsoft)
       let syncedCalendarProvider: 'google' | 'microsoft' | null = null;
       let calendarSyncErrorMessage = '';
-      let usedDefaultOrganizer = false;
+      let usedServiceGoogleCalendar = false;
       const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
       const defaultOrganizerIntegrationKey = process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
-      let defaultOrganizerEmail: string | null = null;
+      const zelarCalendarKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || 'zelar_google_invites';
+      const zelarCalendarOAuthUserId = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || '999001');
       let fallbackEmailSentTo: string[] = [];
       let fallbackEmailFailedTo: string[] = [];
 
@@ -1141,7 +1149,8 @@ class WhatsAppBot {
             ...newEvent,
             startDate: new Date(event.startDate),
             endDate: null,
-            attendeePhones: phones
+            attendeePhones: phones,
+            attendeeEmails: emailsMerged,
           }, user.id);
 
           if (googleResult.success) {
@@ -1166,7 +1175,8 @@ class WhatsAppBot {
             ...newEvent,
             startDate: new Date(event.startDate),
             endDate: null,
-            attendeePhones: phones
+            attendeePhones: phones,
+            attendeeEmails: emailsMerged,
           }, user.id);
 
           if (microsoftResult.success) {
@@ -1187,61 +1197,88 @@ class WhatsAppBot {
         }
       }
 
-      // Se o provedor do usuário falhar (ou não existir), tenta conta organizadora Google.
-      if (!syncedCalendarProvider && Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+      // Conta Google no banco (tokens OAuth): organizador numérico OU conta Zelar (zelar_google_invites).
+      const tryServiceGoogleCalendar = async (
+        integrationKey: string,
+        oauthUserId: number,
+      ): Promise<boolean> => {
+        if (!db) {
+          calendarSyncErrorMessage = 'Banco indisponível para integração Google.';
+          return false;
+        }
+        let integrationResult: unknown = null;
         try {
-          if (!db) {
-            calendarSyncErrorMessage = 'Banco indisponível para buscar integração organizadora.';
-          } else {
-            const integrationResult = await db.execute(sql`
-              SELECT organizer_email, tokens, active
-              FROM public.system_calendar_integrations
-              WHERE integration_key = ${defaultOrganizerIntegrationKey}
-                AND provider = 'google'
-              LIMIT 1
-            `);
+          integrationResult = await db.execute(sql`
+            SELECT account_email, tokens, active
+            FROM public.system_calendar_integrations
+            WHERE integration_key = ${integrationKey}
+              AND provider = 'google'
+            LIMIT 1
+          `);
+        } catch (e: unknown) {
+          const code = (e as { code?: string })?.code;
+          if (code === '42P01') {
+            console.warn('⚠️ Tabela public.system_calendar_integrations não existe; rode a migration 0009.');
+            return false;
+          }
+          throw e;
+        }
 
-            const integrationRow = (integrationResult as any)?.rows?.[0];
-            const rawTokens = integrationRow?.tokens;
-            const organizerTokens = typeof rawTokens === 'string'
-              ? JSON.parse(rawTokens)
-              : rawTokens;
+        const integrationRow = (integrationResult as any)?.rows?.[0];
+        const rawTokens = integrationRow?.tokens;
+        const organizerTokens = typeof rawTokens === 'string' ? JSON.parse(rawTokens) : rawTokens;
 
-            if (!integrationRow || !integrationRow.active || !organizerTokens) {
-              calendarSyncErrorMessage = 'Integração organizadora padrão não encontrada/ativa.';
-            } else {
-              defaultOrganizerEmail = integrationRow.organizer_email || null;
-              setTokens(defaultOrganizerId, organizerTokens);
+        if (
+          !integrationRow ||
+          !integrationRow.active ||
+          !organizerTokens ||
+          (!organizerTokens.access_token && !organizerTokens.refresh_token)
+        ) {
+          return false;
+        }
 
-              // Organizador já é dono do calendário; não adicionar o email cadastrado como convidado por padrão.
-              const fallbackAttendees = [...new Set([...(emails || [])].filter(Boolean))] as string[];
+        setTokens(oauthUserId, organizerTokens);
 
-              const organizerEvent = {
-                ...newEvent,
-                startDate: new Date(event.startDate),
-                endDate: null,
-                attendeePhones: phones,
-                attendeeEmails: fallbackAttendees,
-              };
+        const organizerEvent = {
+          ...newEvent,
+          startDate: new Date(event.startDate),
+          endDate: null,
+          attendeePhones: phones,
+          attendeeEmails: [...new Set([...(emailsMerged || [])].filter(Boolean))] as string[],
+        };
 
-              const googleResult = await addEventToGoogleCalendar(organizerEvent as any, defaultOrganizerId);
-              if (googleResult.success) {
-                syncedCalendarProvider = 'google';
-                usedDefaultOrganizer = true;
-                if (googleResult.conferenceLink) {
-                  await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
-                }
-                if (googleResult.calendarEventId) {
-                  await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
-                }
-              } else {
-                calendarSyncErrorMessage = googleResult.message;
-              }
+        const googleResult = await addEventToGoogleCalendar(organizerEvent as any, oauthUserId);
+        if (googleResult.success) {
+          syncedCalendarProvider = 'google';
+          usedServiceGoogleCalendar = true;
+          calendarSyncErrorMessage = '';
+          if (googleResult.conferenceLink) {
+            await storage.updateEvent(newEvent.id, { conferenceLink: googleResult.conferenceLink });
+          }
+          if (googleResult.calendarEventId) {
+            await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
+          }
+          return true;
+        }
+        calendarSyncErrorMessage = googleResult.message;
+        return false;
+      };
+
+      if (!syncedCalendarProvider) {
+        try {
+          if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+            await tryServiceGoogleCalendar(defaultOrganizerIntegrationKey, defaultOrganizerId);
+          }
+          if (!syncedCalendarProvider) {
+            const okZelar = await tryServiceGoogleCalendar(zelarCalendarKey, zelarCalendarOAuthUserId);
+            if (!okZelar && !calendarSyncErrorMessage) {
+              calendarSyncErrorMessage =
+                'Sem Google/Microsoft no painel e sem tokens válidos em system_calendar_integrations (conta Zelar).';
             }
           }
         } catch (error) {
-          console.error('Erro ao sincronizar via conta organizadora padrão:', error);
-          calendarSyncErrorMessage = 'Falha ao sincronizar via conta organizadora padrão.';
+          console.error('Erro ao sincronizar via Google de serviço (banco):', error);
+          calendarSyncErrorMessage = 'Falha ao sincronizar via Google de serviço.';
         }
       }
 
@@ -1258,12 +1295,14 @@ class WhatsAppBot {
         `📅 ${event.displayDate}\n` +
         `🆔 ID: ${newEvent.id}`;
 
-      if (event.attendees && event.attendees.length > 0) {
-        responseText += '\n📧 *Email Convidados:*\n' + event.attendees.map(e => `• ${e}`).join('\n');
-        if (syncedCalendarProvider === 'google' && usedDefaultOrganizer) {
-          responseText += '\n_Convites enviados pelo Google Calendar organizador padrão_';
+      if (emailsMerged.length > 0) {
+        responseText += '\n📧 *E-mails de convidados:*\n' + emailsMerged.map((e) => `• ${e}`).join('\n');
+        if (syncedCalendarProvider === 'google' && usedServiceGoogleCalendar) {
+          responseText += '\n_Convites enviados pelo Google Calendar (conta de serviço / Zelar no banco)._';
         } else if (syncedCalendarProvider === 'google') {
-          responseText += '\n_Convites enviados pelo Google Calendar conectado_';
+          responseText += '\n_Convites enviados pelo Google Calendar conectado no painel._';
+        } else if (syncedCalendarProvider === 'microsoft') {
+          responseText += '\n_Convites enviados pelo Microsoft Calendar._';
         }
       }
 
@@ -1274,7 +1313,7 @@ class WhatsAppBot {
 
       // Lógica diferenciada para criador: Synced ou Link Manual
       if (syncedCalendarProvider === 'google') {
-        responseText += usedDefaultOrganizer
+        responseText += usedServiceGoogleCalendar
           ? `\n\n✅ *Evento criado*`
           : `\n\n✅ *Sincronizado com seu Google Calendar*`;
         const evtWithLink = await storage.getEvent(newEvent.id);
@@ -1290,8 +1329,8 @@ class WhatsAppBot {
       } else {
         // ICS por e-mail: só endereços explícitos como convidados; se não houver, envia cópia ao organizador.
         const fallbackRecipients =
-          (emails || []).length > 0
-            ? ([...new Set(emails || [])] as string[])
+          emailsMerged.length > 0
+            ? ([...new Set(emailsMerged)] as string[])
             : user.email
               ? [user.email]
               : [];
