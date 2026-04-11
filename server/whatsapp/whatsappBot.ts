@@ -454,9 +454,110 @@ class WhatsAppBot {
     return 1;
   }
 
+  /** Carrega tokens OAuth da linha system_calendar_integrations e aplica no cache google (oauthUserId). */
+  private async applyZelarIntegrationGoogleTokens(
+    integrationKey: string,
+    oauthUserId: number,
+  ): Promise<boolean> {
+    if (!db) return false;
+    try {
+      const integrationResult = await db.execute(sql`
+        SELECT tokens, active
+        FROM public.system_calendar_integrations
+        WHERE integration_key = ${integrationKey}
+          AND provider = 'google'
+        LIMIT 1
+      `);
+      const row = (integrationResult as { rows?: { tokens: unknown; active: boolean }[] })?.rows?.[0];
+      if (!row || !row.active) return false;
+      const raw = row.tokens;
+      const tokens = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!tokens || (!tokens.access_token && !tokens.refresh_token)) return false;
+      setTokens(oauthUserId, tokens);
+      return true;
+    } catch (e) {
+      console.error('applyZelarIntegrationGoogleTokens:', e);
+      return false;
+    }
+  }
+
+  /**
+   * Eventos na agenda Google da conta de serviço (Zelar) em que o e-mail do usuário aparece como participante.
+   * Permite apagar convites enviados pela conta zelar.ia.messages mesmo sem Google conectado no painel.
+   */
+  private async listZelarOrganizerEventsWhereUserIsAttendee(userEmail: string): Promise<
+    Array<{
+      provider: 'google';
+      calendarId: string;
+      title: string;
+      startDate: Date;
+      googleCancelOAuthUserId: number;
+      serviceGoogleIntegrationKey: string;
+    }>
+  > {
+    const norm = userEmail.trim().toLowerCase();
+    if (!norm || !db) return [];
+
+    const zelarKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || 'zelar_google_invites';
+    const zelarOAuthId = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || '999001');
+    const attempts: { key: string; oauthId: number }[] = [{ key: zelarKey, oauthId: zelarOAuthId }];
+
+    const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
+    const defaultOrganizerIntegrationKey =
+      process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
+    if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+      if (defaultOrganizerIntegrationKey !== zelarKey || defaultOrganizerId !== zelarOAuthId) {
+        attempts.push({ key: defaultOrganizerIntegrationKey, oauthId: defaultOrganizerId });
+      }
+    }
+
+    const seen = new Set<string>();
+    const out: Array<{
+      provider: 'google';
+      calendarId: string;
+      title: string;
+      startDate: Date;
+      googleCancelOAuthUserId: number;
+      serviceGoogleIntegrationKey: string;
+    }> = [];
+
+    for (const { key, oauthId } of attempts) {
+      if (!(await this.applyZelarIntegrationGoogleTokens(key, oauthId))) continue;
+      const response = await listGoogleUpcomingEvents(oauthId, 250);
+      if (!response.success || !response.events) continue;
+      for (const ev of response.events) {
+        const id = ev?.id as string | undefined;
+        if (!id || seen.has(id)) continue;
+        const attendees = ev?.attendees as { email?: string }[] | undefined;
+        const isAttendee = attendees?.some((a) => (a?.email || '').toLowerCase().trim() === norm);
+        if (!isAttendee) continue;
+        seen.add(id);
+        const startRaw = ev?.start?.dateTime || ev?.start?.date;
+        const startDate = startRaw ? new Date(startRaw as string) : null;
+        if (!startDate || Number.isNaN(startDate.getTime())) continue;
+        out.push({
+          provider: 'google',
+          calendarId: String(id),
+          title: String(ev.summary || 'Evento'),
+          startDate,
+          googleCancelOAuthUserId: oauthId,
+          serviceGoogleIntegrationKey: key,
+        });
+      }
+    }
+    return out;
+  }
+
   private buildDeletionCandidates(
     dbEvents: any[],
-    calendarEvents: Array<{ provider: 'google' | 'microsoft'; calendarId: string; title: string; startDate: Date }>,
+    calendarEvents: Array<{
+      provider: 'google' | 'microsoft';
+      calendarId: string;
+      title: string;
+      startDate: Date;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
+    }>,
   ): {
     candidates: Array<{
       source: 'both' | 'calendar_only' | 'db_local';
@@ -465,13 +566,25 @@ class WhatsAppBot {
       title: string;
       startDate: Date;
       dbEvent?: any;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
     }>;
     bothCount: number;
     calendarOnlyCount: number;
     dbLocalCount: number;
     dbStaleCount: number;
   } {
-    const calendarById = new Map<string, { provider: 'google' | 'microsoft'; calendarId: string; title: string; startDate: Date }>();
+    const calendarById = new Map<
+      string,
+      {
+        provider: 'google' | 'microsoft';
+        calendarId: string;
+        title: string;
+        startDate: Date;
+        googleCancelOAuthUserId?: number;
+        serviceGoogleIntegrationKey?: string;
+      }
+    >();
     for (const item of calendarEvents) {
       if (item.calendarId) {
         calendarById.set(item.calendarId, item);
@@ -486,6 +599,8 @@ class WhatsAppBot {
       title: string;
       startDate: Date;
       dbEvent?: any;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
     }> = [];
 
     let bothCount = 0;
@@ -505,6 +620,8 @@ class WhatsAppBot {
             title: dbEvent.title || calendarMatch.title,
             startDate: new Date(dbEvent.startDate || calendarMatch.startDate),
             dbEvent,
+            googleCancelOAuthUserId: calendarMatch.googleCancelOAuthUserId,
+            serviceGoogleIntegrationKey: calendarMatch.serviceGoogleIntegrationKey,
           });
         } else {
           // Evento existe no banco, mas não está mais na agenda integrada.
@@ -533,6 +650,8 @@ class WhatsAppBot {
         calendarId: item.calendarId,
         title: item.title,
         startDate: new Date(item.startDate),
+        googleCancelOAuthUserId: item.googleCancelOAuthUserId,
+        serviceGoogleIntegrationKey: item.serviceGoogleIntegrationKey,
       });
     }
 
@@ -545,65 +664,85 @@ class WhatsAppBot {
     };
   }
 
-  private async getCalendarEventsForDeletion(user: any): Promise<Array<{
-    provider: 'google' | 'microsoft';
-    calendarId: string;
-    title: string;
-    startDate: Date;
-  }>> {
-    const settings = await storage.getUserSettings(user.id);
-    if (!settings?.calendarProvider) return [];
+  private async getCalendarEventsForDeletion(user: any): Promise<
+    Array<{
+      provider: 'google' | 'microsoft';
+      calendarId: string;
+      title: string;
+      startDate: Date;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
+    }>
+  > {
+    type Row = {
+      provider: 'google' | 'microsoft';
+      calendarId: string;
+      title: string;
+      startDate: Date;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
+    };
 
-    if (settings.calendarProvider === 'google' && settings.googleTokens) {
+    const merged: Row[] = [];
+    const pushDedupe = (row: Row) => {
+      if (!row.calendarId) return;
+      if (!merged.some((r) => r.calendarId === row.calendarId)) merged.push(row);
+    };
+
+    const settings = await storage.getUserSettings(user.id);
+
+    if (settings?.calendarProvider === 'google' && settings.googleTokens) {
       try {
         setTokens(user.id, JSON.parse(settings.googleTokens));
         const response = await listGoogleUpcomingEvents(user.id, 250);
-        if (!response.success || !response.events) return [];
-
-        return response.events
-          .map((event: any) => {
+        if (response.success && response.events) {
+          for (const event of response.events) {
             const startRaw = event?.start?.dateTime || event?.start?.date;
             const startDate = startRaw ? new Date(startRaw) : null;
-            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) return null;
-            return {
-              provider: 'google' as const,
+            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) continue;
+            pushDedupe({
+              provider: 'google',
               calendarId: String(event.id),
               title: String(event.summary || 'Evento'),
               startDate,
-            };
-          })
-          .filter((item): item is { provider: 'google'; calendarId: string; title: string; startDate: Date } => !!item);
+            });
+          }
+        }
       } catch (error) {
         console.error('Erro ao listar eventos Google para cruzamento:', error);
-        return [];
       }
     }
 
-    if (settings.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+    if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
       try {
         const response = await listUpcomingMicrosoftEvents(user.id, 250);
-        if (!response.success || !response.events) return [];
-
-        return response.events
-          .map((event: any) => {
+        if (response.success && response.events) {
+          for (const event of response.events) {
             const startRaw = event?.start?.dateTime;
             const startDate = startRaw ? new Date(startRaw) : null;
-            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) return null;
-            return {
-              provider: 'microsoft' as const,
+            if (!event?.id || !startDate || Number.isNaN(startDate.getTime())) continue;
+            pushDedupe({
+              provider: 'microsoft',
               calendarId: String(event.id),
               title: String(event.subject || 'Evento'),
               startDate,
-            };
-          })
-          .filter((item): item is { provider: 'microsoft'; calendarId: string; title: string; startDate: Date } => !!item);
+            });
+          }
+        }
       } catch (error) {
         console.error('Erro ao listar eventos Microsoft para cruzamento:', error);
-        return [];
       }
     }
 
-    return [];
+    const email = typeof user?.email === 'string' ? user.email.trim() : '';
+    if (email) {
+      const zelarRows = await this.listZelarOrganizerEventsWhereUserIsAttendee(email);
+      for (const r of zelarRows) {
+        pushDedupe(r);
+      }
+    }
+
+    return merged;
   }
 
   private async getDeletionCandidates(user: any): Promise<{
@@ -614,6 +753,8 @@ class WhatsAppBot {
       title: string;
       startDate: Date;
       dbEvent?: any;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
     }>;
     bothCount: number;
     calendarOnlyCount: number;
@@ -628,15 +769,37 @@ class WhatsAppBot {
     return this.buildDeletionCandidates(dbEvents, calendarEvents);
   }
 
-  private async deleteCandidate(user: any, candidate: {
-    source: 'both' | 'calendar_only' | 'db_local';
-    provider: 'google' | 'microsoft' | null;
-    calendarId?: string;
-    dbEvent?: any;
-  }): Promise<void> {
+  private async deleteCandidate(
+    user: any,
+    candidate: {
+      source: 'both' | 'calendar_only' | 'db_local';
+      provider: 'google' | 'microsoft' | null;
+      calendarId?: string;
+      title: string;
+      startDate: Date;
+      dbEvent?: any;
+      googleCancelOAuthUserId?: number;
+      serviceGoogleIntegrationKey?: string;
+    },
+  ): Promise<void> {
     if ((candidate.source === 'both' || candidate.source === 'calendar_only') && candidate.calendarId) {
       if (candidate.provider === 'google') {
-        await cancelGoogleCalendarEvent(candidate.calendarId, user.id);
+        const oauthUid = candidate.googleCancelOAuthUserId ?? user.id;
+        if (
+          candidate.googleCancelOAuthUserId != null &&
+          candidate.serviceGoogleIntegrationKey
+        ) {
+          await this.applyZelarIntegrationGoogleTokens(
+            candidate.serviceGoogleIntegrationKey,
+            oauthUid,
+          );
+        } else {
+          const settings = await storage.getUserSettings(user.id);
+          if (settings?.googleTokens) {
+            setTokens(user.id, JSON.parse(settings.googleTokens));
+          }
+        }
+        await cancelGoogleCalendarEvent(candidate.calendarId, oauthUid);
       } else if (candidate.provider === 'microsoft') {
         await cancelMicrosoftCalendarEvent(candidate.calendarId, user.id);
       }
@@ -651,11 +814,34 @@ class WhatsAppBot {
   private async deleteEventFromIntegrationsAndDb(user: any, event: any): Promise<void> {
     if (event.calendarId) {
       const settings = await storage.getUserSettings(user.id);
+      let removedGoogle = false;
+
       if (settings?.calendarProvider === 'google' && settings.googleTokens) {
         setTokens(user.id, JSON.parse(settings.googleTokens));
-        await cancelGoogleCalendarEvent(event.calendarId, user.id);
+        const r = await cancelGoogleCalendarEvent(event.calendarId, user.id);
+        removedGoogle = r.success;
       } else if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
         await cancelMicrosoftCalendarEvent(event.calendarId, user.id);
+      }
+
+      if (!removedGoogle && typeof user?.email === 'string' && user.email.trim()) {
+        const zelarKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || 'zelar_google_invites';
+        const zelarOAuthId = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || '999001');
+        const attempts: { key: string; oauthId: number }[] = [{ key: zelarKey, oauthId: zelarOAuthId }];
+        const defaultOrganizerId = Number(process.env.DEFAULT_ORGANIZER_USER_ID || '');
+        const defaultOrganizerIntegrationKey =
+          process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
+        if (Number.isInteger(defaultOrganizerId) && defaultOrganizerId > 0) {
+          if (defaultOrganizerIntegrationKey !== zelarKey || defaultOrganizerId !== zelarOAuthId) {
+            attempts.push({ key: defaultOrganizerIntegrationKey, oauthId: defaultOrganizerId });
+          }
+        }
+        for (const { key, oauthId } of attempts) {
+          if (await this.applyZelarIntegrationGoogleTokens(key, oauthId)) {
+            const r = await cancelGoogleCalendarEvent(event.calendarId, oauthId);
+            if (r.success) break;
+          }
+        }
       }
     }
 
