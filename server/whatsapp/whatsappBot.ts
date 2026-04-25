@@ -43,6 +43,7 @@ import { mediaProcessor } from '../services/mediaProcessor';
 import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtractor';
 import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from '../services/guestContactAliasService';
+import { resolveGuestEmailsAndPhonesFromGroups } from '../services/guestContactGroupService';
 import { signPanelToken, buildPanelUrl } from '../utils/panelToken';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
@@ -1185,12 +1186,15 @@ class WhatsAppBot {
 
         const fbEmails = extractEmails(calendarText);
         const fbAliases = await resolveGuestEmailsFromAliases(user.id, calendarText);
-        const fbAttendees = filterPlausibleGuestEmails([...new Set([...fbEmails, ...fbAliases])]);
+        const fbGroups = await resolveGuestEmailsAndPhonesFromGroups(user.id, calendarText);
+        const fbAttendees = filterPlausibleGuestEmails(
+          [...new Set([...fbEmails, ...fbAliases, ...fbGroups.emails])],
+        );
         const fbPhonesText = extractPhonesFromWrittenAndSpoken(calendarText).filter(
           (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
         );
         const fbPhonesAlias = await resolveGuestPhonesFromAliases(user.id, calendarText);
-        const fbPhones = [...new Set([...fbPhonesText, ...fbPhonesAlias])].filter(
+        const fbPhones = [...new Set([...fbPhonesText, ...fbPhonesAlias, ...fbGroups.phones])].filter(
           (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
         );
 

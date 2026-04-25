@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,14 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Table,
   TableBody,
@@ -44,6 +52,7 @@ type PanelMe = {
 };
 
 type GuestRow = { id: number; name: string; email: string; phone: string };
+type GroupRow = { id: number; name: string; contactIds: number[] };
 
 function getToken(): string | null {
   const q = new URLSearchParams(window.location.search).get("t");
@@ -71,14 +80,28 @@ export default function UserPanelPage() {
   const [email, setEmail] = useState("");
   const [timeZone, setTimeZone] = useState("America/Sao_Paulo");
   const [guests, setGuests] = useState<GuestRow[]>([]);
+  const [groups, setGroups] = useState<GroupRow[]>([]);
   const [tab, setTab] = useState("config");
+  const [groupDialogOpen, setGroupDialogOpen] = useState(false);
+  const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
+  const [grName, setGrName] = useState("");
+  const [grSelected, setGrSelected] = useState<Record<number, boolean>>({});
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const authHeader = useMemo(() => (token ? { "X-Panel-Token": token } : {}), [token]);
+  const panelTokenHeaders = useMemo((): Record<string, string> => {
+    if (!token) return {};
+    return { "X-Panel-Token": token };
+  }, [token]);
+  const jsonPostHeaders: Record<string, string> = useMemo(
+    () => ({ "Content-Type": "application/json", ...panelTokenHeaders }),
+    [panelTokenHeaders],
+  );
 
   const loadMe = useCallback(async () => {
     if (!token) return;
@@ -99,6 +122,14 @@ export default function UserPanelPage() {
     if (!r.ok) return;
     const j = await r.json();
     setGuests(j.guests || []);
+  }, [token]);
+
+  const loadGroups = useCallback(async () => {
+    if (!token) return;
+    const r = await fetch(`/api/panel/groups?t=${encodeURIComponent(token)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    setGroups(j.groups || []);
   }, [token]);
 
   useEffect(() => {
@@ -129,15 +160,19 @@ export default function UserPanelPage() {
   useEffect(() => {
     if (tab !== "guests" || !token) return;
     loadGuests();
-    const id = window.setInterval(loadGuests, 2500);
+    loadGroups();
+    const id = window.setInterval(() => {
+      void loadGuests();
+      void loadGroups();
+    }, 2500);
     return () => window.clearInterval(id);
-  }, [tab, token, loadGuests]);
+  }, [tab, token, loadGuests, loadGroups]);
 
   const saveProfile = async () => {
     if (!token) return;
     const r = await fetch("/api/panel/me", {
       method: "PATCH",
-      headers: { "Content-Type": "application/json", ...authHeader },
+      headers: jsonPostHeaders,
       body: JSON.stringify({ t: token, email, timeZone }),
     });
     const j = await r.json().catch(() => ({}));
@@ -153,7 +188,7 @@ export default function UserPanelPage() {
     if (!token) return;
     const r = await fetch("/api/panel/calendar/disconnect", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader },
+      headers: jsonPostHeaders,
       body: JSON.stringify({ t: token }),
     });
     if (!r.ok) {
@@ -175,7 +210,7 @@ export default function UserPanelPage() {
     }
     const r = await fetch("/api/panel/subscription/cancel", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader },
+      headers: jsonPostHeaders,
       body: JSON.stringify({ t: token, confirm: true }),
     });
     const j = await r.json().catch(() => ({}));
@@ -224,7 +259,7 @@ export default function UserPanelPage() {
     }
     const r = await fetch("/api/panel/guests", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeader },
+      headers: jsonPostHeaders,
       body: JSON.stringify({
         t: token,
         id: editingId ?? undefined,
@@ -248,7 +283,7 @@ export default function UserPanelPage() {
     if (!window.confirm("Remover este convidado da planilha?")) return;
     const r = await fetch(`/api/panel/guests/${id}?t=${encodeURIComponent(token)}`, {
       method: "DELETE",
-      headers: { ...authHeader },
+      headers: panelTokenHeaders,
     });
     if (!r.ok) {
       toast({ title: "Erro ao remover", variant: "destructive" });
@@ -265,6 +300,100 @@ export default function UserPanelPage() {
     setGEmail(g.email);
     setGPhone(g.phone);
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const initGroupSelection = (idsInGroup: number[]) => {
+    const s: Record<number, boolean> = {};
+    for (const g of guests) s[g.id] = idsInGroup.includes(g.id);
+    setGrSelected(s);
+  };
+
+  const openNewGroup = () => {
+    setEditingGroupId(null);
+    setGrName("");
+    initGroupSelection([]);
+    setGroupDialogOpen(true);
+  };
+
+  const openEditGroup = (gr: GroupRow) => {
+    setEditingGroupId(gr.id);
+    setGrName(gr.name);
+    initGroupSelection(gr.contactIds);
+    setGroupDialogOpen(true);
+  };
+
+  const saveGroup = async () => {
+    if (!token) return;
+    const name = grName.trim();
+    if (name.length < 2) {
+      toast({ title: "Nome do grupo", description: "Use pelo menos 2 caracteres.", variant: "destructive" });
+      return;
+    }
+    const contactIds = Object.entries(grSelected)
+      .filter(([, on]) => on)
+      .map(([id]) => parseInt(id, 10));
+    const path = editingGroupId != null ? `/api/panel/groups/${editingGroupId}` : "/api/panel/groups";
+    const r = await fetch(`${path}?t=${encodeURIComponent(token)}`, {
+      method: editingGroupId != null ? "PATCH" : "POST",
+      headers: jsonPostHeaders,
+      body: JSON.stringify(
+        editingGroupId != null ? { t: token, name, contactIds } : { t: token, name, contactIds },
+      ),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      toast({ title: "Grupo", description: j.error || "Não foi possível salvar", variant: "destructive" });
+      return;
+    }
+    toast({ title: editingGroupId != null ? "Grupo atualizado" : "Grupo criado" });
+    setGroupDialogOpen(false);
+    loadGroups();
+    loadGuests();
+  };
+
+  const deleteGroup = async (id: number) => {
+    if (!token) return;
+    if (!window.confirm("Excluir este grupo? Os contatos da planilha permanecem.")) return;
+    const r = await fetch(`/api/panel/groups/${id}?t=${encodeURIComponent(token)}`, {
+      method: "DELETE",
+      headers: panelTokenHeaders,
+    });
+    if (!r.ok) {
+      toast({ title: "Erro ao excluir grupo", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Grupo removido" });
+    loadGroups();
+  };
+
+  const onSpreadsheetPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !token) return;
+    setImporting(true);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const r = await fetch(`/api/panel/guests/import?t=${encodeURIComponent(token)}`, {
+        method: "POST",
+        headers: panelTokenHeaders,
+        body: fd,
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Importação", description: j.error || "Falha", variant: "destructive" });
+        return;
+      }
+      const n = j.imported ?? 0;
+      const errC = (j.errors?.length as number) || 0;
+      toast({
+        title: "Planilha processada",
+        description: `Importados ${n} contato(s).` + (errC > 0 ? ` ${errC} linha(s) com aviso no servidor.` : ""),
+      });
+      loadGuests();
+    } finally {
+      setImporting(false);
+    }
   };
 
   if (loadError) {
@@ -453,11 +582,93 @@ export default function UserPanelPage() {
                 <CardTitle className="font-mago text-2xl text-emerald-900">Círculo de convidados</CardTitle>
                 <CardDescription className="text-slate-600">
                   Preencha nome (opcional) e{" "}
-                  <strong className="text-emerald-800">pelo menos e-mail ou telefone</strong>. A tabela atualiza sozinha a
-                  cada instantes.
+                  <strong className="text-emerald-800">pelo menos e-mail ou telefone</strong>. A tabela atualiza sozinha
+                  a cada instantes. Você pode <strong>importar uma planilha</strong> (Excel/Sheets em .xlsx ou .csv) e
+                  formar <strong>grupos</strong> para convidar todo mundo de uma vez pelo WhatsApp.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
+                <p className="text-sm text-slate-600 rounded-xl border border-emerald-200/60 bg-white/50 p-4 leading-relaxed">
+                  No agendamento por mensagem, inclua algo como:{" "}
+                  <span className="font-mono text-emerald-900">adicione o grupo Nome do grupo</span> — o texto
+                  normalizado (sem acento) precisa bater com o nome que você deu no painel, para o Zelar trazer
+                  e-mails e telefones de todos do grupo.
+                </p>
+                <div className="flex flex-wrap items-end gap-3">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    className="hidden"
+                    onChange={onSpreadsheetPick}
+                  />
+                  <div className="space-y-1">
+                    <Label>Planilha de contatos (Excel / CSV)</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-emerald-300 text-emerald-900"
+                      disabled={importing}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {importing ? "Importando…" : "Enviar planilha (.xlsx, .xls ou .csv)"}
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="rounded-2xl border border-amber-200/80 bg-amber-50/30 p-5 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <h3 className="font-mago text-lg text-amber-950">Grupos</h3>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="bg-amber-600 hover:bg-amber-500 text-white"
+                      onClick={openNewGroup}
+                    >
+                      Criar grupo
+                    </Button>
+                  </div>
+                  {groups.length === 0 ? (
+                    <p className="text-sm text-slate-600">
+                      Nenhum grupo. Crie um, escolha o nome e marque os contatos que já estão na planilha.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {groups.map((gr) => (
+                        <li
+                          key={gr.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-800 border border-amber-100/80 rounded-lg bg-white/60 px-3 py-2"
+                        >
+                          <span>
+                            <strong>{gr.name}</strong>
+                            <span className="text-slate-500"> · {gr.contactIds.length} pessoa(s)</span>
+                          </span>
+                          <span className="space-x-2">
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="border-amber-300"
+                              onClick={() => openEditGroup(gr)}
+                            >
+                              Editar
+                            </Button>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              className="text-red-700"
+                              onClick={() => void deleteGroup(gr.id)}
+                            >
+                              Excluir
+                            </Button>
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
                 <div className="grid gap-4 sm:grid-cols-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5">
                   <div className="space-y-2 sm:col-span-1">
                     <Label className="text-slate-700">Nome</Label>
@@ -561,6 +772,67 @@ export default function UserPanelPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
+          <DialogContent className="bg-white border-emerald-200 max-h-[85vh] flex flex-col sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="font-mago text-emerald-950">
+                {editingGroupId != null ? "Editar grupo" : "Novo grupo"}
+              </DialogTitle>
+              <DialogDescription className="text-slate-600">
+                Marque os contatos. No WhatsApp, use o nome parecido com o do painel — por exemplo: adicione o
+                grupo {grName.trim() || "…"}.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
+              <div className="space-y-2">
+                <Label className="text-slate-700">Nome do grupo</Label>
+                <Input
+                  className={inputClass}
+                  value={grName}
+                  onChange={(e) => setGrName(e.target.value)}
+                  placeholder="ex.: Time comercial"
+                />
+              </div>
+              <Label className="text-slate-700">Contatos na planilha</Label>
+              {guests.length === 0 ? (
+                <p className="text-sm text-slate-500">Salve contatos no painel ou importe uma planilha antes.</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-emerald-200/60 p-2 space-y-2">
+                  {guests.map((g) => (
+                    <label
+                      key={g.id}
+                      className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        className="rounded border-emerald-300"
+                        checked={!!grSelected[g.id]}
+                        onChange={(e) => setGrSelected((s) => ({ ...s, [g.id]: e.target.checked }))}
+                      />
+                      <span>
+                        {g.name || g.email || g.phone}
+                        {g.name && (g.email || g.phone) ? ` · ${g.email || g.phone}` : null}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="ghost" onClick={() => setGroupDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                className="bg-gradient-to-r from-emerald-600 to-green-600 text-white"
+                onClick={() => void saveGroup()}
+              >
+                Salvar grupo
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

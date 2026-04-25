@@ -53,6 +53,57 @@ export const userGuestContactsRelations = relations(userGuestContacts, ({ one })
   }),
 }));
 
+/**
+ * Grupos de contatos: no WhatsApp, mencione o grupo (ex. "adicione o grupo Nome do grupo")
+ * para incluir todos os membros como convidados.
+ */
+export const userContactGroups = pgTable(
+  "user_contact_groups",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    normalizedName: text("normalized_name").notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("user_contact_groups_user_norm_name").on(t.userId, t.normalizedName)],
+);
+
+export const userContactGroupMembers = pgTable(
+  "user_contact_group_members",
+  {
+    id: serial("id").primaryKey(),
+    groupId: integer("group_id")
+      .notNull()
+      .references(() => userContactGroups.id, { onDelete: "cascade" }),
+    contactId: integer("contact_id")
+      .notNull()
+      .references(() => userGuestContacts.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("user_contact_group_members_g_c").on(t.groupId, t.contactId)],
+);
+
+export const userContactGroupsRelations = relations(userContactGroups, ({ one, many }) => ({
+  user: one(users, {
+    fields: [userContactGroups.userId],
+    references: [users.id],
+  }),
+  members: many(userContactGroupMembers),
+}));
+
+export const userContactGroupMembersRelations = relations(userContactGroupMembers, ({ one }) => ({
+  group: one(userContactGroups, {
+    fields: [userContactGroupMembers.groupId],
+    references: [userContactGroups.id],
+  }),
+  contact: one(userGuestContacts, {
+    fields: [userContactGroupMembers.contactId],
+    references: [userGuestContacts.id],
+  }),
+}));
+
 /** OAuth Google (JSON) para convites quando o usuário não conectou agenda — ex.: zelar.ia.messages@gmail.com */
 export const systemCalendarIntegrations = pgTable(
   "system_calendar_integrations",
@@ -76,6 +127,7 @@ export const userRelations = relations(users, ({ many }) => ({
   settings: many(userSettings),
   payments: many(payments),
   userGuestContacts: many(userGuestContacts),
+  userContactGroups: many(userContactGroups),
 }));
 
 // Pagamentos

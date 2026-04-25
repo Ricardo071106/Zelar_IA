@@ -71,6 +71,13 @@
       "when": 1774500000000,
       "tag": "0009_system_calendar_integrations",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774600000000,
+      "tag": "0010_user_contact_groups",
+      "breakpoints": true
     }
   ]
 }

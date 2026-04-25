@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, lte, sql, asc } from "drizzle-orm";
+import { eq, and, desc, gt, lte, sql, asc, inArray } from "drizzle-orm";
 import {
   users,
   type User,
@@ -14,6 +14,8 @@ import {
   type Reminder,
   type InsertReminder,
   userGuestContacts,
+  userContactGroups,
+  userContactGroupMembers,
 } from "@shared/schema";
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 import { normalizeBrazilianPhone } from "./utils/phoneExtraction";
@@ -98,6 +100,17 @@ export interface IStorage {
     data: { id?: number; email?: string; name?: string; phone?: string | null },
   ): Promise<UserGuestContactRow>;
   markGuestIdentityNotified(userId: number, contactId: number): Promise<void>;
+
+  listUserContactGroupsWithMembers(
+    userId: number,
+  ): Promise<{ id: number; name: string; normalizedName: string; contactIds: number[] }[]>;
+  createUserContactGroup(userId: number, name: string, contactIds: number[]): Promise<{ id: number }>;
+  updateUserContactGroup(
+    userId: number,
+    groupId: number,
+    data: { name?: string; contactIds?: number[] },
+  ): Promise<void>;
+  deleteUserContactGroup(userId: number, groupId: number): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -722,6 +735,133 @@ export class DatabaseStorage implements IStorage {
     }
 
     throw new Error("informe email ou telefone");
+  }
+
+  async listUserContactGroupsWithMembers(
+    userId: number,
+  ): Promise<{ id: number; name: string; normalizedName: string; contactIds: number[] }[]> {
+    if (!db) return [];
+    const groups = await db
+      .select()
+      .from(userContactGroups)
+      .where(eq(userContactGroups.userId, userId))
+      .orderBy(asc(userContactGroups.name));
+    if (!groups.length) return [];
+    const ids = groups.map((g: (typeof userContactGroups.$inferSelect)) => g.id);
+    const allMembers = await db
+      .select()
+      .from(userContactGroupMembers)
+      .where(inArray(userContactGroupMembers.groupId, ids));
+    const byGroup = new Map<number, number[]>();
+    for (const m of allMembers) {
+      const list = byGroup.get(m.groupId) ?? [];
+      list.push(m.contactId);
+      byGroup.set(m.groupId, list);
+    }
+    return groups.map((g: typeof userContactGroups.$inferSelect) => ({
+      id: g.id,
+      name: g.name,
+      normalizedName: g.normalizedName,
+      contactIds: byGroup.get(g.id) ?? [],
+    }));
+  }
+
+  async createUserContactGroup(
+    userId: number,
+    name: string,
+    contactIds: number[],
+  ): Promise<{ id: number }> {
+    if (!db) throw new Error("Database not connected");
+    const raw = name?.trim() ?? "";
+    if (raw.length < 2) {
+      throw new Error("nome do grupo invalido");
+    }
+    const normalizedName = normalizeAliasKey(raw);
+    if (normalizedName.length < 2) {
+      throw new Error("nome do grupo invalido");
+    }
+    const uniqueIds = Array.from(new Set(contactIds)).filter((n) => n > 0);
+    if (uniqueIds.length) {
+      const rows = await db
+        .select({ id: userGuestContacts.id })
+        .from(userGuestContacts)
+        .where(and(eq(userGuestContacts.userId, userId), inArray(userGuestContacts.id, uniqueIds)));
+      if (rows.length !== uniqueIds.length) {
+        throw new Error("um ou mais contatos invalidos");
+      }
+    }
+    return await db.transaction(async (tx: any) => {
+      const [g] = await tx
+        .insert(userContactGroups)
+        .values({
+          userId,
+          name: raw,
+          normalizedName,
+          updatedAt: new Date(),
+        })
+        .returning({ id: userContactGroups.id });
+      if (!g) throw new Error("falha ao criar grupo");
+      if (uniqueIds.length) {
+        await tx.insert(userContactGroupMembers).values(
+          uniqueIds.map((contactId) => ({ groupId: g.id, contactId })),
+        );
+      }
+      return { id: g.id };
+    });
+  }
+
+  async updateUserContactGroup(
+    userId: number,
+    groupId: number,
+    data: { name?: string; contactIds?: number[] },
+  ): Promise<void> {
+    if (!db) throw new Error("Database not connected");
+    const [existing] = await db
+      .select()
+      .from(userContactGroups)
+      .where(and(eq(userContactGroups.id, groupId), eq(userContactGroups.userId, userId)));
+    if (!existing) {
+      throw new Error("grupo nao encontrado");
+    }
+    if (data.name != null) {
+      const raw = data.name.trim();
+      if (raw.length < 2) throw new Error("nome do grupo invalido");
+      const normalizedName = normalizeAliasKey(raw);
+      if (normalizedName.length < 2) throw new Error("nome do grupo invalido");
+      await db
+        .update(userContactGroups)
+        .set({ name: raw, normalizedName, updatedAt: new Date() })
+        .where(eq(userContactGroups.id, groupId));
+    }
+    if (data.contactIds != null) {
+      const uniqueIds = Array.from(new Set(data.contactIds)).filter((n) => n > 0);
+      if (uniqueIds.length) {
+        const rows = await db
+          .select({ id: userGuestContacts.id })
+          .from(userGuestContacts)
+          .where(and(eq(userGuestContacts.userId, userId), inArray(userGuestContacts.id, uniqueIds)));
+        if (rows.length !== uniqueIds.length) {
+          throw new Error("um ou mais contatos invalidos");
+        }
+      }
+      await db
+        .delete(userContactGroupMembers)
+        .where(eq(userContactGroupMembers.groupId, groupId));
+      if (uniqueIds.length) {
+        await db
+          .insert(userContactGroupMembers)
+          .values(uniqueIds.map((contactId) => ({ groupId, contactId })));
+      }
+    }
+  }
+
+  async deleteUserContactGroup(userId: number, groupId: number): Promise<boolean> {
+    if (!db) return false;
+    const deleted = await db
+      .delete(userContactGroups)
+      .where(and(eq(userContactGroups.id, groupId), eq(userContactGroups.userId, userId)))
+      .returning({ id: userContactGroups.id });
+    return deleted.length > 0;
   }
 }
 

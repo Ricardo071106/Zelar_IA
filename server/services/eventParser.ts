@@ -9,6 +9,7 @@ import {
   isPlaceholderOrFakePhoneDigits,
 } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from './guestContactAliasService';
+import { resolveGuestEmailsAndPhonesFromGroups } from './guestContactGroupService';
 import {
   recordTypedGuestEmailsFromText,
   applyCanonicalAndFuzzyGuestEmails,
@@ -235,13 +236,17 @@ export async function processMessage(
   const emailsFromText = extractEmails(text);
   const fromAliases =
     ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, text) : [];
-  const attendees = filterPlausibleGuestEmails([...new Set([...emailsFromText, ...fromAliases])]);
+  const fromGroups =
+    ownerDbUserId != null ? await resolveGuestEmailsAndPhonesFromGroups(ownerDbUserId, text) : { emails: [], phones: [] };
+  const attendees = filterPlausibleGuestEmails(
+    [...new Set([...emailsFromText, ...fromAliases, ...fromGroups.emails])],
+  );
   const phonesFromText = extractPhonesFromWrittenAndSpoken(text).filter(
     (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
   );
   const fromAliasPhones =
     ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, text) : [];
-  const targetPhones = [...new Set([...phonesFromText, ...fromAliasPhones])].filter(
+  const targetPhones = [...new Set([...phonesFromText, ...fromAliasPhones, ...fromGroups.phones])].filter(
     (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
   );
 
@@ -312,15 +317,21 @@ export async function parseEvent(
     });
     const fromAliasPhones =
       ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, textNorm) : [];
-    const targetPhones = [...new Set([...phonesFromText, ...filteredClaudePhones, ...fromAliasPhones])].filter(
-      (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
-    );
+    const fromGroups =
+      ownerDbUserId != null
+        ? await resolveGuestEmailsAndPhonesFromGroups(ownerDbUserId, textNorm)
+        : { emails: [], phones: [] };
+    const targetPhones = [
+      ...new Set([...phonesFromText, ...filteredClaudePhones, ...fromAliasPhones, ...fromGroups.phones]),
+    ].filter((p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')));
 
     const emailsInText = filterPlausibleGuestEmails(extractEmails(textNorm));
     const fromAliases =
       ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
     // Ignorar attendees do Claude: o modelo costumava repetir e-mails salvos sem aparecerem no texto.
-    const attendees = filterPlausibleGuestEmails([...new Set([...emailsInText, ...fromAliases])]);
+    const attendees = filterPlausibleGuestEmails(
+      [...new Set([...emailsInText, ...fromAliases, ...fromGroups.emails])],
+    );
 
     const cleanedClaudeTitle = extractEventTitle(claudeResult.title || textNorm);
     const fallbackTitle = extractEventTitle(textNorm);

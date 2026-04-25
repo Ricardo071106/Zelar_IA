@@ -1,12 +1,18 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
 import { asyncHandler } from '../middleware/errorHandler';
 import { verifyPanelToken } from '../utils/panelToken';
 import { storage } from '../storage';
 import { COMMON_TIMEZONES } from '../services/dateService';
 import { stripeService } from '../services/stripe';
 import { notifyPendingGuestIdentities } from '../services/guestIdentityNotifyService';
+import { parseContactsFromSpreadsheetBuffer } from '../utils/spreadsheetContacts';
 
 const router = Router();
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 },
+});
 
 function extractToken(req: Request): string | undefined {
   const q = req.query.t;
@@ -270,6 +276,128 @@ router.post(
     const hostLabel = ctx.user.name || ctx.user.username || 'Anfitrião';
     const result = await notifyPendingGuestIdentities(ctx.user.id, hostLabel);
     res.json({ ok: true, ...result });
+  }),
+);
+
+router.post(
+  '/guests/import',
+  upload.single('file'),
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const file = (req as Request & { file?: { buffer: Buffer; originalname: string } }).file;
+    if (!file?.buffer?.length) {
+      return res.status(400).json({ error: 'envie um arquivo .xlsx, .xls ou .csv' });
+    }
+    const lower = (file.originalname || '').toLowerCase();
+    if (!/\.(xlsx|xls|csv)$/.test(lower)) {
+      return res.status(400).json({ error: 'use extensao .xlsx, .xls ou .csv' });
+    }
+    const { rows, sourceRowCount } = parseContactsFromSpreadsheetBuffer(file.buffer);
+    let imported = 0;
+    const errors: { line: number; error: string }[] = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      try {
+        await storage.upsertGuestFromPanel(ctx.user.id, {
+          email: r.email?.trim() || '',
+          name: r.name,
+          phone: r.phone,
+        });
+        imported++;
+      } catch (e: any) {
+        errors.push({ line: i + 1, error: e?.message || 'falha' });
+      }
+    }
+    res.json({
+      ok: true,
+      imported,
+      parsed: rows.length,
+      sourceRowCount,
+      errors,
+    });
+  }),
+);
+
+router.get(
+  '/groups',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const groups = await storage.listUserContactGroupsWithMembers(ctx.user.id);
+    res.json({
+      groups: groups.map((g) => ({ id: g.id, name: g.name, contactIds: g.contactIds })),
+    });
+  }),
+);
+
+router.post(
+  '/groups',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
+    const raw = req.body?.contactIds;
+    const contactIds = Array.isArray(raw) ? raw.map((x: unknown) => parseInt(String(x), 10)).filter((n) => !Number.isNaN(n)) : [];
+    try {
+      const { id } = await storage.createUserContactGroup(ctx.user.id, name, contactIds);
+      res.json({ ok: true, id });
+    } catch (e: any) {
+      res.status(400).json({ error: e?.message || 'falha ao criar grupo' });
+    }
+  }),
+);
+
+router.patch(
+  '/groups/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'id invalido' });
+    }
+    const name = typeof req.body?.name === 'string' ? req.body.name.trim() : undefined;
+    const raw = req.body?.contactIds;
+    const contactIds = Array.isArray(raw)
+      ? raw.map((x: unknown) => parseInt(String(x), 10)).filter((n) => !Number.isNaN(n))
+      : undefined;
+    if (name === undefined && contactIds === undefined) {
+      return res.status(400).json({ error: 'nada para atualizar' });
+    }
+    try {
+      await storage.updateUserContactGroup(ctx.user.id, id, { name, contactIds });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(400).json({ error: e?.message || 'falha ao atualizar' });
+    }
+  }),
+);
+
+router.delete(
+  '/groups/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const id = parseInt(req.params.id, 10);
+    if (!id) {
+      return res.status(400).json({ error: 'id invalido' });
+    }
+    const ok = await storage.deleteUserContactGroup(ctx.user.id, id);
+    if (!ok) {
+      return res.status(404).json({ error: 'nao encontrado' });
+    }
+    res.json({ ok: true });
   }),
 );
 
