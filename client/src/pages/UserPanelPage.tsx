@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Search } from "lucide-react";
 
 type PanelMe = {
   user: {
@@ -88,6 +89,8 @@ export default function UserPanelPage() {
   const [grSelected, setGrSelected] = useState<Record<number, boolean>>({});
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [grContactQuery, setGrContactQuery] = useState("");
+  const [grSortMode, setGrSortMode] = useState<"alpha" | "numeric">("alpha");
 
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
@@ -102,6 +105,40 @@ export default function UserPanelPage() {
     () => ({ "Content-Type": "application/json", ...panelTokenHeaders }),
     [panelTokenHeaders],
   );
+
+  const guestsSortedForGroup = useMemo(() => {
+    const list = [...guests];
+    if (grSortMode === "alpha") {
+      list.sort((a, b) => {
+        const sa = (a.name || a.email || a.phone || "").toLowerCase();
+        const sb = (b.name || b.email || b.phone || "").toLowerCase();
+        return sa.localeCompare(sb, "pt-BR", { numeric: true, sensitivity: "base" });
+      });
+    } else {
+      list.sort((a, b) => {
+        const da = (a.phone || "").replace(/\D/g, "") || String(1e9 + a.id);
+        const db = (b.phone || "").replace(/\D/g, "") || String(1e9 + b.id);
+        return da.localeCompare(db, undefined, { numeric: true });
+      });
+    }
+    return list;
+  }, [guests, grSortMode]);
+
+  const guestsFilteredForGroup = useMemo(() => {
+    const q = grContactQuery.trim().toLowerCase();
+    const qDigits = q.replace(/\D/g, "");
+    if (!q) return guestsSortedForGroup;
+    return guestsSortedForGroup.filter((g) => {
+      if (g.name && g.name.toLowerCase().includes(q)) return true;
+      if (g.email && g.email.toLowerCase().includes(q)) return true;
+      if (g.phone) {
+        const p = g.phone.toLowerCase();
+        const d = g.phone.replace(/\D/g, "");
+        if (p.includes(q) || (qDigits.length > 0 && d.includes(qDigits))) return true;
+      }
+      return false;
+    });
+  }, [guestsSortedForGroup, grContactQuery]);
 
   const loadMe = useCallback(async () => {
     if (!token) return;
@@ -311,6 +348,8 @@ export default function UserPanelPage() {
   const openNewGroup = () => {
     setEditingGroupId(null);
     setGrName("");
+    setGrContactQuery("");
+    setGrSortMode("alpha");
     initGroupSelection([]);
     setGroupDialogOpen(true);
   };
@@ -318,6 +357,7 @@ export default function UserPanelPage() {
   const openEditGroup = (gr: GroupRow) => {
     setEditingGroupId(gr.id);
     setGrName(gr.name);
+    setGrContactQuery("");
     initGroupSelection(gr.contactIds);
     setGroupDialogOpen(true);
   };
@@ -432,10 +472,10 @@ export default function UserPanelPage() {
         <header className="text-center sm:text-left space-y-2">
           <p className="text-sm uppercase tracking-[0.2em] text-emerald-700/80 font-medium">Zelar · espaço do organizador</p>
           <h1 className="font-mago text-4xl sm:text-5xl text-emerald-950 drop-shadow-[0_0_28px_rgba(16,185,129,0.2)]">
-            Painel do tempo
+            Painel Zelar
           </h1>
           <p className="text-slate-600 text-sm max-w-xl">
-            Ajuste sua conta e sua constelação de convidados com calma — aqui a agenda obedece a você.
+            Ajuste sua conta, convidados e grupos: calendário, planilha e lembretes no WhatsApp.
           </p>
           <p className="text-sm text-slate-600">
             Telefone: <span className="font-mono text-emerald-900 font-medium">{me.user.phone}</span>
@@ -606,9 +646,8 @@ export default function UserPanelPage() {
                     <Label>Planilha de contatos (Excel / CSV)</Label>
                     <Button
                       type="button"
-                      variant="outline"
-                      className="border-emerald-300 text-emerald-900"
                       disabled={importing}
+                      className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-md border-0"
                       onClick={() => fileInputRef.current?.click()}
                     >
                       {importing ? "Importando…" : "Enviar planilha (.xlsx, .xls ou .csv)"}
@@ -773,8 +812,14 @@ export default function UserPanelPage() {
           </TabsContent>
         </Tabs>
 
-        <Dialog open={groupDialogOpen} onOpenChange={setGroupDialogOpen}>
-          <DialogContent className="bg-white border-emerald-200 max-h-[85vh] flex flex-col sm:max-w-md">
+        <Dialog
+          open={groupDialogOpen}
+          onOpenChange={(o) => {
+            setGroupDialogOpen(o);
+            if (!o) setGrContactQuery("");
+          }}
+        >
+          <DialogContent className="bg-white border-emerald-200 max-h-[90vh] flex flex-col sm:max-w-lg">
             <DialogHeader>
               <DialogTitle className="font-mago text-emerald-950">
                 {editingGroupId != null ? "Editar grupo" : "Novo grupo"}
@@ -794,28 +839,77 @@ export default function UserPanelPage() {
                   placeholder="ex.: Time comercial"
                 />
               </div>
-              <Label className="text-slate-700">Contatos na planilha</Label>
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <Label className="text-slate-700">Contatos</Label>
+                  {guests.length > 0 && (
+                    <div className="flex items-center gap-1 text-xs">
+                      <span className="text-slate-500">Ordenar:</span>
+                      <button
+                        type="button"
+                        onClick={() => setGrSortMode("alpha")}
+                        className={
+                          grSortMode === "alpha"
+                            ? "rounded-md bg-emerald-100 px-2 py-0.5 font-medium text-emerald-900"
+                            : "rounded-md px-2 py-0.5 text-slate-600 hover:bg-emerald-50"
+                        }
+                      >
+                        A–Z
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGrSortMode("numeric")}
+                        className={
+                          grSortMode === "numeric"
+                            ? "rounded-md bg-emerald-100 px-2 py-0.5 font-medium text-emerald-900"
+                            : "rounded-md px-2 py-0.5 text-slate-600 hover:bg-emerald-50"
+                        }
+                        title="Por telefone (dígitos) ou id"
+                      >
+                        Números
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {guests.length > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      className={`${inputClass} pl-9`}
+                      value={grContactQuery}
+                      onChange={(e) => setGrContactQuery(e.target.value)}
+                      placeholder="Pesquisar por nome, e-mail ou telefone…"
+                    />
+                  </div>
+                )}
+              </div>
               {guests.length === 0 ? (
                 <p className="text-sm text-slate-500">Salve contatos no painel ou importe uma planilha antes.</p>
               ) : (
-                <div className="max-h-48 overflow-y-auto rounded-lg border border-emerald-200/60 p-2 space-y-2">
-                  {guests.map((g) => (
-                    <label
-                      key={g.id}
-                      className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer"
-                    >
-                      <input
-                        type="checkbox"
-                        className="rounded border-emerald-300"
-                        checked={!!grSelected[g.id]}
-                        onChange={(e) => setGrSelected((s) => ({ ...s, [g.id]: e.target.checked }))}
-                      />
-                      <span>
-                        {g.name || g.email || g.phone}
-                        {g.name && (g.email || g.phone) ? ` · ${g.email || g.phone}` : null}
-                      </span>
-                    </label>
-                  ))}
+                <div className="max-h-56 overflow-y-auto rounded-lg border border-emerald-200/60 p-2 space-y-2">
+                  {guestsFilteredForGroup.length === 0 ? (
+                    <p className="text-sm text-slate-500 py-2 text-center">
+                      Nenhum contato com esse filtro. Limpe a pesquisa ou use outro termo.
+                    </p>
+                  ) : (
+                    guestsFilteredForGroup.map((g) => (
+                      <label
+                        key={g.id}
+                        className="flex items-center gap-2 text-sm text-slate-800 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          className="rounded border-emerald-300"
+                          checked={!!grSelected[g.id]}
+                          onChange={(e) => setGrSelected((s) => ({ ...s, [g.id]: e.target.checked }))}
+                        />
+                        <span>
+                          {g.name || g.email || g.phone}
+                          {g.name && (g.email || g.phone) ? ` · ${g.email || g.phone}` : null}
+                        </span>
+                      </label>
+                    ))
+                  )}
                 </div>
               )}
             </div>
