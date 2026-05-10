@@ -1,0 +1,55 @@
+# Render Deployment Guide
+
+This guide explains how to deploy the Zelar IA application to [Render](https://render.com/).
+
+## Prerequisites
+
+- A Render account.
+- This repository pushed to your GitHub.
+
+## Deployment Steps
+
+1.  **New Web Service**:
+    - Go to your Render Dashboard.
+    - Click **New +** > **Web Service**.
+    - Connect your GitHub repository (`Zelar_IA`).
+
+2.  **Configuration**:
+    - Render should automatically detect the `render.yaml` file (Blueprint) if you select "New Blueprint Instance" or simply configure it manually.
+    - **Runtime**: Select **Docker**.
+    - **Region**: Choose the one closest to you (e.g., Oregon, Frankfurt).
+    - **Branch**: `main`.
+
+3.  **Environment Variables**:
+    - If not using the Blueprint/render.yaml auto-setup, ensure you add the Environment Variables from your local `.env` file.
+    - **Critical Variables for Puppeteer**:
+        - `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD`: `true`
+        - `PUPPETEER_EXECUTABLE_PATH`: `/usr/bin/google-chrome-stable`
+    - **Other Variables**:
+        - `DATABASE_URL`: Your production database connection string.
+        - `NODE_ENV`: `production`
+        - `WHATSAPP_AUTH_DIR`: `/opt/render/project/src/.whatsapp-auth` (for session persistence)
+        - `RESTART_WEBHOOK_TOKEN`: secret token used by restart webhook
+        - `RESTART_WEBHOOK_URL`: full URL for `POST /health/restart`
+
+4.  **Database**:
+    - Render provides managed PostgreSQL. You can create one and link it, or use an external provider (like Neon, Supabase, or Railway).
+
+5.  **Deploy**:
+    - Click **Create Web Service**.
+    - Monitor the build logs. The Dockerfile will install Chrome dependencies automatically.
+
+## Notes
+
+- This setup uses a **Docker** environment to ensure all system dependencies for Puppeteer (Chrome) are present.
+- The `Dockerfile` installs `google-chrome-stable` and fonts, so the bot can generate QR codes and render pages correctly.
+- To persist WhatsApp login between restarts, attach a **Render Disk** and mount it to the same path configured in `WHATSAPP_AUTH_DIR`.
+- For daily midnight restarts, use the cron service defined in `render.yaml`.
+- The schedule is `0 3 * * *`, which corresponds to `00:00` in `America/Sao_Paulo` (UTC-3).
+- Point `RESTART_WEBHOOK_URL` to:
+  - `https://<your-service-domain>/health/restart`
+  - with `Authorization: Bearer <RESTART_WEBHOOK_TOKEN>`
+- Simpler option (without Render Cron): enable internal restart in the app:
+  - `AUTO_RESTART_AT_MIDNIGHT=true`
+  - `AUTO_RESTART_TZ=America/Sao_Paulo`
+  - `AUTO_RESTART_CRON=0 0 * * *`

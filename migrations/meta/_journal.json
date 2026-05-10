@@ -1,0 +1,90 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1763796474943,
+      "tag": "0000_nifty_kingpin",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1766713142655,
+      "tag": "0001_smart_spectrum",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1767905304652,
+      "tag": "0002_graceful_silver_samurai",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1773500000000,
+      "tag": "0003_fancy_microsoft_calendar",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1773600000000,
+      "tag": "0004_guest_contact_aliases",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1773700000000,
+      "tag": "0005_user_saved_guest_emails",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1773800000000,
+      "tag": "0006_user_guest_contacts",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1773900000000,
+      "tag": "0007_guest_contact_phone",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1774000000000,
+      "tag": "0008_guest_contact_nullable_email",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1774500000000,
+      "tag": "0009_system_calendar_integrations",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1774600000000,
+      "tag": "0010_user_contact_groups",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1774700000000,
+      "tag": "0011_guest_mvp_fields",
+      "breakpoints": true
+    }
+  ]
+}
