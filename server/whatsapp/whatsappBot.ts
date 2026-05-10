@@ -45,9 +45,11 @@ import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtr
 import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from '../services/guestContactAliasService';
 import { resolveGuestEmailsAndPhonesFromGroups } from '../services/guestContactGroupService';
-import { signPanelToken, buildPanelUrl } from '../utils/panelToken';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
+import { randomUUID } from 'crypto';
+import type { UserSettings } from '@shared/schema';
+import { buildLessonCalendarTitle } from '../services/pluggy/lessonTitle';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,6 +97,16 @@ class WhatsAppBot {
   >();
   private activeRunByJid = new Map<string, number>();
   private lastReconnectScheduledAt = 0;
+
+  /** Contexto compartilhado ao expandir um pacote de aulas em várias mensagens sequenciais */
+  private pendingPackBatchContext: {
+    packGroupId: string;
+    studentContactId: number | null;
+    studentDisplayName: string;
+    baseTitle: string;
+    packUnitPriceCents: number | null;
+    packId: string | null;
+  } | null = null;
 
   private closePreviousSocket(reason: string): void {
     const s = this.sock;
@@ -390,29 +402,10 @@ class WhatsAppBot {
       .trim();
   }
 
-  /** URL completa com ?t=… ou null se PANEL_TOKEN_SECRET não estiver definido (nunca envie /painel sem token). */
-  private panelLinkForUser(user: { id: number; username: string }): string | null {
-    try {
-      const t = signPanelToken(user.id, user.username);
-      return buildPanelUrl(t);
-    } catch (e) {
-      console.warn('[WhatsApp] Falha ao gerar link do painel:', e);
-      return null;
-    }
-  }
-
-  private panelLinkInMessage(user: { id: number; username: string }): string {
-    const link = this.panelLinkForUser(user);
-    if (link) {
-      return link;
-    }
-    return (
-      '⚠️ *Painel indisponível no servidor*\n\n' +
-      'Falta a variável *PANEL_TOKEN_SECRET* no Render (Environment → Add Environment Variable). ' +
-      'Use um texto longo e aleatório, salve e faça *Manual Deploy*. ' +
-      'Sem isso o link pessoal com token não pode ser gerado.\n\n' +
-      '_O endereço /painel sozinho sempre pede token; isso é normal._'
-    );
+  /** Link público do painel (login). Não envia mais token na URL — o usuário entra com telefone e senha. */
+  private panelLinkInMessage(_user: { id: number; username: string }): string {
+    const base = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+    return `${base}/painel/entrar`;
   }
 
   private calculateTitleSimilarity(left: string, right: string): number {
@@ -864,6 +857,8 @@ class WhatsAppBot {
     msg: any,
     fromBatch = false,
     runId?: number,
+    batchLessonIndex?: number,
+    batchLessonTotal?: number,
   ) {
     if (!fromBatch) {
       const nextRunId = (this.activeRunByJid.get(remoteJid) || 0) + 1;
@@ -1179,15 +1174,37 @@ class WhatsAppBot {
     // Suporte a múltiplos compromissos em uma única mensagem.
     // Exemplo: "reunião sábado às 13, às 14 e às 15".
     if (!fromBatch) {
-      const expandedMessages = this.expandMultipleCommitments(calendarText, whatsappId);
+      const expandedMessages = await this.expandMultipleCommitments(calendarText, whatsappId, userSettings);
       if (expandedMessages.length > 1) {
-        console.log(`🧩 Mensagem expandida em ${expandedMessages.length} compromissos.`);
-        for (const singleMessage of expandedMessages) {
-          if (!isRunStillActive()) {
-            console.log(`⏹️ Lote interrompido para ${remoteJid}: nova mensagem recebida.`);
-            break;
+        const batchCtx = await this.buildPackBatchContext(
+          calendarText,
+          expandedMessages,
+          user.id,
+          whatsappId,
+          userSettings,
+        );
+        this.pendingPackBatchContext = batchCtx;
+        try {
+          console.log(`🧩 Mensagem expandida em ${expandedMessages.length} compromissos.`);
+          for (let i = 0; i < expandedMessages.length; i++) {
+            const singleMessage = expandedMessages[i];
+            if (!isRunStillActive()) {
+              console.log(`⏹️ Lote interrompido para ${remoteJid}: nova mensagem recebida.`);
+              break;
+            }
+            await this.handleMessage(
+              remoteJid,
+              whatsappId,
+              singleMessage,
+              msg,
+              true,
+              currentRunId,
+              i + 1,
+              expandedMessages.length,
+            );
           }
-          await this.handleMessage(remoteJid, whatsappId, singleMessage, msg, true, currentRunId);
+        } finally {
+          this.pendingPackBatchContext = null;
         }
         return;
       }
@@ -1333,14 +1350,81 @@ class WhatsAppBot {
       }
 
       // 4.1. Salvar no Banco de Dados
+      const batchCtx = this.pendingPackBatchContext;
+
+      let zelarBase =
+        batchCtx?.baseTitle?.trim() ||
+        String(event.title || 'Evento')
+          .split(' · ')[0]
+          ?.trim() ||
+        'Aula';
+
+      let studentContactId: number | null = batchCtx?.studentContactId ?? null;
+      let studentDisplayName = batchCtx?.studentDisplayName?.trim() || '';
+
+      if (!studentContactId) {
+        const tnorm = this.normalizeForComparison(calendarText);
+        const c = await this.findGuestMentionedInText(user.id, tnorm);
+        if (c) {
+          studentContactId = c.id;
+          studentDisplayName = this.displayGuestNameFromRow(c);
+        }
+      }
+
+      const lessonIdx =
+        typeof batchLessonIndex === 'number' && batchLessonIndex > 0 ? batchLessonIndex : null;
+      const lessonTot =
+        typeof batchLessonTotal === 'number' && batchLessonTotal > 0 ? batchLessonTotal : null;
+
+      const calTitle = buildLessonCalendarTitle({
+        baseTitle: zelarBase,
+        studentLabel: studentDisplayName || 'Aluno',
+        lessonIndex: lessonIdx,
+        lessonTotal: lessonTot,
+        paymentStatus: 'pendente',
+      });
+
+      const pkgInline = this.findConfiguredLessonPackage(calendarText, userSettings?.lessonPackagesJson ?? null);
+      let packUnitPriceCents = batchCtx?.packUnitPriceCents ?? null;
+      let packId = batchCtx?.packId ?? null;
+      if (
+        (packUnitPriceCents == null || packUnitPriceCents <= 0) &&
+        pkgInline &&
+        pkgInline.lessons > 0 &&
+        pkgInline.priceCents > 0
+      ) {
+        packUnitPriceCents = Math.round(pkgInline.priceCents / pkgInline.lessons);
+        packId = pkgInline.id;
+      }
+
+      const rawPayload = JSON.parse(JSON.stringify(event)) as Record<string, unknown>;
+      rawPayload.zelarLesson = {
+        baseTitle: zelarBase,
+        studentContactId,
+        packGroupId: batchCtx?.packGroupId ?? null,
+        lessonIndex: lessonIdx,
+        lessonTotal: lessonTot,
+        paymentStatus: 'pendente',
+        packUnitPriceCents,
+        packId,
+      };
+
+      const packGroupId =
+        lessonTot != null && lessonTot > 1 && batchCtx?.packGroupId ? batchCtx.packGroupId : null;
+
       const newEvent = await storage.createEvent({
         userId: user.id,
-        title: event.title || 'Evento',
+        title: calTitle,
         description: event.description || '',
         startDate: finalStartDate,
         attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
         attendeeEmails: event.attendees || [], // Salvando emails identificados
-        rawData: JSON.parse(JSON.stringify(event)),
+        rawData: rawPayload,
+        packGroupId,
+        lessonIndexInPack: lessonIdx,
+        lessonTotalInPack: lessonTot,
+        lessonPaymentStatus: 'pendente',
+        studentContactId,
       });
 
       if (!isRunStillActive()) {
@@ -1667,6 +1751,9 @@ class WhatsAppBot {
             '• `/lembretes` - Vê lembretes pendentes\n' +
             '• `/cancelar` - Cancela sua assinatura\n' +
             '• `/fuso` - Configura seu fuso horário\n\n' +
+            '🎛️ *Painel web (alunos, calendário, financeiro):*\n' +
+            `${this.panelLinkInMessage(user)}\n` +
+            '(Faça login com o número do WhatsApp e a senha que você cadastrar na primeira vez.)\n\n' +
             '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
           break;
@@ -2442,16 +2529,173 @@ class WhatsAppBot {
     return updated;
   }
 
-  private expandLessonPackFromText(text: string, whatsappId: string): string[] {
+  private async buildPackBatchContext(
+    calendarText: string,
+    expandedMessages: string[],
+    userId: number,
+    whatsappId: string,
+    userSettings: UserSettings | undefined,
+  ): Promise<{
+    packGroupId: string;
+    studentContactId: number | null;
+    studentDisplayName: string;
+    baseTitle: string;
+    packUnitPriceCents: number | null;
+    packId: string | null;
+  }> {
+    void whatsappId;
+    const packGroupId = randomUUID();
+
+    const pkg = this.findConfiguredLessonPackage(calendarText, userSettings?.lessonPackagesJson ?? null);
+    let packUnitPriceCents: number | null = null;
+    let packId: string | null = null;
+    if (pkg && pkg.lessons > 0 && pkg.priceCents > 0) {
+      packUnitPriceCents = Math.round(pkg.priceCents / pkg.lessons);
+      packId = pkg.id;
+    }
+
+    const normalizedMsg = calendarText
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const nameMatch = normalizedMsg.match(
+      /\bcom\s+([a-zà-ú]{2,25}(?:\s+[a-zà-ú]{2,25}){0,4})(?:\s+as\b|\s+dia\b|\s+toda\b|\s+nos\b|\s+no\b|\s+na\b|$)/i,
+    );
+    let studentContactId: number | null = null;
+    let studentDisplayName = '';
+    if (nameMatch) {
+      const rawName = nameMatch[1].trim();
+      const contact =
+        (await storage.findGuestContactByLooseName(userId, rawName)) ||
+        (await this.findGuestMentionedInText(userId, normalizedMsg));
+      if (contact) {
+        studentContactId = contact.id;
+        studentDisplayName = this.displayGuestNameFromRow(contact);
+      }
+    }
+    const first = expandedMessages[0] || '';
+    const titleMatch = first.match(/^(.+?)\s+dia\s+\d{2}\/\d{2}\/\d{4}\s+as\s+\d{2}:\d{2}$/i);
+    const baseTitle = (titleMatch ? titleMatch[1] : extractEventTitle(calendarText)) || 'Aula';
+
+    return { packGroupId, studentContactId, studentDisplayName, baseTitle, packUnitPriceCents, packId };
+  }
+
+  private findConfiguredLessonPackage(
+    text: string,
+    lessonPackagesJson: unknown,
+  ): { id: string; lessons: number; priceCents: number } | null {
+    if (!lessonPackagesJson || !Array.isArray(lessonPackagesJson)) return null;
+    const normalized = text
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const m = normalized.match(/\bpacote\s+([a-z0-9_-]+)\b/);
+    if (!m) return null;
+    const slug = m[1].toLowerCase();
+    for (const row of lessonPackagesJson) {
+      if (!row || typeof row !== 'object') continue;
+      const r = row as Record<string, unknown>;
+      const id = String(r.id ?? '')
+        .toLowerCase()
+        .trim();
+      const label = String(r.label ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_');
+      if (slug === id || slug === label) {
+        const lessons = Number(r.lessons);
+        const priceCents = Number(r.priceCents);
+        if (!Number.isFinite(lessons) || lessons < 1) continue;
+        return {
+          id: String(r.id ?? slug),
+          lessons,
+          priceCents: Number.isFinite(priceCents) ? priceCents : 0,
+        };
+      }
+    }
+    return null;
+  }
+
+  private extractWeekdayWithinRelativeDaysExpansion(
+    text: string,
+    timezone: string,
+    primaryTime: { hour: number; minute: number },
+  ): string[] {
+    const normalized = text
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    const dayMatch = normalized.match(
+      /\b(?:toda|todas)\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feira)?\b/,
+    );
+    const winMatch = normalized.match(/\bproxim(?:os|as)\s+(\d{1,3})\s+dias?\b/);
+    if (!dayMatch || !winMatch) return [];
+
+    const totalDays = Math.min(Number(winMatch[1]), 120);
+    if (!Number.isFinite(totalDays) || totalDays <= 1) return [];
+
+    const weekdayMap: Record<string, number> = {
+      segunda: 1,
+      segundas: 1,
+      terca: 2,
+      tercas: 2,
+      quarta: 3,
+      quartas: 3,
+      quinta: 4,
+      quintas: 4,
+      sexta: 5,
+      sextas: 5,
+      sabado: 6,
+      sabados: 6,
+      domingo: 7,
+      domingos: 7,
+    };
+    const wd = weekdayMap[dayMatch[1]];
+    if (!wd) return [];
+
+    const now = DateTime.now().setZone(timezone).startOf('day');
+    const dates: DateTime[] = [];
+    for (let i = 1; i <= totalDays && dates.length < 80; i++) {
+      const candidate = now.plus({ days: i });
+      if (candidate.weekday === wd) dates.push(candidate);
+    }
+    if (dates.length <= 1) return [];
+
+    const titleSeed = text
+      .replace(/\b(?:toda|todas)\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feira)?\b/gi, ' ')
+      .replace(/\bproxim(?:os|as)\s+\d{1,3}\s+dias?\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const title = extractEventTitle(titleSeed || text) || 'Compromisso';
+
+    return dates.map((d) => {
+      const scheduled = d.set({
+        hour: primaryTime.hour,
+        minute: primaryTime.minute,
+        second: 0,
+        millisecond: 0,
+      });
+      return `${title} dia ${scheduled.toFormat('dd/MM/yyyy')} as ${scheduled.toFormat('HH:mm')}`;
+    });
+  }
+
+  private expandLessonPackFromText(text: string, whatsappId: string, lessonPackagesJson: unknown): string[] {
+    const pkg = this.findConfiguredLessonPackage(text, lessonPackagesJson);
     const ascii = text
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
 
     const packMatch = ascii.match(/\b(\d{1,2})\s+aulas?\b/);
-    if (!packMatch) return [];
-    const total = parseInt(packMatch[1], 10);
-    if (!Number.isFinite(total) || total < 1 || total > 60) return [];
+    let total: number | null = null;
+    if (pkg != null && pkg.lessons > 0) {
+      total = pkg.lessons;
+    } else if (packMatch) {
+      total = parseInt(packMatch[1], 10);
+    }
+    if (!total || !Number.isFinite(total) || total < 1 || total > 60) return [];
 
     const dayDefs: { re: RegExp; w: number }[] = [
       { re: /\bsegundas?(?:-feira)?\b/gi, w: 1 },
@@ -2476,6 +2720,7 @@ class WhatsAppBot {
 
     let stripped = ascii;
     stripped = stripped.replace(/\b(\d{1,2})\s+aulas?\b/gi, ' ');
+    stripped = stripped.replace(/\bpacote\s+[a-z0-9_-]+\b/gi, ' ');
     for (const { re } of dayDefs) {
       stripped = stripped.replace(re, ' ');
     }
@@ -2696,8 +2941,12 @@ class WhatsAppBot {
     return false;
   }
 
-  private expandMultipleCommitments(text: string, whatsappId: string): string[] {
-    const pack = this.expandLessonPackFromText(text, whatsappId);
+  private async expandMultipleCommitments(
+    text: string,
+    whatsappId: string,
+    userSettings: UserSettings | undefined,
+  ): Promise<string[]> {
+    const pack = this.expandLessonPackFromText(text, whatsappId, userSettings?.lessonPackagesJson ?? null);
     if (pack.length > 1) {
       return this.applyFinalTagToLastCommitment(pack);
     }
@@ -2712,6 +2961,12 @@ class WhatsAppBot {
       this.extractExplicitTimeFromText(text) ||
       allTimes[0] ||
       { hour: 9, minute: 0 };
+
+    const weekdayWindow = this.extractWeekdayWithinRelativeDaysExpansion(text, settingsTimezone, primaryTime);
+    if (weekdayWindow.length > 1) {
+      return this.applyFinalTagToLastCommitment(weekdayWindow);
+    }
+
     const weekdayDate = this.extractWeekdayDateFromText(text, settingsTimezone);
     const listedDays = this.extractDaysListFromText(text, settingsTimezone);
     const relativeRangeDays = this.extractRelativeDayRange(text);

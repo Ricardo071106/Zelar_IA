@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler } from '../middleware/errorHandler';
-import { verifyPanelToken } from '../utils/panelToken';
+import { signPanelToken, verifyPanelToken } from '../utils/panelToken';
+import { hashPanelPassword, verifyPanelPassword, validateNewPanelPassword } from '../utils/panelPassword';
 import { storage } from '../storage';
 import { isFullName, fullNameValidationMessage } from '../utils/fullName';
 import { COMMON_TIMEZONES } from '../services/dateService';
 import { stripeService } from '../services/stripe';
 import { notifyPendingGuestIdentities } from '../services/guestIdentityNotifyService';
 import { parseContactsFromSpreadsheetBuffer } from '../utils/spreadsheetContacts';
+import { createPluggyConnectToken, extractConnectToken } from '../services/pluggy/pluggyApi';
 
 const router = Router();
 const upload = multer({
@@ -69,6 +71,82 @@ function parseOptionalInt(raw: unknown): number | null | undefined {
   return n;
 }
 
+/** Mesmo formato do WhatsApp: apenas dígitos, com DDI (ex. 5511999999999). */
+function normalizePanelPhone(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const d = raw.replace(/\D/g, '');
+  if (d.length < 10 || d.length > 15) return null;
+  return d;
+}
+
+router.post(
+  '/auth/login',
+  asyncHandler(async (req: Request, res: Response) => {
+    const phone = normalizePanelPhone(req.body?.phone);
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Informe telefone (com DDI, só números) e senha.' });
+    }
+    const user = await storage.getUserByUsername(phone);
+    if (!user) {
+      return res.status(401).json({ error: 'Telefone ou senha incorretos.', code: 'auth_failed' });
+    }
+    if (!user.panelPasswordHash) {
+      return res.status(403).json({
+        error:
+          'Você ainda não definiu uma senha para o painel. Use «Registre-se» abaixo para criar a primeira senha.',
+        code: 'senha_nao_cadastrada',
+      });
+    }
+    if (!verifyPanelPassword(password, user.panelPasswordHash)) {
+      return res.status(401).json({ error: 'Telefone ou senha incorretos.', code: 'auth_failed' });
+    }
+    try {
+      const token = signPanelToken(user.id, user.username);
+      res.json({ ok: true, token });
+    } catch {
+      res.status(503).json({ error: 'Servidor sem PANEL_TOKEN_SECRET configurado.' });
+    }
+  }),
+);
+
+router.post(
+  '/auth/register',
+  asyncHandler(async (req: Request, res: Response) => {
+    const phone = normalizePanelPhone(req.body?.phone);
+    const password = typeof req.body?.password === 'string' ? req.body.password : '';
+    if (!phone || !password) {
+      return res.status(400).json({ error: 'Informe telefone (com DDI) e senha.' });
+    }
+    const pwdErr = validateNewPanelPassword(password);
+    if (pwdErr) {
+      return res.status(400).json({ error: pwdErr });
+    }
+    const user = await storage.getUserByUsername(phone);
+    if (!user) {
+      return res.status(404).json({
+        error:
+          'Não encontramos uma conta com este número. Envie uma mensagem ao Zelar no WhatsApp primeiro para ativar sua conta.',
+        code: 'usuario_inexistente',
+      });
+    }
+    if (user.panelPasswordHash) {
+      return res.status(409).json({
+        error: 'Esta conta já possui senha. Use a tela de entrar.',
+        code: 'ja_registrado',
+      });
+    }
+    const hash = hashPanelPassword(password);
+    await storage.updateUser(user.id, { panelPasswordHash: hash });
+    try {
+      const token = signPanelToken(user.id, user.username);
+      res.json({ ok: true, token });
+    } catch {
+      res.status(503).json({ error: 'Servidor sem PANEL_TOKEN_SECRET configurado.' });
+    }
+  }),
+);
+
 router.get(
   '/me',
   asyncHandler(async (req: Request, res: Response) => {
@@ -120,6 +198,9 @@ router.get(
       settings: {
         timeZone: settings?.timeZone || 'America/Sao_Paulo',
         calendarConnected,
+        pluggyItemId: settings?.pluggyItemId ?? null,
+        defaultLessonPriceCents: settings?.defaultLessonPriceCents ?? null,
+        lessonPackagesJson: settings?.lessonPackagesJson ?? null,
       },
       timezones: COMMON_TIMEZONES,
       links: {
@@ -360,24 +441,58 @@ router.post(
     if (!/\.(xlsx|xls|csv)$/.test(lower)) {
       return res.status(400).json({ error: 'use extensao .xlsx, .xls ou .csv' });
     }
-    const { rows, sourceRowCount } = parseContactsFromSpreadsheetBuffer(file.buffer);
+    const { rows, sourceRowCount, headerRowIndex, usedHeuristic } =
+      parseContactsFromSpreadsheetBuffer(file.buffer);
     let imported = 0;
-    const errors: { line: number; error: string }[] = [];
+    const errors: { line: number; error: string; code?: string }[] = [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (!r.name || !isFullName(r.name)) {
-        errors.push({ line: i + 1, error: fullNameValidationMessage() });
+      const line = r.sourceLine ?? i + 1;
+      const nameTrim = (r.name ?? '').trim();
+      const hasEmail = !!(r.email?.trim());
+      const hasPhone = !!(r.phone?.trim());
+
+      if (!nameTrim) {
+        errors.push({
+          line,
+          code: 'nome_obrigatorio',
+          error: 'Informe o nome na coluna de nome.',
+        });
+        continue;
+      }
+      if (!isFullName(nameTrim)) {
+        errors.push({
+          line,
+          code: 'nome_incompleto',
+          error:
+            'Nome sem sobrenome: inclua nome e sobrenome na planilha (cada parte com pelo menos 2 letras). Salve o arquivo e importe de novo.',
+        });
+        continue;
+      }
+      if (!hasEmail && !hasPhone) {
+        errors.push({
+          line,
+          code: 'sem_contato',
+          error: 'Informe pelo menos e-mail ou telefone nesta linha.',
+        });
         continue;
       }
       try {
         await storage.upsertGuestFromPanel(ctx.user.id, {
           email: r.email?.trim() || '',
-          name: r.name,
+          name: nameTrim,
           phone: r.phone,
         });
         imported++;
       } catch (e: any) {
-        errors.push({ line: i + 1, error: e?.message || 'falha' });
+        const msg = e?.message || 'falha';
+        const code =
+          msg.includes('telefone invalido') || msg.includes('telefone inválido')
+            ? 'telefone_invalido'
+            : msg.includes('email invalido') || msg.includes('email inválido')
+              ? 'email_invalido'
+              : 'import_error';
+        errors.push({ line, code, error: msg });
       }
     }
     res.json({
@@ -385,6 +500,8 @@ router.post(
       imported,
       parsed: rows.length,
       sourceRowCount,
+      headerRowIndex,
+      usedHeuristic,
       errors,
     });
   }),
@@ -467,6 +584,122 @@ router.delete(
       return res.status(404).json({ error: 'nao encontrado' });
     }
     res.json({ ok: true });
+  }),
+);
+
+router.patch(
+  '/settings/finance',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+
+    let defaultLessonPriceCents: number | null | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'defaultLessonPriceReais')) {
+      const raw = (req.body as { defaultLessonPriceReais?: unknown }).defaultLessonPriceReais;
+      if (raw === '' || raw === null || raw === undefined) defaultLessonPriceCents = null;
+      else defaultLessonPriceCents = parseMoneyToCentsFromPanel(raw);
+    }
+
+    let lessonPackagesJson: unknown | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'lessonPackagesJson')) {
+      const raw = (req.body as { lessonPackagesJson?: unknown }).lessonPackagesJson;
+      if (raw === null || raw === '') lessonPackagesJson = null;
+      else if (typeof raw === 'string') {
+        try {
+          lessonPackagesJson = JSON.parse(raw) as unknown;
+        } catch {
+          return res.status(400).json({ error: 'lessonPackagesJson JSON invalido' });
+        }
+      } else {
+        lessonPackagesJson = raw;
+      }
+      if (lessonPackagesJson != null && !Array.isArray(lessonPackagesJson)) {
+        return res.status(400).json({ error: 'lessonPackagesJson deve ser um array' });
+      }
+    }
+
+    let pluggyItemId: string | null | undefined = undefined;
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'pluggyItemId')) {
+      const v = (req.body as { pluggyItemId?: unknown }).pluggyItemId;
+      pluggyItemId = v == null || v === '' ? null : String(v).trim().slice(0, 128);
+    }
+
+    const s = await storage.getUserSettings(ctx.user.id);
+    const patch: {
+      defaultLessonPriceCents?: number | null;
+      lessonPackagesJson?: unknown | null;
+      pluggyItemId?: string | null;
+    } = {};
+    if (defaultLessonPriceCents !== undefined) patch.defaultLessonPriceCents = defaultLessonPriceCents;
+    if (lessonPackagesJson !== undefined) patch.lessonPackagesJson = lessonPackagesJson;
+    if (pluggyItemId !== undefined) patch.pluggyItemId = pluggyItemId;
+
+    if (Object.keys(patch).length === 0) {
+      return res.status(400).json({ error: 'nada para atualizar' });
+    }
+
+    if (s) {
+      await storage.updateUserSettings(ctx.user.id, patch);
+    } else {
+      await storage.createUserSettings({
+        userId: ctx.user.id,
+        notificationsEnabled: true,
+        reminderTimes: [12],
+        language: 'pt-BR',
+        timeZone: 'America/Sao_Paulo',
+        ...patch,
+      });
+    }
+
+    const next = await storage.getUserSettings(ctx.user.id);
+    res.json({
+      ok: true,
+      finance: {
+        pluggyItemId: next?.pluggyItemId ?? null,
+        defaultLessonPriceCents: next?.defaultLessonPriceCents ?? null,
+        lessonPackagesJson: next?.lessonPackagesJson ?? null,
+      },
+    });
+  }),
+);
+
+router.post(
+  '/pluggy/connect-token',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+
+    if (!process.env.PLUGGY_API_KEY?.trim()) {
+      return res.status(503).json({ error: 'PLUGGY_API_KEY nao configurada no servidor' });
+    }
+
+    try {
+      const baseUrl = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
+      const webhookUrl = `${baseUrl}/api/pluggy/webhook`;
+      const tokenQ = extractToken(req);
+      const oauthRedirectUri =
+        typeof req.body?.oauthRedirectUri === 'string' && req.body.oauthRedirectUri.trim()
+          ? String(req.body.oauthRedirectUri).trim()
+          : `${baseUrl}/painel${tokenQ ? `?t=${encodeURIComponent(tokenQ)}` : ''}`;
+
+      const data = await createPluggyConnectToken({
+        clientUserId: `zelar-user-${ctx.user.id}`,
+        webhookUrl,
+        oauthRedirectUri,
+      });
+      const connectToken = extractConnectToken(data);
+      if (!connectToken) {
+        return res.status(502).json({ error: 'resposta Pluggy sem connect token' });
+      }
+      res.json({ ok: true, connectToken });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'falha Pluggy';
+      res.status(502).json({ error: msg });
+    }
   }),
 );
 

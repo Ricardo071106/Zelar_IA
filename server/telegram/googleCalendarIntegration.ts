@@ -407,6 +407,56 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
 }
 
 /**
+ * Atualiza apenas o título (summary) de um evento — ex.: marcar aula como paga no texto.
+ */
+export async function patchGoogleCalendarEventSummary(
+  calendarEventId: string,
+  userId: number,
+  summary: string,
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const oauth2Client = getOAuth2Client(userId);
+
+    if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+      return {
+        success: false,
+        message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.'
+      };
+    }
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    await calendar.events.patch({
+      calendarId: 'primary',
+      eventId: calendarEventId,
+      requestBody: { summary },
+    });
+
+    log(`Resumo do evento atualizado no Google Calendar: ${calendarEventId}`, 'google');
+
+    return {
+      success: true,
+      message: 'Evento atualizado no Google Calendar com sucesso'
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao atualizar evento no Google Calendar: ${errorMessage}`, 'google');
+
+    if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
+      return {
+        success: false,
+        message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.'
+      };
+    }
+
+    return {
+      success: false,
+      message: `Erro ao atualizar evento no Google Calendar: ${errorMessage}`
+    };
+  }
+}
+
+/**
  * Lista os próximos eventos do usuário
  * 
  * @param userId ID do usuário

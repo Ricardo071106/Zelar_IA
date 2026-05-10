@@ -8,11 +8,15 @@ import Home from "@/pages/home";
 import SystemDashboard from "@/pages/SystemDashboard";
 import AnalyticsDashboardPage from "@/pages/analytics-dashboard";
 import UserPanelPage from "@/pages/UserPanelPage";
+import PanelLoginPage from "@/pages/PanelLoginPage";
+import PanelRegisterPage from "@/pages/PanelRegisterPage";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
+      <Route path="/painel/entrar" component={PanelLoginPage} />
+      <Route path="/painel/registro" component={PanelRegisterPage} />
       <Route path="/painel" component={UserPanelPage} />
       <Route path="/system" component={SystemDashboard} />
       <Route path="/analytics-dashboard" component={AnalyticsDashboardPage} />

@@ -11,6 +11,7 @@ import googleAuthRoutes from './routes/google-auth.routes';
 import microsoftAuthRoutes from './routes/microsoft-auth.routes';
 import paymentRoutes from './routes/payment.routes';
 import panelRoutes from './routes/panel.routes';
+import pluggyRoutes from './routes/pluggy.routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -42,6 +43,9 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
 
   // Painel web (token assinado por usuário WhatsApp)
   app.use('/api/panel', panelRoutes);
+
+  // Pluggy (webhook + endpoints públicos documentados)
+  app.use('/api/pluggy', pluggyRoutes);
 
   // =================== STATIC FILES & FRONTEND ===================
 

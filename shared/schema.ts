@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   id: serial("id").primaryKey(),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  /** Hash scrypt da senha do painel web (tel + senha). Null até o usuário registrar em /painel/registro */
+  panelPasswordHash: text("panel_password_hash"),
   telegramId: text("telegram_id").unique(),
   name: text("name"),
   email: text("email"),
@@ -165,6 +167,14 @@ export const events = pgTable("events", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   rawData: json("raw_data"), // Dados originais processados pela IA
+  /** Pacote de aulas (WhatsApp): mesmo grupo = mesmo pagamento parcial possível */
+  packGroupId: varchar("pack_group_id", { length: 64 }),
+  lessonIndexInPack: integer("lesson_index_in_pack"),
+  lessonTotalInPack: integer("lesson_total_in_pack"),
+  lessonPaymentStatus: varchar("lesson_payment_status", { length: 16 }).notNull().default("pendente"),
+  studentContactId: integer("student_contact_id").references(() => userGuestContacts.id, {
+    onDelete: "set null",
+  }),
 });
 
 export const eventRelations = relations(events, ({ one }) => ({
@@ -189,6 +199,11 @@ export const userSettings = pgTable("user_settings", {
   language: varchar("language", { length: 10 }).default("pt-BR"),
   timeZone: varchar("time_zone", { length: 50 }).default("America/Sao_Paulo"),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  pluggyItemId: varchar("pluggy_item_id", { length: 128 }),
+  /** Preço unitário de referência (centavos BRL); usado com Pluggy para quantas aulas cobrir */
+  defaultLessonPriceCents: integer("default_lesson_price_cents"),
+  /** Pacotes nomeados: [{ "id":"10","label":"pacote 10","lessons":10,"priceCents":80000 }] */
+  lessonPackagesJson: jsonb("lesson_packages_json"),
 });
 
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({
@@ -235,6 +250,7 @@ export const reminderRelations = relations(reminders, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  panelPasswordHash: true,
   telegramId: true,
   name: true,
   email: true,
@@ -253,6 +269,11 @@ export const insertEventSchema = createInsertSchema(events).pick({
   attendeePhones: true,
   attendeeEmails: true,
   rawData: true,
+  packGroupId: true,
+  lessonIndexInPack: true,
+  lessonTotalInPack: true,
+  lessonPaymentStatus: true,
+  studentContactId: true,
 });
 
 
@@ -281,6 +302,9 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   appleTokens: true,
   language: true,
   timeZone: true,
+  pluggyItemId: true,
+  defaultLessonPriceCents: true,
+  lessonPackagesJson: true,
 });
 
 

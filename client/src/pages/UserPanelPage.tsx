@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { PluggyConnect } from "react-pluggy-connect";
 
 type PanelMe = {
   user: {
@@ -34,6 +43,9 @@ type PanelMe = {
   settings: {
     timeZone: string;
     calendarConnected: "google" | "microsoft" | null;
+    pluggyItemId: string | null;
+    defaultLessonPriceCents: number | null;
+    lessonPackagesJson: unknown | null;
   };
   timezones: string[];
   links: {
@@ -84,8 +96,14 @@ export default function UserPanelPage() {
   const [timeZone, setTimeZone] = useState("America/Sao_Paulo");
   const [guests, setGuests] = useState<GuestRow[]>([]);
   const [tab, setTab] = useState("config");
-  const [importing, setImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [lessonPriceReais, setLessonPriceReais] = useState("");
+  const [packagesJsonStr, setPackagesJsonStr] = useState(
+    '[\n  { "id": "basico", "label": "Pacote básico", "lessons": 10, "priceCents": 80000 }\n]',
+  );
+  const [financeSaving, setFinanceSaving] = useState(false);
+  const [pluggyTokenLoading, setPluggyTokenLoading] = useState(false);
+  const [pluggyDialogOpen, setPluggyDialogOpen] = useState(false);
+  const [pluggyConnectToken, setPluggyConnectToken] = useState<string | null>(null);
 
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
@@ -118,6 +136,19 @@ export default function UserPanelPage() {
     setMe(data);
     setEmail(data.user.email || "");
     setTimeZone(data.settings.timeZone || "America/Sao_Paulo");
+    const cents = data.settings.defaultLessonPriceCents;
+    setLessonPriceReais(
+      cents != null && Number.isFinite(cents)
+        ? (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : "",
+    );
+    if (data.settings.lessonPackagesJson != null) {
+      try {
+        setPackagesJsonStr(JSON.stringify(data.settings.lessonPackagesJson, null, 2));
+      } catch {
+        setPackagesJsonStr(String(data.settings.lessonPackagesJson));
+      }
+    }
   }, [token]);
 
   const loadGuests = useCallback(async () => {
@@ -131,9 +162,8 @@ export default function UserPanelPage() {
   useEffect(() => {
     if (!token) {
       setLoadError(
-        "Este endereço precisa incluir o token na URL (ex.: …/painel?t=…). " +
-          "Abra o link completo enviado pelo bot no WhatsApp. " +
-          "Se o servidor não tiver PANEL_TOKEN_SECRET configurado no Render, o bot não consegue gerar o link — peça ao administrador para adicionar essa variável e fazer redeploy.",
+        "Para ver o painel, faça login com seu número do WhatsApp e senha. " +
+          "Abra a página de entrada e, na primeira vez, use «Registre-se» para criar a senha.",
       );
       return;
     }
@@ -176,6 +206,98 @@ export default function UserPanelPage() {
     }
     toast({ title: "Perfil salvo" });
     loadMe().catch(() => {});
+  };
+
+  const saveFinance = async () => {
+    if (!token) return;
+    let parsed: unknown = null;
+    const raw = packagesJsonStr.trim();
+    if (raw) {
+      try {
+        parsed = JSON.parse(raw) as unknown;
+      } catch {
+        toast({ title: "JSON inválido", description: "Ajuste o campo pacotes (JSON).", variant: "destructive" });
+        return;
+      }
+      if (!Array.isArray(parsed)) {
+        toast({ title: "Pacotes", description: "Use um array JSON.", variant: "destructive" });
+        return;
+      }
+    }
+    setFinanceSaving(true);
+    try {
+      const r = await fetch("/api/panel/settings/finance", {
+        method: "PATCH",
+        headers: jsonPostHeaders,
+        body: JSON.stringify({
+          t: token,
+          defaultLessonPriceReais: lessonPriceReais.trim() || null,
+          lessonPackagesJson: parsed,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Erro", description: j.error || "Não salvou", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Financeiro salvo" });
+      loadMe().catch(() => {});
+    } finally {
+      setFinanceSaving(false);
+    }
+  };
+
+  const openPluggyConnect = async () => {
+    if (!token) return;
+    setPluggyTokenLoading(true);
+    try {
+      const r = await fetch("/api/panel/pluggy/connect-token", {
+        method: "POST",
+        headers: jsonPostHeaders,
+        body: JSON.stringify({ t: token }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Pluggy", description: j.error || "Indisponível", variant: "destructive" });
+        return;
+      }
+      const ct = j.connectToken as string | undefined;
+      if (ct) {
+        setPluggyConnectToken(ct);
+        setPluggyDialogOpen(true);
+      } else {
+        toast({ title: "Pluggy", description: "Token vazio na resposta.", variant: "destructive" });
+      }
+    } finally {
+      setPluggyTokenLoading(false);
+    }
+  };
+
+  const copyPluggyTokenOnly = async () => {
+    if (!token) return;
+    setPluggyTokenLoading(true);
+    try {
+      const r = await fetch("/api/panel/pluggy/connect-token", {
+        method: "POST",
+        headers: jsonPostHeaders,
+        body: JSON.stringify({ t: token }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Pluggy", description: j.error || "Indisponível", variant: "destructive" });
+        return;
+      }
+      const ct = j.connectToken as string | undefined;
+      if (ct) {
+        await navigator.clipboard.writeText(ct).catch(() => {});
+        toast({
+          title: "Token copiado",
+          description: "Use manualmente no playground Pluggy se preferir (~30 min).",
+        });
+      }
+    } finally {
+      setPluggyTokenLoading(false);
+    }
   };
 
   const disconnectCalendar = async () => {
@@ -381,11 +503,39 @@ export default function UserPanelPage() {
         return;
       }
       const n = j.imported ?? 0;
-      const errC = (j.errors?.length as number) || 0;
-      toast({
-        title: "Planilha processada",
-        description: `Importados ${n} contato(s).` + (errC > 0 ? ` ${errC} linha(s) com aviso no servidor.` : ""),
-      });
+      const errs = Array.isArray(j.errors) ? j.errors : [];
+      const nomeIncompleto = errs.filter((e: { code?: string }) => e.code === "nome_incompleto");
+      const linesNome = nomeIncompleto.map((e: { line: number }) => e.line).join(", ");
+
+      if (nomeIncompleto.length) {
+        toast({
+          title: "Nome sem sobrenome na planilha",
+          description:
+            (n > 0 ? `Importados ${n} contato(s). ` : "") +
+            `Linha(s) ${linesNome}: inclua nome e sobrenome em cada célula de nome (mínimo duas palavras, cada uma com pelo menos 2 letras). Corrija no Excel, salve e importe de novo.` +
+            (errs.length > nomeIncompleto.length
+              ? ` Outras ${errs.length - nomeIncompleto.length} linha(s) também precisam de ajuste.`
+              : ""),
+          variant: "destructive",
+          duration: 12_000,
+        });
+      } else if (errs.length) {
+        const preview = errs
+          .slice(0, 5)
+          .map((e: { line: number; error: string }) => `Linha ${e.line}: ${e.error}`)
+          .join(" ");
+        toast({
+          title: "Planilha processada com avisos",
+          description: `${errs.length} linha(s) não importadas. ${preview}${errs.length > 5 ? "…" : ""}`,
+          variant: "destructive",
+          duration: 10_000,
+        });
+      } else {
+        toast({
+          title: "Planilha processada",
+          description: `Importados ${n} contato(s).`,
+        });
+      }
       loadGuests();
     } finally {
       setImporting(false);
@@ -401,6 +551,9 @@ export default function UserPanelPage() {
           <CardHeader>
             <CardTitle className="font-mago text-2xl text-emerald-900">Portal Zelar</CardTitle>
             <CardDescription className="text-slate-600">{loadError}</CardDescription>
+            <Button asChild className="mt-4 bg-emerald-700 hover:bg-emerald-800 text-white">
+              <Link href="/painel/entrar">Ir para login</Link>
+            </Button>
           </CardHeader>
         </Card>
       </div>
@@ -542,6 +695,69 @@ export default function UserPanelPage() {
                     Encerrar vínculo do calendário
                   </Button>
                 )}
+              </CardContent>
+            </Card>
+
+            <Card className={cardClass}>
+              <CardHeader>
+                <CardTitle className="font-mago text-2xl text-emerald-900">Pluggy &amp; preços de aula</CardTitle>
+                <CardDescription className="text-slate-600">
+                  Conecte o Open Finance para reconhecer PIX por nome do pagador e valor. Configure preço unitário e pacotes
+                  nomeados (ex.: &quot;pacote basico&quot; no WhatsApp). Variáveis: PLUGGY_API_KEY e BASE_URL no servidor.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-slate-600">
+                  Item Pluggy:{" "}
+                  <span className="font-mono text-emerald-900">
+                    {me.settings.pluggyItemId || "— ainda não vinculado —"}
+                  </span>
+                </p>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Preço por aula (referência, R$)</Label>
+                  <Input
+                    className={inputClass}
+                    value={lessonPriceReais}
+                    onChange={(e) => setLessonPriceReais(e.target.value)}
+                    placeholder="ex.: 80,00"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-slate-700">Pacotes (JSON)</Label>
+                  <Textarea
+                    className={`${inputClass} min-h-[140px] font-mono text-sm`}
+                    value={packagesJsonStr}
+                    onChange={(e) => setPackagesJsonStr(e.target.value)}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    disabled={financeSaving}
+                    className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-md"
+                    onClick={() => void saveFinance()}
+                  >
+                    {financeSaving ? "Salvando…" : "Salvar preços"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    disabled={pluggyTokenLoading}
+                    className="bg-slate-800 text-white hover:bg-slate-900"
+                    onClick={() => void openPluggyConnect()}
+                  >
+                    {pluggyTokenLoading ? "Abrindo…" : "Conectar banco (Pluggy)"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pluggyTokenLoading}
+                    className="border-emerald-600 text-emerald-800 hover:bg-emerald-50"
+                    onClick={() => void copyPluggyTokenOnly()}
+                  >
+                    Copiar token
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
@@ -791,6 +1007,49 @@ export default function UserPanelPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+      <Dialog
+        open={pluggyDialogOpen}
+        onOpenChange={(open) => {
+          setPluggyDialogOpen(open);
+          if (!open) setPluggyConnectToken(null);
+        }}
+      >
+        <DialogContent className="max-w-[560px] max-h-[92vh] overflow-y-auto bg-white border-emerald-200">
+          <DialogHeader>
+            <DialogTitle className="font-mago text-emerald-950">Pluggy Connect</DialogTitle>
+            <DialogDescription className="text-slate-600">
+              Autorize o acesso em modo leitura para sincronizar extratos. Em produção use HTTPS e{" "}
+              <span className="font-mono text-emerald-900">BASE_URL</span> apontando para este servidor (webhook Pluggy).
+            </DialogDescription>
+          </DialogHeader>
+          {pluggyConnectToken ? (
+            <div className="min-h-[420px] w-full">
+              <PluggyConnect
+                connectToken={pluggyConnectToken}
+                language="pt"
+                theme="light"
+                onSuccess={() => {
+                  toast({
+                    title: "Conta conectada",
+                    description: "O item Pluggy será associado ao seu usuário em instantes.",
+                  });
+                  setPluggyDialogOpen(false);
+                  setPluggyConnectToken(null);
+                  void loadMe();
+                }}
+                onError={(err: { message?: string }) => {
+                  toast({
+                    title: "Pluggy",
+                    description: err?.message || "Erro no widget",
+                    variant: "destructive",
+                  });
+                }}
+              />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );

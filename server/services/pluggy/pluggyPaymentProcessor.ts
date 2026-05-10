@@ -1,0 +1,324 @@
+import type { Event, UserSettings } from "@shared/schema";
+import { storage } from "../../storage";
+import type { UserGuestContactRow } from "../../storage";
+import { pluggyFetchJson } from "./pluggyApi";
+import { buildLessonCalendarTitle } from "./lessonTitle";
+import { extractPayerNameFromPluggyTransaction } from "./pluggyPayerExtract";
+import { patchGoogleCalendarEventSummary, setTokens } from "../../telegram/googleCalendarIntegration";
+import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
+
+type PluggyTx = {
+  id?: string;
+  type?: string;
+  status?: string;
+  amount?: number;
+  description?: string | null;
+  descriptionRaw?: string | null;
+  paymentData?: {
+    payer?: { name?: string };
+    receiver?: { name?: string };
+    paymentMethod?: string;
+    referenceNumber?: string;
+    reason?: string;
+  };
+};
+
+function amountToCents(amount: number): number {
+  const n = Number(amount);
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(Math.abs(n) * 100);
+}
+
+function resolveLessonUnitCents(
+  contact: UserGuestContactRow | null,
+  defaultLessonPriceCents: number | null | undefined,
+): number | null {
+  if (
+    contact?.monthlyAmountCents != null &&
+    contact.monthlyAmountCents > 0 &&
+    contact.packageLessonsTotal != null &&
+    contact.packageLessonsTotal > 0
+  ) {
+    return Math.round(contact.monthlyAmountCents / contact.packageLessonsTotal);
+  }
+  if (typeof defaultLessonPriceCents === "number" && defaultLessonPriceCents > 0) {
+    return defaultLessonPriceCents;
+  }
+  if (contact?.monthlyAmountCents != null && contact.monthlyAmountCents > 0) {
+    return contact.monthlyAmountCents;
+  }
+  return null;
+}
+
+/** Prioriza preço implícito do pacote salvo no evento (painel + WhatsApp), senão regra do aluno/padrão. */
+function resolveLessonUnitCentsForAllocation(
+  firstPendingEvent: Event,
+  contact: UserGuestContactRow,
+  defaultLessonPriceCents: number | null | undefined,
+): number | null {
+  const raw = firstPendingEvent.rawData as Record<string, unknown> | null;
+  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
+  const packUnit = z?.packUnitPriceCents;
+  if (typeof packUnit === "number" && Number.isFinite(packUnit) && packUnit > 0) {
+    return Math.round(packUnit);
+  }
+  return resolveLessonUnitCents(contact, defaultLessonPriceCents);
+}
+
+function parseTransactionsPayload(data: unknown): PluggyTx[] {
+  if (!data || typeof data !== "object") return [];
+  const obj = data as Record<string, unknown>;
+  if (Array.isArray(obj.results)) {
+    return obj.results as PluggyTx[];
+  }
+  if (Array.isArray(obj.items)) {
+    return obj.items as PluggyTx[];
+  }
+  return [];
+}
+
+async function fetchTransactionsByIds(ids: string[]): Promise<PluggyTx[]> {
+  if (!ids.length) return [];
+  const qs = ids.map((id) => `ids=${encodeURIComponent(id)}`).join("&");
+  const data = await pluggyFetchJson(`/transactions?${qs}`);
+  return parseTransactionsPayload(data);
+}
+
+/**
+ * Quando só há um aluno com aulas pendentes e o valor cobre pelo menos 1 aula pelo preço calculado,
+ * associa o pagamento a esse aluno (útil quando o banco não envia paymentData.payer).
+ */
+async function tryResolveContactByAmountOnly(
+  userId: number,
+  amountCents: number,
+  settings: UserSettings | undefined,
+): Promise<UserGuestContactRow | null> {
+  const contacts = await storage.listUserGuestContacts(userId);
+  const candidates: UserGuestContactRow[] = [];
+
+  for (const c of contacts) {
+    const pending = await storage.listPendingLessonEventsForContact(userId, c.id);
+    if (pending.length === 0) continue;
+
+    const unit = resolveLessonUnitCentsForAllocation(
+      pending[0],
+      c,
+      settings?.defaultLessonPriceCents ?? null,
+    );
+    if (!unit || unit <= 0) continue;
+
+    const maxLessons = Math.floor(amountCents / unit);
+    if (maxLessons < 1) continue;
+
+    candidates.push(c);
+  }
+
+  if (candidates.length === 1) {
+    return candidates[0] ?? null;
+  }
+  return null;
+}
+
+export async function processPluggyTransactionsPayload(itemId: string | undefined, payload: unknown): Promise<void> {
+  const txs = parseTransactionsPayload(payload);
+  for (const tx of txs) {
+    await processSinglePluggyTransaction(itemId, tx);
+  }
+}
+
+async function processSinglePluggyTransaction(itemId: string | undefined, tx: PluggyTx): Promise<void> {
+  const txId = typeof tx.id === "string" ? tx.id : null;
+
+  if (tx.type !== "CREDIT" || (tx.status && tx.status !== "POSTED")) {
+    return;
+  }
+
+  const amountCents = amountToCents(Number(tx.amount));
+  if (amountCents <= 0) return;
+
+  let userId: number | null = itemId ? await storage.findUserIdByPluggyItemId(itemId) : null;
+  if (userId == null && itemId) {
+    console.warn("[Pluggy] Item sem usuário vinculado:", itemId);
+    return;
+  }
+  if (userId == null) return;
+
+  const settings = await storage.getUserSettings(userId);
+
+  const payerHint = extractPayerNameFromPluggyTransaction(tx);
+
+  let contact: UserGuestContactRow | null = null;
+  if (payerHint) {
+    contact = await storage.findGuestContactByLooseName(userId, payerHint);
+    if (!contact) {
+      console.log("[Pluggy] Nome extraído mas sem match no cadastro:", payerHint.slice(0, 80));
+    }
+  }
+
+  if (!contact) {
+    contact = await tryResolveContactByAmountOnly(userId, amountCents, settings);
+    if (contact) {
+      console.log("[Pluggy] Match por valor + único aluno pendente → contato", contact.id);
+    }
+  }
+
+  if (!contact) {
+    return;
+  }
+
+  const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+  if (!pending.length) return;
+
+  const unit = resolveLessonUnitCentsForAllocation(
+    pending[0],
+    contact,
+    settings?.defaultLessonPriceCents ?? null,
+  );
+  if (!unit || unit <= 0) {
+    console.warn("[Pluggy] Sem preço por aula configurável para aluno", contact.id);
+    return;
+  }
+
+  const creditsToAllocate = Math.floor(amountCents / unit);
+  if (creditsToAllocate <= 0) return;
+
+  if (txId) {
+    const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
+    if (!inserted) {
+      return;
+    }
+  }
+
+  const eventsToMark = pending.slice(0, creditsToAllocate);
+
+  const displayName =
+    (contact.aliasNames ?? []).filter(Boolean)[0]?.trim() ||
+    contact.canonicalEmail?.split("@")[0] ||
+    "Aluno";
+
+  for (const ev of eventsToMark) {
+    await markLessonPaidAndSyncCalendar(userId, ev, displayName);
+  }
+
+  if (eventsToMark.length > 0) {
+    await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
+  }
+}
+
+async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentLabel: string): Promise<void> {
+  const raw = (ev.rawData as Record<string, unknown> | null) || {};
+  const zelar = (raw.zelarLesson as Record<string, unknown> | undefined) || {};
+  const baseTitle =
+    typeof zelar.baseTitle === "string" && zelar.baseTitle.trim()
+      ? zelar.baseTitle.trim()
+      : String(ev.title || "Aula")
+          .split(" · ")[0]
+          ?.trim() || "Aula";
+
+  const lessonIndex =
+    typeof ev.lessonIndexInPack === "number" && ev.lessonIndexInPack > 0 ? ev.lessonIndexInPack : null;
+  const lessonTotal =
+    typeof ev.lessonTotalInPack === "number" && ev.lessonTotalInPack > 0 ? ev.lessonTotalInPack : null;
+
+  const newTitle = buildLessonCalendarTitle({
+    baseTitle,
+    studentLabel,
+    lessonIndex,
+    lessonTotal,
+    paymentStatus: "pago",
+  });
+
+  const nextRaw = {
+    ...raw,
+    zelarLesson: {
+      ...zelar,
+      baseTitle,
+      paymentStatus: "pago",
+    },
+  };
+
+  await storage.updateEvent(ev.id, {
+    title: newTitle,
+    lessonPaymentStatus: "pago",
+    rawData: nextRaw as Event["rawData"],
+  });
+
+  const settings = await storage.getUserSettings(userId);
+  const calendarId = ev.calendarId;
+  if (!calendarId) return;
+
+  const provider = settings?.calendarProvider;
+  if (provider === "google" && settings.googleTokens) {
+    try {
+      setTokens(userId, JSON.parse(settings.googleTokens));
+      await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
+    } catch (e) {
+      console.warn("[Pluggy] Falha ao atualizar Google Calendar:", e);
+    }
+  } else if (provider === "microsoft" && settings.microsoftTokens) {
+    try {
+      await patchMicrosoftCalendarEventSubject(calendarId, userId, newTitle);
+    } catch (e) {
+      console.warn("[Pluggy] Falha ao atualizar Microsoft Calendar:", e);
+    }
+  }
+}
+
+async function notifyGuestPaymentDigest(
+  contact: UserGuestContactRow,
+  lessonsMarked: number,
+  amountCents: number,
+): Promise<void> {
+  const phone = contact.guestPhoneE164?.replace(/\D/g, "");
+  if (!phone || phone.length < 10) return;
+
+  const jid = `${phone}@s.whatsapp.net`;
+  const brl = (amountCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+  const msg =
+    `💳 Pagamento identificado (${brl}). ` +
+    `Marcamos *${lessonsMarked}* aula(s) como *pago* na sua agenda compartilhada. ` +
+    `Qualquer dúvida, fale com seu professor.`;
+
+  try {
+    const { getWhatsAppBot } = await import("../../whatsapp/whatsappBot");
+    await getWhatsAppBot().sendMessage(jid, msg);
+  } catch (e) {
+    console.warn("[Pluggy] Falha ao avisar aluno no WhatsApp:", e);
+  }
+}
+
+export async function handlePluggyTransactionsCreatedWebhook(body: Record<string, unknown>): Promise<void> {
+  const link = typeof body.createdTransactionsLink === "string" ? body.createdTransactionsLink : null;
+  const itemId = typeof body.itemId === "string" ? body.itemId : undefined;
+  if (!link) return;
+  const data = await pluggyFetchJson(link);
+  await processPluggyTransactionsPayload(itemId, data);
+}
+
+export async function handlePluggyTransactionsUpdatedWebhook(body: Record<string, unknown>): Promise<void> {
+  const ids = Array.isArray(body.transactionIds)
+    ? (body.transactionIds as unknown[]).filter((x): x is string => typeof x === "string")
+    : [];
+  const itemId = typeof body.itemId === "string" ? body.itemId : undefined;
+  if (!ids.length) return;
+  const txs = await fetchTransactionsByIds(ids);
+  for (const tx of txs) {
+    await processSinglePluggyTransaction(itemId, tx);
+  }
+}
+
+export async function handlePluggyItemLinkedFromWebhook(
+  eventName: string | undefined,
+  clientUserId: string | undefined,
+  itemId: string | undefined,
+): Promise<void> {
+  if (eventName !== "item/created") return;
+  if (!clientUserId || !itemId) return;
+  const m = /^zelar-user-(\d+)$/.exec(clientUserId.trim());
+  if (!m) return;
+  const userId = Number(m[1]);
+  if (!Number.isFinite(userId)) return;
+  await storage.updateUserSettings(userId, { pluggyItemId: itemId });
+  console.log("[Pluggy] Item associado ao usuário", userId);
+}

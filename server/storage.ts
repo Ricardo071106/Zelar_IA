@@ -195,6 +195,11 @@ export interface IStorage {
     data: { name?: string; contactIds?: number[] },
   ): Promise<void>;
   deleteUserContactGroup(userId: number, groupId: number): Promise<boolean>;
+
+  findUserIdByPluggyItemId(itemId: string): Promise<number | null>;
+  listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]>;
+  /** Retorna true se inseriu (primeira vez); false se transação já processada. */
+  tryRecordPluggyTransactionOnce(userId: number, transactionId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -988,6 +993,56 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(userContactGroups.id, groupId), eq(userContactGroups.userId, userId)))
       .returning({ id: userContactGroups.id });
     return deleted.length > 0;
+  }
+
+  async findUserIdByPluggyItemId(itemId: string): Promise<number | null> {
+    if (!db) return null;
+    const [row] = await db
+      .select({ userId: userSettings.userId })
+      .from(userSettings)
+      .where(eq(userSettings.pluggyItemId, itemId))
+      .limit(1);
+    return row?.userId ?? null;
+  }
+
+  async listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]> {
+    if (!db) return [];
+    return db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          eq(events.studentContactId, studentContactId),
+          eq(events.lessonPaymentStatus, "pendente"),
+        ),
+      )
+      .orderBy(asc(events.startDate));
+  }
+
+  async tryRecordPluggyTransactionOnce(userId: number, transactionId: string): Promise<boolean> {
+    if (!db) return false;
+    const tid = transactionId.trim().slice(0, 128);
+    if (!tid) return false;
+    try {
+      const ins = await db.execute(sql`
+        INSERT INTO pluggy_processed_transactions (user_id, transaction_id)
+        VALUES (${userId}, ${tid})
+        ON CONFLICT (user_id, transaction_id) DO NOTHING
+        RETURNING id
+      `);
+      const rows = (ins as { rows?: { id: number }[] }).rows;
+      return (rows?.length ?? 0) > 0;
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") {
+        console.warn(
+          "[storage] Tabela pluggy_processed_transactions ausente; execute migration 0013. Dedupe desativado.",
+        );
+        return true;
+      }
+      throw e;
+    }
   }
 }
 

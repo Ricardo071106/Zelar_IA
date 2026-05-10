@@ -369,6 +369,55 @@ export async function cancelMicrosoftCalendarEvent(calendarEventId: string, user
   }
 }
 
+/**
+ * Atualiza apenas o assunto (subject) do evento — ex.: marcar aula como paga no texto.
+ */
+export async function patchMicrosoftCalendarEventSubject(
+  calendarEventId: string,
+  userId: number,
+  subject: string,
+): Promise<{ success: boolean; message?: string }> {
+  try {
+    const accessToken = await getValidAccessToken(userId);
+    const eventId = encodeURIComponent(calendarEventId);
+    const url = `${GRAPH_BASE_URL}/me/events/${eventId}`;
+
+    const body = JSON.stringify({ subject });
+
+    const requestWithToken = async (token: string) =>
+      fetch(url, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body,
+      });
+
+    let response = await requestWithToken(accessToken);
+    if (response.status === 401) {
+      log(`401 ao atualizar evento Microsoft (tentando renovar token).`);
+      const refreshedAccessToken = await getValidAccessToken(userId, true);
+      response = await requestWithToken(refreshedAccessToken);
+    }
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Falha ao atualizar evento no Microsoft Calendar: ${response.status} ${errorData}`);
+    }
+
+    log(`Assunto do evento atualizado no Microsoft Calendar: ${calendarEventId}`);
+    return { success: true, message: "Evento atualizado no Microsoft Calendar com sucesso" };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao atualizar evento no Microsoft Calendar: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Erro ao atualizar evento no Microsoft Calendar: ${errorMessage}`,
+    };
+  }
+}
+
 export async function listUpcomingMicrosoftEvents(userId: number, maxResults = 50): Promise<{
   success: boolean;
   message: string;
