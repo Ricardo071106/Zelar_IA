@@ -14,6 +14,10 @@ type PluggyTx = {
   amount?: number;
   description?: string | null;
   descriptionRaw?: string | null;
+  date?: string;
+  valueDate?: string;
+  operationDate?: string;
+  createdAt?: string;
   paymentData?: {
     payer?: { name?: string };
     receiver?: { name?: string };
@@ -22,6 +26,19 @@ type PluggyTx = {
     reason?: string;
   };
 };
+
+/** Data do crédito no banco (só entra no somatório se >= primeira aula criada). */
+function extractTxPostedAtFromPluggyTx(tx: PluggyTx): Date {
+  const r = tx as Record<string, unknown>;
+  const keys = ["date", "valueDate", "operationDate", "createdAt", "paymentDate"];
+  for (const k of keys) {
+    const v = r[k];
+    if (v == null || v === "") continue;
+    const d = new Date(typeof v === "string" || typeof v === "number" ? v : String(v));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return new Date();
+}
 
 function amountToCents(amount: number): number {
   const n = Number(amount);
@@ -166,8 +183,34 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
     return;
   }
 
+  const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
+  const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
+
+  if (!firstLessonAt) {
+    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
+    console.log(
+      "[Pluggy] Nenhuma aula ainda vinculada ao contato",
+      contact.id,
+      "— crédito ignorado para rateio (crie a primeira aula no WhatsApp).",
+    );
+    return;
+  }
+
+  if (txPostedAt.getTime() < firstLessonAt.getTime()) {
+    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
+    console.log(
+      "[Pluggy] Transação com data anterior à primeira aula criada; não entra na soma.",
+      txId,
+      firstLessonAt.toISOString(),
+    );
+    return;
+  }
+
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
-  if (!pending.length) return;
+  if (!pending.length) {
+    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
+    return;
+  }
 
   const unit = resolveLessonUnitCentsForAllocation(
     pending[0],
@@ -179,9 +222,6 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
     return;
   }
 
-  const creditsToAllocate = Math.floor(amountCents / unit);
-  if (creditsToAllocate <= 0) return;
-
   if (txId) {
     const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
     if (!inserted) {
@@ -189,20 +229,36 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
     }
   }
 
-  const eventsToMark = pending.slice(0, creditsToAllocate);
+  const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
+    0,
+    128,
+  );
+  await storage.insertPluggyContactCredit(userId, contact.id, ledgerTxKey, amountCents, txPostedAt);
+
+  const totalPaidCents = await storage.sumPluggyContactCreditsSince(userId, contact.id, firstLessonAt);
+  const earnedLessonSlots = Math.floor(totalPaidCents / unit);
+  const alreadyPaidCount = await storage.countPaidLessonEventsForContact(userId, contact.id);
+  const needToMark = Math.min(Math.max(0, earnedLessonSlots - alreadyPaidCount), pending.length);
+
+  if (needToMark <= 0) {
+    return;
+  }
 
   const displayName =
     (contact.aliasNames ?? []).filter(Boolean)[0]?.trim() ||
     contact.canonicalEmail?.split("@")[0] ||
     "Aluno";
 
+  const eventsToMark = pending.slice(0, needToMark);
   for (const ev of eventsToMark) {
     await markLessonPaidAndSyncCalendar(userId, ev, displayName);
   }
 
-  if (eventsToMark.length > 0) {
-    await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
-  }
+  await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
+
+  console.log(
+    `[Pluggy] Rateio cumulativo aluno ${contact.id}: total R$ ${(totalPaidCents / 100).toFixed(2)} desde primeira aula → ${earnedLessonSlots} aula(s) “de direito”; já pagas ${alreadyPaidCount}; marcadas agora ${eventsToMark.length}.`,
+  );
 }
 
 async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentLabel: string): Promise<void> {

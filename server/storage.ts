@@ -204,6 +204,20 @@ export interface IStorage {
   listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]>;
   /** Retorna true se inseriu (primeira vez); false se transação já processada. */
   tryRecordPluggyTransactionOnce(userId: number, transactionId: string): Promise<boolean>;
+  /** Primeira linha do tempo em que uma aula foi criada para esse aluno (created_at do evento). */
+  getFirstLessonCreatedAtForContact(userId: number, studentContactId: number): Promise<Date | null>;
+  /** Soma centavos de créditos Pluggy registrados para o aluno com data >= since (inclusive). */
+  sumPluggyContactCreditsSince(userId: number, contactId: number, sinceInclusive: Date): Promise<number>;
+  /** Quantas aulas já estão marcadas como pagas para esse aluno. */
+  countPaidLessonEventsForContact(userId: number, contactId: number): Promise<number>;
+  /** Registra um crédito por transação Pluggy (dedupe por user_id + transaction_id). Retorna true se inseriu. */
+  insertPluggyContactCredit(
+    userId: number,
+    contactId: number,
+    transactionId: string,
+    amountCents: number,
+    txPostedAt: Date,
+  ): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1068,6 +1082,93 @@ export class DatabaseStorage implements IStorage {
           "[storage] Tabela pluggy_processed_transactions ausente; execute migration 0013. Dedupe desativado.",
         );
         return true;
+      }
+      throw e;
+    }
+  }
+
+  async getFirstLessonCreatedAtForContact(userId: number, studentContactId: number): Promise<Date | null> {
+    if (!db) return null;
+    try {
+      const res = await db.execute(sql`
+        SELECT min(created_at) AS m
+        FROM events
+        WHERE user_id = ${userId}
+          AND student_contact_id = ${studentContactId}
+      `);
+      const row = (res as { rows?: { m: Date | string | null }[] }).rows?.[0];
+      const m = row?.m;
+      if (m == null) return null;
+      const d = m instanceof Date ? m : new Date(String(m));
+      return Number.isNaN(d.getTime()) ? null : d;
+    } catch (e: unknown) {
+      console.warn("[storage] getFirstLessonCreatedAtForContact:", e);
+      return null;
+    }
+  }
+
+  async sumPluggyContactCreditsSince(userId: number, contactId: number, sinceInclusive: Date): Promise<number> {
+    if (!db) return 0;
+    try {
+      const res = await db.execute(sql`
+        SELECT COALESCE(SUM(amount_cents), 0)::bigint AS s
+        FROM pluggy_contact_payment_ledger
+        WHERE user_id = ${userId}
+          AND contact_id = ${contactId}
+          AND tx_posted_at >= ${sinceInclusive}
+      `);
+      const row = (res as { rows?: { s: string | bigint | number }[] }).rows?.[0];
+      const n = row?.s != null ? Number(row.s) : 0;
+      return Number.isFinite(n) ? n : 0;
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") {
+        console.warn("[storage] pluggy_contact_payment_ledger ausente; soma = 0. Rode migration 0015.");
+        return 0;
+      }
+      throw e;
+    }
+  }
+
+  async countPaidLessonEventsForContact(userId: number, contactId: number): Promise<number> {
+    if (!db) return 0;
+    const [row] = await db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          eq(events.studentContactId, contactId),
+          eq(events.lessonPaymentStatus, "pago"),
+        ),
+      );
+    const n = Number(row?.c ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  async insertPluggyContactCredit(
+    userId: number,
+    contactId: number,
+    transactionId: string,
+    amountCents: number,
+    txPostedAt: Date,
+  ): Promise<boolean> {
+    if (!db) return false;
+    const tid = (transactionId.trim() || `synthetic_${Date.now()}`).slice(0, 128);
+    try {
+      const ins = await db.execute(sql`
+        INSERT INTO pluggy_contact_payment_ledger (user_id, contact_id, transaction_id, amount_cents, tx_posted_at)
+        VALUES (${userId}, ${contactId}, ${tid}, ${Math.round(amountCents)}, ${txPostedAt})
+        ON CONFLICT (user_id, transaction_id) DO NOTHING
+        RETURNING id
+      `);
+      const rows = (ins as { rows?: { id: number }[] }).rows;
+      return (rows?.length ?? 0) > 0;
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") {
+        console.warn("[storage] pluggy_contact_payment_ledger ausente; rode migration 0015.");
+        return false;
       }
       throw e;
     }
