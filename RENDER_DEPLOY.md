@@ -39,6 +39,15 @@ This guide explains how to deploy the Zelar IA application to [Render](https://r
     - Click **Create Web Service**.
     - Monitor the build logs. The Dockerfile will install Chrome dependencies automatically.
 
+## Landing / front não atualizou após `git push`
+
+1. No [Render Dashboard](https://dashboard.render.com), abra o serviço **zelar-ia** (ou o nome do seu Web Service).
+2. Confirme que o **último deploy** corresponde ao commit certo (aba **Events** / **Logs**).
+3. Use **Manual Deploy** → **Clear build cache & deploy** (ou equivalente). O `Dockerfile` roda `npm run build` e gera `dist/public` na imagem; cache antigo ou deploy que não rodou deixa o site velho.
+4. No navegador, teste em aba anônima ou com hard refresh (o HTML da SPA costuma ser cacheado).
+
+Não commite `dist/public` no Git: o build da Vite já recria essa pasta a partir de `client/`.
+
 ## Notes
 
 - This setup uses a **Docker** environment to ensure all system dependencies for Puppeteer (Chrome) are present.

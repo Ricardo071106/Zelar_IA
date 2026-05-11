@@ -62,7 +62,17 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
     );
   }
 
-  app.use(express.static(frontendPath));
+  app.use(
+    express.static(frontendPath, {
+      setHeaders(res, filePath) {
+        if (path.basename(filePath) === "index.html") {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          res.setHeader("Pragma", "no-cache");
+          res.setHeader("Expires", "0");
+        }
+      },
+    }),
+  );
 
   // Rota API fallback (evita que rotas API não encontradas caiam no index.html)
   app.use('/api/*', notFoundHandler);
