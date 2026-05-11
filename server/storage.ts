@@ -16,6 +16,7 @@ import {
   userGuestContacts,
   userContactGroups,
   userContactGroupMembers,
+  userLessonPackages,
 } from "@shared/schema";
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 import { normalizeBrazilianPhone } from "./utils/phoneExtraction";
@@ -23,6 +24,29 @@ import { isFullName, fullNameValidationMessage } from "./utils/fullName";
 
 function isValidEmailFormat(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function mergeLessonPackagesIntoSettings(settings: UserSettings): Promise<UserSettings> {
+  if (!db) return settings;
+  try {
+    const rows = await db
+      .select()
+      .from(userLessonPackages)
+      .where(eq(userLessonPackages.userId, settings.userId))
+      .orderBy(asc(userLessonPackages.sortOrder), asc(userLessonPackages.id));
+    if (rows.length === 0) return settings;
+    const lessonPackagesJson = rows.map((r) => ({
+      id: r.slug,
+      label: r.label,
+      lessons: r.lessons,
+      priceCents: r.priceCents,
+    }));
+    return { ...settings, lessonPackagesJson };
+  } catch (e: unknown) {
+    const code = typeof e === "object" && e !== null && "code" in e ? (e as { code?: string }).code : undefined;
+    if (code === "42P01") return settings;
+    throw e;
+  }
 }
 
 function levenshteinDistance(a: string, b: string): number {
@@ -151,6 +175,11 @@ export interface IStorage {
   getUserSettings(userId: number): Promise<UserSettings | undefined>;
   createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
   updateUserSettings(userId: number, data: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
+  /** Substitui todos os pacotes do usuário na tabela relacional (fonte de verdade). */
+  replaceUserLessonPackages(
+    userId: number,
+    packages: { slug: string; label: string; lessons: number; priceCents: number; sortOrder: number }[],
+  ): Promise<void>;
 
   // Eventos
   createEvent(event: InsertEvent): Promise<Event>;
@@ -314,7 +343,8 @@ export class DatabaseStorage implements IStorage {
     if (!db) return undefined;
     try {
       const [settings] = await db.select().from(userSettings).where(eq(userSettings.userId, userId));
-      return settings;
+      if (!settings) return undefined;
+      return mergeLessonPackagesIntoSettings(settings);
     } catch (error: any) {
       // Fallback para bancos que ainda não receberam a migration de microsoft_tokens.
       if (error?.code === '42703' && String(error?.message || '').includes('microsoft_tokens')) {
@@ -338,7 +368,7 @@ export class DatabaseStorage implements IStorage {
         const row = (legacyResult as any)?.rows?.[0];
         if (!row) return undefined;
 
-        return {
+        return mergeLessonPackagesIntoSettings({
           id: row.id,
           userId: row.user_id,
           notificationsEnabled: row.notifications_enabled,
@@ -350,11 +380,32 @@ export class DatabaseStorage implements IStorage {
           language: row.language,
           timeZone: row.time_zone,
           updatedAt: row.updated_at,
-        } as UserSettings;
+        } as UserSettings);
       }
 
       throw error;
     }
+  }
+
+  async replaceUserLessonPackages(
+    userId: number,
+    packages: { slug: string; label: string; lessons: number; priceCents: number; sortOrder: number }[],
+  ): Promise<void> {
+    if (!db) throw new Error("Database not connected");
+    await db.transaction(async (tx) => {
+      await tx.delete(userLessonPackages).where(eq(userLessonPackages.userId, userId));
+      if (packages.length === 0) return;
+      await tx.insert(userLessonPackages).values(
+        packages.map((p) => ({
+          userId,
+          slug: p.slug,
+          label: p.label,
+          lessons: p.lessons,
+          priceCents: p.priceCents,
+          sortOrder: p.sortOrder,
+        })),
+      );
+    });
   }
 
   async createUserSettings(settings: InsertUserSettings): Promise<UserSettings> {

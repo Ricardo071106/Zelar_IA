@@ -206,6 +206,24 @@ export const userSettings = pgTable("user_settings", {
   lessonPackagesJson: jsonb("lesson_packages_json"),
 });
 
+/** Pacotes de aula persistidos por usuário (slug = id do painel/WhatsApp). */
+export const userLessonPackages = pgTable(
+  "user_lesson_packages",
+  {
+    id: serial("id").primaryKey(),
+    userId: integer("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    slug: varchar("slug", { length: 64 }).notNull(),
+    label: varchar("label", { length: 256 }).notNull(),
+    lessons: integer("lessons").notNull(),
+    priceCents: integer("price_cents").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+    updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  },
+  (t) => [uniqueIndex("user_lesson_packages_user_slug_unique").on(t.userId, t.slug)],
+);
+
 export const userSettingsRelations = relations(userSettings, ({ one }) => ({
   user: one(users, {
     fields: [userSettings.userId],

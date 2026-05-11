@@ -78,6 +78,51 @@ function normalizePanelEmail(raw: unknown): string | null {
   return t;
 }
 
+type PanelLessonPackageRow = {
+  slug: string;
+  label: string;
+  lessons: number;
+  priceCents: number;
+  sortOrder: number;
+};
+
+/** Valida o mesmo formato enviado pelo painel (id, label, lessons, priceCents). */
+function normalizePanelLessonPackages(raw: unknown[] | null): PanelLessonPackageRow[] {
+  if (raw == null || raw.length === 0) return [];
+  const used = new Set<string>();
+  const out: PanelLessonPackageRow[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const o = raw[i] as Record<string, unknown>;
+    let slug = typeof o?.id === 'string' ? o.id.trim().slice(0, 64) : '';
+    if (!slug) slug = `p${i + 1}`;
+    const base = slug;
+    let n = 0;
+    while (used.has(slug)) {
+      n++;
+      slug = `${base.slice(0, 48)}_${n}`.slice(0, 64);
+    }
+    used.add(slug);
+    const label = typeof o?.label === 'string' ? o.label.trim().slice(0, 256) : 'Pacote';
+    const lessonsRaw = o?.lessons;
+    const lessons =
+      typeof lessonsRaw === 'number' && Number.isFinite(lessonsRaw)
+        ? lessonsRaw
+        : parseInt(String(lessonsRaw ?? '').trim(), 10);
+    if (!Number.isFinite(lessons) || lessons < 1 || lessons > 999) {
+      throw new Error(`Pacote «${label}»: número de aulas inválido`);
+    }
+    let priceCents = 0;
+    if (typeof o?.priceCents === 'number' && Number.isFinite(o.priceCents)) {
+      priceCents = Math.max(0, Math.floor(o.priceCents));
+    }
+    if (priceCents <= 0) {
+      throw new Error(`Pacote «${label}»: preço inválido`);
+    }
+    out.push({ slug, label, lessons, priceCents, sortOrder: i });
+  }
+  return out;
+}
+
 router.post(
   '/auth/login',
   asyncHandler(async (req: Request, res: Response) => {
@@ -618,7 +663,14 @@ router.patch(
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'defaultLessonPriceReais')) {
       const raw = (req.body as { defaultLessonPriceReais?: unknown }).defaultLessonPriceReais;
       if (raw === '' || raw === null || raw === undefined) defaultLessonPriceCents = null;
-      else defaultLessonPriceCents = parseMoneyToCentsFromPanel(raw);
+      else {
+        try {
+          defaultLessonPriceCents = parseMoneyToCentsFromPanel(raw);
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : 'preco da aula invalido';
+          return res.status(400).json({ error: msg });
+        }
+      }
     }
 
     let lessonPackagesJson: unknown | undefined = undefined;
@@ -652,7 +704,25 @@ router.patch(
       pluggyItemId?: string | null;
     } = {};
     if (defaultLessonPriceCents !== undefined) patch.defaultLessonPriceCents = defaultLessonPriceCents;
-    if (lessonPackagesJson !== undefined) patch.lessonPackagesJson = lessonPackagesJson;
+
+    let normalizedPackageRows: PanelLessonPackageRow[] | undefined;
+    if (lessonPackagesJson !== undefined) {
+      try {
+        normalizedPackageRows = normalizePanelLessonPackages(lessonPackagesJson as unknown[] | null);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'lessonPackagesJson invalido';
+        return res.status(400).json({ error: msg });
+      }
+      patch.lessonPackagesJson =
+        normalizedPackageRows.length > 0
+          ? normalizedPackageRows.map((n) => ({
+              id: n.slug,
+              label: n.label,
+              lessons: n.lessons,
+              priceCents: n.priceCents,
+            }))
+          : null;
+    }
     if (pluggyItemId !== undefined) patch.pluggyItemId = pluggyItemId;
 
     if (Object.keys(patch).length === 0) {
@@ -670,6 +740,15 @@ router.patch(
         timeZone: 'America/Sao_Paulo',
         ...patch,
       });
+    }
+
+    if (normalizedPackageRows !== undefined) {
+      try {
+        await storage.replaceUserLessonPackages(ctx.user.id, normalizedPackageRows);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn('[panel] settings/finance: user_lesson_packages nao gravado (continua em user_settings):', msg);
+      }
     }
 
     const next = await storage.getUserSettings(ctx.user.id);
