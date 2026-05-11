@@ -1416,6 +1416,12 @@ class WhatsAppBot {
         }
       }
 
+      let guestRow: UserGuestContactRow | null = null;
+      if (studentContactId) {
+        const allGuests = await storage.listUserGuestContacts(user.id);
+        guestRow = allGuests.find((r) => r.id === studentContactId) ?? null;
+      }
+
       const lessonIdx =
         typeof batchLessonIndex === 'number' && batchLessonIndex > 0 ? batchLessonIndex : null;
       const lessonTot =
@@ -1457,13 +1463,34 @@ class WhatsAppBot {
       const packGroupId =
         lessonTot != null && lessonTot > 1 && batchCtx?.packGroupId ? batchCtx.packGroupId : null;
 
+      const emailsFromRawText = filterPlausibleGuestEmails(extractEmails(calendarText));
+      const emailSeed = [
+        ...new Set(
+          [
+            ...(event.attendees || []),
+            ...emailsFromRawText,
+            ...(guestRow?.canonicalEmail ? [guestRow.canonicalEmail.trim()] : []),
+          ].filter(Boolean),
+        ),
+      ] as string[];
+      const emailsMerged = await applyCanonicalAndFuzzyGuestEmails(user.id, emailSeed);
+
+      const phonesMerged: string[] = [...(((event as any).targetPhones) || [])];
+      if (guestRow?.guestPhoneE164) {
+        const gd = String(guestRow.guestPhoneE164).replace(/\D/g, '');
+        if (gd && !isPlaceholderOrFakePhoneDigits(gd)) {
+          const dup = phonesMerged.some((p) => String(p).replace(/\D/g, '') === gd);
+          if (!dup) phonesMerged.push(gd);
+        }
+      }
+
       const newEvent = await storage.createEvent({
         userId: user.id,
         title: calTitle,
         description: event.description || '',
         startDate: finalStartDate,
-        attendeePhones: (event as any).targetPhones || [], // Salvando telefones identificados
-        attendeeEmails: event.attendees || [], // Salvando emails identificados
+        attendeePhones: phonesMerged,
+        attendeeEmails: emailsMerged,
         rawData: rawPayload,
         packGroupId,
         lessonIndexInPack: lessonIdx,
@@ -1476,16 +1503,7 @@ class WhatsAppBot {
         return;
       }
 
-      // Definir phones e emails para uso abaixo
-      const phones = (event as any).targetPhones;
-      const emails = event.attendees;
-      const emailsFromRawText = filterPlausibleGuestEmails(extractEmails(calendarText));
-      const emailsMerged = await applyCanonicalAndFuzzyGuestEmails(user.id, [
-        ...new Set([...(emails || []), ...emailsFromRawText].filter(Boolean)),
-      ] as string[]);
-      if (emailsMerged.length > 0) {
-        await storage.updateEvent(newEvent.id, { attendeeEmails: emailsMerged });
-      }
+      const phones = phonesMerged;
 
       // (Bloco de responseText original removido - será construído mais abaixo)
 
@@ -1656,7 +1674,7 @@ class WhatsAppBot {
 
       // B) NOTIFICAR CRIADOR (Creator)
       let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
-        `📝 *${event.title}*\n` +
+        `📝 *${newEvent.title}*\n` +
         `📅 ${event.displayDate}\n` +
         `🆔 ID: ${newEvent.id}`;
 
@@ -1734,7 +1752,7 @@ class WhatsAppBot {
             console.log(`📤 Enviando convite para convidado: ${guestJid}`);
             await this.sendMessage(guestJid,
               `📅 *Você foi convidado para um evento!*\n\n` +
-              `📝 *${event.title}*\n` +
+              `📝 *${newEvent.title}*\n` +
               `🗓️ ${event.displayDate}\n\n` +
               `🔔 *Lembretes automáticos:* 3h, 1h e 15min antes.\n\n` +
               `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
@@ -2536,15 +2554,6 @@ class WhatsAppBot {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '');
 
-    const match = normalized.match(
-      /\bproxim(?:os|as)\s+(\d{1,3})\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/
-    );
-    if (!match) return null;
-
-    const occurrences = Number(match[1]);
-    if (!Number.isFinite(occurrences) || occurrences <= 0) return null;
-
-    const weekdayToken = match[2];
     const weekdayMap: Record<string, number> = {
       segunda: 1,
       segundas: 1,
@@ -2562,10 +2571,28 @@ class WhatsAppBot {
       domingos: 7,
     };
 
-    const weekday = weekdayMap[weekdayToken];
-    if (!weekday) return null;
+    const matchNumbered = normalized.match(
+      /\bproxim(?:os|as)\s+(\d{1,3})\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/,
+    );
+    if (matchNumbered) {
+      const occurrences = Number(matchNumbered[1]);
+      if (!Number.isFinite(occurrences) || occurrences <= 0) return null;
+      const weekday = weekdayMap[matchNumbered[2]];
+      if (!weekday) return null;
+      return { occurrences: Math.min(occurrences, 104), weekday };
+    }
 
-    return { occurrences: Math.min(occurrences, 104), weekday };
+    // "pelas próximas quartas feiras" / "próximas quartas" (sem quantidade explícita)
+    const matchBare = normalized.match(
+      /\b(?:pel[oa]s?\s+)?pr[oó]xim(?:os|as)?\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/,
+    );
+    if (matchBare) {
+      const weekday = weekdayMap[matchBare[1]];
+      if (!weekday) return null;
+      return { occurrences: 8, weekday };
+    }
+
+    return null;
   }
 
   private buildRelativeWeekdayDates(
@@ -2631,7 +2658,7 @@ class WhatsAppBot {
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
     const nameMatch = normalizedMsg.match(
-      /\bcom\s+([a-zà-ú]{2,25}(?:\s+[a-zà-ú]{2,25}){0,4})(?:\s+as\b|\s+dia\b|\s+toda\b|\s+nos\b|\s+no\b|\s+na\b|$)/i,
+      /\bcom\s+([a-zà-ú]{2,25}(?:\s+[a-zà-ú]{2,25}){0,4})(?:\s+as\b|\s+dias?\b|\s+dia\b|\s+toda\b|\s+nos\b|\s+no\b|\s+na\b|$)/i,
     );
     let studentContactId: number | null = null;
     let studentDisplayName = '';
@@ -2661,9 +2688,22 @@ class WhatsAppBot {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    const m = normalized.match(/\bpacote\s+([a-z0-9_-]+)\b/);
-    if (!m) return null;
-    const slug = m[1].toLowerCase();
+
+    let slug: string | null = null;
+    const slugPatterns = [
+      /\bpacote\s+de\s+aulas\s+([a-z0-9_-]+)\b/i,
+      /\baulas?\s+do\s+pacote\s+([a-z0-9_-]+)\b/i,
+      /\bpacote\s+([a-z0-9_-]+)\b/i,
+    ];
+    for (const re of slugPatterns) {
+      const m = normalized.match(re);
+      if (!m?.[1]) continue;
+      const candidate = m[1].toLowerCase();
+      if (candidate === 'de' || candidate === 'aulas') continue;
+      slug = candidate;
+      break;
+    }
+    if (!slug) return null;
     for (const row of lessonPackagesJson) {
       if (!row || typeof row !== 'object') continue;
       const r = row as Record<string, unknown>;
@@ -2676,7 +2716,13 @@ class WhatsAppBot {
         .toLowerCase()
         .trim()
         .replace(/\s+/g, '_');
-      if (slug === id || slug === label) {
+      const labelTokens = label.split('_').filter(Boolean);
+      const slugMatches =
+        slug === id ||
+        slug === label ||
+        labelTokens.includes(slug) ||
+        labelTokens[labelTokens.length - 1] === slug;
+      if (slugMatches) {
         const lessons = Number(r.lessons);
         const priceCents = Number(r.priceCents);
         if (!Number.isFinite(lessons) || lessons < 1) continue;
@@ -2792,6 +2838,8 @@ class WhatsAppBot {
 
     let stripped = ascii;
     stripped = stripped.replace(/\b(\d{1,2})\s+aulas?\b/gi, ' ');
+    stripped = stripped.replace(/\bpacote\s+de\s+aulas\s+[a-z0-9_-]+\b/gi, ' ');
+    stripped = stripped.replace(/\baulas?\s+do\s+pacote\s+[a-z0-9_-]+\b/gi, ' ');
     stripped = stripped.replace(/\bpacote\s+[a-z0-9_-]+\b/gi, ' ');
     for (const { re } of dayDefs) {
       stripped = stripped.replace(re, ' ');

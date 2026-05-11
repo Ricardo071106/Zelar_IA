@@ -5,13 +5,13 @@ export type BulkLessonParse =
   | { ok: false };
 
 const DAY_PATTERNS: Array<{ re: RegExp; luxonWeekday: number }> = [
-  { re: /\bsegunda(?:-feira)?\b/i, luxonWeekday: 1 },
-  { re: /\bter[cç]a(?:-feira)?\b/i, luxonWeekday: 2 },
-  { re: /\bquarta(?:-feira)?\b/i, luxonWeekday: 3 },
-  { re: /\bquinta(?:-feira)?\b/i, luxonWeekday: 4 },
-  { re: /\bsexta(?:-feira)?\b/i, luxonWeekday: 5 },
-  { re: /\bs[aá]bado\b/i, luxonWeekday: 6 },
-  { re: /\bdomingo\b/i, luxonWeekday: 7 },
+  { re: /\bsegundas?(?:-feira)?\b/i, luxonWeekday: 1 },
+  { re: /\bter[cç]as?(?:-feira)?\b/i, luxonWeekday: 2 },
+  { re: /\bquartas?(?:-feira)?\b/i, luxonWeekday: 3 },
+  { re: /\bquintas?(?:-feira)?\b/i, luxonWeekday: 4 },
+  { re: /\bsextas?(?:-feira)?\b/i, luxonWeekday: 5 },
+  { re: /\bs[aá]bados?\b/i, luxonWeekday: 6 },
+  { re: /\bdomingos?\b/i, luxonWeekday: 7 },
 ];
 
 function nextWeekdayOccurrence(
@@ -36,7 +36,7 @@ function nextWeekdayOccurrence(
 export function tryParseBulkLessonSchedule(rawText: string, timeZone: string): BulkLessonParse {
   const text = rawText.trim();
   const lower = text.toLowerCase();
-  if (!/(?:^|\b)(?:marque|marcar|agende)\s+aulas?\b/i.test(lower)) {
+  if (!/(?:^|\b)(?:marque|marcar|agende)\b[\s\S]{0,200}?\baulas?\b/i.test(lower)) {
     return { ok: false };
   }
 
