@@ -1,4 +1,5 @@
 import { DateTime } from 'luxon';
+import { extractComGuestNameFromText } from './extractComGuestName';
 
 export type BulkLessonParse =
   | { ok: true; syntheticLines: string[]; summaryLines: string[] }
@@ -40,16 +41,26 @@ export function tryParseBulkLessonSchedule(rawText: string, timeZone: string): B
     return { ok: false };
   }
 
-  const timeMatch = text.match(/(?:às|as|@)\s*(\d{1,2})(?:[:h.](\d{2}))?/i);
-  if (!timeMatch) {
+  // Deixa "pacote X de aulas …" para expandLessonPackFromText / expandMultipleCommitments (N aulas + dias).
+  if (/\bpacote\s+[a-z0-9_-]+\s+de\s+aulas\b/i.test(lower) || /\bpacote\s+de\s+aulas\s+[a-z0-9_-]+\b/i.test(lower)) {
     return { ok: false };
   }
 
-  const hour = Math.min(23, Math.max(0, parseInt(timeMatch[1], 10)));
-  const minute = timeMatch[2] ? Math.min(59, Math.max(0, parseInt(timeMatch[2], 10))) : 0;
+  let lastTimeMatch: RegExpExecArray | null = null;
+  const timeRe = /\b(?:às|as|@)\s*(\d{1,2})(?:[:h.](\d{2}))?/gi;
+  let tm: RegExpExecArray | null;
+  while ((tm = timeRe.exec(text)) !== null) {
+    lastTimeMatch = tm;
+  }
+  if (!lastTimeMatch) {
+    return { ok: false };
+  }
+
+  const hour = Math.min(23, Math.max(0, parseInt(lastTimeMatch[1], 10)));
+  const minute = lastTimeMatch[2] ? Math.min(59, Math.max(0, parseInt(lastTimeMatch[2], 10))) : 0;
 
   const idxAulas = lower.search(/\baulas?\b/);
-  const idxTime = lower.search(/(?:às|as|@)\s*\d/);
+  const idxTime = lastTimeMatch.index;
   if (idxAulas < 0 || idxTime < 0 || idxTime <= idxAulas) {
     return { ok: false };
   }
@@ -65,8 +76,8 @@ export function tryParseBulkLessonSchedule(rawText: string, timeZone: string): B
     return { ok: false };
   }
 
-  const comMatch = text.match(/\bcom\s+([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+)+)\b/i);
-  const guestPhrase = comMatch ? `com ${comMatch[1]!.trim()} ` : '';
+  const guestName = extractComGuestNameFromText(text);
+  const guestPhrase = guestName ? `com ${guestName} ` : '';
 
   const now = DateTime.now().setZone(timeZone);
   const dates: DateTime[] = [];

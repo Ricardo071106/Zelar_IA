@@ -52,6 +52,7 @@ import { randomUUID } from 'crypto';
 import type { UserSettings } from '@shared/schema';
 import { buildLessonCalendarTitle } from '../services/pluggy/lessonTitle';
 import { tryParseBulkLessonSchedule } from './bulkLessonSchedule';
+import { extractComGuestNameFromText } from './extractComGuestName';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -1409,7 +1410,13 @@ class WhatsAppBot {
 
       if (!studentContactId) {
         const tnorm = this.normalizeForComparison(calendarText);
-        const c = await this.findGuestMentionedInText(user.id, tnorm);
+        let c = await this.findGuestMentionedInText(user.id, tnorm);
+        if (!c) {
+          const guessed = extractComGuestNameFromText(calendarText);
+          if (guessed) {
+            c = await storage.findGuestContactByLooseName(user.id, guessed);
+          }
+        }
         if (c) {
           studentContactId = c.id;
           studentDisplayName = this.displayGuestNameFromRow(c);
@@ -2445,9 +2452,9 @@ class WhatsAppBot {
     // Regra absoluta: "as/às + número" sempre é horário.
     const asMatches = [...lower.matchAll(/\b(?:às|as)\s*(\d{1,2})(?::(\d{2}))?\b/g)];
     if (asMatches.length > 0) {
-      const first = asMatches[0];
-      const hour = Number(first[1]);
-      const minute = first[2] ? Number(first[2]) : 0;
+      const pick = asMatches[asMatches.length - 1]!;
+      const hour = Number(pick[1]);
+      const minute = pick[2] ? Number(pick[2]) : 0;
       if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
         return { hour, minute };
       }
@@ -2584,7 +2591,7 @@ class WhatsAppBot {
 
     // "pelas próximas quartas feiras" / "próximas quartas" (sem quantidade explícita)
     const matchBare = normalized.match(
-      /\b(?:pel[oa]s?\s+)?pr[oó]xim(?:os|as)?\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/,
+      /\b(?:pel[oa]s?\s+)?pr[oó]xim(?:a|o|as|os)?\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/,
     );
     if (matchBare) {
       const weekday = weekdayMap[matchBare[1]];
@@ -2657,13 +2664,11 @@ class WhatsAppBot {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    const nameMatch = normalizedMsg.match(
-      /\bcom\s+([a-zà-ú]{2,25}(?:\s+[a-zà-ú]{2,25}){0,4})(?:\s+as\b|\s+dias?\b|\s+dia\b|\s+toda\b|\s+nos\b|\s+no\b|\s+na\b|$)/i,
-    );
+    const rawGuest = extractComGuestNameFromText(calendarText);
     let studentContactId: number | null = null;
     let studentDisplayName = '';
-    if (nameMatch) {
-      const rawName = nameMatch[1].trim();
+    if (rawGuest) {
+      const rawName = rawGuest.trim();
       const contact =
         (await storage.findGuestContactByLooseName(userId, rawName)) ||
         (await this.findGuestMentionedInText(userId, normalizedMsg));
@@ -2691,6 +2696,7 @@ class WhatsAppBot {
 
     let slug: string | null = null;
     const slugPatterns = [
+      /\bpacote\s+([a-z0-9_-]+)\s+de\s+aulas\b/i,
       /\bpacote\s+de\s+aulas\s+([a-z0-9_-]+)\b/i,
       /\baulas?\s+do\s+pacote\s+([a-z0-9_-]+)\b/i,
       /\bpacote\s+([a-z0-9_-]+)\b/i,
@@ -2838,6 +2844,7 @@ class WhatsAppBot {
 
     let stripped = ascii;
     stripped = stripped.replace(/\b(\d{1,2})\s+aulas?\b/gi, ' ');
+    stripped = stripped.replace(/\bpacote\s+[a-z0-9_-]+\s+de\s+aulas\b/gi, ' ');
     stripped = stripped.replace(/\bpacote\s+de\s+aulas\s+[a-z0-9_-]+\b/gi, ' ');
     stripped = stripped.replace(/\baulas?\s+do\s+pacote\s+[a-z0-9_-]+\b/gi, ' ');
     stripped = stripped.replace(/\bpacote\s+[a-z0-9_-]+\b/gi, ' ');
@@ -2845,6 +2852,14 @@ class WhatsAppBot {
       stripped = stripped.replace(re, ' ');
     }
     stripped = stripped.replace(/\bpara\b/gi, ' ').replace(/\s+/g, ' ').trim();
+    stripped = stripped
+      .replace(/\b(?:marque|marcar|agende)\b/gi, ' ')
+      .replace(/\bpel[oa]s?\b/gi, ' ')
+      .replace(/\bpr[oó]xim\w*\b/gi, ' ')
+      .replace(/\b(?:às|as)\s*\d{1,2}(?::\d{2})?\s*(?:h|hrs?)?(?:\s+da\s+(?:manha|manhã|tarde|noite))?\b/gi, ' ')
+      .replace(/\b(?:da|de)\s+(?:manha|manhã|tarde|noite)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
     const title = extractEventTitle(stripped.length ? stripped : text) || 'Aula';
 
     const out: string[] = [];
