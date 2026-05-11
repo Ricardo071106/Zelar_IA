@@ -12,8 +12,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -69,6 +67,28 @@ type GuestRow = {
   notes: string;
 };
 
+type LessonPackageUi = { id: string; label: string; lessons: string; priceReais: string };
+
+function slugifyPackageId(label: string): string {
+  const base = label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_|_$/g, "")
+    .slice(0, 48);
+  return base || "pacote";
+}
+
+function parseReaisInputToCents(raw: string): number | null {
+  const t = raw.trim();
+  if (!t) return null;
+  const normalized = t.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(normalized);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return Math.round(n * 100);
+}
+
 function readPanelToken(): string | null {
   if (typeof window === "undefined") return null;
   const q = new URLSearchParams(window.location.search).get("t");
@@ -104,9 +124,7 @@ export default function UserPanelPage() {
   const [guests, setGuests] = useState<GuestRow[]>([]);
   const [tab, setTab] = useState("config");
   const [lessonPriceReais, setLessonPriceReais] = useState("");
-  const [packagesJsonStr, setPackagesJsonStr] = useState(
-    '[\n  { "id": "basico", "label": "Pacote básico", "lessons": 10, "priceCents": 80000 }\n]',
-  );
+  const [packageRows, setPackageRows] = useState<LessonPackageUi[]>([]);
   const [financeSaving, setFinanceSaving] = useState(false);
   const [pluggyTokenLoading, setPluggyTokenLoading] = useState(false);
   const [pluggyDialogOpen, setPluggyDialogOpen] = useState(false);
@@ -115,12 +133,6 @@ export default function UserPanelPage() {
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
-  const [gStudentType, setGStudentType] = useState("");
-  const [gMonthly, setGMonthly] = useState("");
-  const [gPackage, setGPackage] = useState("");
-  const [gRemaining, setGRemaining] = useState("");
-  const [gFinancial, setGFinancial] = useState("pendente");
-  const [gNotes, setGNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -155,11 +167,32 @@ export default function UserPanelPage() {
         : "",
     );
     if (data.settings.lessonPackagesJson != null) {
-      try {
-        setPackagesJsonStr(JSON.stringify(data.settings.lessonPackagesJson, null, 2));
-      } catch {
-        setPackagesJsonStr(String(data.settings.lessonPackagesJson));
+      const jp = data.settings.lessonPackagesJson;
+      if (Array.isArray(jp) && jp.length > 0) {
+        setPackageRows(
+          jp.map((p: unknown) => {
+            const o = p as Record<string, unknown>;
+            const cents = o?.priceCents;
+            const priceCentsNum = typeof cents === "number" && Number.isFinite(cents) ? cents : null;
+            return {
+              id: typeof o?.id === "string" ? o.id : "",
+              label: typeof o?.label === "string" ? o.label : "",
+              lessons: typeof o?.lessons === "number" ? String(o.lessons) : "",
+              priceReais:
+                priceCentsNum != null
+                  ? (priceCentsNum / 100).toLocaleString("pt-BR", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })
+                  : "",
+            };
+          }),
+        );
+      } else {
+        setPackageRows([]);
       }
+    } else {
+      setPackageRows([]);
     }
   }, [token]);
 
@@ -222,20 +255,37 @@ export default function UserPanelPage() {
 
   const saveFinance = async () => {
     if (!token) return;
-    let parsed: unknown = null;
-    const raw = packagesJsonStr.trim();
-    if (raw) {
-      try {
-        parsed = JSON.parse(raw) as unknown;
-      } catch {
-        toast({ title: "JSON inválido", description: "Ajuste o campo pacotes (JSON).", variant: "destructive" });
+    const rows = packageRows.filter((r) => r.label.trim());
+    for (const r of rows) {
+      const lessons = parseInt(r.lessons.trim(), 10);
+      const cents = parseReaisInputToCents(r.priceReais);
+      if (!Number.isFinite(lessons) || lessons <= 0) {
+        toast({
+          title: "Pacotes",
+          description: `Informe um número de aulas válido em «${r.label.trim() || "pacote"}».`,
+          variant: "destructive",
+        });
         return;
       }
-      if (!Array.isArray(parsed)) {
-        toast({ title: "Pacotes", description: "Use um array JSON.", variant: "destructive" });
+      if (cents == null || cents <= 0) {
+        toast({
+          title: "Pacotes",
+          description: `Informe um preço válido em «${r.label.trim()}».`,
+          variant: "destructive",
+        });
         return;
       }
     }
+    const parsed =
+      rows.length === 0
+        ? null
+        : rows.map((r) => {
+            const lessons = parseInt(r.lessons.trim(), 10);
+            const cents = parseReaisInputToCents(r.priceReais)!;
+            const label = r.label.trim();
+            const id = (r.id.trim() || slugifyPackageId(label)).slice(0, 64);
+            return { id, label, lessons, priceCents: cents };
+          });
     setFinanceSaving(true);
     try {
       const r = await fetch("/api/panel/settings/finance", {
@@ -371,12 +421,6 @@ export default function UserPanelPage() {
     setGName("");
     setGEmail("");
     setGPhone("");
-    setGStudentType("");
-    setGMonthly("");
-    setGPackage("");
-    setGRemaining("");
-    setGFinancial("pendente");
-    setGNotes("");
   };
 
   const saveGuest = async () => {
@@ -401,32 +445,6 @@ export default function UserPanelPage() {
       });
       return;
     }
-    if (gMonthly.trim()) {
-      const normalized = gMonthly.trim().replace(/\./g, "").replace(",", ".");
-      const n = parseFloat(normalized);
-      if (!Number.isFinite(n) || n < 0) {
-        toast({ title: "Valor mensal", description: "Use um valor válido em reais.", variant: "destructive" });
-        return;
-      }
-    }
-    let packageLessonsTotal: number | null | undefined = undefined;
-    let remainingLessons: number | null | undefined = undefined;
-    if (gPackage.trim()) {
-      const n = parseInt(gPackage.trim(), 10);
-      if (Number.isNaN(n)) {
-        toast({ title: "Pacote", description: "Número inválido.", variant: "destructive" });
-        return;
-      }
-      packageLessonsTotal = n;
-    }
-    if (gRemaining.trim()) {
-      const n = parseInt(gRemaining.trim(), 10);
-      if (Number.isNaN(n)) {
-        toast({ title: "Aulas restantes", description: "Número inválido.", variant: "destructive" });
-        return;
-      }
-      remainingLessons = n;
-    }
 
     const payload: Record<string, unknown> = {
       t: token,
@@ -434,15 +452,7 @@ export default function UserPanelPage() {
       email: gEmail.trim(),
       name: nameTrim,
       phone: gPhone.trim(),
-      studentType: gStudentType.trim(),
-      notes: gNotes.trim(),
-      financialStatus: gFinancial,
-      packageLessonsTotal,
-      remainingLessons,
     };
-    if (gMonthly.trim()) {
-      payload.monthlyAmountReais = gMonthly.trim();
-    }
 
     const r = await fetch("/api/panel/guests", {
       method: "POST",
@@ -480,20 +490,19 @@ export default function UserPanelPage() {
     setGName(g.name.startsWith("WhatsApp ") ? "" : g.name);
     setGEmail(g.email);
     setGPhone(g.phone);
-    setGStudentType(g.studentType || "");
-    setGMonthly(
-      g.monthlyAmountCents != null
-        ? (g.monthlyAmountCents / 100).toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })
-        : "",
-    );
-    setGPackage(g.packageLessonsTotal != null ? String(g.packageLessonsTotal) : "");
-    setGRemaining(g.remainingLessons != null ? String(g.remainingLessons) : "");
-    setGFinancial(g.financialStatus || "pendente");
-    setGNotes(g.notes || "");
     window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const updatePackageRow = (idx: number, patch: Partial<LessonPackageUi>) => {
+    setPackageRows((prev) => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)));
+  };
+
+  const addPackageRow = () => {
+    setPackageRows((prev) => [...prev, { id: "", label: "", lessons: "", priceReais: "" }]);
+  };
+
+  const removePackageRow = (idx: number) => {
+    setPackageRows((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const onSpreadsheetPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -716,8 +725,10 @@ export default function UserPanelPage() {
               <CardHeader>
                 <CardTitle className="font-mago text-2xl text-emerald-900">Pluggy &amp; preços de aula</CardTitle>
                 <CardDescription className="text-slate-600">
-                  Conecte o Open Finance para reconhecer PIX por nome do pagador e valor. Configure preço unitário e pacotes
-                  nomeados (ex.: &quot;pacote basico&quot; no WhatsApp). Variáveis: PLUGGY_API_KEY e BASE_URL no servidor.
+                  Conecte o Open Finance (Pluggy) para o sistema reconhecer PIX e créditos com base no <strong>nome do
+                  pagador</strong> e no <strong>valor</strong>, e atualizar o título da aula de «pendente» para «pago».
+                  Aqui você define o preço de referência e os pacotes — status de pagamento no dia a dia vem do banco, não
+                  de campos manuais na aba de alunos.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -736,13 +747,77 @@ export default function UserPanelPage() {
                     placeholder="ex.: 80,00"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700">Pacotes (JSON)</Label>
-                  <Textarea
-                    className={`${inputClass} min-h-[140px] font-mono text-sm`}
-                    value={packagesJsonStr}
-                    onChange={(e) => setPackagesJsonStr(e.target.value)}
-                  />
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-slate-700">Pacotes nomeados</Label>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Crie nomes e preços (ex.: &quot;Pacote básico&quot;, 10 aulas, R$ 800). Use esses nomes no WhatsApp
+                      nas marcações.
+                    </p>
+                  </div>
+                  {packageRows.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-emerald-300/80 bg-emerald-50/50 px-4 py-8 text-center text-sm text-slate-600">
+                      Nenhum pacote ainda. Toque em &quot;Adicionar pacote&quot; para montar sua tabela.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {packageRows.map((row, idx) => (
+                        <div
+                          key={idx}
+                          className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1.2fr)_100px_140px_auto] items-end rounded-2xl border border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/50 p-4 shadow-sm"
+                        >
+                          <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+                            <Label className="text-xs text-slate-600">Nome do pacote</Label>
+                            <Input
+                              className={inputClass}
+                              value={row.label}
+                              onChange={(e) => updatePackageRow(idx, { label: e.target.value })}
+                              placeholder="Ex.: Pacote básico"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600">Aulas</Label>
+                            <Input
+                              className={inputClass}
+                              value={row.lessons}
+                              onChange={(e) => updatePackageRow(idx, { lessons: e.target.value })}
+                              placeholder="10"
+                              inputMode="numeric"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label className="text-xs text-slate-600">Preço total (R$)</Label>
+                            <Input
+                              className={inputClass}
+                              value={row.priceReais}
+                              onChange={(e) => updatePackageRow(idx, { priceReais: e.target.value })}
+                              placeholder="800,00"
+                              inputMode="decimal"
+                            />
+                          </div>
+                          <div className="flex justify-end sm:col-span-2 lg:col-span-1">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-700 hover:bg-red-50 hover:text-red-800"
+                              onClick={() => removePackageRow(idx)}
+                            >
+                              Remover
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full sm:w-auto border-emerald-400 text-emerald-900 hover:bg-emerald-50"
+                    onClick={addPackageRow}
+                  >
+                    + Adicionar pacote
+                  </Button>
                 </div>
                 <div className="flex flex-wrap gap-3">
                   <Button
@@ -807,10 +882,10 @@ export default function UserPanelPage() {
               <CardHeader>
                 <CardTitle className="font-mago text-2xl text-emerald-900">Alunos e clientes</CardTitle>
                 <CardDescription className="text-slate-600">
-                  <strong className="text-emerald-800">Nome completo obrigatório</strong> (nome e sobrenome). Preencha também{" "}
-                  <strong className="text-emerald-800">pelo menos e-mail ou telefone</strong>. A tabela atualiza sozinha.
-                  No WhatsApp você pode perguntar pendências financeiras, aulas de hoje ou quantas aulas faltam — sempre{" "}
-                  <strong>digitando em texto</strong>.
+                  Cadastre apenas <strong className="text-emerald-800">nome completo</strong> e{" "}
+                  <strong className="text-emerald-800">e-mail e/ou telefone</strong>. O status financeiro (pago / pendente)
+                  nas aulas é atualizado pelo <strong className="text-emerald-800">Pluggy</strong> ao detectar o PIX na
+                  conta. No WhatsApp use <span className="font-mono text-emerald-900">/aula</span> para ver a agenda do dia.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -835,8 +910,8 @@ export default function UserPanelPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5">
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-3">
+                <div className="grid gap-4 sm:grid-cols-2 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 p-5">
+                  <div className="space-y-2 sm:col-span-2">
                     <Label className="text-slate-700">Nome completo *</Label>
                     <Input
                       className={inputClass}
@@ -864,69 +939,7 @@ export default function UserPanelPage() {
                       placeholder="opcional se tiver e-mail"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Tipo de aluno</Label>
-                    <Input
-                      className={inputClass}
-                      value={gStudentType}
-                      onChange={(e) => setGStudentType(e.target.value)}
-                      placeholder="ex.: particular, grupo…"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Valor mensal (R$)</Label>
-                    <Input
-                      className={inputClass}
-                      value={gMonthly}
-                      onChange={(e) => setGMonthly(e.target.value)}
-                      placeholder="ex.: 350 ou 1.200,50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Status financeiro</Label>
-                    <Select value={gFinancial} onValueChange={setGFinancial}>
-                      <SelectTrigger className={inputClass}>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent className="bg-white border-emerald-200">
-                        <SelectItem value="pendente">pendente</SelectItem>
-                        <SelectItem value="pago">pago</SelectItem>
-                        <SelectItem value="cancelado">cancelado</SelectItem>
-                        <SelectItem value="reagendado">reagendado</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Aulas no pacote</Label>
-                    <Input
-                      className={inputClass}
-                      value={gPackage}
-                      onChange={(e) => setGPackage(e.target.value)}
-                      placeholder="opcional"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-700">Aulas restantes</Label>
-                    <Input
-                      className={inputClass}
-                      value={gRemaining}
-                      onChange={(e) => setGRemaining(e.target.value)}
-                      placeholder="opcional"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <div className="space-y-2 sm:col-span-2 lg:col-span-3">
-                    <Label className="text-slate-700">Observações</Label>
-                    <Textarea
-                      className={inputClass}
-                      value={gNotes}
-                      onChange={(e) => setGNotes(e.target.value)}
-                      placeholder="Notas internas…"
-                      rows={2}
-                    />
-                  </div>
-                  <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
+                  <div className="sm:col-span-2 flex flex-wrap gap-2">
                     <Button
                       type="button"
                       className="bg-gradient-to-r from-emerald-600 to-green-600 text-white hover:from-emerald-700 hover:to-green-700 font-semibold shadow-md"
@@ -954,17 +967,13 @@ export default function UserPanelPage() {
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Nome</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Telefone</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">E-mail</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Tipo</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">R$ mês</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Status</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Aulas (rest.)</TableHead>
                         <TableHead className="min-w-[140px] font-mago text-emerald-900" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {guests.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
-                          <TableCell colSpan={8} className="text-center text-slate-500 py-10">
+                          <TableCell colSpan={4} className="text-center text-slate-500 py-10">
                             Nenhum aluno ainda. Preencha o formulário acima e toque em &quot;Adicionar aluno&quot;.
                           </TableCell>
                         </TableRow>
@@ -975,21 +984,8 @@ export default function UserPanelPage() {
                             <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap">
                               {g.phone || "—"}
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap max-w-[180px] truncate">
+                            <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap max-w-[220px] truncate">
                               {g.email || "—"}
-                            </TableCell>
-                            <TableCell className="text-sm text-slate-700">{g.studentType || "—"}</TableCell>
-                            <TableCell className="text-sm whitespace-nowrap">
-                              {g.monthlyAmountCents != null
-                                ? (g.monthlyAmountCents / 100).toLocaleString("pt-BR", {
-                                    style: "currency",
-                                    currency: "BRL",
-                                  })
-                                : "—"}
-                            </TableCell>
-                            <TableCell className="text-sm capitalize">{g.financialStatus || "—"}</TableCell>
-                            <TableCell className="text-sm">
-                              {g.remainingLessons != null ? g.remainingLessons : "—"}
                             </TableCell>
                             <TableCell className="space-x-2 whitespace-nowrap">
                               <Button

@@ -51,6 +51,7 @@ import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNor
 import { randomUUID } from 'crypto';
 import type { UserSettings } from '@shared/schema';
 import { buildLessonCalendarTitle } from '../services/pluggy/lessonTitle';
+import { tryParseBulkLessonSchedule } from './bulkLessonSchedule';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -873,6 +874,7 @@ class WhatsAppBot {
     runId?: number,
     batchLessonIndex?: number,
     batchLessonTotal?: number,
+    suppressSuccessReply = false,
   ) {
     if (!fromBatch) {
       const nextRunId = (this.activeRunByJid.get(remoteJid) || 0) + 1;
@@ -921,6 +923,8 @@ class WhatsAppBot {
       '/ajuda',
       '/email',
       '/cancelar',
+      '/aula',
+      '/aulas',
     ]);
 
     if (!user.email && !allowedWithoutEmail.has(command)) {
@@ -1122,6 +1126,31 @@ class WhatsAppBot {
       return;
     }
 
+    if (!fromBatch) {
+      const bulk = tryParseBulkLessonSchedule(text.trim(), userTimezone);
+      if (bulk.ok && bulk.syntheticLines.length > 0) {
+        await this.sendMessage(
+          remoteJid,
+          `📅 *Agendando ${bulk.syntheticLines.length} aula(s):*\n${bulk.summaryLines.map((l) => `• ${l}`).join('\n')}`,
+        );
+        for (const line of bulk.syntheticLines) {
+          if (!isRunStillActive()) break;
+          await this.handleMessage(
+            remoteJid,
+            whatsappId,
+            line,
+            msg,
+            true,
+            currentRunId,
+            undefined,
+            undefined,
+            true,
+          );
+        }
+        return;
+      }
+    }
+
     // Áudio/STT: mesmas correções do parser de data (segunda vs segundo, tarde, meses, etc.)
     const calendarText = normalizeTranscriptionForCalendarText(text);
 
@@ -1227,9 +1256,11 @@ class WhatsAppBot {
     // =========================================================================
     // 3. PROCESSAMENTO DE EVENTOS (INTEGRAÇÃO COM CLAUDE)
     // =========================================================================
-    const processingNoticeTimer = setTimeout(() => {
-      void this.sendMessage(remoteJid, "⏳ Processando sua solicitação, já te respondo.");
-    }, 5000);
+    const processingNoticeTimer = suppressSuccessReply
+      ? null
+      : setTimeout(() => {
+          void this.sendMessage(remoteJid, "⏳ Processando sua solicitação, já te respondo.");
+        }, 5000);
 
     try {
       if (!isRunStillActive()) {
@@ -1691,7 +1722,9 @@ class WhatsAppBot {
         responseText += `\n\n✅ *Evento criado*`;
       }
 
-      await this.sendMessage(remoteJid, responseText);
+      if (!suppressSuccessReply) {
+        await this.sendMessage(remoteJid, responseText);
+      }
 
       // Envio para convidados em background para evitar atrasar resposta ao anfitrião.
       if (hasGuestPhones) {
@@ -1721,7 +1754,7 @@ class WhatsAppBot {
       console.error('Erro fatal ao criar evento:', err);
       await this.sendMessage(remoteJid, '❌ Ocorreu um erro interno ao criar seu evento. Tente novamente.');
     } finally {
-      clearTimeout(processingNoticeTimer);
+      if (processingNoticeTimer) clearTimeout(processingNoticeTimer);
     }
   }
 
@@ -1755,6 +1788,7 @@ class WhatsAppBot {
             '🤖 *Central de Ajuda Zelar IA*\n\n' +
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
+            '• `/aula` — Aulas e eventos *de hoje* (no seu fuso)\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
             '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
@@ -1768,9 +1802,33 @@ class WhatsAppBot {
             '🎛️ *Painel web (alunos, calendário, financeiro):*\n' +
             `${this.panelLinkInMessage(user)}\n` +
             '(Use *Entrar* com seu e-mail e senha. Na primeira vez use o link *Criar senha* acima — ele identifica seu WhatsApp e grava o e-mail no painel.)\n\n' +
-            '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!'
+            '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!\n\n' +
+            '📌 *Várias aulas de uma vez:* escreva por exemplo *"marque aulas segunda, terça e quinta às 18"* ou *"marque aulas com João Silva segunda e quarta às 19"*.'
           );
           break;
+
+        case '/aula':
+        case '/aulas': {
+          const panelSettings = await storage.getUserSettings(user.id);
+          const tz = panelSettings?.timeZone || 'America/Sao_Paulo';
+          const start = DateTime.now().setZone(tz).startOf('day');
+          const end = start.plus({ days: 1 });
+          const todayEvents = await storage.getUserEventsBetween(user.id, start.toJSDate(), end.toJSDate());
+          if (todayEvents.length === 0) {
+            await this.sendMessage(
+              remoteJid,
+              `📭 Nenhum evento no Zelar para *hoje* (${start.toFormat('dd/MM/yyyy')}, ${tz}).`,
+            );
+          } else {
+            let msgOut = `📅 *Sua agenda de hoje* (${start.toFormat('dd/MM/yyyy')}):\n\n`;
+            todayEvents.forEach((ev) => {
+              const t = DateTime.fromJSDate(ev.startDate).setZone(tz).toFormat('HH:mm');
+              msgOut += `• *${t}* — ${ev.title}\n`;
+            });
+            await this.sendMessage(remoteJid, msgOut);
+          }
+          break;
+        }
 
         case '/email':
           if (!args) {

@@ -1,0 +1,90 @@
+import { DateTime } from 'luxon';
+
+export type BulkLessonParse =
+  | { ok: true; syntheticLines: string[]; summaryLines: string[] }
+  | { ok: false };
+
+const DAY_PATTERNS: Array<{ re: RegExp; luxonWeekday: number }> = [
+  { re: /\bsegunda(?:-feira)?\b/i, luxonWeekday: 1 },
+  { re: /\bter[cç]a(?:-feira)?\b/i, luxonWeekday: 2 },
+  { re: /\bquarta(?:-feira)?\b/i, luxonWeekday: 3 },
+  { re: /\bquinta(?:-feira)?\b/i, luxonWeekday: 4 },
+  { re: /\bsexta(?:-feira)?\b/i, luxonWeekday: 5 },
+  { re: /\bs[aá]bado\b/i, luxonWeekday: 6 },
+  { re: /\bdomingo\b/i, luxonWeekday: 7 },
+];
+
+function nextWeekdayOccurrence(
+  now: DateTime,
+  weekday: number,
+  hour: number,
+  minute: number,
+): DateTime {
+  for (let add = 0; add < 21; add++) {
+    const candidate = now.plus({ days: add }).set({ hour, minute, second: 0, millisecond: 0 });
+    if (candidate.weekday === weekday && candidate > now) {
+      return candidate;
+    }
+  }
+  return now.plus({ days: 7 }).set({ hour, minute, second: 0, millisecond: 0 });
+}
+
+/**
+ * Detects phrases like "marque aulas segunda terça e quarta às 18" and builds one synthetic
+ * calendar line per next occurrence (same flow as a normal "Aula dia …" message).
+ */
+export function tryParseBulkLessonSchedule(rawText: string, timeZone: string): BulkLessonParse {
+  const text = rawText.trim();
+  const lower = text.toLowerCase();
+  if (!/(?:^|\b)(?:marque|marcar|agende)\s+aulas?\b/i.test(lower)) {
+    return { ok: false };
+  }
+
+  const timeMatch = text.match(/(?:às|as|@)\s*(\d{1,2})(?:[:h.](\d{2}))?/i);
+  if (!timeMatch) {
+    return { ok: false };
+  }
+
+  const hour = Math.min(23, Math.max(0, parseInt(timeMatch[1], 10)));
+  const minute = timeMatch[2] ? Math.min(59, Math.max(0, parseInt(timeMatch[2], 10))) : 0;
+
+  const idxAulas = lower.search(/\baulas?\b/);
+  const idxTime = lower.search(/(?:às|as|@)\s*\d/);
+  if (idxAulas < 0 || idxTime < 0 || idxTime <= idxAulas) {
+    return { ok: false };
+  }
+
+  const middle = text.slice(idxAulas, idxTime);
+  const found = new Set<number>();
+  for (const { re, luxonWeekday } of DAY_PATTERNS) {
+    if (re.test(middle)) {
+      found.add(luxonWeekday);
+    }
+  }
+  if (found.size === 0) {
+    return { ok: false };
+  }
+
+  const comMatch = text.match(/\bcom\s+([A-Za-zÀ-ÿ]+(?:\s+[A-Za-zÀ-ÿ]+)+)\b/i);
+  const guestPhrase = comMatch ? `com ${comMatch[1]!.trim()} ` : '';
+
+  const now = DateTime.now().setZone(timeZone);
+  const dates: DateTime[] = [];
+  for (const wd of found) {
+    dates.push(nextWeekdayOccurrence(now, wd, hour, minute));
+  }
+  dates.sort((a, b) => a.toMillis() - b.toMillis());
+
+  const syntheticLines = dates.map((dt) => {
+    const dayStr = dt.toFormat('dd/MM/yyyy');
+    const hh = String(hour).padStart(2, '0');
+    const mm = String(minute).padStart(2, '0');
+    return `Aula ${guestPhrase}dia ${dayStr} às ${hh}:${mm}`.replace(/\s+/g, ' ').trim();
+  });
+
+  const summaryLines = dates.map((dt) =>
+    dt.setLocale('pt-BR').toFormat("EEEE dd/MM/yyyy 'às' HH:mm"),
+  );
+
+  return { ok: true, syntheticLines, summaryLines };
+}
