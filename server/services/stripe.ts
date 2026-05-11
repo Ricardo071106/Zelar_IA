@@ -12,6 +12,29 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
   apiVersion: '2025-12-15.clover',
 });
 
+function stripeCustomerIdFromSession(session: Stripe.Checkout.Session): string | null {
+  const c = session.customer;
+  if (typeof c === "string" && c.trim()) return c.trim();
+  if (c && typeof c === "object" && "id" in c && typeof (c as { id?: string }).id === "string") {
+    return (c as { id: string }).id;
+  }
+  return null;
+}
+
+function userIdFromCheckoutSession(session: Stripe.Checkout.Session): number | null {
+  const fromRef = session.client_reference_id?.trim();
+  if (fromRef) {
+    const n = parseInt(fromRef, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  const fromMeta = session.metadata?.userId?.trim();
+  if (fromMeta) {
+    const n = parseInt(fromMeta, 10);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 export class StripeService {
 
   async createCheckoutSession(userId: number, email?: string) {
@@ -76,11 +99,17 @@ export class StripeService {
   }
 
   private async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session) {
-    const userId = session.client_reference_id ? parseInt(session.client_reference_id) : null;
-    console.log(`💰 Webhook: Processando checkout.session.completed para userId: ${userId}`);
+    const userId = userIdFromCheckoutSession(session);
+    const customerId = stripeCustomerIdFromSession(session);
+    console.log(`💰 Webhook: Processando checkout.session.completed para userId: ${userId}, customer: ${customerId}`);
 
     if (!userId) {
-      console.error("Warning: webhook received without userId");
+      console.error("Warning: checkout.session.completed sem client_reference_id nem metadata.userId");
+      return;
+    }
+
+    if (!customerId) {
+      console.error("Warning: checkout.session.completed sem customer (assinatura incompleta?)");
       return;
     }
 
@@ -88,7 +117,7 @@ export class StripeService {
       // Update user subscription status
       await storage.updateUserSubscription(userId, {
         status: 'active',
-        stripeCustomerId: session.customer as string,
+        stripeCustomerId: customerId,
         subscriptionEndsAt: null,
       });
       console.log(`✅ Subscription updated to ACTIVE for user ${userId}`);
