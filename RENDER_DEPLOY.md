@@ -39,6 +39,38 @@ This guide explains how to deploy the Zelar IA application to [Render](https://r
     - Click **Create Web Service**.
     - Monitor the build logs. The Dockerfile will install Chrome dependencies automatically.
 
+## Por que a landing “não muda” (análise)
+
+### 1. O site em produção não lê `client/` direto
+
+O fluxo é: **`client/index.html` + React** → **`npm run build` (Vite)** → **`dist/public/`** (HTML + `assets/*.js`). O Express serve **`dist/public`**, não a pasta `client/`.
+
+Se o deploy **não rodar o build** ou usar **imagem/cache antigo**, o navegador continua recebendo o mesmo `dist/public/index.html` de antes.
+
+### 2. `dist/public` não deve ir no Git
+
+Artefato de build no Git tende a “congelar” uma versão velha. A fonte é `client/`; o **Dockerfile** já faz `RUN npm run build` após o `COPY`.
+
+### 3. Cache do `index.html` (SPA)
+
+Rotas que caem no fallback `app.get('*')` também devolvem `index.html`. O servidor aplica **`Cache-Control: no-store`** nesse HTML e `maxAge: 0` nos estáticos para reduzir HTML/SPA preso em cache.
+
+### 4. Conferência nos logs do Render
+
+Ao subir, procure no log:
+
+`[zelar] Frontend estático: .../dist/public | <title> servido: "..."`
+
+Esse `<title>` deve coincidir com o de `client/index.html` do commit deployado. Se ainda for título antigo, o **build da imagem** não incluiu o código novo ou o serviço não foi atualizado.
+
+### 5. Runtime errado no Render
+
+Se o Web Service **não** usar **Docker** (ex.: Node nativo sem `npm run build` no build command), `dist/public` pode não ser gerado. O `render.yaml` deste repo usa **`runtime: docker`**. Confira no painel: **Docker**, branch **`main`**, repositório [Ricardo071106/Zelar_IA](https://github.com/Ricardo071106/Zelar_IA).
+
+### 6. Máquina local: `dist/` velho
+
+Depois de editar `client/`, rode **`npm run build`** para regenerar `dist/public`. Um `npm start` sem build serve HTML antigo; o log do `<title>` ajuda a notar.
+
 ## Landing / front não atualizou após `git push`
 
 1. No [Render Dashboard](https://dashboard.render.com), abra o serviço **zelar-ia** (ou o nome do seu Web Service).

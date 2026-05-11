@@ -1,4 +1,4 @@
-import express, { Express } from 'express';
+import express, { Express, type Response } from 'express';
 import { Server } from 'http';
 import path from 'path';
 import fs from 'fs';
@@ -16,6 +16,13 @@ import pluggyRoutes from './routes/pluggy.routes';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+/** Evita index.html da SPA ficar preso em cache (CDN/navegador) em rotas que não passam só pelo static. */
+function applyNoCacheHtmlHeaders(res: Response): void {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  res.setHeader("Expires", "0");
+}
 
 /**
  * Registra todas as rotas da aplicação de forma modular e padronizada
@@ -60,15 +67,26 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
       `[zelar] ERRO: frontend build não encontrado em ${indexHtml}. ` +
         `Execute "npm run build" antes do start ou verifique o deploy (pasta dist/public).`,
     );
+  } else {
+    try {
+      const head = fs.readFileSync(indexHtml, "utf8").slice(0, 1200);
+      const m = /<title>([^<]*)<\/title>/.exec(head);
+      console.log(
+        `[zelar] Frontend estático: ${frontendPath} | <title> servido: ${m ? JSON.stringify(m[1]) : "(não encontrado)"}`,
+      );
+    } catch {
+      console.warn("[zelar] Não foi possível ler index.html do build para log de diagnóstico.");
+    }
   }
 
   app.use(
     express.static(frontendPath, {
+      etag: true,
+      lastModified: true,
+      maxAge: 0,
       setHeaders(res, filePath) {
         if (path.basename(filePath) === "index.html") {
-          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-          res.setHeader("Pragma", "no-cache");
-          res.setHeader("Expires", "0");
+          applyNoCacheHtmlHeaders(res);
         }
       },
     }),
@@ -80,7 +98,13 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
   // SPA Fallback: Qualquer outra rota retorna o index.html
   // IMPORTANTE: Deve vir DEPOIS de todas as rotas de API
   app.get('*', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
+    applyNoCacheHtmlHeaders(res);
+    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+      if (err) {
+        console.error("[zelar] sendFile index.html:", err);
+        if (!res.headersSent) res.status(500).send("Erro ao carregar interface web.");
+      }
+    });
   });
 
   // =================== ERROR HANDLING ===================
