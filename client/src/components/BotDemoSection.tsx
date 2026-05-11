@@ -40,7 +40,8 @@ export default function BotDemoSection() {
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            Agende pelo WhatsApp com a mesma naturalidade de uma conversa.
+            Marque aulas pelo WhatsApp como se estivesse falando com um assistente — o painel cuida de alunos,
+            preços e calendário.
           </motion.p>
         </div>
 
@@ -67,16 +68,16 @@ export default function BotDemoSection() {
             >
               <h3 className="text-2xl font-bold text-emerald-950 font-mago">No WhatsApp</h3>
               <p className="text-slate-600">
-                O Zelar roda onde você já está. Sem instalar outro app: envie texto ou áudio e receba o evento
-                pronto, com links para Google e Outlook.
+                O Zelar roda onde o professor já está. Envie texto ou áudio com a aula; o compromisso nasce com
+                título, horário e local — e pode ir para o Google ou Microsoft Calendar ligado no painel.
               </p>
 
               <div className="space-y-4">
                 {[
-                  "Eventos com linguagem natural em português",
+                  "Aulas e reagendamentos em português natural",
                   "Lembretes automáticos no WhatsApp",
-                  "Integração com Google Calendar e Microsoft",
-                  "Painel web para e-mail, fuso e lista de convidados",
+                  "Google Calendar e Microsoft (Outlook) no painel",
+                  "Painel com alunos, grupos, preço por aula, pacotes e Pluggy opcional",
                 ].map((feature, index) => (
                   <div key={index} className="flex items-start">
                     <div className="flex-shrink-0 h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center mt-1">
@@ -101,7 +102,7 @@ export default function BotDemoSection() {
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full px-8 py-4 text-lg w-full sm:w-auto"
                 >
                   <a
-                    href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+                    href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center"

@@ -39,7 +39,7 @@ export default function Header() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full px-6 py-2 border-0 shadow-[0_0_24px_rgba(16,185,129,0.25)]"
           >
             <a
-              href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+              href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center"
@@ -69,7 +69,7 @@ export default function Header() {
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full w-full border-0"
           >
             <a
-              href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+              href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
               target="_blank"
               rel="noopener noreferrer"
               onClick={() => setMobileMenuOpen(false)}

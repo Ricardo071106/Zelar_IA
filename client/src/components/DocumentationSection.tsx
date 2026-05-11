@@ -10,8 +10,6 @@ import {
   Copy,
   CheckCircle,
   AlertCircle,
-  Calendar,
-  Clock
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -112,10 +110,10 @@ export default function DocumentationSection() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            Como Usar o Zelar
+            Como usar o Zelar
           </h2>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Aprenda a usar o Zelar para agendar compromissos de forma natural e rápida
+            Exemplos para quem dá aula: marque pelo WhatsApp, ajuste fuso e use o painel para alunos e financeiro.
           </p>
         </div>
 
@@ -139,7 +137,7 @@ export default function DocumentationSection() {
                   Exemplo de Uso
                 </CardTitle>
                 <CardDescription>
-                  Veja como é fácil agendar compromissos com linguagem natural
+                  Exemplo de mensagem para criar uma aula com linguagem natural
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -150,24 +148,28 @@ export default function DocumentationSection() {
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-2">
                             <Badge variant="secondary" className="font-mono text-sm text-white">
-                              marque um almoço com a ordem daqui dois sábados às 13h
+                              marque aula de reforço de matemática com a Ana amanhã às 15h online
                             </Badge>
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => copyToClipboard("marque um almoço com a ordem daqui dois sábados às 13h")}
+                              onClick={() =>
+                                copyToClipboard(
+                                  "marque aula de reforço de matemática com a Ana amanhã às 15h online",
+                                )
+                              }
                               className="h-6 w-6 p-0"
                             >
                               <Copy className="w-3 h-3" />
                             </Button>
                           </div>
                           <p className="text-gray-600 text-sm mb-2">
-                            Agenda um almoço para o segundo sábado a partir de hoje às 13h
+                            Cria uma aula de reforço com a Ana no horário pedido (online).
                           </p>
                           <div className="flex items-center gap-2 text-sm">
                             <CheckCircle className="w-4 h-4 text-green-600" />
                             <span className="text-gray-700 font-medium">
-                              Evento: Almoço com ordem | Data: Sábado (2 semanas) às 13h
+                              Evento: Matemática (reforço) · Ana | Amanhã às 15h · Online
                             </span>
                           </div>
                         </div>
@@ -182,10 +184,10 @@ export default function DocumentationSection() {
                         <h4 className="font-semibold text-blue-900 mb-2">Dicas de Uso</h4>
                         <ul className="text-blue-800 text-sm space-y-1">
                           <li>• O horário padrão é 9h se não especificado</li>
-                          <li>• Use "amanhã", "hoje", ou dias da semana</li>
-                          <li>• Horários podem ser escritos como "15h", "15:00", ou "3pm"</li>
-                          <li>• Expressões como "daqui dois sábados" são suportadas</li>
-                          <li>• O sistema remove automaticamente palavras temporais do título do evento</li>
+                          <li>• Use &quot;amanhã&quot;, &quot;hoje&quot; ou dias da semana</li>
+                          <li>• Horários: &quot;15h&quot;, &quot;15:00&quot; ou &quot;3pm&quot;</li>
+                          <li>• Inclua o nome do aluno para facilitar convites e o painel</li>
+                          <li>• No painel você define preço por aula, pacotes e (opcional) Pluggy</li>
                         </ul>
                       </div>
                     </div>
@@ -215,9 +217,9 @@ export default function DocumentationSection() {
                     <div>
                       <h4 className="font-semibold text-green-900 mb-2">Configuração Automática</h4>
                       <p className="text-green-800 text-sm">
-                        O sistema detecta automaticamente seu fuso horário baseado no idioma do dispositivo. 
-                        Para configurar manualmente, use o comando <code className="bg-green-100 px-1 rounded">/timezone [fuso]</code> 
-                        no WhatsApp.
+                        O fuso padrão costuma ser América/São Paulo. No WhatsApp use{" "}
+                        <code className="bg-green-100 px-1 rounded">/fuso America/Sao_Paulo</code> para alterar. No
+                        painel você também escolhe o fuso ao configurar o perfil.
                       </p>
                     </div>
                   </div>

@@ -1030,14 +1030,20 @@ export default function UserPanelPage() {
           <DialogHeader>
             <DialogTitle className="font-mago text-emerald-950">Pluggy Connect</DialogTitle>
             <DialogDescription className="text-slate-600">
-              Autorize o acesso em modo leitura para sincronizar extratos. Em produção use HTTPS e{" "}
-              <span className="font-mono text-emerald-900">BASE_URL</span> apontando para este servidor (webhook Pluggy).
+              Autorize o acesso em modo leitura. Com sandbox ativo, escolha o conector <strong>Sandbox</strong> na lista
+              e use as credenciais de teste da Pluggy (ex.: usuário <span className="font-mono">user-ok</span>, senha{" "}
+              <span className="font-mono">password-ok</span>, MFA <span className="font-mono">123456</span>). Em
+              produção use HTTPS e <span className="font-mono text-emerald-900">BASE_URL</span> apontando para este
+              servidor (webhook).
             </DialogDescription>
           </DialogHeader>
           {pluggyConnectToken ? (
             <div className="min-h-[420px] w-full">
               <PluggyConnect
                 connectToken={pluggyConnectToken}
+                includeSandbox={
+                  import.meta.env.DEV || import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === "true"
+                }
                 language="pt"
                 theme="light"
                 onSuccess={() => {

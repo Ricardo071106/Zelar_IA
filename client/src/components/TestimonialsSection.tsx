@@ -72,25 +72,25 @@ export default function TestimonialsSection() {
   const testimonials = [
     {
       stars: 5,
-      text: "\"O Zelar transformou completamente como gerencio minha agenda. Basta eu enviar uma mensagem rápida sobre meus compromissos e tudo é organizado automaticamente. Os lembretes salvam minha vida!\"",
+      text: "\"Dou aula particular de violão: marco tudo pelo WhatsApp e o Zelar já manda para o Google Calendar. No painel deixo alunos e preço da aula organizados.\"",
       initials: "MR",
-      name: "Maria Rodrigues",
-      role: "Diretora de Marketing"
+      name: "Marina R.",
+      role: "Professora de música",
     },
     {
       stars: 5,
-      text: "\"Como empresário ocupado, acompanhar reuniões sempre foi um desafio. O Zelar torna isso sem esforço. Falo com ele como falaria com um assistente, e entende o contexto perfeitamente. A integração com calendário é impecável.\"",
+      text: "\"Uso os pacotes nomeados no bot e o painel para lembrar valores. Estamos testando Pluggy para cruzar PIX com aulas pendentes — reduz planilha paralela.\"",
       initials: "JL",
-      name: "João Silva",
-      role: "Empreendedor de Tecnologia"
+      name: "João L.",
+      role: "Professor de reforço escolar",
     },
     {
       stars: 4.5,
-      text: "\"Adoro não precisar de outro app: o Zelar funciona no WhatsApp, onde já falo com o time. A IA entende pedidos confusos e os lembretes me salvam.\"",
+      text: "\"Lembretes no WhatsApp salvam no-show. Não precisei instalar outro app para aluno nem para mim — só conversar e abrir o painel quando preciso.\"",
       initials: "SK",
-      name: "Sarah Costa",
-      role: "Gerente de Projetos"
-    }
+      name: "Sofia K.",
+      role: "Instrutora de idiomas",
+    },
   ];
 
   return (
@@ -105,7 +105,7 @@ export default function TestimonialsSection() {
         >
           <h2 className="text-3xl md:text-4xl font-bold mb-4">O Que Nossos Usuários Dizem</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Junte-se a milhares de usuários satisfeitos que simplificaram seus agendamentos com o Zelar.
+            Relatos de quem usa o Zelar na rotina de aulas e alunos — menos troca de app, mais tempo ensinando.
           </p>
         </motion.div>
         

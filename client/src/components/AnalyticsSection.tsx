@@ -108,7 +108,8 @@ export default function AnalyticsSection() {
             Números reais do Zelar
           </h2>
           <p className="text-lg text-slate-600 max-w-2xl mx-auto">
-            Dados vindos do nosso banco: usuários, eventos e organizadores ativos nos últimos 30 dias.
+            Dados do próprio Zelar: professores e organizadores ativos, aulas registradas e uso de calendário nos
+            últimos 30 dias.
             {loading && <span className="block text-sm text-emerald-700 mt-2">Carregando…</span>}
           </p>
         </motion.div>

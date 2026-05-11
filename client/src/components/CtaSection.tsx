@@ -13,10 +13,10 @@ export default function CtaSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="font-mago text-3xl md:text-4xl font-bold mb-6">Pronto para organizar sua agenda?</h2>
+          <h2 className="font-mago text-3xl md:text-4xl font-bold mb-6">Pronto para organizar suas aulas?</h2>
           <p className="text-xl text-white/90 mb-10 max-w-2xl mx-auto">
-            Fale com o Zelar no WhatsApp e, quando quiser, abra o painel pelo link que enviamos para conectar
-            seu calendário.
+            Fale com o Zelar no WhatsApp e use o painel pelo link que enviamos: calendário, alunos, preços e
+            (se quiser) conciliação com Pluggy — tudo alinhado à rotina de quem ensina.
           </p>
 
           <motion.div whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.98 }}>
@@ -27,7 +27,7 @@ export default function CtaSection() {
               className="bg-white text-emerald-800 hover:bg-emerald-50 font-semibold rounded-full px-8 py-4 text-lg shadow-lg"
             >
               <a
-                href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+                href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center"

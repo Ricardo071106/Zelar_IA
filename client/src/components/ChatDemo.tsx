@@ -26,52 +26,56 @@ export default function ChatDemo({ step }: ChatDemoProps) {
     }
   }, [step]);
 
-  // Demonstração de conversa com o bot
   const chatDemo: ChatMessage[][] = [
-    // Etapa 0: Início
     [
-      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" }
-    ],
-    
-    // Etapa 1: Usuário cria um evento
-    [
-      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
-      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
-      { type: "thinking", text: "Processando..." }
-    ],
-    
-    // Etapa 2: Bot confirma o evento
-    [
-      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
-      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
-      { 
-        type: "bot", 
-        text: "✅ Evento criado com sucesso!\n\nAdicionei o seguinte evento à sua agenda:",
-        title: "Reunião com o cliente",
-        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
-        time: "14:00",
-        description: "Local: Sala de conferências"
-      }
-    ],
-    
-    // Etapa 3: Usuário consulta agenda e bot responde
-    [
-      { type: "bot", text: "👋 Olá! Sou o Zelar, seu assistente de agenda inteligente. Como posso ajudar você hoje?" },
-      { type: "user", text: "Agendar reunião com o cliente amanhã às 14h na sala de conferências" },
-      { 
-        type: "bot", 
-        text: "✅ Evento criado com sucesso!\n\nAdicionei o seguinte evento à sua agenda:",
-        title: "Reunião com o cliente",
-        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
-        time: "14:00",
-        description: "Local: Sala de conferências"
+      {
+        type: "bot",
+        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
       },
-      { type: "user", text: "Quais são meus eventos para amanhã?" },
-      { 
-        type: "bot", 
-        text: "📅 *Seus eventos para amanhã:*\n\n*Reunião com o cliente*\n🕒 14:00\n📍 Sala de conferências\n\nVocê quer receber um lembrete adicional para este evento?"
-      }
-    ]
+    ],
+    [
+      {
+        type: "bot",
+        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+      },
+      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
+      { type: "thinking", text: "Processando..." },
+    ],
+    [
+      {
+        type: "bot",
+        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+      },
+      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
+      {
+        type: "bot",
+        text: "✅ Aula registrada na sua agenda!\n\nResumo:",
+        title: "Violão · Lucas",
+        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
+        time: "10:00",
+        description: "Local: Estúdio",
+      },
+    ],
+    [
+      {
+        type: "bot",
+        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+      },
+      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
+      {
+        type: "bot",
+        text: "✅ Aula registrada na sua agenda!\n\nResumo:",
+        title: "Violão · Lucas",
+        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
+        time: "10:00",
+        description: "Local: Estúdio",
+      },
+      { type: "user", text: "Quais aulas eu tenho amanhã?" },
+      {
+        type: "bot",
+        text: "📅 *Suas aulas para amanhã:*\n\n*Violão · Lucas*\n🕒 10:00\n📍 Estúdio\n\nQuer lembrete no WhatsApp antes da aula?",
+      },
+    ],
   ];
 
   // Pega a conversa atual com base no passo
@@ -85,8 +89,8 @@ export default function ChatDemo({ step }: ChatDemoProps) {
           <span className="text-primary-600 text-lg font-semibold">Z</span>
         </div>
         <div className="ml-3">
-          <h3 className="font-medium">Zelar Assistente</h3>
-          <p className="text-xs text-gray-500">Online</p>
+          <h3 className="font-medium">Zelar</h3>
+          <p className="text-xs text-gray-500">Aulas no WhatsApp</p>
         </div>
       </div>
       

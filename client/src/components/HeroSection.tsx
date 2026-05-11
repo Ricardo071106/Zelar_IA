@@ -14,11 +14,12 @@ export default function HeroSection() {
             transition={{ duration: 0.6 }}
           >
             <h1 className="font-mago text-4xl md:text-5xl font-bold mb-6 leading-tight">
-              Sua agenda inteligente no WhatsApp
+              Aulas organizadas no WhatsApp — com calendário e alunos no painel
             </h1>
             <p className="text-lg md:text-xl mb-8 text-white/90">
-              Agende por mensagem em português, conecte Google ou Microsoft no painel e receba lembretes no
-              WhatsApp — sem app extra.
+              Feito para professores e quem presta serviço por hora: marque aulas em português, sincronize Google ou
+              Microsoft, cadastre alunos e pacotes no painel e receba lembretes no WhatsApp. Opcionalmente, conecte o
+              banco (Pluggy) para apoiar a conferência de pagamentos.
             </p>
             <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
               <Button
@@ -28,7 +29,7 @@ export default function HeroSection() {
                 className="bg-white text-emerald-800 hover:bg-emerald-50 font-semibold rounded-full px-8 py-4 text-lg shadow-lg"
               >
                 <a
-                  href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+                  href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center"
@@ -74,22 +75,22 @@ export default function HeroSection() {
                   <div className="flex-1 p-3 overflow-y-auto">
                     <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
                       <p className="text-sm text-slate-700">
-                        Olá! Sou o Zelar. Diga o que precisa agendar em linguagem natural.
+                        Olá! Sou o Zelar. Diga sua aula em português — data, horário e aluno.
                       </p>
                     </div>
 
                     <div className="bg-emerald-600 rounded-lg p-3 shadow-sm mb-3 ml-auto max-w-[80%]">
                       <p className="text-sm text-white">
-                        Reunião com João amanhã às 15h na sala de conferências
+                        Aula de inglês com a Marina quinta às 19h online
                       </p>
                     </div>
 
                     <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm text-slate-700">Evento criado com sucesso!</p>
+                      <p className="text-sm text-slate-700">Aula registrada na sua agenda!</p>
                       <div className="mt-2 bg-emerald-50 rounded-md p-2">
-                        <p className="text-xs font-medium text-emerald-900">Reunião com João</p>
-                        <p className="text-xs text-slate-600">Amanhã · 15:00</p>
-                        <p className="text-xs text-slate-600">Sala de conferências</p>
+                        <p className="text-xs font-medium text-emerald-900">Inglês · Marina</p>
+                        <p className="text-xs text-slate-600">Quinta · 19:00</p>
+                        <p className="text-xs text-slate-600">Online</p>
                       </div>
                     </div>
 

@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Globe2, Users, Link, Brain, Send } from "lucide-react";
+import { MessageSquare, Globe2, Users, Link, Wallet, Send } from "lucide-react";
 
 interface FeatureCardProps {
   icon: React.ReactNode;
@@ -30,35 +30,40 @@ export default function FeaturesSection() {
   const features = [
     {
       icon: <MessageSquare className="text-primary text-2xl" />,
-      title: "Linguagem natural",
-      description: "Diga frases como ‘agendar revisão com o time amanhã às 15h’ e o Zelar identifica automaticamente título, data e contexto."
+      title: "Aulas em português natural",
+      description:
+        "Diga “aula de violão com o Lucas sábado às 10h” ou use pacotes nomeados no WhatsApp: o Zelar monta o evento na sua agenda.",
     },
     {
       icon: <Globe2 className="text-primary text-2xl" />,
-      title: "Fuso horário inteligente",
-      description: "Cada usuário escolhe seu fuso e o bot converte horários, garantindo agenda consistente para times distribuídos."
+      title: "Fuso horário certo",
+      description:
+        "Você define o fuso no painel ou no bot; horários de aula e lembretes respeitam a região do professor e do compromisso.",
     },
     {
       icon: <Users className="text-primary text-2xl" />,
-      title: "Convites instantâneos",
-      description: "Emails mencionados na conversa são reconhecidos e adicionados como convidados nos links de calendário gerados."
+      title: "Alunos e grupos no painel",
+      description:
+        "Planilha de convidados, grupos para marcar vários alunos de uma vez e dados que acompanham a rotina de aulas — sem planilha solta fora do fluxo.",
     },
     {
       icon: <Link className="text-primary text-2xl" />,
-      title: "Links para calendários",
-      description: "Receba links prontos para Google Calendar e Outlook com horário, descrição e participantes já preenchidos."
+      title: "Google e Microsoft Calendar",
+      description:
+        "Conecte o calendário no painel: as aulas criadas pelo WhatsApp podem ir para a mesma agenda que você já usa com alunos.",
     },
     {
-      icon: <Brain className="text-primary text-2xl" />,
-      title: "Aprendizado contínuo",
-      description: "O Zelar aprende padrões recorrentes e acelera os próximos agendamentos, sem depender de palavras-chave rígidas."
+      icon: <Wallet className="text-primary text-2xl" />,
+      title: "Preços, pacotes e Pluggy (opcional)",
+      description:
+        "Defina valor por aula e pacotes no painel. Com Pluggy (Open Finance), o sistema pode usar movimentações da conta para apoiar a marcação de aulas como pagas, conforme as regras configuradas.",
     },
     {
       icon: <Send className="text-primary text-2xl" />,
-      title: "Direto no WhatsApp",
+      title: "Lembretes no WhatsApp",
       description:
-        "Sem app extra: crie, liste ou ajuste eventos na conversa com o bot. O painel web complementa com calendário e convidados.",
-    }
+        "Sem outro app para o professor: criar, listar e ajustar aulas na conversa, com lembretes enviados pelo próprio WhatsApp.",
+    },
   ];
 
   return (
@@ -71,9 +76,10 @@ export default function FeaturesSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Por Que Escolher o Zelar</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Feito para quem dá aula</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            O Zelar une IA e WhatsApp para você agendar sem fricção — com o visual e a calma do nosso painel.
+            O Zelar une WhatsApp, calendário e painel do organizador: menos troca de app, mais clareza para você e
+            para o aluno.
           </p>
         </motion.div>
         

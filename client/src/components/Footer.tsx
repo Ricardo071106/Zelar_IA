@@ -13,8 +13,8 @@ export default function Footer() {
           <div className="md:col-span-2">
             <h3 className="font-mago text-2xl font-bold mb-4 text-emerald-100">Zelar</h3>
             <p className="text-emerald-100/80 mb-6 max-w-md leading-relaxed">
-              Assistente de agenda com IA no WhatsApp. Conecte seu calendário pelo painel e organize
-              compromissos por mensagem.
+              Assistente para professores e autônomos: aulas pelo WhatsApp, calendário Google ou Microsoft, painel
+              com alunos e preços — e Pluggy opcional para apoiar a conferência de recebimentos.
             </p>
             <Button
               asChild
@@ -22,7 +22,7 @@ export default function Footer() {
               className="bg-emerald-500 hover:bg-emerald-400 text-white font-semibold rounded-full px-6 py-2 border-0"
             >
               <a
-                href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20gostaria%20de%20usar%20o%20Zelar%20para%20agendar%20meus%20compromissos"
+                href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center"
@@ -36,10 +36,10 @@ export default function Footer() {
           <div>
             <h4 className="text-lg font-semibold mb-4 text-emerald-100">Recursos</h4>
             <ul className="space-y-2 text-emerald-100/75">
-              <li>Linguagem natural</li>
+              <li>Aulas em linguagem natural</li>
               <li>Google e Microsoft Calendar</li>
-              <li>Lembretes no WhatsApp</li>
-              <li>Painel do organizador</li>
+              <li>Alunos, grupos e pacotes no painel</li>
+              <li>Pluggy (Open Finance) opcional</li>
             </ul>
           </div>
 

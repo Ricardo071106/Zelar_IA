@@ -9,23 +9,27 @@ export default function HowItWorksSection() {
   const steps = [
     {
       number: 1,
-      title: "Envie sua Mensagem",
-      description: "Digite uma mensagem natural em português sobre o que você quer agendar, como 'reunião amanhã às 15h'.",
+      title: "Fale a aula no WhatsApp",
+      description:
+        "Em português, diga disciplina, aluno, dia e horário — por exemplo: “matemática com o Pedro amanhã às 16h online”.",
     },
     {
       number: 2,
-      title: "Processamento com IA",
-      description: "O Zelar usa tecnologia OpenRouter para entender sua mensagem e extrair detalhes do evento automaticamente.",
+      title: "Interpretação inteligente",
+      description:
+        "O Zelar entende o texto (e pode usar IA quando preciso) para montar o compromisso na sua agenda com título e horário coerentes.",
     },
     {
       number: 3,
-      title: "Links para Calendário",
-      description: "Receba links diretos para adicionar o evento ao Google Calendar, Outlook ou Apple Calendar com um clique.",
+      title: "Calendário conectado",
+      description:
+        "Com Google ou Microsoft ligados no painel, a aula pode aparecer na mesma agenda que você já compartilha com alunos.",
     },
     {
       number: 4,
-      title: "Gerencie Eventos",
-      description: "Visualize seus eventos dizendo 'mostrar eventos' ou cancele dizendo 'cancelar reunião de amanhã'.",
+      title: "Acompanhe e ajuste",
+      description:
+        "Liste próximas aulas, altere horários ou cancele pela conversa; no painel você complementa alunos, preços, pacotes e Pluggy se quiser conciliar recebimentos.",
     },
   ];
 
@@ -39,9 +43,10 @@ export default function HowItWorksSection() {
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Como o Zelar Funciona</h2>
+          <h2 className="text-3xl md:text-4xl font-bold mb-4">Como o Zelar funciona</h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Agendar nunca foi tão simples - apenas converse com o Zelar como você faria com um assistente pessoal.
+            Um fluxo pensado para professor autônomo ou estúdio pequeno: conversa no WhatsApp, organização no painel e
+            calendário profissional.
           </p>
         </motion.div>
         
@@ -85,8 +90,8 @@ export default function HowItWorksSection() {
                         <span className="text-primary font-bold">Z</span>
                       </div>
                       <div className="ml-3">
-                        <p className="text-white font-medium">Zelar Bot</p>
-                        <p className="text-white text-xs opacity-80">Seu Assistente IA</p>
+                        <p className="text-white font-medium">Zelar</p>
+                        <p className="text-white text-xs opacity-80">Aulas no WhatsApp</p>
                       </div>
                     </div>
                   </div>
@@ -107,9 +112,9 @@ export default function HowItWorksSection() {
                     }`}
                   >
                     {step === 1 && "Mensagem"}
-                    {step === 2 && "Processamento IA"}
-                    {step === 3 && "Links Calendário"}
-                    {step === 4 && "Gerenciar"}
+                    {step === 2 && "Interpretação"}
+                    {step === 3 && "Calendário"}
+                    {step === 4 && "Painel"}
                   </Button>
                 ))}
               </div>
