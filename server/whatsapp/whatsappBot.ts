@@ -45,6 +45,7 @@ import { extractEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtr
 import { extractPhonesFromWrittenAndSpoken, isPlaceholderOrFakePhoneDigits } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from '../services/guestContactAliasService';
 import { resolveGuestEmailsAndPhonesFromGroups } from '../services/guestContactGroupService';
+import { signPanelToken } from '../utils/panelToken';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 import { randomUUID } from 'crypto';
@@ -402,10 +403,23 @@ class WhatsAppBot {
       .trim();
   }
 
-  /** Link público do painel (login). Não envia mais token na URL — o usuário entra com telefone e senha. */
-  private panelLinkInMessage(_user: { id: number; username: string }): string {
+  /** Links do painel: entrar (e-mail+senha) e criar senha com token (identifica o WhatsApp sem pedir número na tela). */
+  private panelLinkInMessage(user: { id: number; username: string }): string {
     const base = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
-    return `${base}/painel/entrar`;
+    const entrar = `${base}/painel/entrar`;
+    try {
+      const tok = signPanelToken(user.id, user.username);
+      const criarSenha = `${base}/painel/registro?t=${encodeURIComponent(tok)}`;
+      return (
+        `🔐 *Entrar:* ${entrar}\n` +
+        `📝 *Criar senha e salvar e-mail (link seguro da sua conta):*\n${criarSenha}`
+      );
+    } catch {
+      return (
+        `🔐 *Entrar:* ${entrar}\n` +
+        `⚠️ Link de criar senha indisponível — configure *PANEL_TOKEN_SECRET* no servidor.`
+      );
+    }
   }
 
   private calculateTitleSimilarity(left: string, right: string): number {
@@ -1753,7 +1767,7 @@ class WhatsAppBot {
             '• `/fuso` - Configura seu fuso horário\n\n' +
             '🎛️ *Painel web (alunos, calendário, financeiro):*\n' +
             `${this.panelLinkInMessage(user)}\n` +
-            '(Faça login com o número do WhatsApp e a senha que você cadastrar na primeira vez.)\n\n' +
+            '(Use *Entrar* com seu e-mail e senha. Na primeira vez use o link *Criar senha* acima — ele identifica seu WhatsApp e grava o e-mail no painel.)\n\n' +
             '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!'
           );
           break;

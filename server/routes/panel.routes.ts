@@ -71,35 +71,34 @@ function parseOptionalInt(raw: unknown): number | null | undefined {
   return n;
 }
 
-/** Mesmo formato do WhatsApp: apenas dígitos, com DDI (ex. 5511999999999). */
-function normalizePanelPhone(raw: unknown): string | null {
+function normalizePanelEmail(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const d = raw.replace(/\D/g, '');
-  if (d.length < 10 || d.length > 15) return null;
-  return d;
+  const t = raw.trim().toLowerCase();
+  if (!t || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return null;
+  return t;
 }
 
 router.post(
   '/auth/login',
   asyncHandler(async (req: Request, res: Response) => {
-    const phone = normalizePanelPhone(req.body?.phone);
+    const email = normalizePanelEmail(req.body?.email);
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
-    if (!phone || !password) {
-      return res.status(400).json({ error: 'Informe telefone (com DDI, só números) e senha.' });
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Informe e-mail e senha.' });
     }
-    const user = await storage.getUserByUsername(phone);
+    const user = await storage.getUserByNormalizedEmail(email);
     if (!user) {
-      return res.status(401).json({ error: 'Telefone ou senha incorretos.', code: 'auth_failed' });
+      return res.status(401).json({ error: 'E-mail ou senha incorretos.', code: 'auth_failed' });
     }
     if (!user.panelPasswordHash) {
       return res.status(403).json({
         error:
-          'Você ainda não definiu uma senha para o painel. Use «Registre-se» abaixo para criar a primeira senha.',
+          'Você ainda não definiu uma senha para o painel. Abra o link «Criar senha» enviado pelo Zelar no WhatsApp.',
         code: 'senha_nao_cadastrada',
       });
     }
     if (!verifyPanelPassword(password, user.panelPasswordHash)) {
-      return res.status(401).json({ error: 'Telefone ou senha incorretos.', code: 'auth_failed' });
+      return res.status(401).json({ error: 'E-mail ou senha incorretos.', code: 'auth_failed' });
     }
     try {
       const token = signPanelToken(user.id, user.username);
@@ -113,31 +112,51 @@ router.post(
 router.post(
   '/auth/register',
   asyncHandler(async (req: Request, res: Response) => {
-    const phone = normalizePanelPhone(req.body?.phone);
+    const email = normalizePanelEmail(req.body?.email);
     const password = typeof req.body?.password === 'string' ? req.body.password : '';
-    if (!phone || !password) {
-      return res.status(400).json({ error: 'Informe telefone (com DDI) e senha.' });
+    const rawT =
+      typeof req.body?.t === 'string' && req.body.t.trim()
+        ? req.body.t.trim()
+        : typeof req.query.t === 'string' && req.query.t
+          ? req.query.t
+          : '';
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Informe e-mail e senha.' });
+    }
+    if (!rawT) {
+      return res.status(400).json({
+        error:
+          'Abra esta página pelo link «Criar senha» enviado pelo Zelar no WhatsApp (o link identifica sua conta).',
+        code: 'token_obrigatorio',
+      });
     }
     const pwdErr = validateNewPanelPassword(password);
     if (pwdErr) {
       return res.status(400).json({ error: pwdErr });
     }
-    const user = await storage.getUserByUsername(phone);
-    if (!user) {
-      return res.status(404).json({
-        error:
-          'Não encontramos uma conta com este número. Envie uma mensagem ao Zelar no WhatsApp primeiro para ativar sua conta.',
-        code: 'usuario_inexistente',
-      });
+    const payload = verifyPanelToken(rawT);
+    if (!payload) {
+      return res.status(401).json({ error: 'Link inválido ou expirado. Peça um novo no WhatsApp.', code: 'token_invalido' });
+    }
+    const user = await storage.getUser(payload.u);
+    if (!user || user.username !== payload.w) {
+      return res.status(401).json({ error: 'Link inválido para esta conta.', code: 'token_invalido' });
     }
     if (user.panelPasswordHash) {
       return res.status(409).json({
-        error: 'Esta conta já possui senha. Use a tela de entrar.',
+        error: 'Esta conta já possui senha. Use a tela de entrar com seu e-mail.',
         code: 'ja_registrado',
       });
     }
+    const busy = await storage.existsOtherUserWithEmail(user.id, email);
+    if (busy) {
+      return res.status(409).json({
+        error: 'Este e-mail já está em uso por outra conta.',
+        code: 'email_em_uso',
+      });
+    }
     const hash = hashPanelPassword(password);
-    await storage.updateUser(user.id, { panelPasswordHash: hash });
+    await storage.updateUser(user.id, { email, panelPasswordHash: hash });
     try {
       const token = signPanelToken(user.id, user.username);
       res.json({ ok: true, token });

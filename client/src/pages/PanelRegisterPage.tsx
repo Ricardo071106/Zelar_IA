@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,15 +18,29 @@ const cardClass =
 const inputClass =
   "border-emerald-200 bg-white text-slate-800 placeholder:text-slate-400 focus-visible:ring-emerald-500/35 focus-visible:border-emerald-400";
 
+function readLinkToken(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("t")?.trim() || "";
+}
+
 export default function PanelRegisterPage() {
   const { toast } = useToast();
-  const [phone, setPhone] = useState("");
+  const linkToken = useMemo(() => readLinkToken(), []);
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [loading, setLoading] = useState(false);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!linkToken) {
+      toast({
+        title: "Link incompleto",
+        description: "Abra esta página pelo link «Criar senha» enviado pelo Zelar no WhatsApp.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (password !== password2) {
       toast({ title: "As senhas não coincidem", variant: "destructive" });
       return;
@@ -36,7 +50,7 @@ export default function PanelRegisterPage() {
       const r = await fetch("/api/panel/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ email: email.trim(), password, t: linkToken }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
@@ -58,6 +72,32 @@ export default function PanelRegisterPage() {
     }
   };
 
+  if (!linkToken) {
+    return (
+      <div className={shellClass}>
+        <div className={`${orbClass} -left-20 top-0 h-72 w-72 bg-emerald-400`} />
+        <div className={`${orbClass} right-0 top-1/3 h-96 w-96 bg-green-400`} />
+        <div className="relative z-10 flex min-h-screen items-center justify-center p-4">
+          <Card className={`${cardClass} w-full max-w-md`}>
+            <CardHeader>
+              <CardTitle className="font-mago text-2xl text-emerald-950">Abra pelo WhatsApp</CardTitle>
+              <CardDescription className="text-slate-600">
+                Para criar sua senha e salvar o e-mail no painel, use o link <strong>Criar senha</strong> que o Zelar envia na conversa (comando{" "}
+                <span className="font-mono text-emerald-900">/ajuda</span> ou mensagem de boas-vindas). Esse link identifica sua conta pelo WhatsApp —
+                você não precisa digitar número.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button asChild className="w-full bg-emerald-700 hover:bg-emerald-800 text-white">
+                <Link href="/painel/entrar">Ir para entrar</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={shellClass}>
       <div className={`${orbClass} -left-20 top-0 h-72 w-72 bg-emerald-400`} />
@@ -68,22 +108,21 @@ export default function PanelRegisterPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="font-mago text-2xl text-emerald-950">Criar senha do painel</CardTitle>
             <CardDescription className="text-slate-600">
-              Disponível para quem já conversou com o Zelar no WhatsApp. Use o mesmo número (com DDI) e defina uma senha com pelo menos 8
-              caracteres.
+              Defina o e-mail que você usará para entrar e uma senha com pelo menos 8 caracteres. Seu número do WhatsApp já foi identificado pelo link
+              enviado pelo bot.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp (DDI + número)</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input
-                  id="phone"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  placeholder="5511999999999"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="voce@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className={inputClass}
                   required
                 />
@@ -119,7 +158,7 @@ export default function PanelRegisterPage() {
                 disabled={loading}
                 className="w-full bg-emerald-700 hover:bg-emerald-800 text-white font-medium"
               >
-                {loading ? "Salvando…" : "Registrar e entrar"}
+                {loading ? "Salvando…" : "Salvar e entrar"}
               </Button>
             </form>
 

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray } from "drizzle-orm";
+import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray, ne } from "drizzle-orm";
 import {
   users,
   type User,
@@ -138,6 +138,10 @@ export interface IStorage {
   getUserByTelegramId(telegramId: string): Promise<User | undefined>;
   getUserByWhatsApp(whatsappId: string): Promise<User | undefined>;
   getUserByStripeId(stripeId: string): Promise<User | undefined>;
+  /** Login do painel por e-mail (comparação case-insensitive). */
+  getUserByNormalizedEmail(normalizedEmail: string): Promise<User | undefined>;
+  /** True se outro usuário já usa este e-mail (painel). */
+  existsOtherUserWithEmail(excludeUserId: number, normalizedEmail: string): Promise<boolean>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: number, data: Partial<InsertUser>): Promise<User | undefined>;
   updateUserSubscription(id: number, data: { status: string; stripeCustomerId?: string; subscriptionEndsAt?: Date | null }): Promise<User | undefined>;
@@ -234,6 +238,30 @@ export class DatabaseStorage implements IStorage {
     if (!db) return undefined;
     const [user] = await db.select().from(users).where(eq(users.stripeCustomerId, stripeId));
     return user;
+  }
+
+  async getUserByNormalizedEmail(normalizedEmail: string): Promise<User | undefined> {
+    if (!db) return undefined;
+    const norm = normalizedEmail.trim().toLowerCase();
+    if (!norm) return undefined;
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(trim(${users.email})) = ${norm}`)
+      .limit(1);
+    return user;
+  }
+
+  async existsOtherUserWithEmail(excludeUserId: number, normalizedEmail: string): Promise<boolean> {
+    if (!db) return false;
+    const norm = normalizedEmail.trim().toLowerCase();
+    if (!norm) return false;
+    const rows = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(and(sql`lower(trim(${users.email})) = ${norm}`, ne(users.id, excludeUserId)))
+      .limit(1);
+    return rows.length > 0;
   }
 
   async createUser(user: InsertUser): Promise<User> {

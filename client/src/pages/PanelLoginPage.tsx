@@ -1,5 +1,4 @@
 import { useState, type FormEvent } from "react";
-import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +19,7 @@ const inputClass =
 
 export default function PanelLoginPage() {
   const { toast } = useToast();
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -31,13 +30,13 @@ export default function PanelLoginPage() {
       const r = await fetch("/api/panel/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phone, password }),
+        body: JSON.stringify({ email: email.trim(), password }),
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         toast({
           title: "Não foi possível entrar",
-          description: j.error || "Verifique telefone e senha.",
+          description: j.error || "Verifique e-mail e senha.",
           variant: "destructive",
         });
         return;
@@ -63,21 +62,20 @@ export default function PanelLoginPage() {
           <CardHeader className="space-y-1">
             <CardTitle className="font-mago text-2xl text-emerald-950">Painel Zelar</CardTitle>
             <CardDescription className="text-slate-600">
-              Entre com o mesmo número do WhatsApp (apenas números, com DDI) e sua senha do painel.
+              Entre com o mesmo e-mail que você usou ao criar a senha pelo link do WhatsApp.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="phone">WhatsApp (DDI + número)</Label>
+                <Label htmlFor="email">E-mail</Label>
                 <Input
-                  id="phone"
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  placeholder="5511999999999"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="voce@email.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className={inputClass}
                   required
                 />
@@ -104,10 +102,8 @@ export default function PanelLoginPage() {
             </form>
 
             <p className="mt-6 text-center text-sm text-slate-600">
-              Primeira vez no painel?{" "}
-              <Link href="/painel/registro" className="font-medium text-emerald-800 underline underline-offset-4 hover:text-emerald-950">
-                Registre-se
-              </Link>
+              Primeira vez? No WhatsApp, use o link <span className="font-medium text-emerald-900">«Criar senha»</span> enviado pelo Zelar (comando{" "}
+              <span className="font-mono">/ajuda</span> mostra os links). Você informa só e-mail e senha; o WhatsApp já identifica sua conta.
             </p>
           </CardContent>
         </Card>

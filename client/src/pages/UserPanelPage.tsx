@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { PluggyConnect } from "react-pluggy-connect";
+
+const PluggyConnect = lazy(async () => {
+  const m = await import("react-pluggy-connect");
+  return { default: m.PluggyConnect };
+});
 
 type PanelMe = {
   user: {
@@ -69,7 +73,8 @@ type GuestRow = {
   notes: string;
 };
 
-function getToken(): string | null {
+function readPanelToken(): string | null {
+  if (typeof window === "undefined") return null;
   const q = new URLSearchParams(window.location.search).get("t");
   return q && q.trim() ? q.trim() : null;
 }
@@ -88,8 +93,14 @@ const inputClass =
 
 export default function UserPanelPage() {
   const { toast } = useToast();
-  const token = useMemo(() => getToken(), []);
+  const [token, setToken] = useState<string | null>(() => readPanelToken());
 
+  useEffect(() => {
+    const sync = () => setToken(readPanelToken());
+    sync();
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
   const [me, setMe] = useState<PanelMe | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
@@ -162,8 +173,8 @@ export default function UserPanelPage() {
   useEffect(() => {
     if (!token) {
       setLoadError(
-        "Para ver o painel, faça login com seu número do WhatsApp e senha. " +
-          "Abra a página de entrada e, na primeira vez, use «Registre-se» para criar a senha.",
+        "Para ver o painel, faça login com seu e-mail e senha em «Entrar». " +
+          "Na primeira vez, use o link «Criar senha» enviado pelo Zelar no WhatsApp — ele identifica sua conta e salva o e-mail.",
       );
       return;
     }
@@ -642,7 +653,7 @@ export default function UserPanelPage() {
                       <SelectValue placeholder="Fuso" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72 bg-white border-emerald-200 text-slate-800">
-                      {me.timezones.map((tz) => (
+                      {(Array.isArray(me.timezones) ? me.timezones : []).map((tz) => (
                         <SelectItem key={tz} value={tz} className="focus:bg-emerald-50">
                           {tz}
                         </SelectItem>
@@ -1025,27 +1036,33 @@ export default function UserPanelPage() {
           </DialogHeader>
           {pluggyConnectToken ? (
             <div className="min-h-[420px] w-full">
-              <PluggyConnect
-                connectToken={pluggyConnectToken}
-                language="pt"
-                theme="light"
-                onSuccess={() => {
-                  toast({
-                    title: "Conta conectada",
-                    description: "O item Pluggy será associado ao seu usuário em instantes.",
-                  });
-                  setPluggyDialogOpen(false);
-                  setPluggyConnectToken(null);
-                  void loadMe();
-                }}
-                onError={(err: { message?: string }) => {
-                  toast({
-                    title: "Pluggy",
-                    description: err?.message || "Erro no widget",
-                    variant: "destructive",
-                  });
-                }}
-              />
+              <Suspense
+                fallback={
+                  <p className="text-sm text-slate-600 py-12 text-center">Carregando conexão com o banco…</p>
+                }
+              >
+                <PluggyConnect
+                  connectToken={pluggyConnectToken}
+                  language="pt"
+                  theme="light"
+                  onSuccess={() => {
+                    toast({
+                      title: "Conta conectada",
+                      description: "O item Pluggy será associado ao seu usuário em instantes.",
+                    });
+                    setPluggyDialogOpen(false);
+                    setPluggyConnectToken(null);
+                    void loadMe();
+                  }}
+                  onError={(err: { message?: string }) => {
+                    toast({
+                      title: "Pluggy",
+                      description: err?.message || "Erro no widget",
+                      variant: "destructive",
+                    });
+                  }}
+                />
+              </Suspense>
             </div>
           ) : null}
         </DialogContent>
