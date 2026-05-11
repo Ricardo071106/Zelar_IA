@@ -122,6 +122,8 @@ export default function UserPanelPage() {
   const [gFinancial, setGFinancial] = useState("pendente");
   const [gNotes, setGNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const panelTokenHeaders = useMemo((): Record<string, string> => {
     if (!token) return {};
