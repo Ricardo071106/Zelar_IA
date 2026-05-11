@@ -10,6 +10,7 @@ import AnalyticsDashboardPage from "@/pages/analytics-dashboard";
 import UserPanelPage from "@/pages/UserPanelPage";
 import PanelLoginPage from "@/pages/PanelLoginPage";
 import PanelRegisterPage from "@/pages/PanelRegisterPage";
+import { AppErrorBoundary } from "@/AppErrorBoundary";
 
 function Router() {
   return (
@@ -30,7 +31,9 @@ function App() {
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
-        <Router />
+        <AppErrorBoundary>
+          <Router />
+        </AppErrorBoundary>
       </TooltipProvider>
     </QueryClientProvider>
   );

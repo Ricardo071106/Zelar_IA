@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-const PluggyConnect = lazy(async () => {
-  const m = await import("react-pluggy-connect");
-  return { default: m.PluggyConnect };
-});
+import { PluggyConnect } from "react-pluggy-connect";
 
 type PanelMe = {
   user: {
@@ -146,7 +142,10 @@ export default function UserPanelPage() {
     const data: PanelMe = await r.json();
     setMe(data);
     setEmail(data.user.email || "");
-    setTimeZone(data.settings.timeZone || "America/Sao_Paulo");
+    const tzOpts = Array.isArray(data.timezones) ? data.timezones : [];
+    const tzRaw = data.settings.timeZone || "America/Sao_Paulo";
+    const tzSafe = tzOpts.includes(tzRaw) ? tzRaw : tzOpts[0] ?? "America/Sao_Paulo";
+    setTimeZone(tzSafe);
     const cents = data.settings.defaultLessonPriceCents;
     setLessonPriceReais(
       cents != null && Number.isFinite(cents)
@@ -653,11 +652,13 @@ export default function UserPanelPage() {
                       <SelectValue placeholder="Fuso" />
                     </SelectTrigger>
                     <SelectContent className="max-h-72 bg-white border-emerald-200 text-slate-800">
-                      {(Array.isArray(me.timezones) ? me.timezones : []).map((tz) => (
-                        <SelectItem key={tz} value={tz} className="focus:bg-emerald-50">
-                          {tz}
-                        </SelectItem>
-                      ))}
+                      {(Array.isArray(me.timezones) && me.timezones.length ? me.timezones : ["America/Sao_Paulo"]).map(
+                        (tz) => (
+                          <SelectItem key={tz} value={tz} className="focus:bg-emerald-50">
+                            {tz}
+                          </SelectItem>
+                        ),
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1036,33 +1037,27 @@ export default function UserPanelPage() {
           </DialogHeader>
           {pluggyConnectToken ? (
             <div className="min-h-[420px] w-full">
-              <Suspense
-                fallback={
-                  <p className="text-sm text-slate-600 py-12 text-center">Carregando conexão com o banco…</p>
-                }
-              >
-                <PluggyConnect
-                  connectToken={pluggyConnectToken}
-                  language="pt"
-                  theme="light"
-                  onSuccess={() => {
-                    toast({
-                      title: "Conta conectada",
-                      description: "O item Pluggy será associado ao seu usuário em instantes.",
-                    });
-                    setPluggyDialogOpen(false);
-                    setPluggyConnectToken(null);
-                    void loadMe();
-                  }}
-                  onError={(err: { message?: string }) => {
-                    toast({
-                      title: "Pluggy",
-                      description: err?.message || "Erro no widget",
-                      variant: "destructive",
-                    });
-                  }}
-                />
-              </Suspense>
+              <PluggyConnect
+                connectToken={pluggyConnectToken}
+                language="pt"
+                theme="light"
+                onSuccess={() => {
+                  toast({
+                    title: "Conta conectada",
+                    description: "O item Pluggy será associado ao seu usuário em instantes.",
+                  });
+                  setPluggyDialogOpen(false);
+                  setPluggyConnectToken(null);
+                  void loadMe();
+                }}
+                onError={(err: { message?: string }) => {
+                  toast({
+                    title: "Pluggy",
+                    description: err?.message || "Erro no widget",
+                    variant: "destructive",
+                  });
+                }}
+              />
             </div>
           ) : null}
         </DialogContent>

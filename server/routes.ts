@@ -1,6 +1,7 @@
 import express, { Express } from 'express';
 import { Server } from 'http';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import healthRoutes from './routes/health.routes';
@@ -52,6 +53,14 @@ export async function registerRoutes(app: Express): Promise<Server | null> {
   // Servir arquivos estáticos do frontend (React/Vite build)
   // Ajuste o caminho '../dist/public' conforme onde a pasta 'dist' é gerada em relação a este arquivo
   const frontendPath = path.join(__dirname, '../dist/public');
+  const indexHtml = path.join(frontendPath, 'index.html');
+
+  if (!fs.existsSync(indexHtml)) {
+    console.error(
+      `[zelar] ERRO: frontend build não encontrado em ${indexHtml}. ` +
+        `Execute "npm run build" antes do start ou verifique o deploy (pasta dist/public).`,
+    );
+  }
 
   app.use(express.static(frontendPath));
 
