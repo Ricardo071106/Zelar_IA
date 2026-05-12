@@ -525,3 +525,65 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
     };
   }
 }
+
+/**
+ * Lista eventos do calendário principal num intervalo [timeMin, timeMax) em ISO UTC.
+ * Usado para agenda do dia inteiro (inclui compromissos já passados hoje).
+ */
+export async function listGoogleEventsInTimeRange(
+  userId: number,
+  timeMinIsoUtc: string,
+  timeMaxIsoUtc: string,
+  maxResults = 250,
+): Promise<{
+  success: boolean;
+  message: string;
+  events?: calendar_v3.Schema$Event[];
+}> {
+  try {
+    const oauth2Client = getOAuth2Client(userId);
+
+    if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+      return {
+        success: false,
+        message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.',
+      };
+    }
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+
+    const response = await calendar.events.list({
+      calendarId: 'primary',
+      timeMin: timeMinIsoUtc,
+      timeMax: timeMaxIsoUtc,
+      maxResults,
+      singleEvents: true,
+      orderBy: 'startTime',
+    });
+
+    const events = response.data.items ?? [];
+
+    log(`${events.length} eventos no intervalo para o usuário ${userId}`, 'google');
+
+    return {
+      success: true,
+      message: `${events.length} eventos encontrados.`,
+      events,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao listar eventos do Google (intervalo): ${errorMessage}`, 'google');
+
+    if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
+      return {
+        success: false,
+        message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.',
+      };
+    }
+
+    return {
+      success: false,
+      message: `Erro ao listar eventos do Google Calendar: ${errorMessage}`,
+    };
+  }
+}

@@ -469,3 +469,66 @@ export async function listUpcomingMicrosoftEvents(userId: number, maxResults = 5
     };
   }
 }
+
+/**
+ * Eventos num intervalo (ideal para "agenda de hoje"). start/end em ISO 8601 (UTC).
+ */
+export async function listMicrosoftCalendarViewInRange(
+  userId: number,
+  startDateTimeIsoUtc: string,
+  endDateTimeIsoUtc: string,
+): Promise<{
+  success: boolean;
+  message: string;
+  events?: any[];
+}> {
+  try {
+    const accessToken = await getValidAccessToken(userId);
+    const query = new URLSearchParams({
+      startDateTime: startDateTimeIsoUtc,
+      endDateTime: endDateTimeIsoUtc,
+      $orderby: 'start/dateTime',
+      $top: '250',
+    });
+
+    const url = `${GRAPH_BASE_URL}/me/calendarView?${query.toString()}`;
+
+    const requestWithToken = async (token: string) =>
+      fetch(url, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Prefer: 'outlook.timezone="UTC"',
+        },
+      });
+
+    let response = await requestWithToken(accessToken);
+    if (response.status === 401) {
+      const refreshedAccessToken = await getValidAccessToken(userId, true);
+      response = await requestWithToken(refreshedAccessToken);
+    }
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      throw new Error(`Falha ao listar calendarView: ${response.status} ${errorData}`);
+    }
+
+    const payload = (await response.json()) as { value?: any[] };
+    const events = payload.value || [];
+
+    log(`${events.length} eventos no calendarView (intervalo)`);
+
+    return {
+      success: true,
+      message: `${events.length} eventos encontrados.`,
+      events,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao listar calendarView Microsoft: ${errorMessage}`);
+    return {
+      success: false,
+      message: `Erro ao listar eventos no Microsoft Calendar: ${errorMessage}`,
+    };
+  }
+}

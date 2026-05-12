@@ -27,12 +27,14 @@ import {
   addEventToGoogleCalendar,
   cancelGoogleCalendarEvent,
   listUpcomingEvents as listGoogleUpcomingEvents,
+  listGoogleEventsInTimeRange,
   setTokens
 } from '../telegram/googleCalendarIntegration';
 import {
   addEventToMicrosoftCalendar,
   cancelMicrosoftCalendarEvent,
   listUpcomingMicrosoftEvents,
+  listMicrosoftCalendarViewInRange,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
@@ -1837,19 +1839,31 @@ class WhatsAppBot {
           const panelSettings = await storage.getUserSettings(user.id);
           const tz = panelSettings?.timeZone || 'America/Sao_Paulo';
           const start = DateTime.now().setZone(tz).startOf('day');
-          const end = start.plus({ days: 1 });
-          const todayEvents = await storage.getUserEventsBetween(user.id, start.toJSDate(), end.toJSDate());
-          if (todayEvents.length === 0) {
+          const { lines, usedCalendar, fallbackNote } = await this.getTodayAgendaLinesForUser(user, tz);
+          if (lines.length === 0) {
+            const hasCalConnection =
+              (panelSettings?.calendarProvider === 'google' && panelSettings?.googleTokens) ||
+              (panelSettings?.calendarProvider === 'microsoft' && panelSettings?.microsoftTokens);
+            const hint = !hasCalConnection
+              ? '\n\n_Conecte o calendário com `/conectar` para ver a mesma agenda do Google ou Microsoft._'
+              : '';
             await this.sendMessage(
               remoteJid,
-              `📭 Nenhum evento no Zelar para *hoje* (${start.toFormat('dd/MM/yyyy')}, ${tz}).`,
+              `📭 Nenhum evento para *hoje* (${start.toFormat('dd/MM/yyyy')}, ${tz}).${hint}`,
             );
           } else {
             let msgOut = `📅 *Sua agenda de hoje* (${start.toFormat('dd/MM/yyyy')}):\n\n`;
-            todayEvents.forEach((ev) => {
-              const t = DateTime.fromJSDate(ev.startDate).setZone(tz).toFormat('HH:mm');
-              msgOut += `• *${t}* — ${ev.title}\n`;
+            lines.forEach((row) => {
+              msgOut += `• *${row.hhmm}* — ${row.title}\n`;
             });
+            if (usedCalendar === 'google') {
+              msgOut += '\n_Fonte: Google Calendar (dia completo no seu fuso)._';
+            } else if (usedCalendar === 'microsoft') {
+              msgOut += '\n_Fonte: Microsoft Calendar (dia completo no seu fuso)._';
+            }
+            if (fallbackNote) {
+              msgOut += `\n⚠️ _${fallbackNote}_`;
+            }
             await this.sendMessage(remoteJid, msgOut);
           }
           break;
@@ -2848,6 +2862,7 @@ class WhatsAppBot {
     stripped = stripped.replace(/\bpacote\s+de\s+aulas\s+[a-z0-9_-]+\b/gi, ' ');
     stripped = stripped.replace(/\baulas?\s+do\s+pacote\s+[a-z0-9_-]+\b/gi, ' ');
     stripped = stripped.replace(/\bpacote\s+[a-z0-9_-]+\b/gi, ' ');
+    stripped = this.stripPortugueseEveryWeekdayFromInstructionText(stripped);
     for (const { re } of dayDefs) {
       stripped = stripped.replace(re, ' ');
     }
@@ -2915,44 +2930,170 @@ class WhatsAppBot {
     return best;
   }
 
+  /** Remove "toda quarta" / "todas as terças" antes de apagar só o nome do dia (evita sobrar "toda" no título do evento). */
+  private stripPortugueseEveryWeekdayFromInstructionText(text: string): string {
+    return text.replace(
+      /\b(?:toda|todas)\s+(?:a\s+)?(?:segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feira)?\b/gi,
+      ' ',
+    );
+  }
+
+  /**
+   * Agenda de hoje: com Google/Microsoft conectados, lista ao vivo no intervalo do dia (reflete exclusões no calendário).
+   * Sem conexão (ou se a API falhar), usa o banco do Zelar.
+   */
+  private async getTodayAgendaLinesForUser(
+    user: { id: number },
+    tz: string,
+  ): Promise<{
+    lines: Array<{ hhmm: string; title: string }>;
+    usedCalendar: 'google' | 'microsoft' | null;
+    fallbackNote: string | null;
+  }> {
+    const settings = await storage.getUserSettings(user.id);
+    const dayStart = DateTime.now().setZone(tz).startOf('day');
+    const dayEndEx = dayStart.plus({ days: 1 });
+    const tMin = dayStart.toUTC().toISO()!;
+    const tMax = dayEndEx.toUTC().toISO()!;
+
+    const tryDb = async (): Promise<Array<{ hhmm: string; title: string; ms: number }>> => {
+      const dbEvents = await storage.getUserEventsBetween(
+        user.id,
+        dayStart.toUTC().toJSDate(),
+        dayEndEx.toUTC().toJSDate(),
+      );
+      const out: Array<{ hhmm: string; title: string; ms: number }> = [];
+      const seen = new Set<string>();
+      for (const e of dbEvents) {
+        const st = DateTime.fromJSDate(new Date(e.startDate)).setZone(tz);
+        if (st < dayStart || st >= dayEndEx) continue;
+        const hhmm = st.toFormat('HH:mm');
+        const key = `${hhmm}_${(e.title || '').toLowerCase()}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({
+          hhmm,
+          title: (e.title as string) || 'Evento',
+          ms: st.toMillis(),
+        });
+      }
+      out.sort((a, b) => a.ms - b.ms);
+      return out;
+    };
+
+    const finalizeDb = async (note: string | null) => {
+      const dbLines = await tryDb();
+      return {
+        lines: dbLines.map(({ hhmm, title }) => ({ hhmm, title })),
+        usedCalendar: null,
+        fallbackNote: note,
+      };
+    };
+
+    if (settings?.calendarProvider === 'google' && settings.googleTokens) {
+      try {
+        setTokens(user.id, JSON.parse(settings.googleTokens));
+        const res = await listGoogleEventsInTimeRange(user.id, tMin, tMax);
+        if (!res.success) {
+          return finalizeDb(
+            'Não foi possível ler o Google Calendar; mostrei o que está salvo no Zelar.',
+          );
+        }
+        const rows: Array<{ hhmm: string; title: string; ms: number }> = [];
+        for (const ev of res.events ?? []) {
+          const startRaw = ev?.start?.dateTime || ev?.start?.date;
+          if (!startRaw) continue;
+          let st: DateTime;
+          if (ev.start?.dateTime) {
+            st = DateTime.fromISO(ev.start.dateTime, { setZone: true }).setZone(tz);
+          } else if (ev.start?.date) {
+            st = DateTime.fromISO(String(ev.start.date), { zone: tz }).startOf('day');
+          } else {
+            continue;
+          }
+          if (st < dayStart || st >= dayEndEx) continue;
+          rows.push({
+            hhmm: st.toFormat('HH:mm'),
+            title: String(ev.summary || 'Evento'),
+            ms: st.toMillis(),
+          });
+        }
+        rows.sort((a, b) => a.ms - b.ms);
+        return {
+          lines: rows.map(({ hhmm, title }) => ({ hhmm, title })),
+          usedCalendar: 'google',
+          fallbackNote: null,
+        };
+      } catch (error) {
+        console.error('getTodayAgendaLinesForUser Google:', error);
+        return finalizeDb(
+          'Não foi possível ler o Google Calendar; mostrei o que está salvo no Zelar.',
+        );
+      }
+    }
+
+    if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
+      try {
+        const res = await listMicrosoftCalendarViewInRange(user.id, tMin, tMax);
+        if (!res.success) {
+          return finalizeDb(
+            'Não foi possível ler o Microsoft Calendar; mostrei o que está salvo no Zelar.',
+          );
+        }
+        const rows: Array<{ hhmm: string; title: string; ms: number }> = [];
+        for (const ev of res.events ?? []) {
+          const startRaw = ev?.start?.dateTime;
+          if (!startRaw) continue;
+          const st = DateTime.fromISO(String(startRaw), { setZone: true }).setZone(tz);
+          if (st < dayStart || st >= dayEndEx) continue;
+          rows.push({
+            hhmm: st.toFormat('HH:mm'),
+            title: String(ev.subject || 'Evento'),
+            ms: st.toMillis(),
+          });
+        }
+        rows.sort((a, b) => a.ms - b.ms);
+        return {
+          lines: rows.map(({ hhmm, title }) => ({ hhmm, title })),
+          usedCalendar: 'microsoft',
+          fallbackNote: null,
+        };
+      } catch (error) {
+        console.error('getTodayAgendaLinesForUser Microsoft:', error);
+        return finalizeDb(
+          'Não foi possível ler o Microsoft Calendar; mostrei o que está salvo no Zelar.',
+        );
+      }
+    }
+
+    const dbOnly = await tryDb();
+    return {
+      lines: dbOnly.map(({ hhmm, title }) => ({ hhmm, title })),
+      usedCalendar: null,
+      fallbackNote: null,
+    };
+  }
+
   private async formatTodayAgendaSummary(user: any, userTimezone: string): Promise<string> {
-    const startLocal = DateTime.now().setZone(userTimezone).startOf('day');
-    const endExclusiveLocal = startLocal.plus({ days: 1 }).startOf('day');
-    const startUtc = startLocal.toUTC().toJSDate();
-    const endUtcExclusive = endExclusiveLocal.toUTC().toJSDate();
-
-    const dbEvents = await storage.getUserEventsBetween(user.id, startUtc, endUtcExclusive);
-    const calendarExternal = await this.getCalendarEventsForDeletion(user);
-
-    type AgendaLine = { title: string; start: DateTime; key: string };
-    const rows: AgendaLine[] = [];
-    const seen = new Set<string>();
-
-    for (const e of dbEvents) {
-      const st = DateTime.fromJSDate(new Date(e.startDate)).setZone(userTimezone);
-      if (st < startLocal || st >= endExclusiveLocal) continue;
-      const hh = st.toFormat('HH:mm');
-      const key = `${hh}_${(e.title || '').toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push({ title: e.title || 'Evento', start: st, key });
+    const { lines, usedCalendar, fallbackNote } = await this.getTodayAgendaLinesForUser(user, userTimezone);
+    if (!lines.length) {
+      let msg = '📅 *Hoje* você não tem aulas ou compromissos registrados na agenda.';
+      if (fallbackNote) {
+        msg += `\n⚠️ _${fallbackNote}_`;
+      }
+      return msg;
     }
-    for (const c of calendarExternal) {
-      const st = DateTime.fromJSDate(new Date(c.startDate)).setZone(userTimezone);
-      if (st < startLocal || st >= endExclusiveLocal) continue;
-      const hh = st.toFormat('HH:mm');
-      const key = `${hh}_${(c.title || '').toLowerCase()}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push({ title: c.title || 'Evento', start: st, key });
+    const body = lines.map((r) => `• *${r.hhmm}* — ${r.title}`).join('\n');
+    let footer = '';
+    if (usedCalendar === 'google') {
+      footer = '\n_Fonte: Google Calendar._';
+    } else if (usedCalendar === 'microsoft') {
+      footer = '\n_Fonte: Microsoft Calendar._';
     }
-
-    rows.sort((a, b) => a.start.toMillis() - b.start.toMillis());
-    if (!rows.length) {
-      return '📅 *Hoje* você não tem aulas ou compromissos registrados na agenda.';
+    if (fallbackNote) {
+      footer += `\n⚠️ _${fallbackNote}_`;
     }
-    const lines = rows.map((r) => `• *${r.start.toFormat('HH:mm')}* — ${r.title}`);
-    return `📅 *Agenda de hoje*\n\n${lines.join('\n')}`;
+    return `📅 *Agenda de hoje*\n\n${body}${footer}`;
   }
 
   private parseBrAmountToCents(raw: string): number | null {
@@ -3115,11 +3256,13 @@ class WhatsAppBot {
       );
 
       if (relativeWeekdayDates.length > 1) {
-        const titleSeed = text
-          .replace(/\bpel[oa]s?\b/gi, ' ')
-          .replace(/\bproxim(?:os|as)\s+\d{1,3}\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
+        const titleSeed = this.stripPortugueseEveryWeekdayFromInstructionText(
+          text
+            .replace(/\bpel[oa]s?\b/gi, ' ')
+            .replace(/\bproxim(?:os|as)\s+\d{1,3}\s+(segundas?|tercas?|quartas?|quintas?|sextas?|sabados?|domingos?)(?:\s+feiras?)?\b/gi, ' ')
+            .replace(/\s+/g, ' ')
+            .trim(),
+        );
         const title = extractEventTitle(titleSeed || text) || 'Compromisso';
 
         const messages = relativeWeekdayDates.map((d) => {
@@ -3159,11 +3302,13 @@ class WhatsAppBot {
     }
 
     if (listedDays.length > 1) {
-      const titleSeed = text
-        .replace(/\bdias?\s+[\d,\se]+(?:\s*(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?)?/gi, ' ')
-        .replace(/\b(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?\b/gi, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const titleSeed = this.stripPortugueseEveryWeekdayFromInstructionText(
+        text
+          .replace(/\bdias?\s+[\d,\se]+(?:\s*(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?)?/gi, ' ')
+          .replace(/\b(?:as|às)\s*\d{1,2}(?::\d{2})?\s*h?\b/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim(),
+      );
       const title = extractEventTitle(titleSeed) || 'Compromisso';
       const messages = listedDays.map((d) => {
         const scheduled = d.set({
