@@ -65,6 +65,8 @@ type GuestRow = {
   monthlyAmountCents: number | null;
   packageLessonsTotal: number | null;
   remainingLessons: number | null;
+  /** Centavos BRL — crédito retido (cancelamento / ajuste); débitos PIX no /buscar podem abater. */
+  lessonBalanceCents: number;
   financialStatus: string;
   notes: string;
 };
@@ -163,6 +165,7 @@ export default function UserPanelPage() {
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
+  const [gBalanceReais, setGBalanceReais] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -479,6 +482,7 @@ export default function UserPanelPage() {
     setGName("");
     setGEmail("");
     setGPhone("");
+    setGBalanceReais("");
   };
 
   const saveGuest = async () => {
@@ -511,6 +515,9 @@ export default function UserPanelPage() {
       name: nameTrim,
       phone: gPhone.trim(),
     };
+    const bal = parseReaisInputToCents(gBalanceReais);
+    if (bal != null) payload.lessonBalanceCents = bal;
+    else if (editingId != null && !gBalanceReais.trim()) payload.lessonBalanceCents = 0;
 
     const r = await fetch("/api/panel/guests", {
       method: "POST",
@@ -548,6 +555,14 @@ export default function UserPanelPage() {
     setGName(g.name.startsWith("WhatsApp ") ? "" : g.name);
     setGEmail(g.email);
     setGPhone(g.phone);
+    setGBalanceReais(
+      g.lessonBalanceCents > 0
+        ? (g.lessonBalanceCents / 100).toLocaleString("pt-BR", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })
+        : "",
+    );
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
@@ -1016,6 +1031,18 @@ export default function UserPanelPage() {
                       placeholder="opcional se tiver e-mail"
                     />
                   </div>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-slate-700">Saldo retido (R$)</Label>
+                    <Input
+                      className={inputClass}
+                      value={gBalanceReais}
+                      onChange={(e) => setGBalanceReais(e.target.value)}
+                      placeholder="0,00 — crédito após cancelar aula ou ajuste manual"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Débitos (PIX enviado) identificados no /buscar com o nome do aluno abatem este saldo.
+                    </p>
+                  </div>
                   <div className="sm:col-span-2 flex flex-wrap gap-2">
                     <Button
                       type="button"
@@ -1044,13 +1071,14 @@ export default function UserPanelPage() {
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Nome</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Telefone</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">E-mail</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Saldo retido</TableHead>
                         <TableHead className="min-w-[140px] font-mago text-emerald-900" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {guests.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
-                          <TableCell colSpan={4} className="text-center text-slate-500 py-10">
+                          <TableCell colSpan={5} className="text-center text-slate-500 py-10">
                             Nenhum aluno ainda. Preencha o formulário acima e toque em &quot;Adicionar aluno&quot;.
                           </TableCell>
                         </TableRow>
@@ -1063,6 +1091,12 @@ export default function UserPanelPage() {
                             </TableCell>
                             <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap max-w-[220px] truncate">
                               {g.email || "—"}
+                            </TableCell>
+                            <TableCell className="text-slate-800 whitespace-nowrap">
+                              {(g.lessonBalanceCents / 100).toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
                             </TableCell>
                             <TableCell className="space-x-2 whitespace-nowrap">
                               <Button

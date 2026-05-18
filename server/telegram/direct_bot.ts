@@ -272,9 +272,14 @@ async function processUpdate(update: TelegramUpdate): Promise<void> {
           }
         }
 
-        // Deletar do banco
+        // Cancelar no banco (marca cancelado; mantém histórico e crédito de saldo quando aplicável)
         await reminderService.deleteEventReminders(eventId);
-        await storage.deleteEvent(eventId);
+        const evFull = await storage.getEvent(eventId);
+        if (evFull && !evFull.cancelledAt) {
+          const { applyLessonBalanceCreditBeforeSoftCancel } = await import('../services/lessonCancellationCredit');
+          await applyLessonBalanceCreditBeforeSoftCancel(dbUser.id, evFull);
+        }
+        await storage.softCancelEvent(eventId);
 
         await sendMessage(chatId,
           `✅ *Evento deletado com sucesso!*\n\n` +

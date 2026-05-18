@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray, ne } from "drizzle-orm";
+import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray, ne, isNull } from "drizzle-orm";
 import {
   users,
   type User,
@@ -79,6 +79,8 @@ export type UserGuestContactRow = {
   packageLessonsTotal: number | null;
   remainingLessons: number | null;
   financialStatus: string;
+  /** Centavos BRL retidos para próximas aulas / ajuste manual. */
+  lessonBalanceCents: number;
   notes: string | null;
 };
 
@@ -103,6 +105,7 @@ export type GuestPanelUpsertData = {
   monthlyAmountCents?: number | null;
   packageLessonsTotal?: number | null;
   remainingLessons?: number | null;
+  lessonBalanceCents?: number | null;
 };
 
 export function pickGuestMvpPatch(data: GuestPanelUpsertData): Partial<(typeof userGuestContacts.$inferInsert)> {
@@ -134,6 +137,11 @@ export function pickGuestMvpPatch(data: GuestPanelUpsertData): Partial<(typeof u
     const v = data.notes;
     patch.notes = v == null || String(v).trim() === "" ? null : String(v).trim();
   }
+  if (Object.prototype.hasOwnProperty.call(data, "lessonBalanceCents") && data.lessonBalanceCents !== undefined) {
+    const v = data.lessonBalanceCents;
+    if (v == null) patch.lessonBalanceCents = 0;
+    else if (typeof v === "number" && Number.isFinite(v)) patch.lessonBalanceCents = Math.max(0, Math.round(v));
+  }
   return patch;
 }
 
@@ -151,6 +159,7 @@ export function mapGuestContactRow(r: typeof userGuestContacts.$inferSelect): Us
     packageLessonsTotal: r.packageLessonsTotal ?? null,
     remainingLessons: r.remainingLessons ?? null,
     financialStatus: r.financialStatus ?? "pendente",
+    lessonBalanceCents: r.lessonBalanceCents ?? 0,
     notes: r.notes ?? null,
   };
 }
@@ -186,8 +195,14 @@ export interface IStorage {
   getEvent(id: number): Promise<Event | undefined>;
   getUserEvents(userId: number): Promise<Event[]>;
   getUpcomingEvents(userId: number, limit?: number): Promise<Event[]>;
+  /** Eventos ativos numa janela ampla (passado + futuro) para apagar por nome no WhatsApp. */
+  getActiveEventsForDeletionWindow(userId: number, limit?: number): Promise<Event[]>;
   updateEvent(eventId: number, data: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(eventId: number): Promise<boolean>;
+  /** Cancelamento lógico: mantém linha, marca cancelled_at, some de listagens. */
+  softCancelEvent(eventId: number): Promise<Event | undefined>;
+  getGuestContactByIdForUser(userId: number, contactId: number): Promise<UserGuestContactRow | undefined>;
+  adjustGuestLessonBalanceCents(userId: number, contactId: number, deltaCents: number): Promise<number>;
 
   // Lembretes
   createReminder(reminder: InsertReminder): Promise<Reminder>;
@@ -463,7 +478,7 @@ export class DatabaseStorage implements IStorage {
     const userEvents = await db
       .select()
       .from(events)
-      .where(eq(events.userId, userId))
+      .where(and(eq(events.userId, userId), isNull(events.cancelledAt)))
       .orderBy(desc(events.startDate));
     return userEvents;
   }
@@ -474,13 +489,24 @@ export class DatabaseStorage implements IStorage {
     const upcomingEvents = await db
       .select()
       .from(events)
-      .where(and(
-        eq(events.userId, userId),
-        gt(events.startDate, now)
-      ))
+      .where(
+        and(eq(events.userId, userId), isNull(events.cancelledAt), gt(events.startDate, now)),
+      )
       .orderBy(events.startDate)
       .limit(limit);
     return upcomingEvents;
+  }
+
+  async getActiveEventsForDeletionWindow(userId: number, limit: number = 500): Promise<Event[]> {
+    if (!db) return [];
+    const from = new Date();
+    from.setDate(from.getDate() - 730);
+    return db
+      .select()
+      .from(events)
+      .where(and(eq(events.userId, userId), isNull(events.cancelledAt), gte(events.startDate, from)))
+      .orderBy(desc(events.startDate))
+      .limit(limit);
   }
 
   async getUserEventsBetween(userId: number, startInclusive: Date, endExclusive: Date): Promise<Event[]> {
@@ -489,7 +515,12 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(events)
       .where(
-        and(eq(events.userId, userId), gte(events.startDate, startInclusive), lt(events.startDate, endExclusive)),
+        and(
+          eq(events.userId, userId),
+          isNull(events.cancelledAt),
+          gte(events.startDate, startInclusive),
+          lt(events.startDate, endExclusive),
+        ),
       )
       .orderBy(asc(events.startDate));
   }
@@ -502,6 +533,39 @@ export class DatabaseStorage implements IStorage {
       .where(eq(events.id, eventId))
       .returning();
     return updatedEvent;
+  }
+
+  async softCancelEvent(eventId: number): Promise<Event | undefined> {
+    if (!db) return undefined;
+    const [updatedEvent] = await db
+      .update(events)
+      .set({ cancelledAt: new Date(), updatedAt: new Date() })
+      .where(eq(events.id, eventId))
+      .returning();
+    return updatedEvent;
+  }
+
+  async getGuestContactByIdForUser(userId: number, contactId: number): Promise<UserGuestContactRow | undefined> {
+    if (!db) return undefined;
+    const [row] = await db
+      .select()
+      .from(userGuestContacts)
+      .where(and(eq(userGuestContacts.id, contactId), eq(userGuestContacts.userId, userId)));
+    return row ? mapGuestContactRow(row) : undefined;
+  }
+
+  async adjustGuestLessonBalanceCents(userId: number, contactId: number, deltaCents: number): Promise<number> {
+    if (!db) throw new Error("Database not connected");
+    const res = await db.execute(sql`
+      UPDATE user_guest_contacts
+      SET lesson_balance_cents = GREATEST(0, COALESCE(lesson_balance_cents, 0) + ${Math.round(deltaCents)}),
+          updated_at = now()
+      WHERE id = ${contactId} AND user_id = ${userId}
+      RETURNING lesson_balance_cents
+    `);
+    const rows = (res as { rows?: { lesson_balance_cents: number }[] }).rows;
+    const v = rows?.[0]?.lesson_balance_cents;
+    return typeof v === "number" && Number.isFinite(v) ? v : 0;
   }
 
   async deleteEvent(eventId: number): Promise<boolean> {
@@ -1098,6 +1162,7 @@ export class DatabaseStorage implements IStorage {
         FROM events
         WHERE user_id = ${userId}
           AND student_contact_id IS NOT NULL
+          AND cancelled_at IS NULL
       `);
       const row = (res as { rows?: { m: Date | string | null }[] }).rows?.[0];
       const m = row?.m;
@@ -1130,6 +1195,7 @@ export class DatabaseStorage implements IStorage {
           eq(events.userId, userId),
           eq(events.studentContactId, studentContactId),
           eq(events.lessonPaymentStatus, "pendente"),
+          isNull(events.cancelledAt),
         ),
       )
       .orderBy(asc(events.startDate));
@@ -1213,6 +1279,7 @@ export class DatabaseStorage implements IStorage {
           eq(events.userId, userId),
           eq(events.studentContactId, contactId),
           eq(events.lessonPaymentStatus, "pago"),
+          isNull(events.cancelledAt),
         ),
       );
     const n = Number(row?.c ?? 0);

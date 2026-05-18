@@ -40,6 +40,8 @@ export const userGuestContacts = pgTable(
     packageLessonsTotal: integer("package_lessons_total"),
     remainingLessons: integer("remaining_lessons"),
     financialStatus: varchar("financial_status", { length: 32 }).notNull().default("pendente"),
+    /** Crédito retido (cancelamento de aula paga sem pendências, ajuste manual). Débito Pluggy pode abater no /buscar. Centavos BRL. */
+    lessonBalanceCents: integer("lesson_balance_cents").notNull().default(0),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -175,6 +177,8 @@ export const events = pgTable("events", {
   studentContactId: integer("student_contact_id").references(() => userGuestContacts.id, {
     onDelete: "set null",
   }),
+  /** Null = ativo; preenchido = cancelado (some do calendário / listagens; mantém histórico). */
+  cancelledAt: timestamp("cancelled_at"),
 });
 
 export const eventRelations = relations(events, ({ one }) => ({
@@ -292,6 +296,7 @@ export const insertEventSchema = createInsertSchema(events).pick({
   lessonTotalInPack: true,
   lessonPaymentStatus: true,
   studentContactId: true,
+  cancelledAt: true,
 });
 
 

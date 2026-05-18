@@ -49,7 +49,8 @@ function fallbackDeleteIntent(message: string): DeleteCommandIntent {
     .replace(/\b(a|o|os|as|um|uma|meu|minha|evento|compromisso|aula|reuniao|reunião)\b/gi, ' ')
     .replace(/\b(amanha|amanhã|hoje|ontem|segunda|terca|terça|quarta|quinta|sexta|sabado|sábado|domingo)\b/gi, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .replace(/\bauals\b/gi, 'aulas');
 
   return {
     isDeleteIntent: true,

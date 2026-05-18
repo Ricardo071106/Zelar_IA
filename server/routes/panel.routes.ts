@@ -388,6 +388,7 @@ router.get(
         monthlyAmountCents: r.monthlyAmountCents ?? null,
         packageLessonsTotal: r.packageLessonsTotal ?? null,
         remainingLessons: r.remainingLessons ?? null,
+        lessonBalanceCents: r.lessonBalanceCents ?? 0,
         financialStatus: r.financialStatus ?? 'pendente',
         notes: r.notes ?? '',
       })),
@@ -442,6 +443,14 @@ router.post(
 
       const packageLessonsTotal = parseOptionalInt((req.body as any)?.packageLessonsTotal);
       const remainingLessons = parseOptionalInt((req.body as any)?.remainingLessons);
+      let lessonBalanceCents: number | null | undefined = undefined;
+      if (Object.prototype.hasOwnProperty.call(req.body || {}, 'lessonBalanceCents')) {
+        const lb = (req.body as any).lessonBalanceCents;
+        if (lb === undefined) lessonBalanceCents = undefined;
+        else if (lb === null || lb === '') lessonBalanceCents = 0;
+        else if (typeof lb === 'number' && Number.isFinite(lb)) lessonBalanceCents = Math.max(0, Math.round(lb));
+        else lessonBalanceCents = Math.max(0, Math.round(parseMoneyToCentsFromPanel(lb) ?? 0));
+      }
 
       const row = await storage.upsertGuestFromPanel(ctx.user.id, {
         id,
@@ -454,6 +463,7 @@ router.post(
         monthlyAmountCents,
         packageLessonsTotal,
         remainingLessons,
+        lessonBalanceCents,
       });
       res.json({
         guest: {
@@ -465,6 +475,7 @@ router.post(
           monthlyAmountCents: row.monthlyAmountCents ?? null,
           packageLessonsTotal: row.packageLessonsTotal ?? null,
           remainingLessons: row.remainingLessons ?? null,
+          lessonBalanceCents: row.lessonBalanceCents ?? 0,
           financialStatus: row.financialStatus ?? 'pendente',
           notes: row.notes ?? '',
         },

@@ -3,7 +3,11 @@ import { storage } from "../../storage";
 import type { UserGuestContactRow } from "../../storage";
 import { pluggyFetchJson } from "./pluggyApi";
 import { buildLessonCalendarTitle } from "./lessonTitle";
-import { extractPayerNameFromPluggyTransaction } from "./pluggyPayerExtract";
+import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTransaction } from "./pluggyPayerExtract";
+import {
+  displayNameFromGuestContact,
+  resolveLessonUnitCentsForAllocation,
+} from "./lessonUnitPrice";
 import { patchGoogleCalendarEventSummary, setTokens } from "../../telegram/googleCalendarIntegration";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 
@@ -90,46 +94,21 @@ export function extractTxPostedAtFromPluggyTx(tx: PluggyTx): Date {
   return new Date();
 }
 
+function debitLooksLikePersonPayout(tx: PluggyTx): boolean {
+  if (tx.paymentData?.receiver?.name?.trim()) return true;
+  const blob = [tx.descriptionRaw, tx.description]
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .join(" ")
+    .toUpperCase();
+  if (!blob.trim()) return false;
+  if (/FATURA|BOLETO|DARF|GPS|FGTS|FOLHA|PAGAMENTO\s+FATURA|ANUIDADE/i.test(blob)) return false;
+  return /PIX\s+ENVIADO|T\.?\s*E\.?\s*D\.?\s|DOC\s|TRANSFERENCIA\s+ENVIADA|TRANSF\s+ENVI/i.test(blob);
+}
+
 function amountToCents(amount: number): number {
   const n = Number(amount);
   if (!Number.isFinite(n)) return 0;
   return Math.round(Math.abs(n) * 100);
-}
-
-function resolveLessonUnitCents(
-  contact: UserGuestContactRow | null,
-  defaultLessonPriceCents: number | null | undefined,
-): number | null {
-  if (
-    contact?.monthlyAmountCents != null &&
-    contact.monthlyAmountCents > 0 &&
-    contact.packageLessonsTotal != null &&
-    contact.packageLessonsTotal > 0
-  ) {
-    return Math.round(contact.monthlyAmountCents / contact.packageLessonsTotal);
-  }
-  if (typeof defaultLessonPriceCents === "number" && defaultLessonPriceCents > 0) {
-    return defaultLessonPriceCents;
-  }
-  if (contact?.monthlyAmountCents != null && contact.monthlyAmountCents > 0) {
-    return contact.monthlyAmountCents;
-  }
-  return null;
-}
-
-/** Prioriza preço implícito do pacote salvo no evento (painel + WhatsApp), senão regra do aluno/padrão. */
-function resolveLessonUnitCentsForAllocation(
-  firstPendingEvent: Event,
-  contact: UserGuestContactRow,
-  defaultLessonPriceCents: number | null | undefined,
-): number | null {
-  const raw = firstPendingEvent.rawData as Record<string, unknown> | null;
-  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
-  const packUnit = z?.packUnitPriceCents;
-  if (typeof packUnit === "number" && Number.isFinite(packUnit) && packUnit > 0) {
-    return Math.round(packUnit);
-  }
-  return resolveLessonUnitCents(contact, defaultLessonPriceCents);
 }
 
 function parseTransactionsPayload(data: unknown): PluggyTx[] {
@@ -196,13 +175,6 @@ export async function processPluggyTransactionsPayload(itemId: string | undefine
 export async function processSinglePluggyTransaction(itemId: string | undefined, tx: PluggyTx): Promise<void> {
   const txId = typeof tx.id === "string" ? tx.id : null;
 
-  if (tx.type !== "CREDIT" || (tx.status && tx.status !== "POSTED")) {
-    return;
-  }
-
-  const amountCents = amountToCents(Number(tx.amount));
-  if (amountCents <= 0) return;
-
   let userId: number | null = itemId ? await storage.findUserIdByPluggyItemId(itemId) : null;
   if (userId == null && itemId) {
     console.warn("[Pluggy] Item sem usuário vinculado:", itemId);
@@ -211,6 +183,34 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   if (userId == null) return;
 
   const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
+
+  if (tx.type === "DEBIT" && (!tx.status || tx.status === "POSTED")) {
+    const amountCents = amountToCents(Number(tx.amount));
+    if (amountCents <= 0) return;
+    if (!debitLooksLikePersonPayout(tx)) return;
+    const globalFirstLessonAt = await storage.getEarliestLessonCreatedAtForUser(userId);
+    if (globalFirstLessonAt && txPostedAt.getTime() < globalFirstLessonAt.getTime()) {
+      return;
+    }
+    const receiverHint = extractReceiverNameFromPluggyTransaction(tx);
+    if (!receiverHint) return;
+    const contact = await storage.findGuestContactByLooseName(userId, receiverHint);
+    if (!contact) return;
+    const dedupeKey = (
+      txId?.trim() ? `debit_bal_${txId.trim()}` : `debit_bal_${userId}_${txPostedAt.getTime()}_${amountCents}`
+    ).slice(0, 128);
+    const inserted = await storage.tryRecordPluggyTransactionOnce(userId, dedupeKey);
+    if (!inserted) return;
+    await storage.adjustGuestLessonBalanceCents(userId, contact.id, -amountCents);
+    return;
+  }
+
+  if (tx.type !== "CREDIT" || (tx.status && tx.status !== "POSTED")) {
+    return;
+  }
+
+  const amountCents = amountToCents(Number(tx.amount));
+  if (amountCents <= 0) return;
 
   const globalFirstLessonAt = await storage.getEarliestLessonCreatedAtForUser(userId);
   if (globalFirstLessonAt && txPostedAt.getTime() < globalFirstLessonAt.getTime()) {
@@ -304,10 +304,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  const displayName =
-    (contact.aliasNames ?? []).filter(Boolean)[0]?.trim() ||
-    contact.canonicalEmail?.split("@")[0] ||
-    "Aluno";
+  const displayName = displayNameFromGuestContact(contact);
 
   const eventsToMark = pending.slice(0, needToMark);
   for (const ev of eventsToMark) {
@@ -321,7 +318,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   );
 }
 
-async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentLabel: string): Promise<void> {
+export async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentLabel: string): Promise<void> {
   const raw = (ev.rawData as Record<string, unknown> | null) || {};
   const zelar = (raw.zelarLesson as Record<string, unknown> | undefined) || {};
   const baseTitle =

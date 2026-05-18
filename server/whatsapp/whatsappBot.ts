@@ -398,13 +398,16 @@ class WhatsAppBot {
   }
 
   private normalizeForComparison(value: string): string {
-    return value
+    let v = value
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^\w\s]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
+    v = v.replace(/\bauals\b/g, 'aula');
+    v = v.replace(/\baulas\b/g, 'aula');
+    return v;
   }
 
   /** Links do painel: entrar (e-mail+senha) e criar senha com token (identifica o WhatsApp sem pedir número na tela). */
@@ -781,7 +784,7 @@ class WhatsAppBot {
     dbStaleCount: number;
   }> {
     const [dbEvents, calendarEvents] = await Promise.all([
-      storage.getUpcomingEvents(user.id, 250),
+      storage.getActiveEventsForDeletionWindow(user.id, 500),
       this.getCalendarEventsForDeletion(user),
     ]);
 
@@ -825,8 +828,13 @@ class WhatsAppBot {
     }
 
     if ((candidate.source === 'both' || candidate.source === 'db_local') && candidate.dbEvent?.id) {
+      const ev = await storage.getEvent(candidate.dbEvent.id);
+      if (ev && !ev.cancelledAt) {
+        const { applyLessonBalanceCreditBeforeSoftCancel } = await import('../services/lessonCancellationCredit');
+        await applyLessonBalanceCreditBeforeSoftCancel(user.id, ev);
+      }
       await reminderService.deleteEventReminders(candidate.dbEvent.id);
-      await storage.deleteEvent(candidate.dbEvent.id);
+      await storage.softCancelEvent(candidate.dbEvent.id);
     }
   }
 
@@ -865,7 +873,12 @@ class WhatsAppBot {
     }
 
     await reminderService.deleteEventReminders(event.id);
-    await storage.deleteEvent(event.id);
+    const full = await storage.getEvent(event.id);
+    if (full && !full.cancelledAt) {
+      const { applyLessonBalanceCreditBeforeSoftCancel } = await import('../services/lessonCancellationCredit');
+      await applyLessonBalanceCreditBeforeSoftCancel(user.id, full);
+    }
+    await storage.softCancelEvent(event.id);
   }
 
   private async handleMessage(
@@ -1156,7 +1169,7 @@ class WhatsAppBot {
     }
 
     // Áudio/STT: mesmas correções do parser de data (segunda vs segundo, tarde, meses, etc.)
-    const calendarText = normalizeTranscriptionForCalendarText(text);
+    const calendarText = normalizeTranscriptionForCalendarText(text).replace(/\bauals\b/gi, 'aulas');
 
     // Segurança extra: só entra no fluxo de apagar se o texto contiver verbo explícito de exclusão.
     const hasDeleteVerb = this.hasExplicitDeleteVerb(calendarText);
@@ -1675,6 +1688,16 @@ class WhatsAppBot {
         }
       }
 
+      if (studentContactId && guestRow) {
+        const { tryConsumeLessonBalanceAfterEventCreated } = await import('../services/lessonCancellationCredit');
+        const refreshed = (await storage.listUserGuestContacts(user.id)).find((r) => r.id === studentContactId);
+        if (refreshed) {
+          await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, refreshed);
+        }
+      }
+
+      const eventForUserMessage = (await storage.getEvent(newEvent.id)) ?? newEvent;
+
       // =================== 4.3. NOTIFICAÇÕES (GUESTS vs CREATOR) ===================
 
       // A) NOTIFICAR CONVIDADOS (Guests)
@@ -1684,7 +1707,7 @@ class WhatsAppBot {
 
       // B) NOTIFICAR CRIADOR (Creator)
       let responseText = `✅ *Evento agendado com sucesso!*\n\n` +
-        `📝 *${newEvent.title}*\n` +
+        `📝 *${eventForUserMessage.title}*\n` +
         `📅 ${event.displayDate}\n` +
         `🆔 ID: ${newEvent.id}`;
 
