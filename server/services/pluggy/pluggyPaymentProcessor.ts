@@ -112,6 +112,87 @@ function amountToCents(amount: number): number {
   return Math.round(Math.abs(n) * 100);
 }
 
+/** Texto normalizado do extrato para buscar nomes da planilha (LGPD: não persistimos o extrato). */
+function buildCreditSearchBlob(tx: PluggyTx): string {
+  const parts: string[] = [];
+  const payer = tx.paymentData?.payer?.name?.trim();
+  if (payer) parts.push(payer);
+  const reason = typeof tx.paymentData?.reason === "string" ? tx.paymentData.reason.trim() : "";
+  if (reason) parts.push(reason);
+  if (typeof tx.description === "string" && tx.description.trim()) parts.push(tx.description);
+  if (typeof tx.descriptionRaw === "string" && tx.descriptionRaw.trim()) parts.push(tx.descriptionRaw);
+  return normalizeAliasKey(parts.join(" "));
+}
+
+/**
+ * Procura cada aluno da planilha: se algum alias aparece no texto do crédito (extrato), devolve o contato.
+ * Evita atribuir PIX só por valor quando há vários alunos.
+ */
+async function findGuestContactByTxMemoAgainstPlanilha(
+  userId: number,
+  tx: PluggyTx,
+): Promise<UserGuestContactRow | null> {
+  const blob = buildCreditSearchBlob(tx);
+  if (!blob || blob.length < 4) return null;
+
+  const sigTokens = (s: string) => s.split(/\s+/).filter((t) => t.length >= 3);
+  const oneStrongToken = (s: string) => {
+    const t = s.split(/\s+/).filter(Boolean);
+    return t.length === 1 && t[0]!.length >= 5;
+  };
+
+  const contacts = await storage.listUserGuestContacts(userId);
+  let best: { row: UserGuestContactRow; score: number } | null = null;
+
+  for (const row of contacts) {
+    for (const alias of row.aliasNames ?? []) {
+      const ak = normalizeAliasKey(alias);
+      if (!ak || ak.length < 2) continue;
+      let score = 0;
+      if (ak === blob) score = 1_000_000 + ak.length;
+      else if (blob.includes(ak) && ak.length >= 6) score = 80_000 + ak.length;
+      else {
+        const tokA = sigTokens(ak);
+        if (tokA.length >= 2 && tokA.every((t) => blob.includes(t))) score = 60_000 + tokA.length * 400;
+        else if (tokA.length === 1 && oneStrongToken(ak) && blob.includes(tokA[0]!)) score = 45_000 + tokA[0]!.length;
+        else if (tokA.length === 0 && ak.length >= 5 && blob.includes(ak)) score = 35_000 + ak.length;
+      }
+      if (score <= 0) continue;
+      if (!best || score > best.score) best = { row, score };
+    }
+  }
+  return best?.row ?? null;
+}
+
+/** Cruza o memo do extrato com "Aula com …" das aulas pendentes (sem depender do parser de pagador). */
+async function tryResolveContactFromPendingLessonMemo(
+  userId: number,
+  memoBlob: string,
+): Promise<UserGuestContactRow | null> {
+  if (!memoBlob || memoBlob.length < 5) return null;
+  const contacts = await storage.listUserGuestContacts(userId);
+  let best: { row: UserGuestContactRow; score: number } | null = null;
+
+  for (const row of contacts) {
+    const pending = await storage.listPendingLessonEventsForContact(userId, row.id);
+    for (const ev of pending) {
+      const frag = extractLessonGuestNameFromEventTitle(ev.title || "");
+      if (!frag) continue;
+      const fk = normalizeAliasKey(frag);
+      if (fk.length < 3) continue;
+      let sc = 0;
+      if (memoBlob.includes(fk)) sc = 8000 + fk.length;
+      else {
+        const tok = fk.split(/\s+/).filter((t) => t.length >= 3);
+        if (tok.length >= 2 && tok.every((t) => memoBlob.includes(t))) sc = 7000 + tok.length * 200;
+      }
+      if (sc <= 0) continue;
+      if (!best || sc > best.score) best = { row, score: sc };
+    }
+  }
+  return best?.row ?? null;
+}
+
 function parseTransactionsPayload(data: unknown): PluggyTx[] {
   if (!data || typeof data !== "object") return [];
   const obj = data as Record<string, unknown>;
@@ -290,10 +371,16 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const settings = await storage.getUserSettings(userId);
 
+  const memoBlob = buildCreditSearchBlob(tx);
+
+  let contact: UserGuestContactRow | null = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
+  if (contact) {
+    console.log("[Pluggy] Match extrato ↔ planilha (nome no texto) → contato", contact.id);
+  }
+
   const payerHint = extractPayerNameFromPluggyTransaction(tx);
 
-  let contact: UserGuestContactRow | null = null;
-  if (payerHint) {
+  if (!contact && payerHint) {
     contact = await storage.findGuestContactByLooseName(userId, payerHint);
     if (!contact && DEBUG_PLUGGY) {
       console.log("[Pluggy] Nome extraído mas sem match no cadastro:", payerHint.slice(0, 80));
@@ -307,14 +394,25 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     }
   }
 
-  if (!contact) {
+  if (!contact && memoBlob.length >= 5) {
+    contact = await tryResolveContactFromPendingLessonMemo(userId, memoBlob);
+    if (contact) {
+      console.log("[Pluggy] Match memo extrato ↔ título aula pendente → contato", contact.id);
+    }
+  }
+
+  const allowAmountOnly = process.env.PLUGGY_ALLOW_AMOUNT_ONLY_MATCH?.trim().toLowerCase() === "true";
+  if (!contact && allowAmountOnly) {
     contact = await tryResolveContactByAmountOnly(userId, amountCents, settings);
     if (contact) {
-      console.log("[Pluggy] Match por valor + único aluno pendente → contato", contact.id);
+      console.log("[Pluggy] Match por valor (PLUGGY_ALLOW_AMOUNT_ONLY_MATCH) → contato", contact.id);
     }
   }
 
   if (!contact) {
+    if (DEBUG_PLUGGY) {
+      console.log("[Pluggy] Crédito sem match de nome na planilha/extrato:", memoBlob.slice(0, 160));
+    }
     return;
   }
 

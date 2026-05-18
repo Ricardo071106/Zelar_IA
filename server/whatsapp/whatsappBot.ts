@@ -1891,7 +1891,7 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/aula` — Aulas e eventos *de hoje* (no seu fuso)\n' +
-            '• `/buscar` — Pluggy: últimas *2 semanas* do extrato; `/buscar 1` = mais *2 semanas* para trás, etc.\n' +
+            '• `/buscar` — Pluggy: últimas *2 semanas* do extrato (`/buscar 1` = bloco anterior, etc.); o crédito casa quando o *nome no extrato* bate com a *planilha* (aliases).\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
             '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
@@ -1918,7 +1918,7 @@ class WhatsAppBot {
             if (!Number.isFinite(n) || n < 0 || n > 52) {
               await this.sendMessage(
                 remoteJid,
-                'Use `/buscar` (últimas 2 semanas do extrato) ou `/buscar N` com N inteiro de *0* a *52*. Cada *N* pula mais *2 semanas* para trás (`/buscar 1` = bloco anterior, `/buscar 2` = mais antigo, …).',
+                'Use `/buscar` (últimas 2 semanas do extrato) ou `/buscar N` com N inteiro de *0* a *52*. Cada *N* pula mais *2 semanas* para trás (`/buscar 1` = bloco anterior, `/buscar 2` = mais antigo, …). A conciliação usa o *nome no extrato* vs *planilha*; só por valor se o servidor tiver `PLUGGY_ALLOW_AMOUNT_ONLY_MATCH=true`.',
               );
               break;
             }
@@ -1937,7 +1937,8 @@ class WhatsAppBot {
           } else {
             const panelSettings = await storage.getUserSettings(user.id);
             const tz = panelSettings?.timeZone || 'America/Sao_Paulo';
-            const df = (iso: string) => DateTime.fromISO(iso, { zone: tz }).toFormat('dd/MM/yyyy');
+            const df = (day: string) =>
+              DateTime.fromFormat(day, "yyyy-MM-dd", { zone: tz }).toFormat("dd/MM/yyyy");
             const windowLabel =
               windowIdx === 0
                 ? '*mais recente* (últimas 2 semanas)'

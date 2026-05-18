@@ -3,19 +3,26 @@
  * Ordem: paymentData.payer.name → heurísticas em description/descriptionRaw (PIX/TED comuns no Brasil).
  */
 export function extractPayerNameFromPluggyTransaction(tx: {
-  paymentData?: { payer?: { name?: string } };
+  paymentData?: { payer?: { name?: string }; reason?: string };
   description?: string | null;
   descriptionRaw?: string | null;
 }): string | null {
   const direct = tx.paymentData?.payer?.name?.trim();
   if (direct) return sanitizePersonLabel(direct);
 
-  const blob = [tx.descriptionRaw, tx.description].filter((x): x is string => typeof x === "string" && x.trim().length > 0).join("\n");
+  const reason =
+    typeof tx.paymentData?.reason === "string" && tx.paymentData.reason.trim().length > 0
+      ? tx.paymentData.reason.trim()
+      : "";
+  const blob = [tx.descriptionRaw, tx.description, reason]
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .join("\n");
   if (!blob.trim()) return null;
 
   const t = blob.replace(/\s+/g, " ").trim();
 
   const attempts: RegExp[] = [
+    /recebido.{0,24}pix.{0,12}(?:de|d)\s+(.+?)(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s*\d{1,2}\/\d{1,2}|\s+R\$\s|\s*$)/i,
     /pix\s+(?:recebido\s+)?(?:de\s+)?[-–:\s]+(.+?)(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s*\d{1,2}\/\d{1,2}|\s+R\$\s|\s*$)/i,
     /(?:transferencia|transferência)\s+(?:recebida\s+)?(?:de\s+)?(.+?)(?=\s+[-–|]|\s+valor\b|\s*$)/i,
     /(?:pagador|origem|remetente|nome)\s*[:]\s*(.+?)(?=\s+[-–|]|$)/i,
