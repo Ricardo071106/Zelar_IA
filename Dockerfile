@@ -27,14 +27,15 @@ WORKDIR /app
 
 COPY package*.json ./
 
-# Registry npm às vezes reseta conexão (ECONNRESET): retries, menos round-trips (--no-audit/--no-fund), re-tentativas.
+# npm install (não npm ci): o lock gerado em outro npm às vezes falha EUSAGE no Node 20 do Docker
+# (peers picomatch/express-handlebars). Install resolve a árvore no build; retries cobrem ECONNRESET.
 RUN npm config set fetch-retries 10 \
   && npm config set fetch-retry-mintimeout 20000 \
   && npm config set fetch-retry-maxtimeout 120000 \
   && npm config set maxsockets 10 \
-  && (npm ci --no-audit --no-fund \
-    || (echo "npm ci retry 1..." && sleep 15 && npm ci --no-audit --no-fund) \
-    || (echo "npm ci retry 2..." && sleep 30 && npm ci --no-audit --no-fund))
+  && (npm install --no-audit --no-fund \
+    || (echo "npm install retry 1..." && sleep 15 && npm install --no-audit --no-fund) \
+    || (echo "npm install retry 2..." && sleep 30 && npm install --no-audit --no-fund))
 
 COPY . .
 
