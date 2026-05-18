@@ -4,11 +4,8 @@ import type { UserGuestContactRow } from "../../storage";
 import { pluggyFetchJson } from "./pluggyApi";
 import { buildLessonCalendarTitle } from "./lessonTitle";
 import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTransaction } from "./pluggyPayerExtract";
-import {
-  displayNameFromGuestContact,
-  getLessonUnitCentsFromEventSnapshot,
-  resolveLessonUnitCentsForAllocation,
-} from "./lessonUnitPrice";
+import { resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
+import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 import { patchGoogleCalendarEventSummary } from "../../telegram/googleCalendarIntegration";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
@@ -481,56 +478,23 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     }
   }
 
-  const totalPaidCents = await storage.sumPluggyContactCreditsSince(userId, contact.id, firstLessonAt!);
-  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contact.id);
-  const def = settings?.defaultLessonPriceCents ?? null;
-
-  let cum = 0;
-  const eventsToMark: Event[] = [];
-  for (const ev of chain) {
-    const unitEv = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
-    if (!unitEv || unitEv <= 0) {
-      console.warn(
-        "[Pluggy] Aula na fila de rateio sem preço unitário; interrompendo marcação.",
-        { eventId: ev.id, contactId: contact.id, status: ev.lessonPaymentStatus },
-      );
-      break;
-    }
-    if (cum + unitEv > totalPaidCents) break;
-    cum += unitEv;
-    if (ev.lessonPaymentStatus === "pendente") eventsToMark.push(ev);
-  }
-
-  if (eventsToMark.length === 0) {
-    if (DEBUG_PLUGGY || totalPaidCents > 0) {
+  const r = await reconcileGuestContactLessonPayments(userId, contact.id);
+  if (r.markedCount === 0) {
+    if (DEBUG_PLUGGY || r.totalPoolCents > 0) {
       console.log(
-        "[Pluggy] Ledger atualizado, mas nenhuma aula pendente coberta pelo rateio neste momento (cum",
-        cum,
-        "totalPaidCents",
-        totalPaidCents,
-        ").",
+        "[Pluggy] Pool (ledger + saldo retido) atualizado; nenhuma aula pendente coberta neste momento.",
+        { contactId: contact.id, totalPoolCents: r.totalPoolCents },
       );
     }
     return;
   }
 
-  const displayName = displayNameFromGuestContact(contact);
-
-  for (const ev of eventsToMark) {
-    await markLessonPaidAndSyncCalendar(userId, ev, displayName);
-  }
-
-  const stillPending = await storage.listPendingLessonEventsForContact(userId, contact.id);
-  if (stillPending.length === 0) {
-    await storage.updateGuestContactFields(userId, contact.id, { financialStatus: "pago" });
-  }
-
   if (ledgerInserted) {
-    await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
+    await notifyGuestPaymentDigest(contact, r.markedCount, amountCents);
   }
 
   console.log(
-    `[Pluggy] Rateio cumulativo aluno ${contact.id}: total R$ ${(totalPaidCents / 100).toFixed(2)} no ledger → prefixo coberto até R$ ${(cum / 100).toFixed(2)} (preço por aula congelado/pacote) → marcadas agora ${eventsToMark.length} aula(s).`,
+    `[Pluggy] Rateio cumulativo aluno ${contact.id}: pool R$ ${(r.totalPoolCents / 100).toFixed(2)} (ledger Pluggy + saldo retido) → ${r.markedCount} aula(s) marcada(s); abatido do saldo retido R$ ${(r.balanceConsumedCents / 100).toFixed(2)}.`,
   );
 }
 

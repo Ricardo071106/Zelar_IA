@@ -16,6 +16,7 @@ import {
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
 import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
+import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 
 const router = Router();
 const upload = multer({
@@ -494,6 +495,7 @@ router.post(
         remainingLessons,
         lessonBalanceCents,
       });
+      await reconcileGuestContactLessonPayments(ctx.user.id, row.id);
       const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
       res.json({
         guest: {
