@@ -1,6 +1,6 @@
 import type { Event } from "@shared/schema";
-import { storage } from "../../storage";
-import type { UserGuestContactRow } from "../../storage";
+import { storage } from "../storage";
+import type { UserGuestContactRow } from "../storage";
 import {
   displayNameFromGuestContact,
   resolveLessonUnitCentsForAllocation,

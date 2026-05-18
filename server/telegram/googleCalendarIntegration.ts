@@ -391,6 +391,14 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
     const errorMessage = error instanceof Error ? error.message : String(error);
     log(`Erro ao cancelar evento no Google Calendar: ${errorMessage}`, 'google');
 
+    // 404 = já foi apagado ou ID inválido; para exclusão tratamos como sucesso e seguimos o DB.
+    if (errorMessage.includes('Not Found') || errorMessage.includes('404')) {
+      return {
+        success: true,
+        message: 'Evento já não existia no Google Calendar (404).',
+      };
+    }
+
     // Verifica se é um erro de autenticação
     if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
       return {
