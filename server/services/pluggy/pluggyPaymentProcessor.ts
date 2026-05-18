@@ -8,6 +8,7 @@ import {
   displayNameFromGuestContact,
   resolveLessonUnitCentsForAllocation,
 } from "./lessonUnitPrice";
+import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 import { patchGoogleCalendarEventSummary, setTokens } from "../../telegram/googleCalendarIntegration";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 
@@ -133,6 +134,7 @@ async function fetchTransactionsByIds(ids: string[]): Promise<PluggyTx[]> {
 /**
  * Quando só há um aluno com aulas pendentes e o valor cobre pelo menos 1 aula pelo preço calculado,
  * associa o pagamento a esse aluno (útil quando o banco não envia paymentData.payer).
+ * Se vários têm pendências, desambigua quando o valor fecha exatamente N aulas (N ≤ pendências) para um único aluno.
  */
 async function tryResolveContactByAmountOnly(
   userId: number,
@@ -140,7 +142,8 @@ async function tryResolveContactByAmountOnly(
   settings: UserSettings | undefined,
 ): Promise<UserGuestContactRow | null> {
   const contacts = await storage.listUserGuestContacts(userId);
-  const candidates: UserGuestContactRow[] = [];
+  type V = { contact: UserGuestContactRow; pending: Event[]; unit: number; maxLessons: number };
+  const viable: V[] = [];
 
   for (const c of contacts) {
     const pending = await storage.listPendingLessonEventsForContact(userId, c.id);
@@ -156,13 +159,77 @@ async function tryResolveContactByAmountOnly(
     const maxLessons = Math.floor(amountCents / unit);
     if (maxLessons < 1) continue;
 
-    candidates.push(c);
+    viable.push({ contact: c, pending, unit, maxLessons });
   }
 
-  if (candidates.length === 1) {
-    return candidates[0] ?? null;
+  if (viable.length === 1) {
+    return viable[0]!.contact;
+  }
+  if (viable.length > 1) {
+    const exactMultiples = viable.filter((v) => {
+      const k = Math.floor(amountCents / v.unit);
+      return k >= 1 && k <= v.pending.length && amountCents === k * v.unit;
+    });
+    if (exactMultiples.length === 1) {
+      return exactMultiples[0]!.contact;
+    }
   }
   return null;
+}
+
+/** Extrai o nome do aluno de títulos como "Aula com pietro gaeta · Aluno (pendente)". */
+function extractLessonGuestNameFromEventTitle(title: string): string | null {
+  const n = normalizeAliasKey(title);
+  if (!n) return null;
+  const parts = n.split(/\s+com\s+/);
+  if (parts.length < 2) return null;
+  const tail = parts.slice(1).join(" com ");
+  const stopIdx = tail.search(/\s+aluno\b|·|\s+pendente\b|\s+pago\b/);
+  const cleaned = (stopIdx >= 0 ? tail.slice(0, stopIdx) : tail).trim();
+  return cleaned.length >= 3 ? cleaned : null;
+}
+
+/** Caso o nome do PIX não case com aliasNames, cruza com o texto das aulas pendentes no calendário. */
+async function tryResolveContactFromPendingLessonTitles(
+  userId: number,
+  payerHint: string,
+): Promise<UserGuestContactRow | null> {
+  const payerKey = normalizeAliasKey(payerHint);
+  if (!payerKey || payerKey.length < 3) return null;
+
+  const sig = (s: string) => s.split(/\s+/).filter((t) => t.length >= 3);
+  const oneLong = (s: string) => {
+    const t = s.split(/\s+/).filter(Boolean);
+    return t.length === 1 && t[0]!.length >= 5;
+  };
+
+  const overlapScore = (a: string, b: string): number => {
+    if (a === b) return 9000;
+    if (a.includes(b) || b.includes(a)) return 8000 + Math.min(a.length, b.length);
+    const ta = sig(a);
+    const tb = sig(b);
+    if (ta.length && ta.length < 2 && !oneLong(a)) return 0;
+    if (tb.length && tb.length < 2 && !oneLong(b)) return 0;
+    if (ta.length && ta.every((t) => b.includes(t))) return 7000 + ta.length * 50;
+    if (tb.length && tb.every((t) => a.includes(t))) return 6500 + tb.length * 50;
+    return 0;
+  };
+
+  const contacts = await storage.listUserGuestContacts(userId);
+  let best: { row: UserGuestContactRow; score: number } | null = null;
+
+  for (const row of contacts) {
+    const pending = await storage.listPendingLessonEventsForContact(userId, row.id);
+    for (const ev of pending) {
+      const frag = extractLessonGuestNameFromEventTitle(ev.title || "");
+      if (!frag) continue;
+      const fk = normalizeAliasKey(frag);
+      const sc = overlapScore(fk, payerKey);
+      if (sc <= 0) continue;
+      if (!best || sc > best.score) best = { row, score: sc };
+    }
+  }
+  return best?.row ?? null;
 }
 
 export async function processPluggyTransactionsPayload(itemId: string | undefined, payload: unknown): Promise<void> {
@@ -183,8 +250,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   if (userId == null) return;
 
   const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
+  const txType = String(tx.type || "").trim().toUpperCase();
 
-  if (tx.type === "DEBIT" && (!tx.status || tx.status === "POSTED")) {
+  if (txType === "DEBIT" && (!tx.status || tx.status === "POSTED")) {
     const amountCents = amountToCents(Number(tx.amount));
     if (amountCents <= 0) return;
     if (!debitLooksLikePersonPayout(tx)) return;
@@ -205,7 +273,11 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  if (tx.type !== "CREDIT" || (tx.status && tx.status !== "POSTED")) {
+  const creditLike =
+    txType === "CREDIT" ||
+    txType === "INCOME" ||
+    (txType === "" && Number(tx.amount) > 0);
+  if (!creditLike || (tx.status && tx.status !== "POSTED")) {
     return;
   }
 
@@ -230,6 +302,13 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     contact = await storage.findGuestContactByLooseName(userId, payerHint);
     if (!contact && DEBUG_PLUGGY) {
       console.log("[Pluggy] Nome extraído mas sem match no cadastro:", payerHint.slice(0, 80));
+    }
+  }
+
+  if (!contact && payerHint) {
+    contact = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
+    if (contact) {
+      console.log("[Pluggy] Match por título de aula pendente → contato", contact.id);
     }
   }
 

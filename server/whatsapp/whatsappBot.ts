@@ -1207,7 +1207,17 @@ class WhatsAppBot {
       ? await parseDeleteCommandWithOpenRouter(calendarText, userTimezone)
       : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
     if (deleteIntent.isDeleteIntent) {
-      const targetTitle = (deleteIntent.targetTitle || '').trim();
+      let targetTitle = (deleteIntent.targetTitle || '').trim();
+      const refined = targetTitle
+        .replace(/^(as\s+)?(todas\s+)?(as\s+)?aulas?\s+(com|de|do|da)\s+/i, '')
+        .replace(/^(com|de|do|da)\s+/i, '')
+        .trim();
+      if (refined.length >= 2) targetTitle = refined;
+      const normT = this.normalizeForComparison(targetTitle);
+      if (normT === 'aula' || normT === 'aulas' || targetTitle.length < 3) {
+        const fromCom = extractComGuestNameFromText(calendarText);
+        if (fromCom?.trim()) targetTitle = fromCom.trim();
+      }
       if (targetTitle.length < 2) {
         await this.sendMessage(
           remoteJid,
@@ -1914,7 +1924,8 @@ class WhatsAppBot {
               remoteJid,
               `✅ *Busca concluída*\n\n` +
                 `Analisei *${out.txSeen}* lançamento(ns) de crédito a partir de *${out.since}*.\n` +
-                'Aulas só viram *pago* quando *nome + valor* baterem com um aluno e o preço da aula; caso contrário continuam *pendente*.\n\n' +
+                'Aulas só viram *pago* quando o *nome no PIX* casa com o aluno na planilha (mesmo nome abreviado vale), ou quando o *valor fecha um número inteiro de aulas* e só *um* aluno tem pendências nesse preço. Também cruzamos com o texto *Aula com …* no calendário.\n' +
+                'Se nada mudou, confira se o aluno está na planilha com nome parecido com o do PIX.\n\n' +
                 '_Repita /buscar_ quando novos PIX aparecerem no banco.',
             );
           }

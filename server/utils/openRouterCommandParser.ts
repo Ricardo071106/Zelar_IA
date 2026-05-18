@@ -89,10 +89,11 @@ Rules:
 1) Return JSON only.
 2) If user clearly wants to delete/cancel an existing event, set isDeleteIntent=true.
 3) Extract targetTitle as the event name without temporal words.
-4) If user mentioned a date (e.g. amanhã, hoje, terça), convert to YYYY-MM-DD in targetDateISO. Else null.
-5) If user is not requesting deletion, return:
+4) For lessons, targetTitle must be the *student name* (e.g. "pietro gaeta"), never generic words like "aulas" alone.
+5) If user mentioned a date (e.g. amanhã, hoje, terça), convert to YYYY-MM-DD in targetDateISO. Else null.
+6) If user is not requesting deletion, return:
    {"isDeleteIntent": false, "targetTitle": "", "targetDateISO": null, "confidence": 0}
-6) Keep confidence between 0 and 1.`;
+7) Keep confidence between 0 and 1.`;
 
   try {
     const response = await axios.post(

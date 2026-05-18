@@ -800,6 +800,30 @@ export class DatabaseStorage implements IStorage {
     if (!key || key.length < 2) return null;
     const contacts = await this.listUserGuestContacts(userId);
     let best: { row: UserGuestContactRow; score: number } | null = null;
+
+    const sigTokens = (s: string) => s.split(/\s+/).filter((t) => t.length >= 3);
+    const oneStrongToken = (s: string) => {
+      const t = s.split(/\s+/).filter(Boolean);
+      return t.length === 1 && t[0]!.length >= 5;
+    };
+
+    /** Cadastro curto (ex.: Pietro Gaeta) contido no nome do PIX (ex.: Pietro Gabriel Gaeta). */
+    const aliasTokensSubsetOfKey = (ak: string): number => {
+      const tokA = sigTokens(ak);
+      if (tokA.length === 0) return 0;
+      if (tokA.length < 2 && !oneStrongToken(ak)) return 0;
+      if (!tokA.every((t) => key.includes(t))) return 0;
+      return 8000 + tokA.length * 100 + Math.min(ak.length, key.length);
+    };
+
+    /** Nome do PIX mais curto ainda cobre tokens do cadastro (ex.: só primeiro + último no extrato). */
+    const keyTokensSubsetOfAlias = (ak: string): number => {
+      const tokK = sigTokens(key);
+      if (tokK.length < 2 && !oneStrongToken(key)) return 0;
+      if (!tokK.every((t) => ak.includes(t))) return 0;
+      return 6000 + tokK.length * 80 + Math.min(ak.length, key.length);
+    };
+
     for (const row of contacts) {
       for (const alias of row.aliasNames ?? []) {
         const ak = normalizeAliasKey(alias);
@@ -808,7 +832,12 @@ export class DatabaseStorage implements IStorage {
         if (ak === key) score = 100000 + ak.length;
         else if (ak.includes(key)) score = 50000 + ak.length;
         else if (key.includes(ak)) score = 10000 + ak.length;
-        else continue;
+        else {
+          const s1 = aliasTokensSubsetOfKey(ak);
+          const s2 = keyTokensSubsetOfAlias(ak);
+          score = Math.max(s1, s2);
+        }
+        if (score <= 0) continue;
         if (!best || score > best.score) best = { row, score };
       }
     }
