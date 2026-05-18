@@ -2,6 +2,23 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 const PANEL_TTL_SEC = 90 * 24 * 60 * 60; // 90 dias
 
+/**
+ * Pluggy OAuth às vezes redireciona com `?itemId=` colado ao valor de `t` em vez de `&itemId=`,
+ * quebrando o token do painel. Remove esse sufixo (e variante URL-encoded).
+ */
+export function sanitizePanelTokenQueryParam(raw: string | undefined): string | undefined {
+  if (typeof raw !== 'string' || !raw.trim()) return undefined;
+  let s = raw.trim();
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    /* manter */
+  }
+  let cut = s.split(/[?&]itemId=/i)[0]?.trim() ?? s;
+  cut = cut.split(/%3[Ff]item[Ii]d%3[Dd]/i)[0]?.trim() ?? cut;
+  return cut || undefined;
+}
+
 function getSecret(): string {
   const s = process.env.PANEL_TOKEN_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev-panel-token-secret');
   return s;
@@ -44,10 +61,11 @@ export function signPanelToken(userId: number, whatsappDigits: string): string {
 }
 
 export function verifyPanelToken(token: string | undefined): PanelTokenPayload | null {
-  if (!token || typeof token !== 'string') return null;
+  const cleaned = sanitizePanelTokenQueryParam(typeof token === 'string' ? token : undefined);
+  if (!cleaned) return null;
   const secret = getSecret();
   if (!secret) return null;
-  const parts = token.split('.');
+  const parts = cleaned.split('.');
   if (parts.length !== 2) return null;
   const [body, sigStr] = parts;
   let sig: Buffer;

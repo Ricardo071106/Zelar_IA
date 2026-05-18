@@ -229,6 +229,8 @@ export interface IStorage {
   ): Promise<void>;
   deleteUserContactGroup(userId: number, groupId: number): Promise<boolean>;
 
+  /** Primeira aula (qualquer aluno) criada no calendário — para ignorar extratos anteriores a existir aulas. */
+  getEarliestLessonCreatedAtForUser(userId: number): Promise<Date | null>;
   findUserIdByPluggyItemId(itemId: string): Promise<number | null>;
   listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]>;
   /** Retorna true se inseriu (primeira vez); false se transação já processada. */
@@ -1086,6 +1088,26 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(userContactGroups.id, groupId), eq(userContactGroups.userId, userId)))
       .returning({ id: userContactGroups.id });
     return deleted.length > 0;
+  }
+
+  async getEarliestLessonCreatedAtForUser(userId: number): Promise<Date | null> {
+    if (!db) return null;
+    try {
+      const res = await db.execute(sql`
+        SELECT min(created_at) AS m
+        FROM events
+        WHERE user_id = ${userId}
+          AND student_contact_id IS NOT NULL
+      `);
+      const row = (res as { rows?: { m: Date | string | null }[] }).rows?.[0];
+      const m = row?.m;
+      if (m == null) return null;
+      const d = m instanceof Date ? m : new Date(String(m));
+      return Number.isNaN(d.getTime()) ? null : d;
+    } catch (e: unknown) {
+      console.warn('[storage] getEarliestLessonCreatedAtForUser:', e);
+      return null;
+    }
   }
 
   async findUserIdByPluggyItemId(itemId: string): Promise<number | null> {

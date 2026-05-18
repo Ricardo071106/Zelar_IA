@@ -46,6 +46,7 @@ type PanelMe = {
     defaultLessonPriceCents: number | null;
     lessonPackagesJson: unknown | null;
   };
+  pluggy: { itemId: string; label: string } | null;
   timezones: string[];
   links: {
     googleConnect: string;
@@ -90,10 +91,23 @@ function parseReaisInputToCents(raw: string): number | null {
   return Math.round(n * 100);
 }
 
+function sanitizePanelTokenFromUrl(raw: string): string {
+  let s = raw.trim();
+  try {
+    s = decodeURIComponent(s);
+  } catch {
+    /* manter */
+  }
+  let cut = s.split(/[?&]itemId=/i)[0]?.trim() ?? s;
+  cut = cut.split(/%3[Ff]item[Ii]d%3[Dd]/i)[0]?.trim() ?? cut;
+  return cut;
+}
+
 function readPanelToken(): string | null {
   if (typeof window === "undefined") return null;
   const q = new URLSearchParams(window.location.search).get("t");
-  return q && q.trim() ? q.trim() : null;
+  if (!q || !q.trim()) return null;
+  return sanitizePanelTokenFromUrl(q);
 }
 
 const shellClass =
@@ -117,6 +131,21 @@ export default function UserPanelPage() {
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
+  }, []);
+
+  /** Corrige URL após redirect Pluggy: `t` não pode levar `?itemId=` colado (quebrava sessão do painel). */
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const rawT = params.get("t");
+    if (!rawT?.trim()) return;
+    const clean = sanitizePanelTokenFromUrl(rawT);
+    if (clean === rawT.trim()) return;
+    params.set("t", clean);
+    params.delete("itemId");
+    const qs = params.toString();
+    window.history.replaceState({}, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+    setToken(clean);
   }, []);
   const [me, setMe] = useState<PanelMe | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -154,7 +183,12 @@ export default function UserPanelPage() {
       const j = await r.json().catch(() => ({}));
       throw new Error(j.error || "Falha ao carregar painel");
     }
-    const data: PanelMe = await r.json();
+    const data = (await r.json()) as PanelMe;
+    if (data.pluggy === undefined) {
+      data.pluggy = data.settings.pluggyItemId
+        ? { itemId: data.settings.pluggyItemId, label: "Conta conectada" }
+        : null;
+    }
     setMe(data);
     setEmail(data.user.email || "");
     const tzOpts = Array.isArray(data.timezones) ? data.timezones : [];
@@ -361,6 +395,29 @@ export default function UserPanelPage() {
     } finally {
       setPluggyTokenLoading(false);
     }
+  };
+
+  const disconnectPluggy = async () => {
+    if (!token) return;
+    if (
+      !window.confirm(
+        "Desconectar o banco no Pluggy? O Zelar deixa de ler o extrato para marcar aulas como pagas até você conectar de novo.",
+      )
+    ) {
+      return;
+    }
+    const r = await fetch("/api/panel/settings/finance", {
+      method: "PATCH",
+      headers: jsonPostHeaders,
+      body: JSON.stringify({ pluggyItemId: null }),
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) {
+      toast({ title: "Pluggy", description: j.error || "Não desconectou", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Banco desconectado" });
+    loadMe().catch(() => {});
   };
 
   const disconnectCalendar = async () => {
@@ -733,12 +790,32 @@ export default function UserPanelPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-sm text-slate-600">
-                  Item Pluggy:{" "}
-                  <span className="font-mono text-emerald-900">
-                    {me.settings.pluggyItemId || "— ainda não vinculado —"}
-                  </span>
+                <p className="text-xs text-slate-500">
+                  Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário (qualquer
+                  aluno). Faturas de cartão, corretoras e boletos são ignorados. Webhooks da Pluggy continuam chegando, mas
+                  o servidor filtra o que não é PIX/recebimento de aluno.
                 </p>
+                {me.pluggy ? (
+                  <div className="rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-white p-4 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Banco conectado</p>
+                      <p className="text-lg font-semibold text-emerald-950 mt-0.5">{me.pluggy.label}</p>
+                      <p className="text-xs font-mono text-slate-500 break-all">Item {me.pluggy.itemId}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-red-300 text-red-800 hover:bg-red-50"
+                      onClick={() => void disconnectPluggy()}
+                    >
+                      Desconectar banco
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-slate-600">
+                    Nenhum banco vinculado ainda. Use <strong>Conectar banco</strong> abaixo.
+                  </p>
+                )}
                 <div className="space-y-2">
                   <Label className="text-slate-700">Preço por aula (referência, R$)</Label>
                   <Input

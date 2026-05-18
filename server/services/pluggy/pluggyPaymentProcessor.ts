@@ -27,6 +27,51 @@ type PluggyTx = {
   };
 };
 
+const DEBUG_PLUGGY = process.env.DEBUG_PLUGGY === "true";
+
+/** Créditos genéricos de cartão/corretora/fatura — sem nome de pagador PIX; não tentamos casar com aluno. */
+function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
+  const directPayer = tx.paymentData?.payer?.name?.trim();
+  if (directPayer) return false;
+  const blob = [tx.descriptionRaw, tx.description]
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .join(" ")
+    .toUpperCase();
+  if (!blob.trim()) return false;
+  const keys = [
+    "FATURA",
+    "BOLETO",
+    "CICLO CORRENTE",
+    "CORRETORA",
+    "TITULOS E VALORES",
+    "TÍTULOS E VALORES",
+    "CARTAO",
+    "CARTÃO",
+    "ANUIDADE",
+    "IOF",
+    "TARIFA",
+    "TAXA DE",
+    "SAQUE",
+    "CONFIDENCE",
+    "C6 CORRETORA",
+    "PAGAMENTO FATURA",
+    "INCLUSAO",
+    "INCLUSÃO",
+    "INVESTIMENTO",
+    "RENDIMENTO",
+    "RESGATE",
+    "TED ",
+    "DOC ",
+    "TRANSF ENVIADA",
+    "PIX ENVIADO",
+    "DEBITO",
+    "DÉBITO",
+  ];
+  if (keys.some((k) => blob.includes(k))) return true;
+  if (/\bLTDA\.?\b|\bS\/?A\b|\bS\.A\./i.test(blob)) return true;
+  return false;
+}
+
 /** Data do crédito no banco (só entra no somatório se >= primeira aula criada). */
 function extractTxPostedAtFromPluggyTx(tx: PluggyTx): Date {
   const r = tx as Record<string, unknown>;
@@ -160,6 +205,17 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
   }
   if (userId == null) return;
 
+  const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
+
+  const globalFirstLessonAt = await storage.getEarliestLessonCreatedAtForUser(userId);
+  if (globalFirstLessonAt && txPostedAt.getTime() < globalFirstLessonAt.getTime()) {
+    return;
+  }
+
+  if (memoLooksLikeInstitutionalNoise(tx)) {
+    return;
+  }
+
   const settings = await storage.getUserSettings(userId);
 
   const payerHint = extractPayerNameFromPluggyTransaction(tx);
@@ -167,7 +223,7 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
   let contact: UserGuestContactRow | null = null;
   if (payerHint) {
     contact = await storage.findGuestContactByLooseName(userId, payerHint);
-    if (!contact) {
+    if (!contact && DEBUG_PLUGGY) {
       console.log("[Pluggy] Nome extraído mas sem match no cadastro:", payerHint.slice(0, 80));
     }
   }
@@ -183,7 +239,6 @@ async function processSinglePluggyTransaction(itemId: string | undefined, tx: Pl
     return;
   }
 
-  const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
 
   if (!firstLessonAt) {

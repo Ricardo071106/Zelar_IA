@@ -134,3 +134,27 @@ export function extractConnectToken(res: ConnectTokenResponse): string | null {
   const t = res.connectToken || res.accessToken;
   return typeof t === "string" && t.trim() ? t.trim() : null;
 }
+
+export type PluggyItemSummary = {
+  institutionName: string | null;
+  connectorName: string | null;
+};
+
+/** Metadados do item (nome do banco / conector) para exibir no painel — falha silenciosa se a API não responder. */
+export async function fetchPluggyItemSummary(itemId: string): Promise<PluggyItemSummary | null> {
+  const id = itemId.trim();
+  if (!id) return null;
+  try {
+    const d = (await pluggyFetchJson(`/items/${encodeURIComponent(id)}`)) as Record<string, unknown>;
+    const connector = d?.connector as Record<string, unknown> | undefined;
+    const institution = d?.institution as Record<string, unknown> | undefined;
+    const connectorName = typeof connector?.name === "string" ? connector.name.trim() : null;
+    const institutionName = typeof institution?.name === "string" ? institution.name.trim() : null;
+    return {
+      institutionName: institutionName || null,
+      connectorName: connectorName || null,
+    };
+  } catch {
+    return null;
+  }
+}

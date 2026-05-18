@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import multer from 'multer';
 import { asyncHandler } from '../middleware/errorHandler';
-import { signPanelToken, verifyPanelToken } from '../utils/panelToken';
+import { sanitizePanelTokenQueryParam, signPanelToken, verifyPanelToken } from '../utils/panelToken';
 import { hashPanelPassword, verifyPanelPassword, validateNewPanelPassword } from '../utils/panelPassword';
 import { storage } from '../storage';
 import { isFullName, fullNameValidationMessage } from '../utils/fullName';
@@ -9,7 +9,12 @@ import { COMMON_TIMEZONES } from '../services/dateService';
 import { stripeService } from '../services/stripe';
 import { notifyPendingGuestIdentities } from '../services/guestIdentityNotifyService';
 import { parseContactsFromSpreadsheetBuffer } from '../utils/spreadsheetContacts';
-import { createPluggyConnectToken, extractConnectToken, pluggyCredentialsConfigured } from '../services/pluggy/pluggyApi';
+import {
+  createPluggyConnectToken,
+  extractConnectToken,
+  fetchPluggyItemSummary,
+  pluggyCredentialsConfigured,
+} from '../services/pluggy/pluggyApi';
 
 const router = Router();
 const upload = multer({
@@ -19,11 +24,11 @@ const upload = multer({
 
 function extractToken(req: Request): string | undefined {
   const q = req.query.t;
-  if (typeof q === 'string' && q) return q;
+  if (typeof q === 'string' && q) return sanitizePanelTokenQueryParam(q);
   const h = req.headers['x-panel-token'];
-  if (typeof h === 'string' && h) return h;
+  if (typeof h === 'string' && h) return sanitizePanelTokenQueryParam(h);
   const body = req.body && typeof req.body === 'object' ? (req.body as any).t : undefined;
-  if (typeof body === 'string' && body) return body;
+  if (typeof body === 'string' && body) return sanitizePanelTokenQueryParam(body);
   return undefined;
 }
 
@@ -250,6 +255,18 @@ router.get(
           ? 'microsoft'
           : null;
 
+    let pluggy: { itemId: string; label: string } | null = null;
+    const pluggyItemId = settings?.pluggyItemId?.trim();
+    if (pluggyItemId) {
+      let label = 'Conta conectada';
+      if (pluggyCredentialsConfigured()) {
+        const sum = await fetchPluggyItemSummary(pluggyItemId);
+        const parts = [sum?.institutionName, sum?.connectorName].filter((x): x is string => Boolean(x && x.trim()));
+        if (parts.length > 0) label = parts.join(' · ');
+      }
+      pluggy = { itemId: pluggyItemId, label };
+    }
+
     res.json({
       user: {
         id: user.id,
@@ -266,6 +283,7 @@ router.get(
         defaultLessonPriceCents: settings?.defaultLessonPriceCents ?? null,
         lessonPackagesJson: settings?.lessonPackagesJson ?? null,
       },
+      pluggy,
       timezones: COMMON_TIMEZONES,
       links: {
         googleConnect,
@@ -782,10 +800,12 @@ router.post(
       const baseUrl = (process.env.BASE_URL || 'http://localhost:8080').replace(/\/+$/, '');
       const webhookUrl = `${baseUrl}/api/pluggy/webhook`;
       const tokenQ = extractToken(req);
+      // `pluggy_oauth=1` primeiro: a Pluggy costuma acrescentar `?itemId=`; assim o próximo parâmetro vira `&itemId=`
+      // e o token `t` não é corrompido (evita 401 no /api/panel/me após o redirect).
       const oauthRedirectUri =
         typeof req.body?.oauthRedirectUri === 'string' && req.body.oauthRedirectUri.trim()
           ? String(req.body.oauthRedirectUri).trim()
-          : `${baseUrl}/painel${tokenQ ? `?t=${encodeURIComponent(tokenQ)}` : ''}`;
+          : `${baseUrl}/painel?pluggy_oauth=1${tokenQ ? `&t=${encodeURIComponent(tokenQ)}` : ''}`;
 
       const data = await createPluggyConnectToken({
         clientUserId: `zelar-user-${ctx.user.id}`,
