@@ -69,6 +69,8 @@ type GuestRow = {
   lessonBalanceCents: number;
   /** Soma das aulas *pendentes* no calendário, cada uma pelo preço vigente no agendamento. */
   lessonPendingDebtCents: number;
+  /** Crédito retido menos aulas pendentes: positivo = sobra, zero = quitado, negativo = pendente. */
+  lessonNetBalanceCents: number;
   financialStatus: string;
   notes: string;
 };
@@ -93,6 +95,13 @@ function parseReaisInputToCents(raw: string): number | null {
   const n = parseFloat(normalized);
   if (!Number.isFinite(n) || n < 0) return null;
   return Math.round(n * 100);
+}
+
+function formatBrl(cents: number): string {
+  return (cents / 100).toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
 }
 
 function sanitizePanelTokenFromUrl(raw: string): string {
@@ -1041,7 +1050,8 @@ export default function UserPanelPage() {
                       placeholder="0,00 — crédito após cancelar aula ou ajuste manual"
                     />
                     <p className="text-xs text-slate-500">
-                      Débitos (PIX enviado) identificados no /buscar com o nome do aluno abatem este saldo.
+                      Este é o crédito manual/retido. Na tabela, o Zelar mostra o saldo líquido: positivo sobra, zero
+                      quitado, negativo pendente.
                     </p>
                   </div>
                   <div className="sm:col-span-2 flex flex-wrap gap-2">
@@ -1072,15 +1082,14 @@ export default function UserPanelPage() {
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Nome</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Telefone</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">E-mail</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Pendente (aulas)</TableHead>
-                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Saldo retido</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Saldo</TableHead>
                         <TableHead className="min-w-[140px] font-mago text-emerald-900" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {guests.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
-                          <TableCell colSpan={6} className="text-center text-slate-500 py-10">
+                          <TableCell colSpan={5} className="text-center text-slate-500 py-10">
                             Nenhum aluno ainda. Preencha o formulário acima e toque em &quot;Adicionar aluno&quot;.
                           </TableCell>
                         </TableRow>
@@ -1094,17 +1103,19 @@ export default function UserPanelPage() {
                             <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap max-w-[220px] truncate">
                               {g.email || "—"}
                             </TableCell>
-                            <TableCell className="text-slate-800 whitespace-nowrap">
-                              {((g.lessonPendingDebtCents ?? 0) / 100).toLocaleString("pt-BR", {
-                                style: "currency",
-                                currency: "BRL",
-                              })}
-                            </TableCell>
-                            <TableCell className="text-slate-800 whitespace-nowrap">
-                              {((g.lessonBalanceCents ?? 0) / 100).toLocaleString("pt-BR", {
-                                style: "currency",
-                                currency: "BRL",
-                              })}
+                            <TableCell
+                              className={
+                                (g.lessonNetBalanceCents ?? 0) > 0
+                                  ? "text-emerald-700 font-semibold whitespace-nowrap"
+                                  : (g.lessonNetBalanceCents ?? 0) < 0
+                                    ? "text-red-700 font-semibold whitespace-nowrap"
+                                    : "text-slate-700 font-semibold whitespace-nowrap"
+                              }
+                              title={`Crédito: ${formatBrl(g.lessonBalanceCents ?? 0)} · Aulas pendentes: ${formatBrl(
+                                g.lessonPendingDebtCents ?? 0,
+                              )}`}
+                            >
+                              {formatBrl(g.lessonNetBalanceCents ?? (g.lessonBalanceCents ?? 0) - (g.lessonPendingDebtCents ?? 0))}
                             </TableCell>
                             <TableCell className="space-x-2 whitespace-nowrap">
                               <Button

@@ -6,9 +6,15 @@ export function extractPayerNameFromPluggyTransaction(tx: {
   paymentData?: { payer?: { name?: string }; reason?: string };
   description?: string | null;
   descriptionRaw?: string | null;
+  merchant?: { name?: string } | null;
+  counterparty?: { name?: string } | null;
 }): string | null {
   const direct = tx.paymentData?.payer?.name?.trim();
   if (direct) return sanitizePersonLabel(direct);
+  const counterparty = tx.counterparty?.name?.trim();
+  if (counterparty) return sanitizePersonLabel(counterparty);
+  const merchant = tx.merchant?.name?.trim();
+  if (merchant) return sanitizePersonLabel(merchant);
 
   const reason =
     typeof tx.paymentData?.reason === "string" && tx.paymentData.reason.trim().length > 0
@@ -24,6 +30,8 @@ export function extractPayerNameFromPluggyTransaction(tx: {
   const attempts: RegExp[] = [
     /recebido.{0,24}pix.{0,12}(?:de|d)\s+(.+?)(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s*\d{1,2}\/\d{1,2}|\s+R\$\s|\s*$)/i,
     /pix\s+(?:recebido\s+)?(?:de\s+)?[-–:\s]+(.+?)(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s*\d{1,2}\/\d{1,2}|\s+R\$\s|\s*$)/i,
+    /pix\s+recebido\s+(.+?)(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s*\d{1,2}\/\d{1,2}|\s+R\$\s|\s*$)/i,
+    /(?:de|por)\s+([A-ZÀ-Ú][A-ZÀ-Úa-zà-ú]+(?:\s+[A-ZÀ-Ú][A-ZÀ-Úa-zà-ú]+){1,5})(?=\s+[-–|]|\s+valor\b|\s+vlr\b|\s+R\$\s|\s*$)/,
     /(?:transferencia|transferência)\s+(?:recebida\s+)?(?:de\s+)?(.+?)(?=\s+[-–|]|\s+valor\b|\s*$)/i,
     /(?:pagador|origem|remetente|nome)\s*[:]\s*(.+?)(?=\s+[-–|]|$)/i,
     /ted\s+(?:de\s+)?(.+?)(?=\s+[-–|]|$)/i,
@@ -85,6 +93,8 @@ function sanitizePersonLabel(raw: string): string | null {
     .replace(/\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g, " ")
     .replace(/\d{3}\.?\d{3}\.?\d{3}-?\d{2}/g, " ")
     .replace(/\*{3,}\d+/g, " ")
+    .replace(/\b(?:PIX|RECEBIDO|RECEBIDA|TRANSFER[EÊ]NCIA|TRANSF|TED|DOC|PAGADOR|ORIGEM|REMETENTE|NOME)\b/gi, " ")
+    .replace(/\b(?:LTDA|ME|EIRELI|S\/?A|S\.A\.)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
   s = s.replace(/^[-–:\s]+|[-–:\s]+$/g, "").trim();

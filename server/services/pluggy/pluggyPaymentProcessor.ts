@@ -31,6 +31,8 @@ export type PluggyTx = {
     referenceNumber?: string;
     reason?: string;
   };
+  merchant?: { name?: string } | null;
+  counterparty?: { name?: string } | null;
 };
 
 const DEBUG_PLUGGY = process.env.DEBUG_PLUGGY === "true";
@@ -51,6 +53,9 @@ function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
     .join(" ")
     .toUpperCase();
   if (!blob.trim()) return false;
+  if (/PIX\s+RECEBIDO|RECEBIDO.{0,32}PIX|TRANSFER[EÊ]NCIA\s+RECEBIDA|TRANSF\s+RECEBIDA|TED\s+RECEBIDA/i.test(blob)) {
+    return false;
+  }
   const keys = [
     "FATURA",
     "BOLETO",
@@ -79,7 +84,6 @@ function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
     "DÉBITO",
   ];
   if (keys.some((k) => blob.includes(k))) return true;
-  if (/\bLTDA\.?\b|\bS\/?A\b|\bS\.A\./i.test(blob)) return true;
   return false;
 }
 
@@ -112,6 +116,12 @@ function buildCreditSearchBlob(tx: PluggyTx): string {
   const parts: string[] = [];
   const payer = tx.paymentData?.payer?.name?.trim();
   if (payer) parts.push(payer);
+  const extractedPayer = extractPayerNameFromPluggyTransaction(tx);
+  if (extractedPayer) parts.push(extractedPayer);
+  const merchant = tx.merchant?.name?.trim();
+  if (merchant) parts.push(merchant);
+  const counterparty = tx.counterparty?.name?.trim();
+  if (counterparty) parts.push(counterparty);
   const reason = typeof tx.paymentData?.reason === "string" ? tx.paymentData.reason.trim() : "";
   if (reason) parts.push(reason);
   if (typeof tx.description === "string" && tx.description.trim()) parts.push(tx.description);

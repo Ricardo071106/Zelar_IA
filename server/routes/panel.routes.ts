@@ -23,6 +23,25 @@ const upload = multer({
   limits: { fileSize: 6 * 1024 * 1024 },
 });
 
+function guestPanelDto(r: UserGuestContactRow, debtCents: number) {
+  const lessonBalanceCents = r.lessonBalanceCents ?? 0;
+  return {
+    id: r.id,
+    name: displayNameFromAliases(r.aliasNames, r.canonicalEmail, r.guestPhoneE164),
+    email: r.canonicalEmail ?? '',
+    phone: r.guestPhoneE164 || '',
+    studentType: r.studentType ?? '',
+    monthlyAmountCents: r.monthlyAmountCents ?? null,
+    packageLessonsTotal: r.packageLessonsTotal ?? null,
+    remainingLessons: r.remainingLessons ?? null,
+    lessonBalanceCents,
+    lessonPendingDebtCents: debtCents,
+    lessonNetBalanceCents: lessonBalanceCents - debtCents,
+    financialStatus: r.financialStatus ?? 'pendente',
+    notes: r.notes ?? '',
+  };
+}
+
 function extractToken(req: Request): string | undefined {
   const q = req.query.t;
   if (typeof q === 'string' && q) return sanitizePanelTokenQueryParam(q);
@@ -376,20 +395,7 @@ router.get(
     const rows = await storage.listUserGuestContacts(ctx.user.id);
     const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
     res.json({
-      guests: rows.map((r) => ({
-        id: r.id,
-        name: displayNameFromAliases(r.aliasNames, r.canonicalEmail, r.guestPhoneE164),
-        email: r.canonicalEmail ?? '',
-        phone: r.guestPhoneE164 || '',
-        studentType: r.studentType ?? '',
-        monthlyAmountCents: r.monthlyAmountCents ?? null,
-        packageLessonsTotal: r.packageLessonsTotal ?? null,
-        remainingLessons: r.remainingLessons ?? null,
-        lessonBalanceCents: r.lessonBalanceCents ?? 0,
-        lessonPendingDebtCents: debtByContact.get(r.id) ?? 0,
-        financialStatus: r.financialStatus ?? 'pendente',
-        notes: r.notes ?? '',
-      })),
+      guests: rows.map((r) => guestPanelDto(r, debtByContact.get(r.id) ?? 0)),
     });
   }),
 );
@@ -491,21 +497,9 @@ router.post(
       });
       await reconcileGuestContactLessonPayments(ctx.user.id, row.id);
       const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
+      const freshRow = await storage.getGuestContactByIdForUser(ctx.user.id, row.id);
       res.json({
-        guest: {
-          id: row.id,
-          name: displayNameFromAliases(row.aliasNames, row.canonicalEmail, row.guestPhoneE164),
-          email: row.canonicalEmail ?? '',
-          phone: row.guestPhoneE164 || '',
-          studentType: row.studentType ?? '',
-          monthlyAmountCents: row.monthlyAmountCents ?? null,
-          packageLessonsTotal: row.packageLessonsTotal ?? null,
-          remainingLessons: row.remainingLessons ?? null,
-          lessonBalanceCents: row.lessonBalanceCents ?? 0,
-          lessonPendingDebtCents: debtByContact.get(row.id) ?? 0,
-          financialStatus: row.financialStatus ?? 'pendente',
-          notes: row.notes ?? '',
-        },
+        guest: guestPanelDto(freshRow ?? row, debtByContact.get(row.id) ?? 0),
       });
     } catch (e: any) {
       res.status(400).json({ error: e?.message || 'falha ao salvar' });
