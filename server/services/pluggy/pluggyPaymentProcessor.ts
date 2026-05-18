@@ -444,23 +444,42 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     settings?.defaultLessonPriceCents ?? null,
   );
   if (!unitProbe || unitProbe <= 0) {
-    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
-    console.warn("[Pluggy] Sem preço por aula configurável para aluno", contact.id);
-    return;
-  }
-
-  if (txId) {
-    const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
-    if (!inserted) {
-      return;
+    if (txId) {
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
+      if (!inserted) return;
+    } else {
+      const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
+      if (!inserted) return;
     }
+    await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
+    console.warn(
+      `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); valor +R$ ${(amountCents / 100).toFixed(2)} creditado como saldo retido.`,
+    );
+    return;
   }
 
   const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
     0,
     128,
   );
-  await storage.insertPluggyContactCredit(userId, contact.id, ledgerTxKey, amountCents, txPostedAt);
+  const ledgerInserted = await storage.insertPluggyContactCredit(
+    userId,
+    contact.id,
+    ledgerTxKey,
+    amountCents,
+    txPostedAt,
+  );
+  if (!ledgerInserted) {
+    const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
+    if (!already) {
+      console.warn(
+        "[Pluggy] Ledger não registrou o crédito (tabela ausente ou falha); rateio abortado.",
+        { userId, contactId: contact.id, ledgerTxKey },
+      );
+      return;
+    }
+  }
 
   const totalPaidCents = await storage.sumPluggyContactCreditsSince(userId, contact.id, firstLessonAt!);
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contact.id);
@@ -483,6 +502,15 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   }
 
   if (eventsToMark.length === 0) {
+    if (DEBUG_PLUGGY || totalPaidCents > 0) {
+      console.log(
+        "[Pluggy] Ledger atualizado, mas nenhuma aula pendente coberta pelo rateio neste momento (cum",
+        cum,
+        "totalPaidCents",
+        totalPaidCents,
+        ").",
+      );
+    }
     return;
   }
 
@@ -497,7 +525,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     await storage.updateGuestContactFields(userId, contact.id, { financialStatus: "pago" });
   }
 
-  await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
+  if (ledgerInserted) {
+    await notifyGuestPaymentDigest(contact, eventsToMark.length, amountCents);
+  }
 
   console.log(
     `[Pluggy] Rateio cumulativo aluno ${contact.id}: total R$ ${(totalPaidCents / 100).toFixed(2)} no ledger → prefixo coberto até R$ ${(cum / 100).toFixed(2)} (preço por aula congelado/pacote) → marcadas agora ${eventsToMark.length} aula(s).`,
@@ -588,9 +618,23 @@ export async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, s
           );
         }
       } else if (settings.googleTokens) {
-        const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
+        let r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
         if (!r.success) {
-          console.warn("[Pluggy] Falha ao atualizar Google Calendar:", r.message, { eventId: ev.id });
+          const fbKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || "zelar_google_invites";
+          const fbOauth = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || "999001");
+          if (Number.isFinite(fbOauth)) {
+            const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
+            const pack = await getGoogleIntegrationTokensByKey(fbKey);
+            if (pack?.tokens) {
+              r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle, {
+                oauthClientId: Math.floor(fbOauth),
+                tokens: pack.tokens,
+              });
+            }
+          }
+          if (!r.success) {
+            console.warn("[Pluggy] Falha ao atualizar Google Calendar:", r.message, { eventId: ev.id });
+          }
         }
       }
     } catch (e) {

@@ -280,6 +280,8 @@ export interface IStorage {
     amountCents: number,
     txPostedAt: Date,
   ): Promise<boolean>;
+  /** True se já existe linha no ledger para essa transação (dedupe / retomada após falha). */
+  hasPluggyContactCredit(userId: number, transactionId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1389,6 +1391,26 @@ export class DatabaseStorage implements IStorage {
         console.warn("[storage] pluggy_contact_payment_ledger ausente; rode migration 0015.");
         return false;
       }
+      throw e;
+    }
+  }
+
+  async hasPluggyContactCredit(userId: number, transactionId: string): Promise<boolean> {
+    if (!db) return false;
+    const tid = (transactionId.trim() || "").slice(0, 128);
+    if (!tid) return false;
+    try {
+      const res = await db.execute(sql`
+        SELECT 1 AS ok
+        FROM pluggy_contact_payment_ledger
+        WHERE user_id = ${userId} AND transaction_id = ${tid}
+        LIMIT 1
+      `);
+      const rows = (res as { rows?: { ok?: number }[] }).rows;
+      return (rows?.length ?? 0) > 0;
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") return false;
       throw e;
     }
   }
