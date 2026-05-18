@@ -196,7 +196,7 @@ export interface IStorage {
   getUserEvents(userId: number): Promise<Event[]>;
   getUpcomingEvents(userId: number, limit?: number): Promise<Event[]>;
   /** Eventos ativos numa janela ampla (passado + futuro) para apagar por nome no WhatsApp. */
-  getActiveEventsForDeletionWindow(userId: number, limit?: number): Promise<Event[]>;
+  getActiveEventsForDeletionWindow(userId: number, limit?: number): Promise<Event[]>; // default 2500
   updateEvent(eventId: number, data: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(eventId: number): Promise<boolean>;
   /** Cancelamento lógico: mantém linha, marca cancelled_at, some de listagens. */
@@ -497,15 +497,17 @@ export class DatabaseStorage implements IStorage {
     return upcomingEvents;
   }
 
-  async getActiveEventsForDeletionWindow(userId: number, limit: number = 500): Promise<Event[]> {
+  async getActiveEventsForDeletionWindow(userId: number, limit: number = 2500): Promise<Event[]> {
     if (!db) return [];
-    const from = new Date();
-    from.setDate(from.getDate() - 730);
+    // Janela: últimos 90 dias + futuro; ordena do mais próximo para o mais distante
+    // (evita cortar aulas futuras quando há muitos eventos e o limite era desc(startDate)).
+    const since = new Date();
+    since.setDate(since.getDate() - 90);
     return db
       .select()
       .from(events)
-      .where(and(eq(events.userId, userId), isNull(events.cancelledAt), gte(events.startDate, from)))
-      .orderBy(desc(events.startDate))
+      .where(and(eq(events.userId, userId), isNull(events.cancelledAt), gte(events.startDate, since)))
+      .orderBy(asc(events.startDate))
       .limit(limit);
   }
 

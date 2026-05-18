@@ -527,6 +527,79 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
 }
 
 /**
+ * Lista eventos futuros (e desde ontem) no calendário primary com paginação.
+ * Usado ao montar candidatos para apagar/cancelar sem perder eventos além da 1ª página da API.
+ */
+export async function listGooglePrimaryFutureEventsPaginated(
+  userId: number,
+  maxTotal = 3500,
+): Promise<{
+  success: boolean;
+  message: string;
+  events?: calendar_v3.Schema$Event[];
+}> {
+  try {
+    const oauth2Client = getOAuth2Client(userId);
+
+    if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
+      return {
+        success: false,
+        message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.',
+        events: [],
+      };
+    }
+
+    const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const timeMin = new Date();
+    timeMin.setDate(timeMin.getDate() - 1);
+
+    const all: calendar_v3.Schema$Event[] = [];
+    let pageToken: string | undefined;
+
+    while (all.length < maxTotal) {
+      const pageSize = Math.min(2500, maxTotal - all.length);
+      const response = await calendar.events.list({
+        calendarId: 'primary',
+        timeMin: timeMin.toISOString(),
+        maxResults: pageSize,
+        singleEvents: true,
+        orderBy: 'startTime',
+        pageToken,
+      });
+      const items = response.data.items ?? [];
+      all.push(...items);
+      pageToken = response.data.nextPageToken ?? undefined;
+      if (!pageToken || items.length === 0) break;
+    }
+
+    log(`${all.length} eventos (Google primary, paginado) para o usuário ${userId}`, 'google');
+
+    return {
+      success: true,
+      message: `${all.length} eventos encontrados.`,
+      events: all,
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    log(`Erro ao listar eventos Google (paginado): ${errorMessage}`, 'google');
+
+    if (errorMessage.includes('invalid_grant') || errorMessage.includes('invalid_token')) {
+      return {
+        success: false,
+        message: 'Autenticação expirada ou inválida. Por favor, autorize o acesso ao Google Calendar novamente.',
+        events: [],
+      };
+    }
+
+    return {
+      success: false,
+      message: `Erro ao listar eventos do Google Calendar: ${errorMessage}`,
+      events: [],
+    };
+  }
+}
+
+/**
  * Lista eventos do calendário principal num intervalo [timeMin, timeMax) em ISO UTC.
  * Usado para agenda do dia inteiro (inclui compromissos já passados hoje).
  */

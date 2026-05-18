@@ -27,6 +27,7 @@ import {
   addEventToGoogleCalendar,
   cancelGoogleCalendarEvent,
   listUpcomingEvents as listGoogleUpcomingEvents,
+  listGooglePrimaryFutureEventsPaginated,
   listGoogleEventsInTimeRange,
   setTokens
 } from '../telegram/googleCalendarIntegration';
@@ -408,6 +409,8 @@ class WhatsAppBot {
       .trim();
     v = v.replace(/\bauals\b/g, 'aula');
     v = v.replace(/\baulas\b/g, 'aula');
+    v = v.replace(/\s*·\s*aluno\s*\([^)]*\)\s*$/i, '');
+    v = v.replace(/\s*aluno\s*\([^)]*\)\s*$/i, '');
     return v;
   }
 
@@ -546,7 +549,7 @@ class WhatsAppBot {
 
     for (const { key, oauthId } of attempts) {
       if (!(await this.applyZelarIntegrationGoogleTokens(key, oauthId))) continue;
-      const response = await listGoogleUpcomingEvents(oauthId, 250);
+      const response = await listGooglePrimaryFutureEventsPaginated(oauthId, 2500);
       if (!response.success || !response.events) continue;
       for (const ev of response.events) {
         const id = ev?.id as string | undefined;
@@ -581,6 +584,8 @@ class WhatsAppBot {
       googleCancelOAuthUserId?: number;
       serviceGoogleIntegrationKey?: string;
     }>,
+    /** Provedor conectado no painel; usado ao cruzar DB+Google quando o evento não veio na listagem. */
+    userCalendarProvider: 'google' | 'microsoft' | null,
   ): {
     candidates: Array<{
       source: 'both' | 'calendar_only' | 'db_local';
@@ -647,8 +652,21 @@ class WhatsAppBot {
             serviceGoogleIntegrationKey: calendarMatch.serviceGoogleIntegrationKey,
           });
         } else {
-          // Evento existe no banco, mas não está mais na agenda integrada.
+          // Existe no banco com calendarId, mas não entrou na lista (limite da API / timing).
+          // Ainda assim tentamos cancelar no Google/Microsoft pelo ID salvo + soft-cancel no DB.
           dbStaleCount += 1;
+          if (dbEvent.calendarId) {
+            const provider: 'google' | 'microsoft' =
+              userCalendarProvider === 'microsoft' ? 'microsoft' : 'google';
+            candidates.push({
+              source: 'both',
+              provider,
+              calendarId: String(dbEvent.calendarId),
+              title: dbEvent.title || 'Evento',
+              startDate: new Date(dbEvent.startDate),
+              dbEvent,
+            });
+          }
         }
       } else {
         // Evento local sem calendarId (não sincronizado com Google/Microsoft).
@@ -687,7 +705,10 @@ class WhatsAppBot {
     };
   }
 
-  private async getCalendarEventsForDeletion(user: any): Promise<
+  private async getCalendarEventsForDeletion(
+    user: any,
+    cachedSettings?: Awaited<ReturnType<typeof storage.getUserSettings>>,
+  ): Promise<
     Array<{
       provider: 'google' | 'microsoft';
       calendarId: string;
@@ -712,12 +733,12 @@ class WhatsAppBot {
       if (!merged.some((r) => r.calendarId === row.calendarId)) merged.push(row);
     };
 
-    const settings = await storage.getUserSettings(user.id);
+    const settings = cachedSettings ?? (await storage.getUserSettings(user.id));
 
     if (settings?.calendarProvider === 'google' && settings.googleTokens) {
       try {
         setTokens(user.id, JSON.parse(settings.googleTokens));
-        const response = await listGoogleUpcomingEvents(user.id, 250);
+        const response = await listGooglePrimaryFutureEventsPaginated(user.id, 3500);
         if (response.success && response.events) {
           for (const event of response.events) {
             const startRaw = event?.start?.dateTime || event?.start?.date;
@@ -738,7 +759,7 @@ class WhatsAppBot {
 
     if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
       try {
-        const response = await listUpcomingMicrosoftEvents(user.id, 250);
+        const response = await listUpcomingMicrosoftEvents(user.id, 999);
         if (response.success && response.events) {
           for (const event of response.events) {
             const startRaw = event?.start?.dateTime;
@@ -784,12 +805,20 @@ class WhatsAppBot {
     dbLocalCount: number;
     dbStaleCount: number;
   }> {
+    const settings = await storage.getUserSettings(user.id);
+    const userCalendarProvider =
+      settings?.calendarProvider === 'microsoft'
+        ? 'microsoft'
+        : settings?.calendarProvider === 'google'
+          ? 'google'
+          : null;
+
     const [dbEvents, calendarEvents] = await Promise.all([
-      storage.getActiveEventsForDeletionWindow(user.id, 500),
-      this.getCalendarEventsForDeletion(user),
+      storage.getActiveEventsForDeletionWindow(user.id, 2500),
+      this.getCalendarEventsForDeletion(user, settings ?? undefined),
     ]);
 
-    return this.buildDeletionCandidates(dbEvents, calendarEvents);
+    return this.buildDeletionCandidates(dbEvents, calendarEvents, userCalendarProvider);
   }
 
   private async deleteCandidate(
