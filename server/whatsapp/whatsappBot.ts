@@ -1891,7 +1891,7 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/aula` — Aulas e eventos *de hoje* (no seu fuso)\n' +
-            '• `/buscar` — Concilia *PIX/recebimentos* do Pluggy (só após este comando; desde a 1ª aula no calendário)\n' +
+            '• `/buscar` — Pluggy: últimas *2 semanas* do extrato; `/buscar 1` = mais *2 semanas* para trás, etc.\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
             '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
@@ -1911,22 +1911,44 @@ class WhatsAppBot {
           break;
 
         case '/buscar': {
+          let windowIdx = 0;
+          const rawArg = args.trim();
+          if (rawArg) {
+            const n = parseInt(rawArg, 10);
+            if (!Number.isFinite(n) || n < 0 || n > 52) {
+              await this.sendMessage(
+                remoteJid,
+                'Use `/buscar` (últimas 2 semanas do extrato) ou `/buscar N` com N inteiro de *0* a *52*. Cada *N* pula mais *2 semanas* para trás (`/buscar 1` = bloco anterior, `/buscar 2` = mais antigo, …).',
+              );
+              break;
+            }
+            windowIdx = n;
+          }
           await this.sendMessage(
             remoteJid,
-            '⏳ Buscando no Pluggy (extrato desde a *primeira aula* no calendário)… pode levar até um minuto.',
+            '⏳ Buscando no Pluggy (janela de *2 semanas* no extrato)… pode levar até um minuto.',
           );
-          const { runPluggyBuscarReconciliation } = await import('../services/pluggy/pluggyBuscarReconciliation');
-          const out = await runPluggyBuscarReconciliation(user.id);
+          const { runPluggyBuscarReconciliation, BUSCAR_WINDOW_DAYS } = await import(
+            '../services/pluggy/pluggyBuscarReconciliation',
+          );
+          const out = await runPluggyBuscarReconciliation(user.id, { windowIndex: windowIdx });
           if (!out.ok) {
             await this.sendMessage(remoteJid, `ℹ️ ${out.message}`);
           } else {
+            const panelSettings = await storage.getUserSettings(user.id);
+            const tz = panelSettings?.timeZone || 'America/Sao_Paulo';
+            const df = (iso: string) => DateTime.fromISO(iso, { zone: tz }).toFormat('dd/MM/yyyy');
+            const windowLabel =
+              windowIdx === 0
+                ? '*mais recente* (últimas 2 semanas)'
+                : `*${windowIdx * 2} semana(s)* atrás (bloco \`${windowIdx}\`)`;
             await this.sendMessage(
               remoteJid,
               `✅ *Busca concluída*\n\n` +
-                `Analisei *${out.txSeen}* lançamento(ns) de crédito a partir de *${out.since}*.\n` +
-                'Aulas só viram *pago* quando o *nome no PIX* casa com o aluno na planilha (mesmo nome abreviado vale), ou quando o *valor fecha um número inteiro de aulas* e só *um* aluno tem pendências nesse preço. Também cruzamos com o texto *Aula com …* no calendário.\n' +
-                'Se nada mudou, confira se o aluno está na planilha com nome parecido com o do PIX.\n\n' +
-                '_Repita /buscar_ quando novos PIX aparecerem no banco.',
+                `Período: *${df(out.fromDay)}* → *${df(out.toDay)}* (${windowLabel}).\n` +
+                `Lançamentos retornados pelo banco: *${out.txSeen}* (até *${BUSCAR_WINDOW_DAYS}* dias por janela).\n\n` +
+                'Com *nome* batendo com a planilha (ou título *Aula com …*), o crédito *marca aulas pendentes* ou entra no *saldo retido* do aluno se ainda não houver pendência ou o PIX for anterior à primeira aula.\n\n' +
+                'Histórico mais antigo: `/buscar 1`, `/buscar 2`, …',
             );
           }
           break;

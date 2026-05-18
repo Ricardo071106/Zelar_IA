@@ -1,3 +1,4 @@
+import { DateTime } from "luxon";
 import { storage } from "../../storage";
 import { pluggyCredentialsConfigured, pluggyFetchJson } from "./pluggyApi";
 import {
@@ -5,6 +6,10 @@ import {
   processSinglePluggyTransaction,
   type PluggyTx,
 } from "./pluggyPaymentProcessor";
+
+/** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
+export const BUSCAR_WINDOW_DAYS = 14;
+const MAX_BUSCAR_WINDOW_INDEX = 52;
 
 function parseAccountsPayload(data: unknown): { id: string }[] {
   if (!data || typeof data !== "object") return [];
@@ -31,14 +36,36 @@ function parseTransactionsPage(data: unknown): { results: PluggyTx[]; totalPages
 }
 
 export type BuscarPluggyResult =
-  | { ok: true; txSeen: number; since: string }
+  | { ok: true; txSeen: number; fromDay: string; toDay: string; windowIndex: number }
   | { ok: false; message: string };
 
 /**
- * Conciliação sob demanda (WhatsApp `/buscar`): lê o extrato Pluggy desde a primeira aula
- * e aplica a mesma regra de nome + valor; aulas sem match seguem pendentes.
+ * Janela de N×14 dias para trás: `/buscar` = índice 0 (últimas 2 semanas), `/buscar 1` = bloco anterior, etc.
+ * `to` na API Pluggy costuma ser exclusivo — enviamos o dia seguinte ao fim da janela.
  */
-export async function runPluggyBuscarReconciliation(userId: number): Promise<BuscarPluggyResult> {
+export function computePluggyBuscarDateWindow(
+  timeZone: string,
+  windowIndex: number,
+): { fromDay: string; toExclusiveDay: string; toDayInclusive: string; windowIndex: number } {
+  const idx = Math.min(MAX_BUSCAR_WINDOW_INDEX, Math.max(0, Math.floor(windowIndex)));
+  const tz = timeZone?.trim() || "America/Sao_Paulo";
+  const today = DateTime.now().setZone(tz).startOf("day");
+  const windowEnd = today.minus({ days: idx * BUSCAR_WINDOW_DAYS });
+  const windowStart = windowEnd.minus({ days: BUSCAR_WINDOW_DAYS - 1 });
+  const fromDay = windowStart.toFormat("yyyy-MM-dd");
+  const toDayInclusive = windowEnd.toFormat("yyyy-MM-dd");
+  const toExclusiveDay = windowEnd.plus({ days: 1 }).toFormat("yyyy-MM-dd");
+  return { fromDay, toExclusiveDay, toDayInclusive, windowIndex: idx };
+}
+
+/**
+ * Conciliação sob demanda (WhatsApp `/buscar` e `/buscar N`): lê o extrato Pluggy na janela de datas
+ * e aplica regras em pluggyPaymentProcessor (aulas pendentes, saldo retido, etc.).
+ */
+export async function runPluggyBuscarReconciliation(
+  userId: number,
+  opts?: { windowIndex?: number },
+): Promise<BuscarPluggyResult> {
   if (!pluggyCredentialsConfigured()) {
     return { ok: false, message: "Pluggy não está configurado no servidor." };
   }
@@ -47,15 +74,11 @@ export async function runPluggyBuscarReconciliation(userId: number): Promise<Bus
   if (!itemId) {
     return { ok: false, message: "Nenhum banco conectado. Abra o painel e use *Conectar banco (Pluggy)*." };
   }
-  const since = await storage.getEarliestLessonCreatedAtForUser(userId);
-  if (!since) {
-    return {
-      ok: false,
-      message:
-        "Ainda não há *aulas vinculadas a alunos* no calendário. Marque aulas com seus alunos primeiro; depois use /buscar.",
-    };
-  }
-  const fromDay = since.toISOString().slice(0, 10);
+
+  const { fromDay, toExclusiveDay, toDayInclusive, windowIndex } = computePluggyBuscarDateWindow(
+    settings?.timeZone || "America/Sao_Paulo",
+    opts?.windowIndex ?? 0,
+  );
 
   let accountsData: unknown;
   try {
@@ -78,6 +101,7 @@ export async function runPluggyBuscarReconciliation(userId: number): Promise<Bus
       const qs =
         `accountId=${encodeURIComponent(acc.id)}` +
         `&from=${encodeURIComponent(fromDay)}` +
+        `&to=${encodeURIComponent(toExclusiveDay)}` +
         `&page=${page}` +
         `&pageSize=500`;
       let pageData: unknown;
@@ -103,5 +127,5 @@ export async function runPluggyBuscarReconciliation(userId: number): Promise<Bus
     await processSinglePluggyTransaction(itemId, tx);
   }
 
-  return { ok: true, txSeen: merged.length, since: fromDay };
+  return { ok: true, txSeen: merged.length, fromDay, toDay: toDayInclusive, windowIndex };
 }

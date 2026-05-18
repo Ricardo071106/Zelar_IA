@@ -284,11 +284,6 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const amountCents = amountToCents(Number(tx.amount));
   if (amountCents <= 0) return;
 
-  const globalFirstLessonAt = await storage.getEarliestLessonCreatedAtForUser(userId);
-  if (globalFirstLessonAt && txPostedAt.getTime() < globalFirstLessonAt.getTime()) {
-    return;
-  }
-
   if (memoLooksLikeInstitutionalNoise(tx)) {
     return;
   }
@@ -324,30 +319,26 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   }
 
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
-
-  if (!firstLessonAt) {
-    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
-    console.log(
-      "[Pluggy] Nenhuma aula ainda vinculada ao contato",
-      contact.id,
-      "— crédito ignorado para rateio (crie a primeira aula no WhatsApp).",
-    );
-    return;
-  }
-
-  if (txPostedAt.getTime() < firstLessonAt.getTime()) {
-    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
-    console.log(
-      "[Pluggy] Transação com data anterior à primeira aula criada; não entra na soma.",
-      txId,
-      firstLessonAt.toISOString(),
-    );
-    return;
-  }
-
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
-  if (!pending.length) {
-    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
+
+  const canAllocateToLessons =
+    firstLessonAt != null &&
+    txPostedAt.getTime() >= firstLessonAt.getTime() &&
+    pending.length > 0;
+
+  if (!canAllocateToLessons) {
+    if (txId) {
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
+      if (!inserted) return;
+    } else {
+      const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
+      if (!inserted) return;
+    }
+    await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
+    console.log(
+      `[Pluggy] Saldo retido +R$ ${(amountCents / 100).toFixed(2)} (contato ${contact.id}) — sem aula pendente para ratear, ou PIX anterior à primeira aula do aluno.`,
+    );
     return;
   }
 
@@ -357,6 +348,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     settings?.defaultLessonPriceCents ?? null,
   );
   if (!unit || unit <= 0) {
+    if (txId) await storage.tryRecordPluggyTransactionOnce(userId, txId);
     console.warn("[Pluggy] Sem preço por aula configurável para aluno", contact.id);
     return;
   }
@@ -374,7 +366,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   );
   await storage.insertPluggyContactCredit(userId, contact.id, ledgerTxKey, amountCents, txPostedAt);
 
-  const totalPaidCents = await storage.sumPluggyContactCreditsSince(userId, contact.id, firstLessonAt);
+  const totalPaidCents = await storage.sumPluggyContactCreditsSince(userId, contact.id, firstLessonAt!);
   const earnedLessonSlots = Math.floor(totalPaidCents / unit);
   const alreadyPaidCount = await storage.countPaidLessonEventsForContact(userId, contact.id);
   const needToMark = Math.min(Math.max(0, earnedLessonSlots - alreadyPaidCount), pending.length);
