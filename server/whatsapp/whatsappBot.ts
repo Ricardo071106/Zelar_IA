@@ -928,6 +928,7 @@ class WhatsAppBot {
       '/cancelar',
       '/aula',
       '/aulas',
+      '/buscar',
     ]);
 
     if (!user.email && !allowedWithoutEmail.has(command)) {
@@ -1816,6 +1817,7 @@ class WhatsAppBot {
             '📋 *Comandos Principais:*\n' +
             '• `/eventos` - Lista eventos passados e futuros\n' +
             '• `/aula` — Aulas e eventos *de hoje* (no seu fuso)\n' +
+            '• `/buscar` — Concilia *PIX/recebimentos* do Pluggy (só após este comando; desde a 1ª aula no calendário)\n' +
             '• `/email` - Cadastra/atualiza seu email\n' +
             '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
             '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
@@ -1833,6 +1835,27 @@ class WhatsAppBot {
             '📌 *Várias aulas de uma vez:* escreva por exemplo *"marque aulas segunda, terça e quinta às 18"* ou *"marque aulas com João Silva segunda e quarta às 19"*.'
           );
           break;
+
+        case '/buscar': {
+          await this.sendMessage(
+            remoteJid,
+            '⏳ Buscando no Pluggy (extrato desde a *primeira aula* no calendário)… pode levar até um minuto.',
+          );
+          const { runPluggyBuscarReconciliation } = await import('../services/pluggy/pluggyBuscarReconciliation');
+          const out = await runPluggyBuscarReconciliation(user.id);
+          if (!out.ok) {
+            await this.sendMessage(remoteJid, `ℹ️ ${out.message}`);
+          } else {
+            await this.sendMessage(
+              remoteJid,
+              `✅ *Busca concluída*\n\n` +
+                `Analisei *${out.txSeen}* lançamento(ns) de crédito a partir de *${out.since}*.\n` +
+                'Aulas só viram *pago* quando *nome + valor* baterem com um aluno e o preço da aula; caso contrário continuam *pendente*.\n\n' +
+                '_Repita /buscar_ quando novos PIX aparecerem no banco.',
+            );
+          }
+          break;
+        }
 
         case '/aula':
         case '/aulas': {

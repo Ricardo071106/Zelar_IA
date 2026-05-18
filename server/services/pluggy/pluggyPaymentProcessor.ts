@@ -7,7 +7,7 @@ import { extractPayerNameFromPluggyTransaction } from "./pluggyPayerExtract";
 import { patchGoogleCalendarEventSummary, setTokens } from "../../telegram/googleCalendarIntegration";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 
-type PluggyTx = {
+export type PluggyTx = {
   id?: string;
   type?: string;
   status?: string;
@@ -28,6 +28,13 @@ type PluggyTx = {
 };
 
 const DEBUG_PLUGGY = process.env.DEBUG_PLUGGY === "true";
+
+/** Se true/1/yes, webhooks `transactions/*` conciliam sozinhos. Sem variável (padrão): só `/buscar` no WhatsApp. */
+export function pluggyWebhookAutoProcessesTransactions(): boolean {
+  const v = process.env.PLUGGY_AUTO_WEBHOOK_SYNC?.trim().toLowerCase();
+  if (!v) return false;
+  return v === "true" || v === "1" || v === "yes";
+}
 
 /** Créditos genéricos de cartão/corretora/fatura — sem nome de pagador PIX; não tentamos casar com aluno. */
 function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
@@ -60,8 +67,6 @@ function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
     "INVESTIMENTO",
     "RENDIMENTO",
     "RESGATE",
-    "TED ",
-    "DOC ",
     "TRANSF ENVIADA",
     "PIX ENVIADO",
     "DEBITO",
@@ -73,7 +78,7 @@ function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
 }
 
 /** Data do crédito no banco (só entra no somatório se >= primeira aula criada). */
-function extractTxPostedAtFromPluggyTx(tx: PluggyTx): Date {
+export function extractTxPostedAtFromPluggyTx(tx: PluggyTx): Date {
   const r = tx as Record<string, unknown>;
   const keys = ["date", "valueDate", "operationDate", "createdAt", "paymentDate"];
   for (const k of keys) {
@@ -188,7 +193,7 @@ export async function processPluggyTransactionsPayload(itemId: string | undefine
   }
 }
 
-async function processSinglePluggyTransaction(itemId: string | undefined, tx: PluggyTx): Promise<void> {
+export async function processSinglePluggyTransaction(itemId: string | undefined, tx: PluggyTx): Promise<void> {
   const txId = typeof tx.id === "string" ? tx.id : null;
 
   if (tx.type !== "CREDIT" || (tx.status && tx.status !== "POSTED")) {
@@ -357,8 +362,9 @@ async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentL
   const settings = await storage.getUserSettings(userId);
   const calendarId = ev.calendarId;
   if (!calendarId) return;
+  if (!settings) return;
 
-  const provider = settings?.calendarProvider;
+  const provider = settings.calendarProvider;
   if (provider === "google" && settings.googleTokens) {
     try {
       setTokens(userId, JSON.parse(settings.googleTokens));
@@ -400,6 +406,7 @@ async function notifyGuestPaymentDigest(
 }
 
 export async function handlePluggyTransactionsCreatedWebhook(body: Record<string, unknown>): Promise<void> {
+  if (!pluggyWebhookAutoProcessesTransactions()) return;
   const link = typeof body.createdTransactionsLink === "string" ? body.createdTransactionsLink : null;
   const itemId = typeof body.itemId === "string" ? body.itemId : undefined;
   if (!link) return;
@@ -408,6 +415,7 @@ export async function handlePluggyTransactionsCreatedWebhook(body: Record<string
 }
 
 export async function handlePluggyTransactionsUpdatedWebhook(body: Record<string, unknown>): Promise<void> {
+  if (!pluggyWebhookAutoProcessesTransactions()) return;
   const ids = Array.isArray(body.transactionIds)
     ? (body.transactionIds as unknown[]).filter((x): x is string => typeof x === "string")
     : [];

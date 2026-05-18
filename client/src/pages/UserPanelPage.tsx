@@ -792,8 +792,7 @@ export default function UserPanelPage() {
               <CardContent className="space-y-4">
                 <p className="text-xs text-slate-500">
                   Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário (qualquer
-                  aluno). Faturas de cartão, corretoras e boletos são ignorados. Webhooks da Pluggy continuam chegando, mas
-                  o servidor filtra o que não é PIX/recebimento de aluno.
+                  aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, rode <strong className="font-mono text-emerald-900">/buscar</strong> para o Zelar ler o extrato e tentar bater nome + valor com alunos; sem match, a aula segue pendente.
                 </p>
                 {me.pluggy ? (
                   <div className="rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-white p-4 space-y-3">
