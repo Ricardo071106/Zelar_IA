@@ -1,0 +1,12 @@
+# Evita sobrescrever node_modules do `npm ci` e reduz contexto do build
+node_modules
+npm-debug.log*
+.git
+.github
+**/.DS_Store
+dist
+.env
+.env.*
+!.env.example
+.whatsapp-auth
+quickstart-master

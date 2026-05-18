@@ -27,7 +27,14 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm install
+# Registry npm às vezes reseta conexão (ECONNRESET): retries, menos round-trips (--no-audit/--no-fund), re-tentativas.
+RUN npm config set fetch-retries 10 \
+  && npm config set fetch-retry-mintimeout 20000 \
+  && npm config set fetch-retry-maxtimeout 120000 \
+  && npm config set maxsockets 10 \
+  && (npm ci --no-audit --no-fund \
+    || (echo "npm ci retry 1..." && sleep 15 && npm ci --no-audit --no-fund) \
+    || (echo "npm ci retry 2..." && sleep 30 && npm ci --no-audit --no-fund))
 
 COPY . .
 
