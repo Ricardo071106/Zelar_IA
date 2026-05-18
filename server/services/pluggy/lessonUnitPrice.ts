@@ -30,11 +30,25 @@ export function resolveLessonUnitCentsForAllocation(
 ): number | null {
   const raw = firstPendingEvent.rawData as Record<string, unknown> | null;
   const z = raw?.zelarLesson as Record<string, unknown> | undefined;
+  /** Congelado no momento do agendamento — mudança de preço no painel não altera aulas antigas pendentes. */
+  const snap = z?.lessonUnitPriceCentsSnapshot;
+  if (typeof snap === "number" && Number.isFinite(snap) && snap > 0) {
+    return Math.round(snap);
+  }
   const packUnit = z?.packUnitPriceCents;
   if (typeof packUnit === "number" && Number.isFinite(packUnit) && packUnit > 0) {
     return Math.round(packUnit);
   }
   return resolveLessonUnitCents(contact, defaultLessonPriceCents);
+}
+
+/** Mesma regra que o rateio Pluggy: snapshot → pacote no evento → tabela do aluno / preço padrão. */
+export function getLessonUnitCentsFromEventSnapshot(
+  ev: Event,
+  contact: UserGuestContactRow,
+  defaultLessonPriceCents: number | null | undefined,
+): number | null {
+  return resolveLessonUnitCentsForAllocation(ev, contact, defaultLessonPriceCents);
 }
 
 export function displayNameFromGuestContact(contact: UserGuestContactRow): string {

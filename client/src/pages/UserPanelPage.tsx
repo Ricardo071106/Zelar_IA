@@ -67,6 +67,8 @@ type GuestRow = {
   remainingLessons: number | null;
   /** Centavos BRL — crédito retido (cancelamento / ajuste); débitos PIX no /buscar podem abater. */
   lessonBalanceCents: number;
+  /** Soma das aulas *pendentes* no calendário, cada uma pelo preço vigente no agendamento. */
+  lessonPendingDebtCents: number;
   financialStatus: string;
   notes: string;
 };
@@ -975,9 +977,12 @@ export default function UserPanelPage() {
                 <CardTitle className="font-mago text-2xl text-emerald-900">Alunos e clientes</CardTitle>
                 <CardDescription className="text-slate-600">
                   Cadastre apenas <strong className="text-emerald-800">nome completo</strong> e{" "}
-                  <strong className="text-emerald-800">e-mail e/ou telefone</strong>. O status financeiro (pago / pendente)
-                  nas aulas é atualizado pelo <strong className="text-emerald-800">Pluggy</strong> ao detectar o PIX na
-                  conta. No WhatsApp use <span className="font-mono text-emerald-900">/aula</span> para ver a agenda do dia.
+                  <strong className="text-emerald-800">e-mail e/ou telefone</strong>.{" "}
+                  <strong>Pendente (aulas)</strong> soma o valor das aulas ainda não pagas (cada uma com o preço
+                  congelado no dia em que foi marcada; mudar o preço no painel não altera aulas antigas).{" "}
+                  <strong>Saldo retido</strong> é crédito (ex.: cancelamento); o Pluggy pode abatê-lo no{" "}
+                  <span className="font-mono text-emerald-900">/buscar</span>. No WhatsApp use{" "}
+                  <span className="font-mono text-emerald-900">/aula</span> para ver a agenda do dia.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -1071,6 +1076,7 @@ export default function UserPanelPage() {
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Nome</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Telefone</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">E-mail</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Pendente (aulas)</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Saldo retido</TableHead>
                         <TableHead className="min-w-[140px] font-mago text-emerald-900" />
                       </TableRow>
@@ -1078,7 +1084,7 @@ export default function UserPanelPage() {
                     <TableBody>
                       {guests.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-10">
+                          <TableCell colSpan={6} className="text-center text-slate-500 py-10">
                             Nenhum aluno ainda. Preencha o formulário acima e toque em &quot;Adicionar aluno&quot;.
                           </TableCell>
                         </TableRow>
@@ -1093,7 +1099,13 @@ export default function UserPanelPage() {
                               {g.email || "—"}
                             </TableCell>
                             <TableCell className="text-slate-800 whitespace-nowrap">
-                              {(g.lessonBalanceCents / 100).toLocaleString("pt-BR", {
+                              {((g.lessonPendingDebtCents ?? 0) / 100).toLocaleString("pt-BR", {
+                                style: "currency",
+                                currency: "BRL",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-slate-800 whitespace-nowrap">
+                              {((g.lessonBalanceCents ?? 0) / 100).toLocaleString("pt-BR", {
                                 style: "currency",
                                 currency: "BRL",
                               })}

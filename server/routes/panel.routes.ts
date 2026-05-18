@@ -15,6 +15,7 @@ import {
   fetchPluggyItemSummary,
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
+import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
 
 const router = Router();
 const upload = multer({
@@ -378,6 +379,7 @@ router.get(
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
     const rows = await storage.listUserGuestContacts(ctx.user.id);
+    const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
     res.json({
       guests: rows.map((r) => ({
         id: r.id,
@@ -389,6 +391,7 @@ router.get(
         packageLessonsTotal: r.packageLessonsTotal ?? null,
         remainingLessons: r.remainingLessons ?? null,
         lessonBalanceCents: r.lessonBalanceCents ?? 0,
+        lessonPendingDebtCents: debtByContact.get(r.id) ?? 0,
         financialStatus: r.financialStatus ?? 'pendente',
         notes: r.notes ?? '',
       })),
@@ -465,6 +468,7 @@ router.post(
         remainingLessons,
         lessonBalanceCents,
       });
+      const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
       res.json({
         guest: {
           id: row.id,
@@ -476,6 +480,7 @@ router.post(
           packageLessonsTotal: row.packageLessonsTotal ?? null,
           remainingLessons: row.remainingLessons ?? null,
           lessonBalanceCents: row.lessonBalanceCents ?? 0,
+          lessonPendingDebtCents: debtByContact.get(row.id) ?? 0,
           financialStatus: row.financialStatus ?? 'pendente',
           notes: row.notes ?? '',
         },

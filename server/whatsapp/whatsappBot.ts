@@ -51,8 +51,9 @@ import { signPanelToken } from '../utils/panelToken';
 import { applyCanonicalAndFuzzyGuestEmails } from '../services/guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
 import { randomUUID } from 'crypto';
-import type { UserSettings } from '@shared/schema';
+import type { UserSettings, Event } from '@shared/schema';
 import { buildLessonCalendarTitle } from '../services/pluggy/lessonTitle';
+import { resolveLessonUnitCents, resolveLessonUnitCentsForAllocation } from '../services/pluggy/lessonUnitPrice';
 import { tryParseBulkLessonSchedule } from './bulkLessonSchedule';
 import { extractComGuestNameFromText } from './extractComGuestName';
 
@@ -1482,6 +1483,17 @@ class WhatsAppBot {
         packUnitPriceCents,
         packId,
       };
+
+      const fakeEv = {
+        rawData: rawPayload,
+        lessonPaymentStatus: 'pendente',
+      } as Event;
+      const unitSnapshot = guestRow
+        ? resolveLessonUnitCentsForAllocation(fakeEv, guestRow, userSettings?.defaultLessonPriceCents ?? null)
+        : resolveLessonUnitCents(null, userSettings?.defaultLessonPriceCents ?? null);
+      if (unitSnapshot != null && unitSnapshot > 0) {
+        (rawPayload.zelarLesson as Record<string, unknown>).lessonUnitPriceCentsSnapshot = unitSnapshot;
+      }
 
       const packGroupId =
         lessonTot != null && lessonTot > 1 && batchCtx?.packGroupId ? batchCtx.packGroupId : null;
