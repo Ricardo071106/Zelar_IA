@@ -270,11 +270,7 @@ export default function UserPanelPage() {
 
   useEffect(() => {
     if (tab !== "guests" || !token) return;
-    loadGuests();
-    const id = window.setInterval(() => {
-      void loadGuests();
-    }, 2500);
-    return () => window.clearInterval(id);
+    void loadGuests();
   }, [tab, token, loadGuests]);
 
   const saveProfile = async () => {

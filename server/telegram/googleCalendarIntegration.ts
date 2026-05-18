@@ -554,12 +554,13 @@ export async function listUpcomingEvents(userId: number, maxResults = 10): Promi
 }
 
 /**
- * Lista eventos futuros (e desde ontem) no calendário primary com paginação.
+ * Lista eventos futuros (e janela recente no passado) no calendário primary com paginação.
  * Usado ao montar candidatos para apagar/cancelar sem perder eventos além da 1ª página da API.
  */
 export async function listGooglePrimaryFutureEventsPaginated(
   userId: number,
   maxTotal = 3500,
+  opts?: { pastDaysBack?: number },
 ): Promise<{
   success: boolean;
   message: string;
@@ -577,8 +578,9 @@ export async function listGooglePrimaryFutureEventsPaginated(
     }
 
     const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+    const pastDaysBack = typeof opts?.pastDaysBack === 'number' && opts.pastDaysBack >= 0 ? opts.pastDaysBack : 1;
     const timeMin = new Date();
-    timeMin.setDate(timeMin.getDate() - 1);
+    timeMin.setDate(timeMin.getDate() - pastDaysBack);
 
     const all: calendar_v3.Schema$Event[] = [];
     let pageToken: string | undefined;

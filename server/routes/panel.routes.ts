@@ -12,7 +12,6 @@ import { parseContactsFromSpreadsheetBuffer } from '../utils/spreadsheetContacts
 import {
   createPluggyConnectToken,
   extractConnectToken,
-  fetchPluggyItemSummary,
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
 import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
@@ -257,16 +256,11 @@ router.get(
           ? 'microsoft'
           : null;
 
+    /** Não chama API Pluggy aqui — leitura de extrato só no WhatsApp com `/buscar` (evita tráfego Pluggy ao abrir o painel). */
     let pluggy: { itemId: string; label: string } | null = null;
     const pluggyItemId = settings?.pluggyItemId?.trim();
     if (pluggyItemId) {
-      let label = 'Conta conectada';
-      if (pluggyCredentialsConfigured()) {
-        const sum = await fetchPluggyItemSummary(pluggyItemId);
-        const parts = [sum?.institutionName, sum?.connectorName].filter((x): x is string => Boolean(x && x.trim()));
-        if (parts.length > 0) label = parts.join(' · ');
-      }
-      pluggy = { itemId: pluggyItemId, label };
+      pluggy = { itemId: pluggyItemId, label: 'Conta conectada' };
     }
 
     res.json({

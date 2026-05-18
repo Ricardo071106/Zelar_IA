@@ -412,6 +412,8 @@ class WhatsAppBot {
     v = v.replace(/\baulas\b/g, 'aula');
     v = v.replace(/\s*·\s*aluno\s*\([^)]*\)\s*$/i, '');
     v = v.replace(/\s*aluno\s*\([^)]*\)\s*$/i, '');
+    v = v.replace(/\s*·\s*pago\s*$/i, '');
+    v = v.replace(/\s*·\s*pendente\s*$/i, '');
     return v;
   }
 
@@ -440,6 +442,13 @@ class WhatsAppBot {
     if (!l || !r) return 0;
     if (l === r) return 1;
     if (l.includes(r) || r.includes(l)) return 0.92;
+
+    // Busca curta ("pietro gaeta") vs título longo ("aula com pietro gabriel gaeta ..."):
+    // a razão por tokens caía abaixo de 0,45 mesmo com o nome correto no título.
+    const sigR = r.split(' ').filter((w) => w.length >= 3);
+    if (sigR.length >= 1 && sigR.every((w) => l.includes(w))) {
+      return 0.96;
+    }
 
     const leftTokens = new Set(l.split(' ').filter((token) => token.length > 2));
     const rightTokens = new Set(r.split(' ').filter((token) => token.length > 2));
@@ -550,7 +559,7 @@ class WhatsAppBot {
 
     for (const { key, oauthId } of attempts) {
       if (!(await this.applyZelarIntegrationGoogleTokens(key, oauthId))) continue;
-      const response = await listGooglePrimaryFutureEventsPaginated(oauthId, 2500);
+      const response = await listGooglePrimaryFutureEventsPaginated(oauthId, 2500, { pastDaysBack: 45 });
       if (!response.success || !response.events) continue;
       for (const ev of response.events) {
         const id = ev?.id as string | undefined;
@@ -739,7 +748,7 @@ class WhatsAppBot {
     if (settings?.calendarProvider === 'google' && settings.googleTokens) {
       try {
         setTokens(user.id, JSON.parse(settings.googleTokens));
-        const response = await listGooglePrimaryFutureEventsPaginated(user.id, 3500);
+        const response = await listGooglePrimaryFutureEventsPaginated(user.id, 3500, { pastDaysBack: 45 });
         if (response.success && response.events) {
           for (const event of response.events) {
             const startRaw = event?.start?.dateTime || event?.start?.date;
