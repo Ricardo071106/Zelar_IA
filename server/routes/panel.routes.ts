@@ -9,7 +9,7 @@ import { COMMON_TIMEZONES } from '../services/dateService';
 import { stripeService } from '../services/stripe';
 import { notifyPendingGuestIdentities } from '../services/guestIdentityNotifyService';
 import { parseContactsFromSpreadsheetBuffer } from '../utils/spreadsheetContacts';
-import { createPluggyConnectToken, extractConnectToken } from '../services/pluggy/pluggyApi';
+import { createPluggyConnectToken, extractConnectToken, pluggyCredentialsConfigured } from '../services/pluggy/pluggyApi';
 
 const router = Router();
 const upload = multer({
@@ -771,8 +771,11 @@ router.post(
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
 
-    if (!process.env.PLUGGY_API_KEY?.trim()) {
-      return res.status(503).json({ error: 'PLUGGY_API_KEY nao configurada no servidor' });
+    if (!pluggyCredentialsConfigured()) {
+      return res.status(503).json({
+        error:
+          'Pluggy: configure PLUGGY_CLIENT_ID e PLUGGY_CLIENT_SECRET (recomendado, como no quickstart oficial) ou PLUGGY_API_KEY no servidor',
+      });
     }
 
     try {

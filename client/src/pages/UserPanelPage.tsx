@@ -1030,27 +1030,61 @@ export default function UserPanelPage() {
           <DialogHeader>
             <DialogTitle className="font-mago text-emerald-950">Pluggy Connect</DialogTitle>
             <DialogDescription className="text-slate-600">
-              Autorize o acesso em modo leitura. Com sandbox ativo, escolha o conector <strong>Sandbox</strong> na lista
-              e use as credenciais de teste da Pluggy (ex.: usuário <span className="font-mono">user-ok</span>, senha{" "}
+              Contas <strong>PF</strong> e <strong>PJ</strong> (Open Finance — banco). Autorize só leitura do extrato; o
+              Zelar usa apenas <strong>nome do pagador</strong> e <strong>valor</strong> para casar com seus alunos e
+              marcar aulas pagas desde a <strong>primeira aula criada</strong> de cada aluno. Em sandbox, escolha o
+              conector <strong>Sandbox</strong> (ex.: <span className="font-mono">user-ok</span> /{" "}
               <span className="font-mono">password-ok</span>, MFA <span className="font-mono">123456</span>). Em
-              produção use HTTPS e <span className="font-mono text-emerald-900">BASE_URL</span> apontando para este
-              servidor (webhook).
+              produção use HTTPS e <span className="font-mono text-emerald-900">BASE_URL</span> público (webhook Pluggy).
             </DialogDescription>
           </DialogHeader>
           {pluggyConnectToken ? (
             <div className="min-h-[420px] w-full">
               <PluggyConnect
                 connectToken={pluggyConnectToken}
+                connectorTypes={["PERSONAL_BANK", "BUSINESS_BANK"]}
                 includeSandbox={
                   import.meta.env.DEV || import.meta.env.VITE_PLUGGY_INCLUDE_SANDBOX === "true"
                 }
                 language="pt"
                 theme="light"
-                onSuccess={() => {
-                  toast({
-                    title: "Conta conectada",
-                    description: "O item Pluggy será associado ao seu usuário em instantes.",
-                  });
+                onSuccess={async (data: { item?: { id?: string } }) => {
+                  const itemId = data?.item?.id?.trim();
+                  if (itemId && token) {
+                    try {
+                      const r = await fetch("/api/panel/settings/finance", {
+                        method: "PATCH",
+                        headers: jsonPostHeaders,
+                        body: JSON.stringify({ pluggyItemId: itemId }),
+                      });
+                      const j = await r.json().catch(() => ({}));
+                      if (!r.ok) {
+                        toast({
+                          title: "Pluggy",
+                          description:
+                            (j as { error?: string }).error ||
+                            "Conta conectada, mas não salvamos o item — tente de novo ou aguarde o webhook.",
+                          variant: "destructive",
+                        });
+                      } else {
+                        toast({
+                          title: "Conta conectada",
+                          description: "Item Pluggy vinculado ao seu usuário.",
+                        });
+                      }
+                    } catch {
+                      toast({
+                        title: "Pluggy",
+                        description: "Falha de rede ao salvar o item; o webhook pode vincular em seguida.",
+                        variant: "destructive",
+                      });
+                    }
+                  } else {
+                    toast({
+                      title: "Conta conectada",
+                      description: "O item Pluggy será associado ao seu usuário em instantes (webhook).",
+                    });
+                  }
                   setPluggyDialogOpen(false);
                   setPluggyConnectToken(null);
                   void loadMe();
