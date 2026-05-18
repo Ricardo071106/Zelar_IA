@@ -416,14 +416,33 @@ export async function cancelGoogleCalendarEvent(calendarEventId: string, userId:
 
 /**
  * Atualiza apenas o título (summary) de um evento — ex.: marcar aula como paga no texto.
+ * @param auth Opcional: conta OAuth e tokens (ex.: Google de serviço em `system_calendar_integrations`),
+ *             quando o evento não foi criado com os tokens do `userId` no painel.
  */
 export async function patchGoogleCalendarEventSummary(
   calendarEventId: string,
   userId: number,
   summary: string,
+  auth?: { oauthClientId: number; tokens: unknown },
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const oauth2Client = getOAuth2Client(userId);
+    const clientId = auth?.oauthClientId ?? userId;
+
+    if (auth?.tokens != null) {
+      setTokens(clientId, auth.tokens);
+    } else {
+      const { storage } = await import('../storage');
+      const settings = await storage.getUserSettings(userId);
+      if (!settings?.googleTokens) {
+        return {
+          success: false,
+          message: 'Usuário não autenticado com Google Calendar. Por favor, autorize o acesso primeiro.',
+        };
+      }
+      setTokens(userId, JSON.parse(settings.googleTokens));
+    }
+
+    const oauth2Client = getOAuth2Client(clientId);
 
     if (!oauth2Client.credentials || !oauth2Client.credentials.access_token) {
       return {

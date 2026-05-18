@@ -3,7 +3,7 @@ import multer from 'multer';
 import { asyncHandler } from '../middleware/errorHandler';
 import { sanitizePanelTokenQueryParam, signPanelToken, verifyPanelToken } from '../utils/panelToken';
 import { hashPanelPassword, verifyPanelPassword, validateNewPanelPassword } from '../utils/panelPassword';
-import { storage } from '../storage';
+import { storage, type UserGuestContactRow } from '../storage';
 import { isFullName, fullNameValidationMessage } from '../utils/fullName';
 import { COMMON_TIMEZONES } from '../services/dateService';
 import { stripeService } from '../services/stripe';
@@ -433,6 +433,12 @@ router.post(
     }
 
     try {
+      let oldGuest: UserGuestContactRow | undefined;
+      if (id !== undefined) {
+        oldGuest = await storage.getGuestContactByIdForUser(ctx.user.id, id);
+      }
+      const settingsForFreeze = await storage.getUserSettings(ctx.user.id);
+
       let monthlyAmountCents: number | null | undefined = undefined;
       if (Object.prototype.hasOwnProperty.call(req.body || {}, 'monthlyAmountReais')) {
         monthlyAmountCents = parseMoneyToCentsFromPanel((req.body as any).monthlyAmountReais);
@@ -453,6 +459,26 @@ router.post(
         else if (lb === null || lb === '') lessonBalanceCents = 0;
         else if (typeof lb === 'number' && Number.isFinite(lb)) lessonBalanceCents = Math.max(0, Math.round(lb));
         else lessonBalanceCents = Math.max(0, Math.round(parseMoneyToCentsFromPanel(lb) ?? 0));
+      }
+
+      if (oldGuest && id !== undefined) {
+        const monthlyChanged =
+          monthlyAmountCents !== undefined &&
+          (oldGuest.monthlyAmountCents ?? null) !== (monthlyAmountCents ?? null);
+        const pkgChanged =
+          packageLessonsTotal !== undefined &&
+          (oldGuest.packageLessonsTotal ?? null) !== (packageLessonsTotal ?? null);
+        if (monthlyChanged || pkgChanged) {
+          const { freezePendingLessonSnapshotsBeforeGuestPricingChange } = await import(
+            '../services/lessonPriceSnapshotFreeze',
+          );
+          await freezePendingLessonSnapshotsBeforeGuestPricingChange(
+            ctx.user.id,
+            id,
+            oldGuest,
+            settingsForFreeze?.defaultLessonPriceCents ?? null,
+          );
+        }
       }
 
       const row = await storage.upsertGuestFromPanel(ctx.user.id, {
@@ -761,6 +787,17 @@ router.patch(
 
     if (Object.keys(patch).length === 0) {
       return res.status(400).json({ error: 'nada para atualizar' });
+    }
+
+    if (
+      defaultLessonPriceCents !== undefined &&
+      s &&
+      s.defaultLessonPriceCents !== defaultLessonPriceCents
+    ) {
+      const { freezeLessonUnitSnapshotsBeforeDefaultPriceChange } = await import(
+        '../services/lessonPriceSnapshotFreeze',
+      );
+      await freezeLessonUnitSnapshotsBeforeDefaultPriceChange(ctx.user.id, s.defaultLessonPriceCents);
     }
 
     if (s) {

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray, ne, isNull } from "drizzle-orm";
+import { eq, and, desc, gt, gte, lt, lte, sql, asc, inArray, ne, isNull, isNotNull } from "drizzle-orm";
 import {
   users,
   type User,
@@ -21,6 +21,18 @@ import {
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 import { normalizeBrazilianPhone } from "./utils/phoneExtraction";
 import { isFullName, fullNameValidationMessage } from "./utils/fullName";
+
+function lessonEventMissingImplicitUnitSnapshot(ev: Event): boolean {
+  const raw = ev.rawData as Record<string, unknown> | null;
+  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
+  if (typeof z?.lessonUnitPriceCentsSnapshot === "number" && Number.isFinite(z.lessonUnitPriceCentsSnapshot) && z.lessonUnitPriceCentsSnapshot > 0) {
+    return false;
+  }
+  if (typeof z?.packUnitPriceCents === "number" && Number.isFinite(z.packUnitPriceCents) && z.packUnitPriceCents > 0) {
+    return false;
+  }
+  return true;
+}
 
 function isValidEmailFormat(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -248,6 +260,10 @@ export interface IStorage {
   getEarliestLessonCreatedAtForUser(userId: number): Promise<Date | null>;
   findUserIdByPluggyItemId(itemId: string): Promise<number | null>;
   listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]>;
+  /** Aulas pagas + pendentes do aluno, por data da aula (rateio Pluggy cumulativo). */
+  listBillableLessonEventsForContactOrdered(userId: number, studentContactId: number): Promise<Event[]>;
+  /** Aulas (paga/pendente) sem snapshot nem pack unit — candidatas a congelar antes de mudar preço tabela. */
+  listLessonEventsMissingUnitSnapshotForUser(userId: number): Promise<Event[]>;
   /** Retorna true se inseriu (primeira vez); false se transação já processada. */
   tryRecordPluggyTransactionOnce(userId: number, transactionId: string): Promise<boolean>;
   /** Primeira linha do tempo em que uma aula foi criada para esse aluno (created_at do evento). */
@@ -1230,6 +1246,38 @@ export class DatabaseStorage implements IStorage {
         ),
       )
       .orderBy(asc(events.startDate));
+  }
+
+  async listBillableLessonEventsForContactOrdered(userId: number, studentContactId: number): Promise<Event[]> {
+    if (!db) return [];
+    return db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          eq(events.studentContactId, studentContactId),
+          isNull(events.cancelledAt),
+          inArray(events.lessonPaymentStatus, ["pago", "pendente"]),
+        ),
+      )
+      .orderBy(asc(events.startDate), asc(events.id));
+  }
+
+  async listLessonEventsMissingUnitSnapshotForUser(userId: number): Promise<Event[]> {
+    if (!db) return [];
+    const rows = await db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          isNull(events.cancelledAt),
+          isNotNull(events.studentContactId),
+          inArray(events.lessonPaymentStatus, ["pago", "pendente"]),
+        ),
+      );
+    return rows.filter(lessonEventMissingImplicitUnitSnapshot);
   }
 
   async tryRecordPluggyTransactionOnce(userId: number, transactionId: string): Promise<boolean> {

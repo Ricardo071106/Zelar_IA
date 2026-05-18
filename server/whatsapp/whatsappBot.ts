@@ -55,6 +55,7 @@ import { randomUUID } from 'crypto';
 import type { UserSettings, Event } from '@shared/schema';
 import { buildLessonCalendarTitle } from '../services/pluggy/lessonTitle';
 import { resolveLessonUnitCents, resolveLessonUnitCentsForAllocation } from '../services/pluggy/lessonUnitPrice';
+import { mergeLessonGoogleCalendarPatchMeta } from '../services/lessonCalendarPatchMeta';
 import { tryParseBulkLessonSchedule } from './bulkLessonSchedule';
 import { extractComGuestNameFromText } from './extractComGuestName';
 
@@ -1611,6 +1612,10 @@ class WhatsAppBot {
             if (googleResult.calendarEventId) {
               await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
             }
+            await mergeLessonGoogleCalendarPatchMeta(newEvent.id, {
+              googleCalendarOAuthUserId: user.id,
+              googleCalendarIntegrationKey: null,
+            });
           } else {
             console.error(`⚠️ Falha no Google Calendar: ${googleResult.message}`);
             calendarSyncErrorMessage = googleResult.message;
@@ -1715,6 +1720,10 @@ class WhatsAppBot {
           if (googleResult.calendarEventId) {
             await storage.updateEvent(newEvent.id, { calendarId: googleResult.calendarEventId });
           }
+          await mergeLessonGoogleCalendarPatchMeta(newEvent.id, {
+            googleCalendarOAuthUserId: oauthUserId,
+            googleCalendarIntegrationKey: integrationKey,
+          });
           return true;
         }
         calendarSyncErrorMessage = googleResult.message;

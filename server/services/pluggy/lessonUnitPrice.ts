@@ -42,6 +42,24 @@ export function resolveLessonUnitCentsForAllocation(
   return resolveLessonUnitCents(contact, defaultLessonPriceCents);
 }
 
+/** Já tem preço congelado no evento (snapshot) ou preço unitário do pacote no agendamento. */
+export function lessonEventUsesFrozenOrPackUnitPrice(ev: Event): boolean {
+  const raw = ev.rawData as Record<string, unknown> | null;
+  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
+  if (typeof z?.lessonUnitPriceCentsSnapshot === "number" && Number.isFinite(z.lessonUnitPriceCentsSnapshot) && z.lessonUnitPriceCentsSnapshot > 0) {
+    return true;
+  }
+  if (typeof z?.packUnitPriceCents === "number" && Number.isFinite(z.packUnitPriceCents) && z.packUnitPriceCents > 0) {
+    return true;
+  }
+  return false;
+}
+
+/** Ainda depende do preço vigente no painel (aluno/padrão) — deve ser congelado antes de mudar tabela de preços. */
+export function lessonEventNeedsImplicitUnitFreeze(ev: Event): boolean {
+  return !lessonEventUsesFrozenOrPackUnitPrice(ev);
+}
+
 /** Mesma regra que o rateio Pluggy: snapshot → pacote no evento → tabela do aluno / preço padrão. */
 export function getLessonUnitCentsFromEventSnapshot(
   ev: Event,
