@@ -9,8 +9,8 @@ import { markLessonPaidAndSyncCalendar } from "./pluggy/pluggyPaymentProcessor";
 
 /**
  * Antes de marcar aula como cancelada no banco: crédito retido (saldo) quando faz sentido.
- * - Aula pendente cancelada → +1 preço de aula no saldo.
- * - Aula paga cancelada e não há outras pendentes → +1 preço no saldo (senão o /buscar re-rateia PIX nas pendentes).
+ * - Aula pendente cancelada → não gera crédito; ela só deixa de contar como dívida.
+ * - Aula paga cancelada → +1 preço no saldo, para virar crédito do aluno.
  */
 export async function applyLessonBalanceCreditBeforeSoftCancel(userId: number, event: Event): Promise<void> {
   const cid = event.studentContactId;
@@ -23,16 +23,10 @@ export async function applyLessonBalanceCreditBeforeSoftCancel(userId: number, e
   const unit = resolveLessonUnitCentsForAllocation(event, contact, settings?.defaultLessonPriceCents ?? null);
   if (!unit || unit <= 0) return;
 
-  if (event.lessonPaymentStatus === "pendente") {
-    await storage.adjustGuestLessonBalanceCents(userId, cid, unit);
-    return;
-  }
+  if (event.lessonPaymentStatus === "pendente") return;
 
   if (event.lessonPaymentStatus === "pago") {
-    const pending = await storage.listPendingLessonEventsForContact(userId, cid);
-    if (pending.length === 0) {
-      await storage.adjustGuestLessonBalanceCents(userId, cid, unit);
-    }
+    await storage.adjustGuestLessonBalanceCents(userId, cid, unit);
   }
 }
 
