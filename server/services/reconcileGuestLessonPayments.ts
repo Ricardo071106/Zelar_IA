@@ -1,6 +1,5 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
-import type { UserGuestContactRow } from "../storage";
 import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
@@ -14,10 +13,10 @@ export type ReconcileGuestLessonsResult = {
 };
 
 /**
- * Marca aulas como pagas até esgotar: soma do `pluggy_contact_payment_ledger` (desde a 1ª aula do aluno)
- * + `lesson_balance_cents` do contato. Abate o saldo retido quando a marcação usa mais que o ledger sozinho.
+ * Marca aulas pendentes como pagas até esgotar o crédito disponível.
  *
- * Usado após crédito Pluggy e após salvar o aluno no painel (saldo manual), para alinhar agenda e banco.
+ * O ledger Pluggy cobre o prefixo cronológico de aulas (pagas + pendentes). O saldo retido/manual cobre
+ * somente aulas ainda pendentes, para não ser consumido por aulas antigas que já estavam pagas por outro caminho.
  */
 export async function reconcileGuestContactLessonPayments(
   userId: number,
@@ -39,7 +38,9 @@ export async function reconcileGuestContactLessonPayments(
   const totalPoolCents = ledgerSum + balanceBefore;
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
-  let cum = 0;
+  let cumulativeCents = 0;
+  let balanceRemainingCents = balanceBefore;
+  let balanceConsumedCents = 0;
   const eventsToMark: Event[] = [];
 
   for (const ev of chain) {
@@ -50,9 +51,27 @@ export async function reconcileGuestContactLessonPayments(
       }
       break;
     }
-    if (cum + unitEv > totalPoolCents) break;
-    cum += unitEv;
-    if (ev.lessonPaymentStatus === "pendente") eventsToMark.push(ev);
+
+    const coveredByLedger = cumulativeCents + unitEv <= ledgerSum;
+    cumulativeCents += unitEv;
+
+    if (ev.lessonPaymentStatus !== "pendente") {
+      continue;
+    }
+
+    if (coveredByLedger) {
+      eventsToMark.push(ev);
+      continue;
+    }
+
+    if (balanceRemainingCents >= unitEv) {
+      eventsToMark.push(ev);
+      balanceRemainingCents -= unitEv;
+      balanceConsumedCents += unitEv;
+      continue;
+    }
+
+    break;
   }
 
   if (eventsToMark.length === 0) {
@@ -60,7 +79,8 @@ export async function reconcileGuestContactLessonPayments(
       console.log("[reconcile] Pool > 0 mas nenhuma pendência coberta neste momento", {
         contactId,
         totalPoolCents,
-        cum,
+        ledgerSum,
+        balanceBefore,
       });
     }
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents };
@@ -72,16 +92,8 @@ export async function reconcileGuestContactLessonPayments(
     await markLessonPaidAndSyncCalendar(userId, ev, displayName);
   }
 
-  let markedCostCents = 0;
-  for (const ev of eventsToMark) {
-    const u = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
-    if (u && u > 0) markedCostCents += u;
-  }
-
-  const rawFromBalance = Math.max(0, markedCostCents - ledgerSum);
-  const fromBalance = Math.min(balanceBefore, rawFromBalance);
-  if (fromBalance > 0) {
-    await storage.adjustGuestLessonBalanceCents(userId, contactId, -fromBalance);
+  if (balanceConsumedCents > 0) {
+    await storage.adjustGuestLessonBalanceCents(userId, contactId, -balanceConsumedCents);
   }
 
   const stillPending = await storage.listPendingLessonEventsForContact(userId, contactId);
@@ -91,7 +103,7 @@ export async function reconcileGuestContactLessonPayments(
 
   return {
     markedCount: eventsToMark.length,
-    balanceConsumedCents: fromBalance,
+    balanceConsumedCents,
     totalPoolCents,
   };
 }
