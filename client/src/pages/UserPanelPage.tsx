@@ -61,6 +61,7 @@ type GuestRow = {
   name: string;
   email: string;
   phone: string;
+  payerTaxIdMasked: string;
   studentType: string;
   monthlyAmountCents: number | null;
   packageLessonsTotal: number | null;
@@ -176,6 +177,8 @@ export default function UserPanelPage() {
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
   const [gPhone, setGPhone] = useState("");
+  const [gCpf, setGCpf] = useState("");
+  const [gCpfMasked, setGCpfMasked] = useState("");
   const [gBalanceReais, setGBalanceReais] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
@@ -489,6 +492,8 @@ export default function UserPanelPage() {
     setGName("");
     setGEmail("");
     setGPhone("");
+    setGCpf("");
+    setGCpfMasked("");
     setGBalanceReais("");
   };
 
@@ -522,6 +527,7 @@ export default function UserPanelPage() {
       name: nameTrim,
       phone: gPhone.trim(),
     };
+    if (gCpf.trim()) payload.payerTaxId = gCpf.trim();
     const bal = parseReaisInputToCents(gBalanceReais);
     if (bal != null) payload.lessonBalanceCents = bal;
     else if (editingId != null && !gBalanceReais.trim()) payload.lessonBalanceCents = 0;
@@ -562,6 +568,8 @@ export default function UserPanelPage() {
     setGName(g.name.startsWith("WhatsApp ") ? "" : g.name);
     setGEmail(g.email);
     setGPhone(g.phone);
+    setGCpf("");
+    setGCpfMasked(g.payerTaxIdMasked || "");
     setGBalanceReais(
       g.lessonBalanceCents > 0
         ? (g.lessonBalanceCents / 100).toLocaleString("pt-BR", {
@@ -1042,6 +1050,19 @@ export default function UserPanelPage() {
                     />
                   </div>
                   <div className="space-y-2 sm:col-span-2">
+                    <Label className="text-slate-700">CPF do pagador (opcional)</Label>
+                    <Input
+                      className={inputClass}
+                      value={gCpf}
+                      onChange={(e) => setGCpf(e.target.value)}
+                      placeholder={gCpfMasked ? `Atual: ${gCpfMasked} — digite para trocar` : "Somente para conciliar pagamentos"}
+                      inputMode="numeric"
+                    />
+                    <p className="text-xs text-slate-500">
+                      O Zelar não salva o CPF puro: guarda apenas hash seguro e mostra os últimos 4 dígitos.
+                    </p>
+                  </div>
+                  <div className="space-y-2 sm:col-span-2">
                     <Label className="text-slate-700">Saldo retido (R$)</Label>
                     <Input
                       className={inputClass}
@@ -1082,6 +1103,7 @@ export default function UserPanelPage() {
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Nome</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Telefone</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">E-mail</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">CPF</TableHead>
                         <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Saldo</TableHead>
                         <TableHead className="min-w-[140px] font-mago text-emerald-900" />
                       </TableRow>
@@ -1089,7 +1111,7 @@ export default function UserPanelPage() {
                     <TableBody>
                       {guests.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
-                          <TableCell colSpan={5} className="text-center text-slate-500 py-10">
+                          <TableCell colSpan={6} className="text-center text-slate-500 py-10">
                             Nenhum aluno ainda. Preencha o formulário acima e toque em &quot;Adicionar aluno&quot;.
                           </TableCell>
                         </TableRow>
@@ -1102,6 +1124,9 @@ export default function UserPanelPage() {
                             </TableCell>
                             <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap max-w-[220px] truncate">
                               {g.email || "—"}
+                            </TableCell>
+                            <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap">
+                              {g.payerTaxIdMasked || "—"}
                             </TableCell>
                             <TableCell
                               className={

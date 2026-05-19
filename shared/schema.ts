@@ -42,6 +42,10 @@ export const userGuestContacts = pgTable(
     financialStatus: varchar("financial_status", { length: 32 }).notNull().default("pendente"),
     /** Crédito retido (cancelamento de aula paga sem pendências, ajuste manual). Débito Pluggy pode abater no /buscar. Centavos BRL. */
     lessonBalanceCents: integer("lesson_balance_cents").notNull().default(0),
+    /** HMAC SHA-256 de CPF/CNPJ normalizado; nunca armazenar documento puro. */
+    payerTaxIdHash: text("payer_tax_id_hash"),
+    /** Últimos 4 dígitos para exibição mascarada no painel. */
+    payerTaxIdLast4: varchar("payer_tax_id_last4", { length: 4 }),
     notes: text("notes"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),

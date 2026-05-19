@@ -11,6 +11,7 @@ import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 import { patchGoogleCalendarEventSummary } from "../../telegram/googleCalendarIntegration";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
+import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
 
 export type PluggyTx = {
   id?: string;
@@ -133,6 +134,52 @@ function buildCreditSearchBlob(tx: PluggyTx): string {
   if (typeof tx.description === "string" && tx.description.trim()) parts.push(tx.description);
   if (typeof tx.descriptionRaw === "string" && tx.descriptionRaw.trim()) parts.push(tx.descriptionRaw);
   return normalizeAliasKey(parts.join(" "));
+}
+
+function extractTaxIdCandidatesFromPluggyTx(value: unknown, depth = 0, keyHint = ""): string[] {
+  if (depth > 5 || value == null) return [];
+  const out: string[] = [];
+  const keyLooksLikeDocument = /(tax|document|cpf|cnpj)/i.test(keyHint);
+
+  if (typeof value === "string" || typeof value === "number") {
+    if (keyLooksLikeDocument) {
+      const norm = normalizeBrazilianTaxId(value);
+      if (norm) out.push(norm);
+    }
+    return out;
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) out.push(...extractTaxIdCandidatesFromPluggyTx(item, depth + 1, keyHint));
+    return out;
+  }
+
+  if (typeof value === "object") {
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      out.push(...extractTaxIdCandidatesFromPluggyTx(v, depth + 1, k));
+    }
+  }
+
+  return [...new Set(out)];
+}
+
+async function findGuestContactByTxTaxId(userId: number, tx: PluggyTx): Promise<UserGuestContactRow | null> {
+  const docs = extractTaxIdCandidatesFromPluggyTx(tx);
+  if (!docs.length) return null;
+  const contacts = await storage.listUserGuestContacts(userId);
+  for (const doc of docs) {
+    let hashed: { hash: string } | null = null;
+    try {
+      hashed = hashBrazilianTaxId(doc);
+    } catch (e) {
+      if (DEBUG_PLUGGY) console.warn("[Pluggy] CPF_HASH_SECRET ausente/invalido para match por documento:", e);
+      return null;
+    }
+    if (!hashed) continue;
+    const hit = contacts.find((c) => c.payerTaxIdHash && c.payerTaxIdHash === hashed.hash);
+    if (hit) return hit;
+  }
+  return null;
 }
 
 /**
@@ -384,9 +431,16 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const memoBlob = buildCreditSearchBlob(tx);
 
-  let contact: UserGuestContactRow | null = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
+  let contact: UserGuestContactRow | null = await findGuestContactByTxTaxId(userId, tx);
   if (contact) {
-    console.log("[Pluggy] Match extrato ↔ planilha (nome no texto) → contato", contact.id);
+    console.log("[Pluggy] Match CPF/CNPJ hash → contato", contact.id);
+  }
+
+  if (!contact) {
+    contact = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
+    if (contact) {
+      console.log("[Pluggy] Match extrato ↔ planilha (nome no texto) → contato", contact.id);
+    }
   }
 
   const payerHint = extractPayerNameFromPluggyTransaction(tx);

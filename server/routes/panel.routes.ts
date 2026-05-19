@@ -30,6 +30,7 @@ function guestPanelDto(r: UserGuestContactRow, debtCents: number) {
     name: displayNameFromAliases(r.aliasNames, r.canonicalEmail, r.guestPhoneE164),
     email: r.canonicalEmail ?? '',
     phone: r.guestPhoneE164 || '',
+    payerTaxIdMasked: r.payerTaxIdMasked || '',
     studentType: r.studentType ?? '',
     monthlyAmountCents: r.monthlyAmountCents ?? null,
     packageLessonsTotal: r.packageLessonsTotal ?? null,
@@ -410,6 +411,14 @@ router.post(
     const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
     const name = typeof req.body?.name === 'string' ? req.body.name.trim() : '';
     const phone = typeof req.body?.phone === 'string' ? req.body.phone : '';
+    const payerTaxId =
+      Object.prototype.hasOwnProperty.call(req.body || {}, 'payerTaxId')
+        ? typeof req.body?.payerTaxId === 'string'
+          ? req.body.payerTaxId.trim()
+          : req.body?.payerTaxId == null
+            ? null
+            : String(req.body.payerTaxId).trim()
+        : undefined;
     const studentType = typeof req.body?.studentType === 'string' ? req.body.studentType.trim() : '';
     const notes = typeof req.body?.notes === 'string' ? req.body.notes.trim() : '';
     const financialStatus =
@@ -487,6 +496,7 @@ router.post(
         email,
         name,
         phone,
+        payerTaxId,
         studentType: studentType || undefined,
         notes: notes || undefined,
         financialStatus: financialStatus || undefined,

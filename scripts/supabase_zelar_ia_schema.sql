@@ -384,6 +384,26 @@ CREATE INDEX IF NOT EXISTS "user_lesson_packages_user_sort_idx"
 
 COMMENT ON TABLE "user_lesson_packages" IS 'Pacotes nomeados de aulas por organizador; slug = id do painel/WhatsApp.';
 
+-- -----------------------------------------------------------------------------
+-- 0017 — Cancelamento lógico e saldo retido
+-- -----------------------------------------------------------------------------
+ALTER TABLE "events" ADD COLUMN IF NOT EXISTS "cancelled_at" timestamptz;
+
+CREATE INDEX IF NOT EXISTS "events_user_cancelled_start_idx"
+  ON "events" ("user_id", "cancelled_at", "start_date");
+
+ALTER TABLE "user_guest_contacts" ADD COLUMN IF NOT EXISTS "lesson_balance_cents" integer NOT NULL DEFAULT 0;
+
+-- -----------------------------------------------------------------------------
+-- 0018 — CPF/CNPJ do pagador (hash; nunca documento puro)
+-- -----------------------------------------------------------------------------
+ALTER TABLE "user_guest_contacts" ADD COLUMN IF NOT EXISTS "payer_tax_id_hash" text;
+ALTER TABLE "user_guest_contacts" ADD COLUMN IF NOT EXISTS "payer_tax_id_last4" varchar(4);
+
+CREATE INDEX IF NOT EXISTS "user_guest_contacts_user_tax_hash_idx"
+  ON "user_guest_contacts" ("user_id", "payer_tax_id_hash")
+  WHERE "payer_tax_id_hash" IS NOT NULL;
+
 -- =============================================================================
 -- Fim. Opcional: habilitar RLS nas tabelas públicas se expuser API direta ao
 -- Supabase — o backend Node atual usa service role / pooler e não depende de RLS.

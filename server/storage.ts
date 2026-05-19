@@ -21,6 +21,7 @@ import {
 import { normalizeAliasKey } from "./utils/normalizeGuestAlias";
 import { normalizeBrazilianPhone } from "./utils/phoneExtraction";
 import { isFullName, fullNameValidationMessage } from "./utils/fullName";
+import { hashBrazilianTaxId, maskBrazilianTaxIdLast4 } from "./utils/taxIdHash";
 
 function lessonEventMissingImplicitUnitSnapshot(ev: Event): boolean {
   const raw = ev.rawData as Record<string, unknown> | null;
@@ -93,6 +94,9 @@ export type UserGuestContactRow = {
   financialStatus: string;
   /** Centavos BRL retidos para próximas aulas / ajuste manual. */
   lessonBalanceCents: number;
+  payerTaxIdHash: string | null;
+  payerTaxIdLast4: string | null;
+  payerTaxIdMasked: string;
   notes: string | null;
 };
 
@@ -118,6 +122,7 @@ export type GuestPanelUpsertData = {
   packageLessonsTotal?: number | null;
   remainingLessons?: number | null;
   lessonBalanceCents?: number | null;
+  payerTaxId?: string | null;
 };
 
 export function pickGuestMvpPatch(data: GuestPanelUpsertData): Partial<(typeof userGuestContacts.$inferInsert)> {
@@ -154,6 +159,18 @@ export function pickGuestMvpPatch(data: GuestPanelUpsertData): Partial<(typeof u
     if (v == null) patch.lessonBalanceCents = 0;
     else if (typeof v === "number" && Number.isFinite(v)) patch.lessonBalanceCents = Math.max(0, Math.round(v));
   }
+  if (Object.prototype.hasOwnProperty.call(data, "payerTaxId") && data.payerTaxId !== undefined) {
+    const v = data.payerTaxId;
+    if (v == null || String(v).trim() === "") {
+      patch.payerTaxIdHash = null;
+      patch.payerTaxIdLast4 = null;
+    } else {
+      const hashed = hashBrazilianTaxId(v);
+      if (!hashed) throw new Error("CPF/CNPJ invalido");
+      patch.payerTaxIdHash = hashed.hash;
+      patch.payerTaxIdLast4 = hashed.last4;
+    }
+  }
   return patch;
 }
 
@@ -172,6 +189,9 @@ export function mapGuestContactRow(r: typeof userGuestContacts.$inferSelect): Us
     remainingLessons: r.remainingLessons ?? null,
     financialStatus: r.financialStatus ?? "pendente",
     lessonBalanceCents: r.lessonBalanceCents ?? 0,
+    payerTaxIdHash: r.payerTaxIdHash ?? null,
+    payerTaxIdLast4: r.payerTaxIdLast4 ?? null,
+    payerTaxIdMasked: maskBrazilianTaxIdLast4(r.payerTaxIdLast4),
     notes: r.notes ?? null,
   };
 }
