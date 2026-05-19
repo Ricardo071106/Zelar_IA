@@ -7,6 +7,7 @@ import {
   type PluggyTx,
 } from "./pluggyPaymentProcessor";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
+import { coercePluggyAmountToNumber } from "./pluggyAmountToCents";
 
 /** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
 export const BUSCAR_WINDOW_DAYS = 14;
@@ -37,8 +38,29 @@ function parseTransactionsPage(data: unknown): { results: PluggyTx[]; totalPages
 }
 
 export type BuscarPluggyResult =
-  | { ok: true; txSeen: number; fromDay: string; toDay: string; windowIndex: number }
+  | {
+      ok: true;
+      txSeen: number;
+      postedCreditTxSeen: number;
+      pendingCreditTxSeen: number;
+      fromDay: string;
+      toDay: string;
+      windowIndex: number;
+    }
   | { ok: false; message: string };
+
+function pluggyTxStatus(tx: PluggyTx): string {
+  return String(tx.status || "").trim().toUpperCase();
+}
+
+function pluggyTxType(tx: PluggyTx): string {
+  return String(tx.type || "").trim().toUpperCase();
+}
+
+function pluggyTxLooksCredit(tx: PluggyTx): boolean {
+  const type = pluggyTxType(tx);
+  return type === "CREDIT" || type === "INCOME" || (type === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
+}
 
 /**
  * Janela de N×14 dias para trás: `/buscar` = índice 0 (últimas 2 semanas), `/buscar 1` = bloco anterior, etc.
@@ -146,6 +168,11 @@ export async function runPluggyBuscarReconciliation(
 
   merged.sort((a, b) => extractTxPostedAtFromPluggyTx(a).getTime() - extractTxPostedAtFromPluggyTx(b).getTime());
   console.log("[Pluggy/buscar] Transações únicas na janela:", merged.length);
+  const postedCreditTxSeen = merged.filter((tx) => {
+    const status = pluggyTxStatus(tx);
+    return pluggyTxLooksCredit(tx) && (!status || status === "POSTED");
+  }).length;
+  const pendingCreditTxSeen = merged.filter((tx) => pluggyTxLooksCredit(tx) && pluggyTxStatus(tx) === "PENDING").length;
 
   for (const tx of merged) {
     await processSinglePluggyTransaction(itemId, tx);
@@ -158,5 +185,5 @@ export async function runPluggyBuscarReconciliation(
     await reconcileGuestContactLessonPayments(userId, c.id);
   }
 
-  return { ok: true, txSeen: merged.length, fromDay, toDay: toDayInclusive, windowIndex };
+  return { ok: true, txSeen: merged.length, postedCreditTxSeen, pendingCreditTxSeen, fromDay, toDay: toDayInclusive, windowIndex };
 }
