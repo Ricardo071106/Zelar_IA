@@ -42,11 +42,12 @@ export async function reconcileGuestContactLessonPayments(
     ? await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince)
     : 0;
   const balanceBefore = contact.lessonBalanceCents ?? 0;
-  const totalPoolCents = ledgerSum + balanceBefore;
+  const positiveBalanceCents = Math.max(0, balanceBefore);
+  const totalPoolCents = ledgerSum + positiveBalanceCents;
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
   let cumulativeCents = 0;
-  let balanceRemainingCents = balanceBefore;
+  let balanceRemainingCents = positiveBalanceCents;
   let balanceConsumedCents = 0;
   const eventsToMark: Event[] = [];
 
