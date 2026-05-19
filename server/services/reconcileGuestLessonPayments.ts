@@ -1,6 +1,7 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
+import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
 
@@ -37,16 +38,12 @@ export async function reconcileGuestContactLessonPayments(
   const def = settings?.defaultLessonPriceCents ?? null;
 
   const pendingForLedger = await storage.listPendingLessonEventsForContact(userId, contactId);
-  let ledgerSince = new Date(0);
-  if (pendingForLedger.length > 0) {
-    let earliest = pendingForLedger[0]!.createdAt;
-    for (const ev of pendingForLedger) {
-      if (ev.createdAt < earliest) earliest = ev.createdAt;
-    }
-    ledgerSince = earliest;
-  }
+  const ledgerSince = ledgerSinceForPendingLessons(
+    pendingForLedger,
+    settings?.timeZone ?? "America/Sao_Paulo",
+  );
 
-  // Só entram no pool créditos Pluggy com data >= a aula pendente mais antiga (PIX antigo na janela /buscar não quita aula nova).
+  // Créditos no mesmo dia civil (ou depois) da 1ª aula pendente entram no pool — PIX de manhã pode quitar aula criada à tarde.
   const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince);
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);

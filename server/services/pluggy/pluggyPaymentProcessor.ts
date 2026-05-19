@@ -12,6 +12,7 @@ import { patchGoogleCalendarEventSummary } from "../../telegram/googleCalendarIn
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
 import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
+import { earliestPendingLessonCreatedAt, pluggyCreditEligibleForPendingLessons } from "./pluggyLessonDateRules";
 
 export type PluggyTx = {
   id?: string;
@@ -42,33 +43,6 @@ const DEBUG_PLUGGY = process.env.DEBUG_PLUGGY === "true";
 function startOfLocalDayForAllocation(d: Date, timeZone: string | null | undefined): Date {
   const zone = timeZone?.trim() || "America/Sao_Paulo";
   return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
-}
-
-function earliestEventCreatedAt(events: Event[]): Date | null {
-  if (!events.length) return null;
-  let min = events[0]!.createdAt;
-  for (const e of events) {
-    if (e.createdAt < min) min = e.createdAt;
-  }
-  return min;
-}
-
-/**
- * PIX/crédito no extrato só pode quitar aulas pendentes se o lançamento for no mesmo dia
- * ou depois da criação da aula mais antiga ainda pendente (evita pagamento antigo na janela /buscar).
- */
-export function pluggyCreditEligibleForPendingLessons(
-  txPostedAt: Date,
-  pending: Event[],
-  timeZone?: string | null,
-): boolean {
-  if (!pending.length) return true;
-  const earliest = earliestEventCreatedAt(pending);
-  if (!earliest) return true;
-  const zone = timeZone?.trim() || "America/Sao_Paulo";
-  const txDay = DateTime.fromJSDate(txPostedAt).setZone(zone).startOf("day");
-  const lessonDay = DateTime.fromJSDate(earliest).setZone(zone).startOf("day");
-  return txDay >= lessonDay;
 }
 
 function transactionStatusCanAffectBalance(status: string): boolean {
@@ -580,7 +554,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
 
   if (pending.length > 0 && !pluggyCreditEligibleForPendingLessons(txPostedAt, pending, settings?.timeZone)) {
-    const earliest = earliestEventCreatedAt(pending);
+    const earliest = earliestPendingLessonCreatedAt(pending);
     console.log("[Pluggy] Crédito ignorado: lançamento anterior às aulas pendentes atuais.", {
       contactId: contact.id,
       txId: txId ?? null,

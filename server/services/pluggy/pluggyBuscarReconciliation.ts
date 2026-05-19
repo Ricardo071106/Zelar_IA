@@ -144,7 +144,11 @@ export async function runPluggyBuscarReconciliation(
       await waitForPluggyItemSynced(itemId);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      console.warn("[Pluggy/buscar] Sync do item falhou (seguindo com extrato em cache):", msg.slice(0, 160));
+      if (/409/.test(msg) || /allowed at most every/i.test(msg)) {
+        console.log("[Pluggy/buscar] Sync do banco já feito há menos de 1h; usando extrato em cache.");
+      } else {
+        console.warn("[Pluggy/buscar] Sync do item falhou (seguindo com extrato em cache):", msg.slice(0, 160));
+      }
     }
   }
 
