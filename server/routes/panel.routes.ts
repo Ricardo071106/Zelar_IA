@@ -16,6 +16,7 @@ import {
 } from '../services/pluggy/pluggyApi';
 import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
+import { getLessonUnitCentsFromEventSnapshot } from '../services/pluggy/lessonUnitPrice';
 
 const router = Router();
 const upload = multer({
@@ -398,6 +399,37 @@ router.get(
     res.json({
       guests: rows.map((r) => guestPanelDto(r, debtByContact.get(r.id) ?? 0)),
     });
+  }),
+);
+
+router.get(
+  '/lessons/pending',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    const rows = await storage.listUserGuestContacts(ctx.user.id);
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const settings = await storage.getUserSettings(ctx.user.id);
+    const events = await storage.getActiveEventsForDeletionWindow(ctx.user.id, 5000);
+    const lessons = events
+      .filter((ev) => ev.lessonPaymentStatus === 'pendente' && ev.studentContactId != null)
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
+      .map((ev) => {
+        const contact = ev.studentContactId != null ? byId.get(ev.studentContactId) : undefined;
+        const unit = contact ? getLessonUnitCentsFromEventSnapshot(ev, contact, settings?.defaultLessonPriceCents ?? null) : null;
+        return {
+          id: ev.id,
+          title: ev.title,
+          startDate: ev.startDate,
+          studentContactId: ev.studentContactId,
+          studentName: contact ? displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164) : 'Aluno',
+          status: ev.lessonPaymentStatus,
+          unitCents: unit ?? null,
+        };
+      });
+    res.json({ lessons });
   }),
 );
 

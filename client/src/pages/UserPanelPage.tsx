@@ -78,6 +78,16 @@ type GuestRow = {
 
 type LessonPackageUi = { id: string; label: string; lessons: string; priceReais: string };
 
+type PendingLessonRow = {
+  id: number;
+  title: string;
+  startDate: string;
+  studentContactId: number | null;
+  studentName: string;
+  status: string;
+  unitCents: number | null;
+};
+
 function slugifyPackageId(label: string): string {
   const base = label
     .normalize("NFD")
@@ -182,6 +192,7 @@ export default function UserPanelPage() {
   const [gBalanceReais, setGBalanceReais] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
+  const [pendingLessons, setPendingLessons] = useState<PendingLessonRow[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const panelTokenHeaders = useMemo((): Record<string, string> => {
@@ -256,6 +267,14 @@ export default function UserPanelPage() {
     setGuests(j.guests || []);
   }, [token]);
 
+  const loadPendingLessons = useCallback(async () => {
+    if (!token) return;
+    const r = await fetch(`/api/panel/lessons/pending?t=${encodeURIComponent(token)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    setPendingLessons(j.lessons || []);
+  }, [token]);
+
   useEffect(() => {
     if (!token) {
       setLoadError(
@@ -284,6 +303,11 @@ export default function UserPanelPage() {
     if (tab !== "guests" || !token) return;
     void loadGuests();
   }, [tab, token, loadGuests]);
+
+  useEffect(() => {
+    if (tab !== "lessons" || !token) return;
+    void loadPendingLessons();
+  }, [tab, token, loadPendingLessons]);
 
   const saveProfile = async () => {
     if (!token) return;
@@ -706,7 +730,7 @@ export default function UserPanelPage() {
         </header>
 
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="grid w-full max-w-md grid-cols-2 h-12 rounded-xl border border-emerald-200 bg-white/70 p-1 shadow-sm">
+          <TabsList className="grid w-full max-w-2xl grid-cols-3 h-12 rounded-xl border border-emerald-200 bg-white/70 p-1 shadow-sm">
             <TabsTrigger
               value="config"
               className="rounded-lg text-slate-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
@@ -718,6 +742,12 @@ export default function UserPanelPage() {
               className="rounded-lg text-slate-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
             >
               Alunos
+            </TabsTrigger>
+            <TabsTrigger
+              value="lessons"
+              className="rounded-lg text-slate-600 data-[state=active]:bg-emerald-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+            >
+              Aulas
             </TabsTrigger>
           </TabsList>
 
@@ -1161,6 +1191,60 @@ export default function UserPanelPage() {
                               >
                                 Apagar
                               </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="lessons" className="space-y-5 mt-6">
+            <Card className={cardClass}>
+              <CardHeader>
+                <CardTitle className="font-mago text-2xl text-emerald-900">Aulas Pendentes</CardTitle>
+                <CardDescription className="text-slate-600">
+                  Lista das aulas pendentes por data, vinculadas aos alunos cadastrados.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-2xl border border-emerald-200/80 bg-white/60 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="border-emerald-100 hover:bg-transparent">
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Data</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Aluno</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Status</TableHead>
+                        <TableHead className="font-mago text-emerald-900 whitespace-nowrap">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {pendingLessons.length === 0 ? (
+                        <TableRow className="border-emerald-100 hover:bg-transparent">
+                          <TableCell colSpan={4} className="text-center text-slate-500 py-10">
+                            Nenhuma aula pendente vinculada a aluno.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        pendingLessons.map((lesson) => (
+                          <TableRow key={lesson.id} className="border-emerald-100 hover:bg-emerald-50/60">
+                            <TableCell className="font-mono text-sm text-slate-700 whitespace-nowrap">
+                              {new Date(lesson.startDate).toLocaleString("pt-BR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </TableCell>
+                            <TableCell className="text-slate-800 whitespace-nowrap">{lesson.studentName}</TableCell>
+                            <TableCell className="text-red-700 font-semibold whitespace-nowrap">
+                              {lesson.status}
+                            </TableCell>
+                            <TableCell className="text-slate-700 whitespace-nowrap">
+                              {lesson.unitCents != null ? formatBrl(lesson.unitCents) : "—"}
                             </TableCell>
                           </TableRow>
                         ))

@@ -3073,19 +3073,35 @@ class WhatsAppBot {
 
   private async findGuestMentionedInText(userId: number, normalizedAscii: string): Promise<UserGuestContactRow | null> {
     const contacts = await storage.listUserGuestContacts(userId);
-    let best: UserGuestContactRow | null = null;
-    let bestLen = 0;
+    let best: { row: UserGuestContactRow; score: number } | null = null;
+    const sig = (s: string) => s.split(/\s+/).filter((t) => t.length >= 3);
+
     for (const row of contacts) {
       for (const alias of row.aliasNames ?? []) {
         const ak = this.normalizeForComparison(alias);
         if (ak.length < 4) continue;
-        if (normalizedAscii.includes(ak) && ak.length > bestLen) {
-          best = row;
-          bestLen = ak.length;
+        let score = 0;
+        if (normalizedAscii.includes(ak)) {
+          score = 10000 + ak.length;
+        } else {
+          const tokens = sig(ak);
+          if (tokens.length >= 2) {
+            const first = tokens[0]!;
+            const last = tokens[tokens.length - 1]!;
+            const hits = tokens.filter((t) => normalizedAscii.includes(t)).length;
+            if (normalizedAscii.includes(first) && normalizedAscii.includes(last)) {
+              score = 8000 + hits * 100 + ak.length;
+            } else if (hits >= 2) {
+              score = 5000 + hits * 100 + ak.length;
+            }
+          }
+        }
+        if (score > 0 && (!best || score > best.score)) {
+          best = { row, score };
         }
       }
     }
-    return best;
+    return best?.row ?? null;
   }
 
   /** Remove "toda quarta" / "todas as terças" antes de apagar só o nome do dia (evita sobrar "toda" no título do evento). */
