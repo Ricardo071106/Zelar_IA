@@ -14,7 +14,7 @@ import {
   extractConnectToken,
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
-import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
+import { computeGuestLessonFinancials } from '../services/guestLessonFinancials';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 
@@ -24,8 +24,14 @@ const upload = multer({
   limits: { fileSize: 6 * 1024 * 1024 },
 });
 
-function guestPanelDto(r: UserGuestContactRow, debtCents: number) {
-  const lessonBalanceCents = r.lessonBalanceCents ?? 0;
+function guestPanelDto(
+  r: UserGuestContactRow,
+  fin: {
+    pendingDebtCents: number;
+    lessonBalanceCents: number;
+    lessonNetBalanceCents: number;
+  },
+) {
   return {
     id: r.id,
     name: displayNameFromAliases(r.aliasNames, r.canonicalEmail, r.guestPhoneE164),
@@ -36,9 +42,9 @@ function guestPanelDto(r: UserGuestContactRow, debtCents: number) {
     monthlyAmountCents: r.monthlyAmountCents ?? null,
     packageLessonsTotal: r.packageLessonsTotal ?? null,
     remainingLessons: r.remainingLessons ?? null,
-    lessonBalanceCents,
-    lessonPendingDebtCents: debtCents,
-    lessonNetBalanceCents: lessonBalanceCents - debtCents,
+    lessonBalanceCents: fin.lessonBalanceCents,
+    lessonPendingDebtCents: fin.pendingDebtCents,
+    lessonNetBalanceCents: fin.lessonNetBalanceCents,
     financialStatus: r.financialStatus ?? 'pendente',
     notes: r.notes ?? '',
   };
@@ -395,10 +401,19 @@ router.get(
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
     const rows = await storage.listUserGuestContacts(ctx.user.id);
-    const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
-    res.json({
-      guests: rows.map((r) => guestPanelDto(r, debtByContact.get(r.id) ?? 0)),
-    });
+    const settings = await storage.getUserSettings(ctx.user.id);
+    const def = settings?.defaultLessonPriceCents ?? null;
+    const guests = await Promise.all(
+      rows.map(async (r) => {
+        const fin = await computeGuestLessonFinancials(ctx.user.id, r, def);
+        return guestPanelDto(r, {
+          pendingDebtCents: fin.pendingDebtCents,
+          lessonBalanceCents: fin.lessonBalanceCents + fin.pluggyLedgerUnappliedCents,
+          lessonNetBalanceCents: fin.lessonNetBalanceCents,
+        });
+      }),
+    );
+    res.json({ guests });
   }),
 );
 
@@ -413,77 +428,25 @@ router.get(
     const byId = new Map(rows.map((r) => [r.id, r]));
     const settings = await storage.getUserSettings(ctx.user.id);
     const def = settings?.defaultLessonPriceCents ?? null;
-    const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
-
     const pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500, true);
 
-    type PendingLessonApi = {
-      id: number;
-      title: string;
-      startDate: string;
-      studentContactId: number | null;
-      studentName: string;
-      status: string;
-      unitCents: number | null;
-      estimateFromGap?: boolean;
-      dbPaymentStatus?: string;
-    };
-
-    const lessons: PendingLessonApi[] = [];
-    const seen = new Set<number>();
-
-    for (const ev of pendingEvents) {
-      const cid = ev.studentContactId;
-      if (cid == null) continue;
-      const contact = byId.get(cid);
-      if (!contact) continue;
-      const unit = getLessonDebtUnitCents(ev, contact, def);
-      const studentName = displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164);
-      lessons.push({
-        id: ev.id,
-        title: ev.title,
-        startDate: (ev.startDate instanceof Date ? ev.startDate : new Date(ev.startDate as string)).toISOString(),
-        studentContactId: cid,
-        studentName,
-        status: ev.lessonPaymentStatus,
-        unitCents: unit ?? null,
-      });
-      seen.add(ev.id);
-    }
-
-    for (const contact of rows) {
-      const balance = contact.lessonBalanceCents ?? 0;
-      const debt = debtByContact.get(contact.id) ?? 0;
-      const net = balance - debt;
-      if (net >= 0) continue;
-
-      const dbPending = await storage.listPendingLessonEventsForContact(ctx.user.id, contact.id);
-      if (dbPending.length > 0) continue;
-
-      const gap = -net;
-      const chain = await storage.listBillableLessonEventsForContactOrdered(ctx.user.id, contact.id);
-      const paidNewestFirst = chain.filter((e) => e.lessonPaymentStatus === 'pago').reverse();
-      let acc = 0;
-      for (const ev of paidNewestFirst) {
-        if (seen.has(ev.id)) continue;
+    const lessons = pendingEvents
+      .filter((ev) => ev.studentContactId != null && byId.has(ev.studentContactId))
+      .map((ev) => {
+        const cid = ev.studentContactId!;
+        const contact = byId.get(cid)!;
         const unit = getLessonDebtUnitCents(ev, contact, def);
-        if (!unit || unit <= 0) continue;
-        lessons.push({
+        const studentName = displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164);
+        return {
           id: ev.id,
           title: ev.title,
           startDate: (ev.startDate instanceof Date ? ev.startDate : new Date(ev.startDate as string)).toISOString(),
-          studentContactId: contact.id,
-          studentName: displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164),
-          status: 'pendente (estimado)',
-          unitCents: unit,
-          estimateFromGap: true,
-          dbPaymentStatus: 'pago',
-        });
-        seen.add(ev.id);
-        acc += unit;
-        if (acc >= gap) break;
-      }
-    }
+          studentContactId: cid,
+          studentName,
+          status: ev.lessonPaymentStatus,
+          unitCents: unit ?? null,
+        };
+      });
 
     lessons.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
 
@@ -596,10 +559,19 @@ router.post(
         lessonBalanceCents,
       });
       await reconcileGuestContactLessonPayments(ctx.user.id, row.id);
-      const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
       const freshRow = await storage.getGuestContactByIdForUser(ctx.user.id, row.id);
+      const settingsAfter = await storage.getUserSettings(ctx.user.id);
+      const fin = await computeGuestLessonFinancials(
+        ctx.user.id,
+        freshRow ?? row,
+        settingsAfter?.defaultLessonPriceCents ?? null,
+      );
       res.json({
-        guest: guestPanelDto(freshRow ?? row, debtByContact.get(row.id) ?? 0),
+        guest: guestPanelDto(freshRow ?? row, {
+          pendingDebtCents: fin.pendingDebtCents,
+          lessonBalanceCents: fin.lessonBalanceCents + fin.pluggyLedgerUnappliedCents,
+          lessonNetBalanceCents: fin.lessonNetBalanceCents,
+        }),
       });
     } catch (e: any) {
       res.status(400).json({ error: e?.message || 'falha ao salvar' });

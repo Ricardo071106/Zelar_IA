@@ -1,7 +1,7 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
-import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
+import { computeGuestLessonFinancials, resolveLedgerSinceForContact } from "./guestLessonFinancials";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
 
@@ -38,18 +38,17 @@ export async function reconcileGuestContactLessonPayments(
   const def = settings?.defaultLessonPriceCents ?? null;
 
   const pendingForLedger = await storage.listPendingLessonEventsForContact(userId, contactId);
-  const ledgerSince = ledgerSinceForPendingLessons(
+  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
+  const ledgerSince = resolveLedgerSinceForContact(
     pendingForLedger,
+    chain,
     settings?.timeZone ?? "America/Sao_Paulo",
   );
 
-  // Créditos no mesmo dia civil (ou depois) da 1ª aula pendente entram no pool — PIX de manhã pode quitar aula criada à tarde.
   const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince);
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);
   const totalPoolCents = rawLedgerSum + positiveBalanceCents;
-
-  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
   let existingPluggyPaidCents = 0;
   for (const ev of chain) {
     if (ev.lessonPaymentStatus !== "pago" || !lessonWasPaidByPluggy(ev)) continue;
@@ -121,6 +120,17 @@ export async function reconcileGuestContactLessonPayments(
   const stillPending = await storage.listPendingLessonEventsForContact(userId, contactId);
   if (stillPending.length === 0) {
     await storage.updateGuestContactFields(userId, contactId, { financialStatus: "pago" });
+    const fresh = await storage.getGuestContactByIdForUser(userId, contactId);
+    if (fresh && (fresh.lessonBalanceCents ?? 0) < 0) {
+      const fin = await computeGuestLessonFinancials(userId, fresh, def);
+      if (fin.pendingDebtCents === 0) {
+        const target = Math.max(0, fin.pluggyLedgerUnappliedCents);
+        const delta = target - (fresh.lessonBalanceCents ?? 0);
+        if (delta !== 0) {
+          await storage.adjustGuestLessonBalanceCents(userId, contactId, delta);
+        }
+      }
+    }
   }
 
   return {
