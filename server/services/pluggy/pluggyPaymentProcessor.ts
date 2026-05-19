@@ -136,13 +136,14 @@ function buildCreditSearchBlob(tx: PluggyTx): string {
   return normalizeAliasKey(parts.join(" "));
 }
 
-function extractTaxIdCandidatesFromPluggyTx(value: unknown, depth = 0, keyHint = ""): string[] {
+function extractTaxIdCandidatesFromPluggyTx(value: unknown, depth = 0, keyHint = "", parentDocumentHint = false): string[] {
   if (depth > 5 || value == null) return [];
   const out: string[] = [];
   const keyLooksLikeDocument = /(tax|document|cpf|cnpj)/i.test(keyHint);
+  const documentContext = parentDocumentHint || keyLooksLikeDocument;
 
   if (typeof value === "string" || typeof value === "number") {
-    if (keyLooksLikeDocument) {
+    if (documentContext) {
       const norm = normalizeBrazilianTaxId(value);
       if (norm) out.push(norm);
     }
@@ -150,13 +151,13 @@ function extractTaxIdCandidatesFromPluggyTx(value: unknown, depth = 0, keyHint =
   }
 
   if (Array.isArray(value)) {
-    for (const item of value) out.push(...extractTaxIdCandidatesFromPluggyTx(item, depth + 1, keyHint));
+    for (const item of value) out.push(...extractTaxIdCandidatesFromPluggyTx(item, depth + 1, keyHint, documentContext));
     return out;
   }
 
   if (typeof value === "object") {
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-      out.push(...extractTaxIdCandidatesFromPluggyTx(v, depth + 1, k));
+      out.push(...extractTaxIdCandidatesFromPluggyTx(v, depth + 1, k, documentContext));
     }
   }
 
@@ -390,8 +391,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const txPostedAt = extractTxPostedAtFromPluggyTx(tx);
   const txType = String(tx.type || "").trim().toUpperCase();
+  const txStatus = String(tx.status || "").trim().toUpperCase();
 
-  if (txType === "DEBIT" && (!tx.status || tx.status === "POSTED")) {
+  if (txType === "DEBIT" && (!txStatus || txStatus === "POSTED")) {
     const amountCents = pluggyTransactionAmountToCents(tx);
     if (amountCents <= 0) return;
     if (!debitLooksLikePersonPayout(tx)) return;
@@ -416,7 +418,10 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     txType === "CREDIT" ||
     txType === "INCOME" ||
     (txType === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
-  if (!creditLike || (tx.status && tx.status !== "POSTED")) {
+  if (!creditLike || (txStatus && txStatus !== "POSTED")) {
+    if (DEBUG_PLUGGY && creditLike) {
+      console.log("[Pluggy] Crédito ignorado por status não POSTED:", txStatus, txId);
+    }
     return;
   }
 

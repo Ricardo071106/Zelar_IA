@@ -80,6 +80,13 @@ export async function runPluggyBuscarReconciliation(
     settings?.timeZone || "America/Sao_Paulo",
     opts?.windowIndex ?? 0,
   );
+  console.log("[Pluggy/buscar] Iniciando conciliação", {
+    userId,
+    itemId,
+    fromDay,
+    toExclusiveDay,
+    windowIndex,
+  });
 
   let accountsData: unknown;
   try {
@@ -92,6 +99,7 @@ export async function runPluggyBuscarReconciliation(
   if (!accounts.length) {
     return { ok: false, message: "Pluggy não retornou contas para esta conexão. Tente reconectar no painel." };
   }
+  console.log("[Pluggy/buscar] Contas retornadas:", accounts.length);
 
   const merged: PluggyTx[] = [];
   const seenIds = new Set<string>();
@@ -108,11 +116,25 @@ export async function runPluggyBuscarReconciliation(
       let pageData: unknown;
       try {
         pageData = await pluggyFetchJson(`/transactions?${qs}`);
-      } catch {
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn("[Pluggy/buscar] Falha ao listar transações", {
+          userId,
+          accountId: acc.id,
+          page,
+          message: msg.slice(0, 200),
+        });
         break;
       }
       const { results, totalPages: tp } = parseTransactionsPage(pageData);
       totalPages = tp;
+      console.log("[Pluggy/buscar] Página de transações", {
+        userId,
+        accountId: acc.id,
+        page,
+        totalPages,
+        results: results.length,
+      });
       for (const tx of results) {
         const id = typeof tx.id === "string" ? tx.id : null;
         if (!id || seenIds.has(id)) continue;
@@ -123,6 +145,7 @@ export async function runPluggyBuscarReconciliation(
   }
 
   merged.sort((a, b) => extractTxPostedAtFromPluggyTx(a).getTime() - extractTxPostedAtFromPluggyTx(b).getTime());
+  console.log("[Pluggy/buscar] Transações únicas na janela:", merged.length);
 
   for (const tx of merged) {
     await processSinglePluggyTransaction(itemId, tx);
