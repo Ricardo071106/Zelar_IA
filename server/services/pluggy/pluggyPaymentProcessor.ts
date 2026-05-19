@@ -5,7 +5,7 @@ import type { UserGuestContactRow } from "../../storage";
 import { pluggyFetchJson } from "./pluggyApi";
 import { buildLessonCalendarTitle } from "./lessonTitle";
 import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTransaction } from "./pluggyPayerExtract";
-import { resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
+import { displayNameFromGuestContact, resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 import { patchGoogleCalendarEventSummary } from "../../telegram/googleCalendarIntegration";
@@ -499,15 +499,39 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
   const ledgerSince = firstLessonAt ? startOfLocalDayForAllocation(firstLessonAt, settings?.timeZone) : null;
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+  const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
+    0,
+    128,
+  );
+  console.log("[Pluggy] Crédito identificado para contato", contact.id, {
+    txId: ledgerTxKey,
+    amountCents,
+    pendingLessons: pending.length,
+  });
 
   if (pending.length === 0) {
-    if (txId) {
-      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
-      if (!inserted) return;
-    } else {
-      const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
-      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
-      if (!inserted) return;
+    const ledgerInserted = await storage.insertPluggyContactCredit(
+      userId,
+      contact.id,
+      ledgerTxKey,
+      amountCents,
+      txPostedAt,
+    );
+    if (!ledgerInserted) {
+      const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
+      if (!already) {
+        console.warn("[Pluggy] Crédito identificado mas não foi registrado no ledger/saldo.", {
+          userId,
+          contactId: contact.id,
+          ledgerTxKey,
+        });
+        return;
+      }
+      console.log("[Pluggy] Crédito já existia no ledger; saldo retido não será duplicado.", {
+        contactId: contact.id,
+        ledgerTxKey,
+      });
+      return;
     }
     await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
     console.log(
@@ -522,13 +546,28 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     settings?.defaultLessonPriceCents ?? null,
   );
   if (!unitProbe || unitProbe <= 0) {
-    if (txId) {
-      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
-      if (!inserted) return;
-    } else {
-      const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
-      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
-      if (!inserted) return;
+    const ledgerInserted = await storage.insertPluggyContactCredit(
+      userId,
+      contact.id,
+      ledgerTxKey,
+      amountCents,
+      txPostedAt,
+    );
+    if (!ledgerInserted) {
+      const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
+      if (!already) {
+        console.warn("[Pluggy] Crédito sem preço por aula não foi registrado no ledger/saldo.", {
+          userId,
+          contactId: contact.id,
+          ledgerTxKey,
+        });
+        return;
+      }
+      console.log("[Pluggy] Crédito sem preço já existia no ledger; saldo retido não será duplicado.", {
+        contactId: contact.id,
+        ledgerTxKey,
+      });
+      return;
     }
     await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
     console.warn(
@@ -537,10 +576,6 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
-    0,
-    128,
-  );
   const ledgerInserted = await storage.insertPluggyContactCredit(
     userId,
     contact.id,
@@ -561,6 +596,19 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const r = await reconcileGuestContactLessonPayments(userId, contact.id);
   if (r.markedCount === 0) {
+    if (ledgerInserted && pending.length > 0) {
+      const ev = pending[0]!;
+      await markLessonPaidAndSyncCalendar(userId, ev, displayNameFromGuestContact(contact), "pluggy");
+      const stillPending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+      if (stillPending.length === 0) {
+        await storage.updateGuestContactFields(userId, contact.id, { financialStatus: "pago" });
+      }
+      await notifyGuestPaymentDigest(contact, 1, amountCents);
+      console.log(
+        `[Pluggy] Pagamento identificado para contato ${contact.id}, mas valor não cobriu unidade pelo rateio; marcada 1 aula pendente como paga pela regra de pagamento identificado.`,
+      );
+      return;
+    }
     if (DEBUG_PLUGGY || r.totalPoolCents > 0) {
       console.log(
         "[Pluggy] Pool (ledger + saldo retido) atualizado; nenhuma aula pendente coberta neste momento.",
