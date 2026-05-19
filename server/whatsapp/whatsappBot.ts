@@ -26,16 +26,13 @@ import { storage } from '../storage';
 import {
   addEventToGoogleCalendar,
   cancelGoogleCalendarEvent,
-  listUpcomingEvents as listGoogleUpcomingEvents,
   listGooglePrimaryFutureEventsPaginated,
-  listGoogleEventsInTimeRange,
   setTokens
 } from '../telegram/googleCalendarIntegration';
 import {
   addEventToMicrosoftCalendar,
   cancelMicrosoftCalendarEvent,
   listUpcomingMicrosoftEvents,
-  listMicrosoftCalendarViewInRange,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import { emailService } from '../services/emailService';
@@ -86,6 +83,15 @@ function baileysLogger() {
 }
 
 class WhatsAppBot {
+  private static readonly ACTIVE_SLASH_COMMANDS = new Set([
+    '/ajuda',
+    '/help',
+    '/comandos',
+    '/eventos',
+    '/events',
+    '/buscar',
+  ]);
+
   private sock: any = null;
   private authState: any = null;
   private saveCreds: any = null;
@@ -942,7 +948,7 @@ class WhatsAppBot {
     const isRunStillActive = () => this.activeRunByJid.get(remoteJid) === currentRunId;
 
     const { user, created } = await this.getOrCreateUser(whatsappId, msg.pushName);
-    const command = text.split(' ')[0].toLowerCase();
+    const command = this.parseSlashCommand(text);
     const args = text.substring(command.length).trim();
 
     // =========================================================================
@@ -973,14 +979,11 @@ class WhatsAppBot {
     // 1.2. VERIFICAÇÃO DE EMAIL OBRIGATÓRIO
     // =========================================================================
     const allowedWithoutEmail = new Set([
-      '/start',
-      '/iniciar',
       '/help',
       '/ajuda',
-      '/email',
-      '/cancelar',
-      '/aula',
-      '/aulas',
+      '/comandos',
+      '/eventos',
+      '/events',
       '/buscar',
     ]);
 
@@ -1144,35 +1147,8 @@ class WhatsAppBot {
     // 2. PROCESSAMENTO DE COMANDOS
     // =========================================================================
     if (text.startsWith('/')) {
-      const panelFirst = new Set([
-        '/email',
-        '/conectar',
-        '/connect',
-        '/conectar_microsoft',
-        '/connect_microsoft',
-        '/desconectar',
-        '/disconnect',
-        '/fuso',
-        '/convidado',
-        '/contato_convidado',
-        '/convidados',
-        '/apagar',
-        '/convidado_remover',
-        '/cancelar',
-        '/ajuda',
-        '/help',
-        '/start',
-        '/iniciar',
-      ]);
-      if (panelFirst.has(command)) {
-        await this.sendMessage(
-          remoteJid,
-          '🎛️ *Painel Zelar*\n\n' +
-            'E-mail, calendário (Google/Microsoft), fuso, *alunos/clientes* e assinatura ficam no painel — sem barra (/):\n' +
-            this.panelLinkInMessage(user) +
-            '\n\n' +
-            'No WhatsApp (modo texto) você pode consultar *pendências financeiras*, *aulas de hoje* e *quantas aulas* restam — sempre digitando em texto, sem áudio ou imagem.',
-        );
+      if (!WhatsAppBot.ACTIVE_SLASH_COMMANDS.has(command)) {
+        await this.sendDisabledSlashCommandMessage(remoteJid);
         return;
       }
       await this.handleCommand(remoteJid, user, command, args);
@@ -1246,7 +1222,7 @@ class WhatsAppBot {
           : '';
         await this.sendMessage(
           remoteJid,
-          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para listar os IDs.${staleHint}`,
+          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para ver a agenda ou digite *apagar as aulas do Nome*.${staleHint}`,
         );
         return;
       }
@@ -1884,6 +1860,52 @@ class WhatsAppBot {
     }
   }
 
+  /** Primeiro token do texto (ex.: `/eventos`, `/eventos@bot`). */
+  private parseSlashCommand(text: string): string {
+    const first = text.trim().split(/\s+/)[0]?.toLowerCase() ?? '';
+    const at = first.indexOf('@');
+    return at > 0 ? first.slice(0, at) : first;
+  }
+
+  private async sendDisabledSlashCommandMessage(remoteJid: string): Promise<void> {
+    await this.sendMessage(
+      remoteJid,
+      'ℹ️ *Esse comando com barra (/) não está ativo no WhatsApp.*\n\n' +
+        'Use:\n' +
+        '• `/comandos` — lista de comandos\n' +
+        '• `/ajuda` — link do painel\n' +
+        '• `/eventos` · `/buscar` (ou `/buscar N`)\n\n' +
+        '🗑️ *Para apagar aulas*, digite em texto, por exemplo:\n' +
+        '• *apagar as aulas do João*\n' +
+        '• *apagar a da Maria*',
+    );
+  }
+
+  private async sendComandosMessage(remoteJid: string, user: any): Promise<void> {
+    await this.sendMessage(
+      remoteJid,
+      '🤖 *Zelar IA — comandos no WhatsApp*\n\n' +
+        '📋 *Comandos com barra (/):*\n' +
+        '• `/comandos` — esta mensagem\n' +
+        '• `/eventos` — próximos compromissos criados pelo Zelar\n' +
+        '• `/buscar` — conciliar PIX no extrato (últimas *2 semanas*)\n' +
+        '• `/buscar 1`, `/buscar 2`… — blocos mais antigos do extrato\n\n' +
+        '🗑️ *Apagar aulas* _(sem comando, só texto):_\n' +
+        'Ex.: *apagar as aulas do João* · *apagar a da Maria*\n\n' +
+        '🎛️ Painel (e-mail, calendário, alunos): digite `/ajuda`',
+    );
+  }
+
+  private async sendAjudaMessage(remoteJid: string, user: any): Promise<void> {
+    await this.sendMessage(
+      remoteJid,
+      '🎛️ *Painel Zelar*\n\n' +
+        'Por lá você configura e-mail, calendário (Google/Microsoft), fuso, alunos/clientes e assinatura:\n\n' +
+        `${this.panelLinkInMessage(user)}\n\n` +
+        '📋 Comandos do WhatsApp: digite `/comandos`',
+    );
+  }
+
   private async sendWelcomeMessage(remoteJid: string, user: any) {
     await this.sendMessage(remoteJid,
       `👋 *Olá${user.name ? `, ${user.name}` : ''}!* Bem-vindo ao Zelar IA.\n\n` +
@@ -1910,28 +1932,11 @@ class WhatsAppBot {
 
         case '/help':
         case '/ajuda':
-          await this.sendMessage(remoteJid,
-            '🤖 *Central de Ajuda Zelar IA*\n\n' +
-            '📋 *Comandos Principais:*\n' +
-            '• `/eventos` - Lista eventos passados e futuros\n' +
-            '• `/aula` — Aulas e eventos *de hoje* (no seu fuso)\n' +
-            '• `/buscar` — Pluggy: últimas *2 semanas* do extrato (`/buscar 1` = bloco anterior, etc.); o crédito casa quando o *nome no extrato* bate com a *planilha* (aliases).\n' +
-            '• `/email` - Cadastra/atualiza seu email\n' +
-            '• `/convidado Nome email@...` - Salva na planilha (áudio reconhece o nome)\n' +
-            '• `/convidados` - Lista planilha (/convidado + e-mails do convite escrito)\n' +
-            '• `/apagar convidado Nome ou email@...` - Remove da planilha\n' +
-            '• `/conectar` - Conecta Google ou Microsoft Calendar\n' +
-            '• `/conectar_microsoft` - Conecta ao Microsoft Calendar\n' +
-            '• `/desconectar` - Desconecta calendário integrado\n' +
-            '• `/lembretes` - Vê lembretes pendentes\n' +
-            '• `/cancelar` - Cancela sua assinatura\n' +
-            '• `/fuso` - Configura seu fuso horário\n\n' +
-            '🎛️ *Painel web (alunos, calendário, financeiro):*\n' +
-            `${this.panelLinkInMessage(user)}\n` +
-            '(Use *Entrar* com seu e-mail e senha. Na primeira vez use o link *Criar senha* acima — ele identifica seu WhatsApp e grava o e-mail no painel.)\n\n' +
-            '💡 *Dica:* Você pode escrever ou mandar áudio (voz) com o evento, como "Reunião de equipe terça 14h", e eu cuido do resto!\n\n' +
-            '📌 *Várias aulas de uma vez:* escreva por exemplo *"marque aulas segunda, terça e quinta às 18"* ou *"marque aulas com João Silva segunda e quarta às 19"*.'
-          );
+          await this.sendAjudaMessage(remoteJid, user);
+          break;
+
+        case '/comandos':
+          await this.sendComandosMessage(remoteJid, user);
           break;
 
         case '/buscar': {
@@ -1987,26 +1992,18 @@ class WhatsAppBot {
           const start = DateTime.now().setZone(tz).startOf('day');
           const { lines, usedCalendar, fallbackNote } = await this.getTodayAgendaLinesForUser(user, tz);
           if (lines.length === 0) {
-            const hasCalConnection =
-              (panelSettings?.calendarProvider === 'google' && panelSettings?.googleTokens) ||
-              (panelSettings?.calendarProvider === 'microsoft' && panelSettings?.microsoftTokens);
-            const hint = !hasCalConnection
-              ? '\n\n_Conecte o calendário com `/conectar` para ver a mesma agenda do Google ou Microsoft._'
-              : '';
             await this.sendMessage(
               remoteJid,
-              `📭 Nenhum evento para *hoje* (${start.toFormat('dd/MM/yyyy')}, ${tz}).${hint}`,
+              `📭 Nenhum compromisso *criado pelo Zelar* para *hoje* (${start.toFormat('dd/MM/yyyy')}, ${tz}).\n\n` +
+                '_Outros eventos do Google/Outlook não aparecem aqui._',
             );
           } else {
-            let msgOut = `📅 *Sua agenda de hoje* (${start.toFormat('dd/MM/yyyy')}):\n\n`;
+            let msgOut =
+              `📅 *Hoje no Zelar* (${start.toFormat('dd/MM/yyyy')}):\n` +
+              '_Somente o que você agendou por este bot._\n\n';
             lines.forEach((row) => {
               msgOut += `• *${row.hhmm}* — ${row.title}\n`;
             });
-            if (usedCalendar === 'google') {
-              msgOut += '\n_Fonte: Google Calendar (dia completo no seu fuso)._';
-            } else if (usedCalendar === 'microsoft') {
-              msgOut += '\n_Fonte: Microsoft Calendar (dia completo no seu fuso)._';
-            }
             if (fallbackNote) {
               msgOut += `\n⚠️ _${fallbackNote}_`;
             }
@@ -2109,18 +2106,24 @@ class WhatsAppBot {
           break;
 
         case '/eventos':
-        case '/events':
-          const allEvents = await storage.getUpcomingEvents(user.id, 20); // Pega 20 eventos próximos (ou ordenar melhor no storage)
-          // Aqui getUpcomingEvents pega >= now. Precisaríamos de past events se o usuário quiser.
-          // O requisito diz "List past/upcoming events". A função atual só pega future.
-          // Vou focar nos futuros que é o mais útil, e talvez mencionar os passados recentes se implementar no storage.
+        case '/events': {
+          const panelSettings = await storage.getUserSettings(user.id);
+          const tz = panelSettings?.timeZone || getUserTimezone(user.username);
+          const allEvents = await storage.getUpcomingEvents(user.id, 20);
 
           if (allEvents.length === 0) {
-            await this.sendMessage(remoteJid, '📭 Nenhum evento futuro encontrado.');
+            await this.sendMessage(
+              remoteJid,
+              '📭 Nenhum evento futuro *criado pelo Zelar*.\n\n' +
+                '_Não listamos outros compromissos do Google/Outlook — só o que você agendou por aqui._\n\n' +
+                'Para criar, envie texto ou áudio (ex.: "Aula com João segunda 18h").',
+            );
           } else {
-            let msg = '📅 *Seus Eventos Futuros:*\n\n';
-            allEvents.forEach(ev => {
-              const date = DateTime.fromJSDate(ev.startDate).setZone(getUserTimezone(user.username));
+            let msg =
+              '📅 *Próximos eventos (Zelar IA):*\n' +
+              '_Somente compromissos criados por este bot — não inclui o restante da sua agenda._\n\n';
+            allEvents.forEach((ev) => {
+              const date = DateTime.fromJSDate(ev.startDate).setZone(tz);
               let title = ev.title;
               if (ev.lessonPaymentStatus === 'pago') {
                 title = title
@@ -2133,12 +2136,16 @@ class WhatsAppBot {
                   .replace(/\s*·\s*pago\s*$/i, ' · pendente');
                 if (!/\bpendente\)?$/i.test(title)) title += ' · pendente';
               }
-              msg += `🆔 *${ev.id}* | ${date.toFormat('dd/MM HH:mm')} - ${title}\n`;
+              msg += `🆔 *${ev.id}* | ${date.toFormat('dd/MM HH:mm')} — ${title}\n`;
             });
-            msg += '\nPara ver detalhes ou deletar, use o ID.';
+            msg +=
+              '\n🗑️ *Para apagar*, digite em texto (sem barra /):\n' +
+              '• *apagar as aulas do João*\n' +
+              '• *apagar a da Maria*';
             await this.sendMessage(remoteJid, msg);
           }
           break;
+        }
 
         case '/reminders':
         case '/lembretes':
@@ -3112,10 +3119,7 @@ class WhatsAppBot {
     );
   }
 
-  /**
-   * Agenda de hoje: com Google/Microsoft conectados, lista ao vivo no intervalo do dia (reflete exclusões no calendário).
-   * Sem conexão (ou se a API falhar), usa o banco do Zelar.
-   */
+  /** Agenda de hoje: somente eventos registrados pelo Zelar no banco (não lê Google/Outlook inteiro). */
   private async getTodayAgendaLinesForUser(
     user: { id: number },
     tz: string,
@@ -3124,125 +3128,31 @@ class WhatsAppBot {
     usedCalendar: 'google' | 'microsoft' | null;
     fallbackNote: string | null;
   }> {
-    const settings = await storage.getUserSettings(user.id);
     const dayStart = DateTime.now().setZone(tz).startOf('day');
     const dayEndEx = dayStart.plus({ days: 1 });
-    const tMin = dayStart.toUTC().toISO()!;
-    const tMax = dayEndEx.toUTC().toISO()!;
-
-    const tryDb = async (): Promise<Array<{ hhmm: string; title: string; ms: number }>> => {
-      const dbEvents = await storage.getUserEventsBetween(
-        user.id,
-        dayStart.toUTC().toJSDate(),
-        dayEndEx.toUTC().toJSDate(),
-      );
-      const out: Array<{ hhmm: string; title: string; ms: number }> = [];
-      const seen = new Set<string>();
-      for (const e of dbEvents) {
-        const st = DateTime.fromJSDate(new Date(e.startDate)).setZone(tz);
-        if (st < dayStart || st >= dayEndEx) continue;
-        const hhmm = st.toFormat('HH:mm');
-        const key = `${hhmm}_${(e.title || '').toLowerCase()}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push({
-          hhmm,
-          title: (e.title as string) || 'Evento',
-          ms: st.toMillis(),
-        });
-      }
-      out.sort((a, b) => a.ms - b.ms);
-      return out;
-    };
-
-    const finalizeDb = async (note: string | null) => {
-      const dbLines = await tryDb();
-      return {
-        lines: dbLines.map(({ hhmm, title }) => ({ hhmm, title })),
-        usedCalendar: null,
-        fallbackNote: note,
-      };
-    };
-
-    if (settings?.calendarProvider === 'google' && settings.googleTokens) {
-      try {
-        setTokens(user.id, JSON.parse(settings.googleTokens));
-        const res = await listGoogleEventsInTimeRange(user.id, tMin, tMax);
-        if (!res.success) {
-          return finalizeDb(
-            'Não foi possível ler o Google Calendar; mostrei o que está salvo no Zelar.',
-          );
-        }
-        const rows: Array<{ hhmm: string; title: string; ms: number }> = [];
-        for (const ev of res.events ?? []) {
-          const startRaw = ev?.start?.dateTime || ev?.start?.date;
-          if (!startRaw) continue;
-          let st: DateTime;
-          if (ev.start?.dateTime) {
-            st = DateTime.fromISO(ev.start.dateTime, { setZone: true }).setZone(tz);
-          } else if (ev.start?.date) {
-            st = DateTime.fromISO(String(ev.start.date), { zone: tz }).startOf('day');
-          } else {
-            continue;
-          }
-          if (st < dayStart || st >= dayEndEx) continue;
-          rows.push({
-            hhmm: st.toFormat('HH:mm'),
-            title: String(ev.summary || 'Evento'),
-            ms: st.toMillis(),
-          });
-        }
-        rows.sort((a, b) => a.ms - b.ms);
-        return {
-          lines: rows.map(({ hhmm, title }) => ({ hhmm, title })),
-          usedCalendar: 'google',
-          fallbackNote: null,
-        };
-      } catch (error) {
-        console.error('getTodayAgendaLinesForUser Google:', error);
-        return finalizeDb(
-          'Não foi possível ler o Google Calendar; mostrei o que está salvo no Zelar.',
-        );
-      }
+    const dbEvents = await storage.getUserEventsBetween(
+      user.id,
+      dayStart.toUTC().toJSDate(),
+      dayEndEx.toUTC().toJSDate(),
+    );
+    const out: Array<{ hhmm: string; title: string; ms: number }> = [];
+    const seen = new Set<string>();
+    for (const e of dbEvents) {
+      const st = DateTime.fromJSDate(new Date(e.startDate)).setZone(tz);
+      if (st < dayStart || st >= dayEndEx) continue;
+      const hhmm = st.toFormat('HH:mm');
+      const key = `${hhmm}_${(e.title || '').toLowerCase()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        hhmm,
+        title: (e.title as string) || 'Evento',
+        ms: st.toMillis(),
+      });
     }
-
-    if (settings?.calendarProvider === 'microsoft' && settings.microsoftTokens) {
-      try {
-        const res = await listMicrosoftCalendarViewInRange(user.id, tMin, tMax);
-        if (!res.success) {
-          return finalizeDb(
-            'Não foi possível ler o Microsoft Calendar; mostrei o que está salvo no Zelar.',
-          );
-        }
-        const rows: Array<{ hhmm: string; title: string; ms: number }> = [];
-        for (const ev of res.events ?? []) {
-          const startRaw = ev?.start?.dateTime;
-          if (!startRaw) continue;
-          const st = DateTime.fromISO(String(startRaw), { setZone: true }).setZone(tz);
-          if (st < dayStart || st >= dayEndEx) continue;
-          rows.push({
-            hhmm: st.toFormat('HH:mm'),
-            title: String(ev.subject || 'Evento'),
-            ms: st.toMillis(),
-          });
-        }
-        rows.sort((a, b) => a.ms - b.ms);
-        return {
-          lines: rows.map(({ hhmm, title }) => ({ hhmm, title })),
-          usedCalendar: 'microsoft',
-          fallbackNote: null,
-        };
-      } catch (error) {
-        console.error('getTodayAgendaLinesForUser Microsoft:', error);
-        return finalizeDb(
-          'Não foi possível ler o Microsoft Calendar; mostrei o que está salvo no Zelar.',
-        );
-      }
-    }
-
-    const dbOnly = await tryDb();
+    out.sort((a, b) => a.ms - b.ms);
     return {
-      lines: dbOnly.map(({ hhmm, title }) => ({ hhmm, title })),
+      lines: out.map(({ hhmm, title }) => ({ hhmm, title })),
       usedCalendar: null,
       fallbackNote: null,
     };
@@ -3258,16 +3168,11 @@ class WhatsAppBot {
       return msg;
     }
     const body = lines.map((r) => `• *${r.hhmm}* — ${r.title}`).join('\n');
-    let footer = '';
-    if (usedCalendar === 'google') {
-      footer = '\n_Fonte: Google Calendar._';
-    } else if (usedCalendar === 'microsoft') {
-      footer = '\n_Fonte: Microsoft Calendar._';
-    }
+    let footer = '\n_Somente compromissos criados pelo Zelar._';
     if (fallbackNote) {
       footer += `\n⚠️ _${fallbackNote}_`;
     }
-    return `📅 *Agenda de hoje*\n\n${body}${footer}`;
+    return `📅 *Hoje no Zelar*\n\n${body}${footer}`;
   }
 
   private parseBrAmountToCents(raw: string): number | null {
