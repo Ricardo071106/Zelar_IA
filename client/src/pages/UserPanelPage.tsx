@@ -86,6 +86,9 @@ type PendingLessonRow = {
   studentName: string;
   status: string;
   unitCents: number | null;
+  /** Saldo líquido negativo sem linhas “pendente” no banco: últimas aulas pagas que explicam a dívida. */
+  estimateFromGap?: boolean;
+  dbPaymentStatus?: string;
 };
 
 function slugifyPackageId(label: string): string {
@@ -1207,7 +1210,9 @@ export default function UserPanelPage() {
               <CardHeader>
                 <CardTitle className="font-mago text-2xl text-emerald-900">Aulas Pendentes</CardTitle>
                 <CardDescription className="text-slate-600">
-                  Lista das aulas pendentes por data, vinculadas aos alunos cadastrados.
+                  Aulas com status <strong>pendente</strong> no sistema (qualquer data). Se o saldo líquido do aluno
+                  ficar negativo sem nenhuma pendência registrada, mostramos as <strong>últimas aulas</strong> que
+                  explicam o valor em aberto (estimativa).
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -1225,7 +1230,8 @@ export default function UserPanelPage() {
                       {pendingLessons.length === 0 ? (
                         <TableRow className="border-emerald-100 hover:bg-transparent">
                           <TableCell colSpan={4} className="text-center text-slate-500 py-10">
-                            Nenhuma aula pendente vinculada a aluno.
+                            Nenhuma aula pendente nem estimativa de dívida (saldo líquido negativo sem pendências no
+                            banco).
                           </TableCell>
                         </TableRow>
                       ) : (
@@ -1240,7 +1246,16 @@ export default function UserPanelPage() {
                               })}
                             </TableCell>
                             <TableCell className="text-slate-800 whitespace-nowrap">{lesson.studentName}</TableCell>
-                            <TableCell className="text-red-700 font-semibold whitespace-nowrap">
+                            <TableCell
+                              className={`font-semibold whitespace-nowrap ${
+                                lesson.estimateFromGap ? "text-amber-800" : "text-red-700"
+                              }`}
+                              title={
+                                lesson.estimateFromGap
+                                  ? `No banco está ${lesson.dbPaymentStatus ?? "pago"}; exibido como referência pela dívida líquida.`
+                                  : undefined
+                              }
+                            >
                               {lesson.status}
                             </TableCell>
                             <TableCell className="text-slate-700 whitespace-nowrap">

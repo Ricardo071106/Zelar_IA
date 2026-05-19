@@ -412,23 +412,83 @@ router.get(
     const rows = await storage.listUserGuestContacts(ctx.user.id);
     const byId = new Map(rows.map((r) => [r.id, r]));
     const settings = await storage.getUserSettings(ctx.user.id);
-    const events = await storage.getActiveEventsForDeletionWindow(ctx.user.id, 5000);
-    const lessons = events
-      .filter((ev) => ev.lessonPaymentStatus === 'pendente' && ev.studentContactId != null)
-      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-      .map((ev) => {
-        const contact = ev.studentContactId != null ? byId.get(ev.studentContactId) : undefined;
-        const unit = contact ? getLessonUnitCentsFromEventSnapshot(ev, contact, settings?.defaultLessonPriceCents ?? null) : null;
-        return {
+    const def = settings?.defaultLessonPriceCents ?? null;
+    const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
+
+    const pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500);
+    const seen = new Set<number>();
+
+    type PendingLessonApi = {
+      id: number;
+      title: string;
+      startDate: string;
+      studentContactId: number | null;
+      studentName: string;
+      status: string;
+      unitCents: number | null;
+      estimateFromGap?: boolean;
+      dbPaymentStatus?: string;
+    };
+
+    const lessons: PendingLessonApi[] = [];
+
+    for (const ev of pendingEvents) {
+      const contact = ev.studentContactId != null ? byId.get(ev.studentContactId) : undefined;
+      const unit =
+        contact && ev.studentContactId != null ? getLessonUnitCentsFromEventSnapshot(ev, contact, def) : null;
+      const studentName = contact
+        ? displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164)
+        : ev.studentContactId != null
+          ? 'Aluno'
+          : 'Não vinculado ao cadastro';
+      lessons.push({
+        id: ev.id,
+        title: ev.title,
+        startDate: (ev.startDate instanceof Date ? ev.startDate : new Date(ev.startDate as string)).toISOString(),
+        studentContactId: ev.studentContactId ?? null,
+        studentName,
+        status: ev.lessonPaymentStatus,
+        unitCents: unit ?? null,
+      });
+      seen.add(ev.id);
+    }
+
+    for (const contact of rows) {
+      const balance = contact.lessonBalanceCents ?? 0;
+      const debt = debtByContact.get(contact.id) ?? 0;
+      const net = balance - debt;
+      if (net >= 0) continue;
+
+      const dbPending = await storage.listPendingLessonEventsForContact(ctx.user.id, contact.id);
+      if (dbPending.length > 0) continue;
+
+      const gap = -net;
+      const chain = await storage.listBillableLessonEventsForContactOrdered(ctx.user.id, contact.id);
+      const paidNewestFirst = chain.filter((e) => e.lessonPaymentStatus === 'pago').reverse();
+      let acc = 0;
+      for (const ev of paidNewestFirst) {
+        if (seen.has(ev.id)) continue;
+        const unit = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
+        if (!unit || unit <= 0) continue;
+        lessons.push({
           id: ev.id,
           title: ev.title,
-          startDate: ev.startDate,
-          studentContactId: ev.studentContactId,
-          studentName: contact ? displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164) : 'Aluno',
-          status: ev.lessonPaymentStatus,
-          unitCents: unit ?? null,
-        };
-      });
+          startDate: (ev.startDate instanceof Date ? ev.startDate : new Date(ev.startDate as string)).toISOString(),
+          studentContactId: contact.id,
+          studentName: displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164),
+          status: 'pendente (estimado)',
+          unitCents: unit,
+          estimateFromGap: true,
+          dbPaymentStatus: 'pago',
+        });
+        seen.add(ev.id);
+        acc += unit;
+        if (acc >= gap) break;
+      }
+    }
+
+    lessons.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+
     res.json({ lessons });
   }),
 );

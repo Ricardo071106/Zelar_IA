@@ -229,6 +229,8 @@ export interface IStorage {
   getUpcomingEvents(userId: number, limit?: number): Promise<Event[]>;
   /** Eventos ativos numa janela ampla (passado + futuro) para apagar por nome no WhatsApp. */
   getActiveEventsForDeletionWindow(userId: number, limit?: number): Promise<Event[]>; // default 2500
+  /** Todas as aulas com status pendente (painel / visão financeira), ordenadas por data. */
+  listPendingLessonEventsForUserOrdered(userId: number, limit?: number): Promise<Event[]>;
   updateEvent(eventId: number, data: Partial<Event>): Promise<Event | undefined>;
   deleteEvent(eventId: number): Promise<boolean>;
   /** Cancelamento lógico: mantém linha, marca cancelled_at, some de listagens. */
@@ -546,6 +548,22 @@ export class DatabaseStorage implements IStorage {
       .from(events)
       .where(and(eq(events.userId, userId), isNull(events.cancelledAt), gte(events.startDate, since)))
       .orderBy(asc(events.startDate))
+      .limit(limit);
+  }
+
+  async listPendingLessonEventsForUserOrdered(userId: number, limit: number = 2000): Promise<Event[]> {
+    if (!db) return [];
+    return db
+      .select()
+      .from(events)
+      .where(
+        and(
+          eq(events.userId, userId),
+          eq(events.lessonPaymentStatus, "pendente"),
+          isNull(events.cancelledAt),
+        ),
+      )
+      .orderBy(asc(events.startDate), asc(events.id))
       .limit(limit);
   }
 

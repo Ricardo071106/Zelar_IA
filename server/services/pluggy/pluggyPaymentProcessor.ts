@@ -697,6 +697,8 @@ export async function markLessonPaidAndSyncCalendar(
 
   if (provider === "google") {
     try {
+      let calendarPatched = false;
+
       if (intKey) {
         const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
         const pack = await getGoogleIntegrationTokensByKey(intKey);
@@ -705,36 +707,57 @@ export async function markLessonPaidAndSyncCalendar(
             oauthClientId: oauthForGoogle,
             tokens: pack.tokens,
           });
-          if (!r.success) {
-            console.warn("[Pluggy] Falha ao atualizar Google Calendar (conta de serviço):", r.message, { eventId: ev.id });
+          calendarPatched = r.success;
+          if (!calendarPatched) {
+            console.warn(
+              "[Pluggy] Falha ao atualizar Google Calendar (conta de serviço); tentando tokens do painel.",
+              r.message,
+              { eventId: ev.id },
+            );
           }
         } else {
           console.warn(
-            "[Pluggy] Aula no Google de serviço, mas tokens não encontrados para integration_key=",
-            intKey,
-            "event",
-            ev.id,
+            "[Pluggy] Evento com integration_key no metadata, mas sem tokens no banco; tentando tokens do painel.",
+            { eventId: ev.id, intKey },
           );
         }
-      } else if (settings.googleTokens) {
-        let r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
-        if (!r.success) {
-          const fbKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || "zelar_google_invites";
-          const fbOauth = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || "999001");
-          if (Number.isFinite(fbOauth)) {
-            const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
-            const pack = await getGoogleIntegrationTokensByKey(fbKey);
-            if (pack?.tokens) {
-              r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle, {
-                oauthClientId: Math.floor(fbOauth),
-                tokens: pack.tokens,
-              });
+      }
+
+      if (!calendarPatched && settings.googleTokens) {
+        const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
+        calendarPatched = r.success;
+        if (!calendarPatched) {
+          console.warn(
+            "[Pluggy] Falha Google com tokens do painel; tentando conta Zelar (env) se configurada.",
+            r.message,
+            { eventId: ev.id },
+          );
+        }
+      }
+
+      if (!calendarPatched) {
+        const fbKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || "zelar_google_invites";
+        const fbOauth = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || "999001");
+        if (Number.isFinite(fbOauth)) {
+          const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
+          const pack = await getGoogleIntegrationTokensByKey(fbKey);
+          if (pack?.tokens) {
+            const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle, {
+              oauthClientId: Math.floor(fbOauth),
+              tokens: pack.tokens,
+            });
+            calendarPatched = r.success;
+            if (!calendarPatched) {
+              console.warn("[Pluggy] Falha Google Calendar (conta Zelar / env):", r.message, { eventId: ev.id });
             }
           }
-          if (!r.success) {
-            console.warn("[Pluggy] Falha ao atualizar Google Calendar:", r.message, { eventId: ev.id });
-          }
         }
+      }
+
+      if (!calendarPatched) {
+        console.warn("[Pluggy] Não foi possível atualizar o título no Google Calendar após todas as tentativas.", {
+          eventId: ev.id,
+        });
       }
     } catch (e) {
       console.warn("[Pluggy] Falha ao atualizar Google Calendar:", e);
