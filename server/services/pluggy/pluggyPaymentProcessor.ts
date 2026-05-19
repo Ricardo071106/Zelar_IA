@@ -44,6 +44,33 @@ function startOfLocalDayForAllocation(d: Date, timeZone: string | null | undefin
   return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
 }
 
+function earliestEventCreatedAt(events: Event[]): Date | null {
+  if (!events.length) return null;
+  let min = events[0]!.createdAt;
+  for (const e of events) {
+    if (e.createdAt < min) min = e.createdAt;
+  }
+  return min;
+}
+
+/**
+ * PIX/crédito no extrato só pode quitar aulas pendentes se o lançamento for no mesmo dia
+ * ou depois da criação da aula mais antiga ainda pendente (evita pagamento antigo na janela /buscar).
+ */
+export function pluggyCreditEligibleForPendingLessons(
+  txPostedAt: Date,
+  pending: Event[],
+  timeZone?: string | null,
+): boolean {
+  if (!pending.length) return true;
+  const earliest = earliestEventCreatedAt(pending);
+  if (!earliest) return true;
+  const zone = timeZone?.trim() || "America/Sao_Paulo";
+  const txDay = DateTime.fromJSDate(txPostedAt).setZone(zone).startOf("day");
+  const lessonDay = DateTime.fromJSDate(earliest).setZone(zone).startOf("day");
+  return txDay >= lessonDay;
+}
+
 function transactionStatusCanAffectBalance(status: string): boolean {
   // Regra do produto: qualquer pagamento identificado no extrato (POSTED ou PENDING)
   // já afeta o saldo/aulas. Apenas status explicitamente negativos ficam fora.
@@ -496,9 +523,19 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
-  const ledgerSince = firstLessonAt ? startOfLocalDayForAllocation(firstLessonAt, settings?.timeZone) : null;
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+
+  if (pending.length > 0 && !pluggyCreditEligibleForPendingLessons(txPostedAt, pending, settings?.timeZone)) {
+    const earliest = earliestEventCreatedAt(pending);
+    console.log("[Pluggy] Crédito ignorado: lançamento anterior às aulas pendentes atuais.", {
+      contactId: contact.id,
+      txId: txId ?? null,
+      txPostedAt: txPostedAt.toISOString(),
+      earliestPendingLessonAt: earliest?.toISOString() ?? null,
+    });
+    return;
+  }
+
   const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
     0,
     128,
@@ -596,19 +633,6 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const r = await reconcileGuestContactLessonPayments(userId, contact.id);
   if (r.markedCount === 0) {
-    if (ledgerInserted && pending.length > 0) {
-      const ev = pending[0]!;
-      await markLessonPaidAndSyncCalendar(userId, ev, displayNameFromGuestContact(contact), "pluggy");
-      const stillPending = await storage.listPendingLessonEventsForContact(userId, contact.id);
-      if (stillPending.length === 0) {
-        await storage.updateGuestContactFields(userId, contact.id, { financialStatus: "pago" });
-      }
-      await notifyGuestPaymentDigest(contact, 1, amountCents);
-      console.log(
-        `[Pluggy] Pagamento identificado para contato ${contact.id}, mas valor não cobriu unidade pelo rateio; marcada 1 aula pendente como paga pela regra de pagamento identificado.`,
-      );
-      return;
-    }
     if (DEBUG_PLUGGY || r.totalPoolCents > 0) {
       console.log(
         "[Pluggy] Pool (ledger + saldo retido) atualizado; nenhuma aula pendente coberta neste momento.",

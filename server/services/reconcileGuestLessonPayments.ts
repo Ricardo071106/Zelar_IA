@@ -36,9 +36,18 @@ export async function reconcileGuestContactLessonPayments(
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
 
-  // O ledger já é por contato. Se um pagamento foi identificado para o aluno, ele deve entrar no pool
-  // independentemente da data em que a aula foi criada (bancos frequentemente informam transação sem hora).
-  const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, new Date(0));
+  const pendingForLedger = await storage.listPendingLessonEventsForContact(userId, contactId);
+  let ledgerSince = new Date(0);
+  if (pendingForLedger.length > 0) {
+    let earliest = pendingForLedger[0]!.createdAt;
+    for (const ev of pendingForLedger) {
+      if (ev.createdAt < earliest) earliest = ev.createdAt;
+    }
+    ledgerSince = earliest;
+  }
+
+  // Só entram no pool créditos Pluggy com data >= a aula pendente mais antiga (PIX antigo na janela /buscar não quita aula nova).
+  const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince);
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);
   const totalPoolCents = rawLedgerSum + positiveBalanceCents;
