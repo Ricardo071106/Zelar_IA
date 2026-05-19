@@ -168,5 +168,11 @@ export function pluggyTransactionAmountToCents(tx: PluggyAmountSource): number {
     if (dMajor <= tol && dMinor > tol) return asMajorCents;
   }
 
+  // Campo numérico inteiro costuma vir em centavos (ex.: 400 = R$ 4,00), não reais×100.
+  if (Number.isInteger(abs) && abs >= 50 && abs <= 500_000 && asMinorCents === Math.round(abs)) {
+    const ratio = asMajorCents / Math.max(1, asMinorCents);
+    if (ratio >= 20) return asMinorCents;
+  }
+
   return asMajorCents;
 }

@@ -508,18 +508,23 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     }
   }
 
-  const allowAmountOnly = process.env.PLUGGY_ALLOW_AMOUNT_ONLY_MATCH?.trim().toLowerCase() === "true";
-  if (!contact && allowAmountOnly) {
+  if (!contact) {
     contact = await tryResolveContactByAmountOnly(userId, amountCents, settings);
     if (contact) {
-      console.log("[Pluggy] Match por valor (PLUGGY_ALLOW_AMOUNT_ONLY_MATCH) → contato", contact.id);
+      console.log("[Pluggy] Match por valor × aulas pendentes → contato", contact.id, {
+        amountCents,
+        brl: (amountCents / 100).toFixed(2),
+      });
     }
   }
 
   if (!contact) {
-    if (DEBUG_PLUGGY) {
-      console.log("[Pluggy] Crédito sem match de nome na planilha/extrato:", memoBlob.slice(0, 160));
-    }
+    console.log("[Pluggy] Crédito sem aluno identificado no extrato.", {
+      txId: txId ?? null,
+      amountCents,
+      brl: (amountCents / 100).toFixed(2),
+      memo: memoBlob.slice(0, 120),
+    });
     return;
   }
 
