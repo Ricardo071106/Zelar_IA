@@ -1,14 +1,8 @@
 import type { Event } from "@shared/schema";
-import { DateTime } from "luxon";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
-
-function startOfLocalDay(d: Date, timeZone: string | null | undefined): Date {
-  const zone = timeZone?.trim() || "America/Sao_Paulo";
-  return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
-}
 
 function lessonWasPaidByPluggy(ev: Event): boolean {
   const raw = ev.rawData as Record<string, unknown> | null;
@@ -42,9 +36,9 @@ export async function reconcileGuestContactLessonPayments(
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
 
-  const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contactId);
-  const ledgerSince = firstLessonAt ? startOfLocalDay(firstLessonAt, settings?.timeZone) : new Date(0);
-  const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince);
+  // O ledger já é por contato. Se um pagamento foi identificado para o aluno, ele deve entrar no pool
+  // independentemente da data em que a aula foi criada (bancos frequentemente informam transação sem hora).
+  const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, new Date(0));
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);
   const totalPoolCents = ledgerSum + positiveBalanceCents;
