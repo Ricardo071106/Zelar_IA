@@ -307,9 +307,9 @@ async function fetchTransactionsByIds(ids: string[]): Promise<PluggyTx[]> {
 }
 
 /**
- * Quando só há um aluno com aulas pendentes e o valor cobre pelo menos 1 aula pelo preço calculado,
- * associa o pagamento a esse aluno (útil quando o banco não envia paymentData.payer).
- * Se vários têm pendências, desambigua quando o valor fecha exatamente N aulas (N ≤ pendências) para um único aluno.
+ * Associa PIX ao aluno quando o valor fecha *exatamente* N aulas pendentes (N ≥ 1).
+ * Ex.: R$ 4,00 com aula a R$ 2,00 e 3 pendências → N = 2 (sobra 1 pendente).
+ * Só retorna se um único aluno satisfizer a conta.
  */
 async function tryResolveContactByAmountOnly(
   userId: number,
@@ -317,8 +317,7 @@ async function tryResolveContactByAmountOnly(
   settings: UserSettings | undefined,
 ): Promise<UserGuestContactRow | null> {
   const contacts = await storage.listUserGuestContacts(userId);
-  type V = { contact: UserGuestContactRow; pending: Event[]; unit: number; maxLessons: number };
-  const viable: V[] = [];
+  const exactHits: UserGuestContactRow[] = [];
 
   for (const c of contacts) {
     const pending = await storage.listPendingLessonEventsForContact(userId, c.id);
@@ -331,24 +330,13 @@ async function tryResolveContactByAmountOnly(
     );
     if (!unit || unit <= 0) continue;
 
-    const maxLessons = Math.floor(amountCents / unit);
-    if (maxLessons < 1) continue;
-
-    viable.push({ contact: c, pending, unit, maxLessons });
-  }
-
-  if (viable.length === 1) {
-    return viable[0]!.contact;
-  }
-  if (viable.length > 1) {
-    const exactMultiples = viable.filter((v) => {
-      const k = Math.floor(amountCents / v.unit);
-      return k >= 1 && k <= v.pending.length && amountCents === k * v.unit;
-    });
-    if (exactMultiples.length === 1) {
-      return exactMultiples[0]!.contact;
+    const k = Math.floor(amountCents / unit);
+    if (k >= 1 && k <= pending.length && amountCents === k * unit) {
+      exactHits.push(c);
     }
   }
+
+  if (exactHits.length === 1) return exactHits[0]!;
   return null;
 }
 
@@ -473,9 +461,20 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const memoBlob = buildCreditSearchBlob(tx);
 
-  let contact: UserGuestContactRow | null = await findGuestContactByTxTaxId(userId, tx);
+  // Valor exato (ex. R$ 4 = 2× R$ 2) tem prioridade — evita CPF antigo no extrato bloquear o fluxo.
+  let contact: UserGuestContactRow | null = await tryResolveContactByAmountOnly(userId, amountCents, settings);
   if (contact) {
-    console.log("[Pluggy] Match CPF/CNPJ hash → contato", contact.id);
+    console.log("[Pluggy] Match por valor × aulas pendentes → contato", contact.id, {
+      amountCents,
+      brl: (amountCents / 100).toFixed(2),
+    });
+  }
+
+  if (!contact) {
+    contact = await findGuestContactByTxTaxId(userId, tx);
+    if (contact) {
+      console.log("[Pluggy] Match CPF/CNPJ hash → contato", contact.id);
+    }
   }
 
   if (!contact) {
@@ -505,16 +504,6 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     contact = await tryResolveContactFromPendingLessonMemo(userId, memoBlob);
     if (contact) {
       console.log("[Pluggy] Match memo extrato ↔ título aula pendente → contato", contact.id);
-    }
-  }
-
-  if (!contact) {
-    contact = await tryResolveContactByAmountOnly(userId, amountCents, settings);
-    if (contact) {
-      console.log("[Pluggy] Match por valor × aulas pendentes → contato", contact.id, {
-        amountCents,
-        brl: (amountCents / 100).toFixed(2),
-      });
     }
   }
 

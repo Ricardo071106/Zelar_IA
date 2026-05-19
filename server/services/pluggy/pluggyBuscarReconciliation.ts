@@ -7,7 +7,7 @@ import {
   type PluggyTx,
 } from "./pluggyPaymentProcessor";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
-import { coercePluggyAmountToNumber } from "./pluggyAmountToCents";
+import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
 
 /** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
 export const BUSCAR_WINDOW_DAYS = 14;
@@ -81,8 +81,26 @@ export function computePluggyBuscarDateWindow(
   const windowStart = windowEnd.minus({ days: BUSCAR_WINDOW_DAYS - 1 });
   const fromDay = windowStart.toFormat("yyyy-MM-dd");
   const toDayInclusive = windowEnd.toFormat("yyyy-MM-dd");
-  const toExclusiveDay = windowEnd.plus({ days: 1 }).toFormat("yyyy-MM-dd");
+  // +2 dias no `to` da API: alguns bancos demoram a publicar PIX do dia no Open Finance.
+  const toExclusiveDay = windowEnd.plus({ days: 2 }).toFormat("yyyy-MM-dd");
   return { fromDay, toExclusiveDay, toDayInclusive, windowIndex: idx };
+}
+
+/** Últimas movimentações (sem filtro de data) — complementa PIX que ainda não entrou na janela por data. */
+async function fetchRecentAccountTransactions(accountId: string, pageSize = 50): Promise<PluggyTx[]> {
+  try {
+    const pageData = await pluggyFetchJson(
+      `/transactions?accountId=${encodeURIComponent(accountId)}&page=1&pageSize=${pageSize}`,
+    );
+    return parseTransactionsPage(pageData).results;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("[Pluggy/buscar] Falha ao listar transações recentes (sem data)", {
+      accountId,
+      message: msg.slice(0, 160),
+    });
+    return [];
+  }
 }
 
 /**
@@ -170,11 +188,45 @@ export async function runPluggyBuscarReconciliation(
     }
   }
 
+  if (windowIndex === 0) {
+    const tz = settings?.timeZone || "America/Sao_Paulo";
+    const recentCutoff = DateTime.now().setZone(tz).minus({ days: 4 }).startOf("day");
+    let addedRecent = 0;
+    for (const acc of accounts) {
+      const recent = await fetchRecentAccountTransactions(acc.id, 60);
+      for (const tx of recent) {
+        const id = typeof tx.id === "string" ? tx.id : null;
+        if (!id || seenIds.has(id)) continue;
+        const posted = extractTxPostedAtFromPluggyTx(tx);
+        if (posted < recentCutoff.toJSDate()) continue;
+        seenIds.add(id);
+        merged.push(tx);
+        addedRecent += 1;
+      }
+    }
+    if (addedRecent > 0) {
+      console.log("[Pluggy/buscar] Transações recentes adicionais (sem filtro data):", addedRecent);
+    }
+  }
+
   merged.sort((a, b) => extractTxPostedAtFromPluggyTx(a).getTime() - extractTxPostedAtFromPluggyTx(b).getTime());
   console.log("[Pluggy/buscar] Transações únicas na janela:", merged.length);
   const payableCreditTxSeen = merged.filter(pluggyTxCreditCountsAsPayment).length;
 
   for (const tx of merged) {
+    if (pluggyTxCreditCountsAsPayment(tx)) {
+      const cents = pluggyTransactionAmountToCents(tx);
+      console.log("[Pluggy/buscar] Crédito no lote", {
+        txId: tx.id ?? null,
+        type: pluggyTxType(tx),
+        status: pluggyTxStatus(tx),
+        amountRaw: tx.amount ?? tx.amountInAccountCurrency ?? null,
+        amountCents: cents,
+        brl: (cents / 100).toFixed(2),
+        postedAt: extractTxPostedAtFromPluggyTx(tx).toISOString(),
+        desc: String(tx.description || tx.descriptionRaw || "").slice(0, 100),
+      });
+    }
     await processSinglePluggyTransaction(itemId, tx);
   }
 
