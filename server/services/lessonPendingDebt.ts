@@ -2,7 +2,7 @@ import { and, eq, isNotNull, isNull } from "drizzle-orm";
 import { db } from "../db";
 import { events, type Event } from "@shared/schema";
 import { storage } from "../storage";
-import { getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
+import { getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
 
 /**
  * Soma (centavos BRL) do valor das aulas *pendentes* por aluno, usando o preço
@@ -32,7 +32,7 @@ export async function computePendingLessonDebtCentsByContact(userId: number): Pr
     const cid = ev.studentContactId!;
     const c = byId.get(cid);
     if (!c) continue;
-    const unit = getLessonUnitCentsFromEventSnapshot(ev, c, def);
+    const unit = getLessonDebtUnitCents(ev, c, def);
     if (!unit || unit <= 0) continue;
     out.set(cid, (out.get(cid) ?? 0) + unit);
   }

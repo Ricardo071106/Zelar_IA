@@ -1210,9 +1210,10 @@ export default function UserPanelPage() {
               <CardHeader>
                 <CardTitle className="font-mago text-2xl text-emerald-900">Aulas Pendentes</CardTitle>
                 <CardDescription className="text-slate-600">
-                  Aulas com status <strong>pendente</strong> no sistema (qualquer data). Se o saldo líquido do aluno
-                  ficar negativo sem nenhuma pendência registrada, mostramos as <strong>últimas aulas</strong> que
-                  explicam o valor em aberto (estimativa).
+                  Só entram aulas <strong>pendentes</strong> com <strong>aluno vinculado</strong> no cadastro (qualquer
+                  data). O valor usa o preço da aula ou o <strong>preço padrão</strong> do painel para calcular dívida e
+                  saldo líquido. Se o saldo líquido ficar negativo sem pendência no banco, podemos mostrar linhas
+                  estimadas (últimas aulas pagas).
                 </CardDescription>
               </CardHeader>
               <CardContent>

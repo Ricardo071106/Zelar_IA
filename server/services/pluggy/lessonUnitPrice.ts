@@ -69,6 +69,24 @@ export function getLessonUnitCentsFromEventSnapshot(
   return resolveLessonUnitCentsForAllocation(ev, contact, defaultLessonPriceCents);
 }
 
+/**
+ * Valor unitário (centavos) para **dívida** de aulas pendentes e saldo líquido no painel.
+ * Usa snapshot/pacote/aluno como o rateio; se ainda não der valor, aplica o preço padrão do usuário
+ * para que pendências com aluno vinculado contem no saldo líquido.
+ */
+export function getLessonDebtUnitCents(
+  ev: Event,
+  contact: UserGuestContactRow,
+  defaultLessonPriceCents: number | null | undefined,
+): number | null {
+  const u = getLessonUnitCentsFromEventSnapshot(ev, contact, defaultLessonPriceCents);
+  if (u != null && u > 0) return u;
+  if (typeof defaultLessonPriceCents === "number" && defaultLessonPriceCents > 0) {
+    return Math.round(defaultLessonPriceCents);
+  }
+  return null;
+}
+
 export function displayNameFromGuestContact(contact: UserGuestContactRow): string {
   return (
     (contact.aliasNames ?? []).filter(Boolean)[0]?.trim() ||

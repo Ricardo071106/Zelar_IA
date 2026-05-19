@@ -16,7 +16,7 @@ import {
 } from '../services/pluggy/pluggyApi';
 import { computePendingLessonDebtCentsByContact } from '../services/lessonPendingDebt';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
-import { getLessonUnitCentsFromEventSnapshot } from '../services/pluggy/lessonUnitPrice';
+import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 
 const router = Router();
 const upload = multer({
@@ -415,8 +415,7 @@ router.get(
     const def = settings?.defaultLessonPriceCents ?? null;
     const debtByContact = await computePendingLessonDebtCentsByContact(ctx.user.id);
 
-    const pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500);
-    const seen = new Set<number>();
+    const pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500, true);
 
     type PendingLessonApi = {
       id: number;
@@ -431,21 +430,20 @@ router.get(
     };
 
     const lessons: PendingLessonApi[] = [];
+    const seen = new Set<number>();
 
     for (const ev of pendingEvents) {
-      const contact = ev.studentContactId != null ? byId.get(ev.studentContactId) : undefined;
-      const unit =
-        contact && ev.studentContactId != null ? getLessonUnitCentsFromEventSnapshot(ev, contact, def) : null;
-      const studentName = contact
-        ? displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164)
-        : ev.studentContactId != null
-          ? 'Aluno'
-          : 'Não vinculado ao cadastro';
+      const cid = ev.studentContactId;
+      if (cid == null) continue;
+      const contact = byId.get(cid);
+      if (!contact) continue;
+      const unit = getLessonDebtUnitCents(ev, contact, def);
+      const studentName = displayNameFromAliases(contact.aliasNames, contact.canonicalEmail, contact.guestPhoneE164);
       lessons.push({
         id: ev.id,
         title: ev.title,
         startDate: (ev.startDate instanceof Date ? ev.startDate : new Date(ev.startDate as string)).toISOString(),
-        studentContactId: ev.studentContactId ?? null,
+        studentContactId: cid,
         studentName,
         status: ev.lessonPaymentStatus,
         unitCents: unit ?? null,
@@ -468,7 +466,7 @@ router.get(
       let acc = 0;
       for (const ev of paidNewestFirst) {
         if (seen.has(ev.id)) continue;
-        const unit = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
+        const unit = getLessonDebtUnitCents(ev, contact, def);
         if (!unit || unit <= 0) continue;
         lessons.push({
           id: ev.id,
