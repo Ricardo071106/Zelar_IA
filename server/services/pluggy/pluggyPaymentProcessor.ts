@@ -153,6 +153,36 @@ function debitLooksLikePersonPayout(tx: PluggyTx): boolean {
   return /PIX\s+ENVIADO|T\.?\s*E\.?\s*D\.?\s|DOC\s|TRANSFERENCIA\s+ENVIADA|TRANSF\s+ENVI/i.test(blob);
 }
 
+function pluggyTxDescriptionBlob(tx: PluggyTx): string {
+  return [tx.descriptionRaw, tx.description, tx.paymentData?.reason]
+    .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+    .join(" ")
+    .toUpperCase();
+}
+
+/** Crédito / PIX recebido — alguns bancos usam type vazio, TRANSFER ou OTHER com valor positivo. */
+export function pluggyTxIsIncomingCredit(tx: PluggyTx): boolean {
+  const type = String(tx.type || "").trim().toUpperCase();
+  const amt =
+    coercePluggyAmountToNumber(tx.amount) ?? coercePluggyAmountToNumber(tx.amountInAccountCurrency) ?? 0;
+  if (type === "DEBIT") return false;
+  if (type === "CREDIT" || type === "INCOME") return amt > 0;
+  const blob = pluggyTxDescriptionBlob(tx);
+  const pm = String(tx.paymentData?.paymentMethod || "").toUpperCase();
+  const looksPixIn =
+    /PIX\s+RECEBIDO|RECEBIDO.{0,32}PIX|TRANSFER[EÊ]NCIA\s+RECEBIDA|TRANSF\s+RECEBIDA|TED\s+RECEBIDA|CREDITO\s+DE\s+PIX|CR[EÉ]DITO\s+PIX/i.test(
+      blob,
+    ) || (pm.includes("PIX") && !/ENVIAD|DEBIT/i.test(blob));
+  if (looksPixIn && amt > 0) return true;
+  if ((type === "" || type === "TRANSFER" || type === "OTHER" || type === "UNKNOWN" || type === "PIX") && amt > 0) {
+    if (looksPixIn) return true;
+    if (type === "" && !/PIX\s+ENVIADO|DEBITO|DÉBITO|SAQUE|PAGAMENTO\s+EFETUADO|TRANSF\s+ENVIADA/i.test(blob)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** Texto normalizado do extrato para buscar nomes da planilha (LGPD: não persistimos o extrato). */
 function buildCreditSearchBlob(tx: PluggyTx): string {
   const parts: string[] = [];
@@ -315,9 +345,10 @@ async function tryResolveContactByAmountOnly(
   userId: number,
   amountCents: number,
   settings: UserSettings | undefined,
+  payerHint?: string | null,
 ): Promise<UserGuestContactRow | null> {
   const contacts = await storage.listUserGuestContacts(userId);
-  const exactHits: UserGuestContactRow[] = [];
+  const exactHits: { contact: UserGuestContactRow; pendingCount: number }[] = [];
 
   for (const c of contacts) {
     const pending = await storage.listPendingLessonEventsForContact(userId, c.id);
@@ -332,11 +363,37 @@ async function tryResolveContactByAmountOnly(
 
     const k = Math.floor(amountCents / unit);
     if (k >= 1 && k <= pending.length && amountCents === k * unit) {
-      exactHits.push(c);
+      exactHits.push({ contact: c, pendingCount: pending.length });
     }
   }
 
-  if (exactHits.length === 1) return exactHits[0]!;
+  if (exactHits.length === 1) return exactHits[0]!.contact;
+
+  if (exactHits.length > 1) {
+    const hint = payerHint?.trim();
+    if (hint) {
+      const byName = await storage.findGuestContactByLooseName(userId, hint);
+      if (byName) {
+        const hit = exactHits.find((h) => h.contact.id === byName.id);
+        if (hit) {
+          console.log("[Pluggy] Match valor ambíguo resolvido pelo nome do pagador → contato", byName.id);
+          return hit.contact;
+        }
+      }
+    }
+    exactHits.sort((a, b) => b.pendingCount - a.pendingCount);
+    if (exactHits.length >= 2 && exactHits[0]!.pendingCount > exactHits[1]!.pendingCount) {
+      console.log("[Pluggy] Match valor ambíguo → contato com mais aulas pendentes", exactHits[0]!.contact.id);
+      return exactHits[0]!.contact;
+    }
+    console.log("[Pluggy] Valor fecha com mais de um aluno; associação por valor cancelada.", {
+      amountCents,
+      brl: (amountCents / 100).toFixed(2),
+      contactIds: exactHits.map((h) => h.contact.id),
+    });
+    return null;
+  }
+
   return null;
 }
 
@@ -439,10 +496,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  const creditLike =
-    txType === "CREDIT" ||
-    txType === "INCOME" ||
-    (txType === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
+  const creditLike = pluggyTxIsIncomingCredit(tx);
   if (!creditLike || !transactionStatusCanAffectBalance(txStatus)) {
     if (DEBUG_PLUGGY && creditLike) {
       console.log("[Pluggy] Crédito ignorado por status não quitável:", txStatus, txId);
@@ -460,9 +514,15 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const settings = await storage.getUserSettings(userId);
 
   const memoBlob = buildCreditSearchBlob(tx);
+  const payerHintEarly = extractPayerNameFromPluggyTransaction(tx);
 
   // Valor exato (ex. R$ 4 = 2× R$ 2) tem prioridade — evita CPF antigo no extrato bloquear o fluxo.
-  let contact: UserGuestContactRow | null = await tryResolveContactByAmountOnly(userId, amountCents, settings);
+  let contact: UserGuestContactRow | null = await tryResolveContactByAmountOnly(
+    userId,
+    amountCents,
+    settings,
+    payerHintEarly,
+  );
   if (contact) {
     console.log("[Pluggy] Match por valor × aulas pendentes → contato", contact.id, {
       amountCents,

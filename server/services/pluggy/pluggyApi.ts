@@ -141,6 +141,34 @@ export type PluggyItemSummary = {
 };
 
 /** Metadados do item (nome do banco / conector) para exibir no painel — falha silenciosa se a API não responder. */
+/** Dispara sincronização Open Finance do item (PATCH sem credenciais novas). */
+export async function triggerPluggyItemSync(itemId: string): Promise<void> {
+  const id = itemId.trim();
+  if (!id) return;
+  await pluggyFetchJson(`/items/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+}
+
+/** Aguarda item sair de UPDATING (até maxMs). Falha silenciosa se a API não responder. */
+export async function waitForPluggyItemSynced(itemId: string, maxMs = 14_000): Promise<void> {
+  const id = itemId.trim();
+  if (!id) return;
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    try {
+      const d = (await pluggyFetchJson(`/items/${encodeURIComponent(id)}`)) as Record<string, unknown>;
+      const status = String(d.status || "").toUpperCase();
+      if (status === "UPDATED" || status === "LOGIN_ERROR" || status === "OUTDATED") return;
+    } catch {
+      return;
+    }
+    await new Promise((r) => setTimeout(r, 2000));
+  }
+}
+
 export async function fetchPluggyItemSummary(itemId: string): Promise<PluggyItemSummary | null> {
   const id = itemId.trim();
   if (!id) return null;

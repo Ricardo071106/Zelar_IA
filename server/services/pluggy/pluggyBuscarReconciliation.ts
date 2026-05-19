@@ -1,13 +1,19 @@
 import { DateTime } from "luxon";
 import { storage } from "../../storage";
-import { pluggyCredentialsConfigured, pluggyFetchJson } from "./pluggyApi";
+import {
+  pluggyCredentialsConfigured,
+  pluggyFetchJson,
+  triggerPluggyItemSync,
+  waitForPluggyItemSynced,
+} from "./pluggyApi";
 import {
   extractTxPostedAtFromPluggyTx,
+  pluggyTxIsIncomingCredit,
   processSinglePluggyTransaction,
   type PluggyTx,
 } from "./pluggyPaymentProcessor";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
-import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
+import { pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
 
 /** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
 export const BUSCAR_WINDOW_DAYS = 14;
@@ -45,6 +51,8 @@ export type BuscarPluggyResult =
       fromDay: string;
       toDay: string;
       windowIndex: number;
+      lessonsMarked: number;
+      itemSyncTriggered: boolean;
     }
   | { ok: false; message: string };
 
@@ -56,14 +64,9 @@ function pluggyTxType(tx: PluggyTx): string {
   return String(tx.type || "").trim().toUpperCase();
 }
 
-function pluggyTxLooksCredit(tx: PluggyTx): boolean {
-  const type = pluggyTxType(tx);
-  return type === "CREDIT" || type === "INCOME" || (type === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
-}
-
 function pluggyTxCreditCountsAsPayment(tx: PluggyTx): boolean {
   const status = pluggyTxStatus(tx);
-  return pluggyTxLooksCredit(tx) && (!status || status === "POSTED" || status === "PENDING");
+  return pluggyTxIsIncomingCredit(tx) && (!status || status === "POSTED" || status === "PENDING");
 }
 
 /**
@@ -132,6 +135,25 @@ export async function runPluggyBuscarReconciliation(
     windowIndex,
   });
 
+  let itemSyncTriggered = false;
+  if (windowIndex === 0) {
+    try {
+      await triggerPluggyItemSync(itemId);
+      itemSyncTriggered = true;
+      console.log("[Pluggy/buscar] Sync do item disparado; aguardando banco…");
+      await waitForPluggyItemSynced(itemId);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn("[Pluggy/buscar] Sync do item falhou (seguindo com extrato em cache):", msg.slice(0, 160));
+    }
+  }
+
+  const contactsBefore = await storage.listUserGuestContacts(userId);
+  let pendingBefore = 0;
+  for (const c of contactsBefore) {
+    pendingBefore += (await storage.listPendingLessonEventsForContact(userId, c.id)).length;
+  }
+
   let accountsData: unknown;
   try {
     accountsData = await pluggyFetchJson(`/accounts?itemId=${encodeURIComponent(itemId)}`);
@@ -190,10 +212,10 @@ export async function runPluggyBuscarReconciliation(
 
   if (windowIndex === 0) {
     const tz = settings?.timeZone || "America/Sao_Paulo";
-    const recentCutoff = DateTime.now().setZone(tz).minus({ days: 4 }).startOf("day");
+    const recentCutoff = DateTime.now().setZone(tz).minus({ days: 14 }).startOf("day");
     let addedRecent = 0;
     for (const acc of accounts) {
-      const recent = await fetchRecentAccountTransactions(acc.id, 60);
+      const recent = await fetchRecentAccountTransactions(acc.id, 100);
       for (const tx of recent) {
         const id = typeof tx.id === "string" ? tx.id : null;
         if (!id || seenIds.has(id)) continue;
@@ -237,5 +259,23 @@ export async function runPluggyBuscarReconciliation(
     await reconcileGuestContactLessonPayments(userId, c.id);
   }
 
-  return { ok: true, txSeen: merged.length, payableCreditTxSeen, fromDay, toDay: toDayInclusive, windowIndex };
+  let pendingAfter = 0;
+  for (const c of contacts) {
+    pendingAfter += (await storage.listPendingLessonEventsForContact(userId, c.id)).length;
+  }
+  const lessonsMarked = Math.max(0, pendingBefore - pendingAfter);
+  if (lessonsMarked > 0) {
+    console.log("[Pluggy/buscar] Aulas marcadas como pagas nesta busca:", lessonsMarked);
+  }
+
+  return {
+    ok: true,
+    txSeen: merged.length,
+    payableCreditTxSeen,
+    fromDay,
+    toDay: toDayInclusive,
+    windowIndex,
+    lessonsMarked,
+    itemSyncTriggered,
+  };
 }

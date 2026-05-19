@@ -1942,7 +1942,7 @@ class WhatsAppBot {
             if (!Number.isFinite(n) || n < 0 || n > 52) {
               await this.sendMessage(
                 remoteJid,
-                'Use `/buscar` (últimas 2 semanas do extrato) ou `/buscar N` com N inteiro de *0* a *52*. Cada *N* pula mais *2 semanas* para trás (`/buscar 1` = bloco anterior, `/buscar 2` = mais antigo, …). A conciliação usa o *nome no extrato* vs *planilha*; só por valor se o servidor tiver `PLUGGY_ALLOW_AMOUNT_ONLY_MATCH=true`.',
+                'Use `/buscar` (últimas 2 semanas do extrato) ou `/buscar N` com N inteiro de *0* a *52*. Cada *N* pula mais *2 semanas* para trás (`/buscar 1` = bloco anterior, `/buscar 2` = mais antigo, …). A conciliação usa *valor exato* (ex. R$ 4 = 2× R$ 2), *nome/CPF* no extrato e título das aulas.',
               );
               break;
             }
@@ -1950,7 +1950,9 @@ class WhatsAppBot {
           }
           await this.sendMessage(
             remoteJid,
-            '⏳ Buscando no Pluggy (janela de *2 semanas* no extrato)… pode levar até um minuto.',
+            windowIdx === 0
+              ? '⏳ Atualizando o banco no Pluggy e buscando o extrato (*2 semanas*)… pode levar até ~1 minuto.'
+              : '⏳ Buscando no Pluggy (janela de *2 semanas* no extrato)… pode levar até um minuto.',
           );
           const { runPluggyBuscarReconciliation, BUSCAR_WINDOW_DAYS } = await import(
             '../services/pluggy/pluggyBuscarReconciliation',
@@ -1967,13 +1969,20 @@ class WhatsAppBot {
               windowIdx === 0
                 ? '*mais recente* (últimas 2 semanas)'
                 : `*${windowIdx * 2} semana(s)* atrás (bloco \`${windowIdx}\`)`;
+            const markedLine =
+              out.lessonsMarked > 0
+                ? `✅ *${out.lessonsMarked}* aula(s) marcada(s) como *pago*.\n\n`
+                : out.payableCreditTxSeen === 0
+                  ? '⚠️ Nenhum *PIX/crédito* apareceu no extrato nesta janela. Confira se o pagamento foi na *conta conectada* no painel; aguarde alguns minutos e tente de novo.\n\n'
+                  : 'ℹ️ Há créditos no extrato, mas nenhuma aula pendente foi quitada (nome/valor não bateram ou PIX é de outro aluno).\n\n';
             await this.sendMessage(
               remoteJid,
               `✅ *Busca concluída*\n\n` +
+                markedLine +
                 `Período: *${df(out.fromDay)}* → *${df(out.toDay)}* (${windowLabel}).\n` +
                 `Lançamentos retornados pelo banco: *${out.txSeen}* (até *${BUSCAR_WINDOW_DAYS}* dias por janela).\n` +
                 `Créditos considerados pagamento (*POSTED* ou *PENDING*): *${out.payableCreditTxSeen}*.\n\n` +
-                'Com *nome* batendo com a planilha (ou título *Aula com …*), o crédito *marca aulas pendentes* ou entra no *saldo retido* do aluno se ainda não houver pendência ou o PIX for anterior à primeira aula.\n\n' +
+                'Conciliação: *valor exato* (ex. R$ 4 = 2 aulas de R$ 2), *nome/CPF* no extrato ou título *Aula com …*.\n\n' +
                 'Histórico mais antigo: `/buscar 1`, `/buscar 2`, …',
             );
           }
