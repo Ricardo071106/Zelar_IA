@@ -44,6 +44,14 @@ function startOfLocalDayForAllocation(d: Date, timeZone: string | null | undefin
   return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
 }
 
+function transactionStatusCanAffectBalance(status: string): boolean {
+  // Regra do produto: qualquer pagamento identificado no extrato (POSTED ou PENDING)
+  // já afeta o saldo/aulas. Apenas status explicitamente negativos ficam fora.
+  if (!status) return true;
+  if (status === "POSTED" || status === "PENDING") return true;
+  return false;
+}
+
 /** Se true/1/yes, webhooks `transactions/*` conciliam sozinhos. Sem variável (padrão): só `/buscar` no WhatsApp. */
 export function pluggyWebhookAutoProcessesTransactions(): boolean {
   const v = process.env.PLUGGY_AUTO_WEBHOOK_SYNC?.trim().toLowerCase();
@@ -393,7 +401,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const txType = String(tx.type || "").trim().toUpperCase();
   const txStatus = String(tx.status || "").trim().toUpperCase();
 
-  if (txType === "DEBIT" && (!txStatus || txStatus === "POSTED")) {
+  if (txType === "DEBIT" && transactionStatusCanAffectBalance(txStatus)) {
     const amountCents = pluggyTransactionAmountToCents(tx);
     if (amountCents <= 0) return;
     if (!debitLooksLikePersonPayout(tx)) return;
@@ -402,8 +410,10 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
       return;
     }
     const receiverHint = extractReceiverNameFromPluggyTransaction(tx);
-    if (!receiverHint) return;
-    const contact = await storage.findGuestContactByLooseName(userId, receiverHint);
+    let contact = await findGuestContactByTxTaxId(userId, tx);
+    if (!contact && receiverHint) {
+      contact = await storage.findGuestContactByLooseName(userId, receiverHint);
+    }
     if (!contact) return;
     const dedupeKey = (
       txId?.trim() ? `debit_bal_${txId.trim()}` : `debit_bal_${userId}_${txPostedAt.getTime()}_${amountCents}`
@@ -418,9 +428,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     txType === "CREDIT" ||
     txType === "INCOME" ||
     (txType === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
-  if (!creditLike || (txStatus && txStatus !== "POSTED")) {
+  if (!creditLike || !transactionStatusCanAffectBalance(txStatus)) {
     if (DEBUG_PLUGGY && creditLike) {
-      console.log("[Pluggy] Crédito ignorado por status não POSTED:", txStatus, txId);
+      console.log("[Pluggy] Crédito ignorado por status não quitável:", txStatus, txId);
     }
     return;
   }

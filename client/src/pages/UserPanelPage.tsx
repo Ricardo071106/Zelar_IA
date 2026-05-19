@@ -94,7 +94,7 @@ function parseReaisInputToCents(raw: string): number | null {
   if (!t) return null;
   const normalized = t.replace(/\./g, "").replace(",", ".");
   const n = parseFloat(normalized);
-  if (!Number.isFinite(n) || n < 0) return null;
+  if (!Number.isFinite(n)) return null;
   return Math.round(n * 100);
 }
 

@@ -41,8 +41,7 @@ export type BuscarPluggyResult =
   | {
       ok: true;
       txSeen: number;
-      postedCreditTxSeen: number;
-      pendingCreditTxSeen: number;
+      payableCreditTxSeen: number;
       fromDay: string;
       toDay: string;
       windowIndex: number;
@@ -60,6 +59,11 @@ function pluggyTxType(tx: PluggyTx): string {
 function pluggyTxLooksCredit(tx: PluggyTx): boolean {
   const type = pluggyTxType(tx);
   return type === "CREDIT" || type === "INCOME" || (type === "" && (coercePluggyAmountToNumber(tx.amount) ?? 0) > 0);
+}
+
+function pluggyTxCreditCountsAsPayment(tx: PluggyTx): boolean {
+  const status = pluggyTxStatus(tx);
+  return pluggyTxLooksCredit(tx) && (!status || status === "POSTED" || status === "PENDING");
 }
 
 /**
@@ -168,11 +172,7 @@ export async function runPluggyBuscarReconciliation(
 
   merged.sort((a, b) => extractTxPostedAtFromPluggyTx(a).getTime() - extractTxPostedAtFromPluggyTx(b).getTime());
   console.log("[Pluggy/buscar] Transações únicas na janela:", merged.length);
-  const postedCreditTxSeen = merged.filter((tx) => {
-    const status = pluggyTxStatus(tx);
-    return pluggyTxLooksCredit(tx) && (!status || status === "POSTED");
-  }).length;
-  const pendingCreditTxSeen = merged.filter((tx) => pluggyTxLooksCredit(tx) && pluggyTxStatus(tx) === "PENDING").length;
+  const payableCreditTxSeen = merged.filter(pluggyTxCreditCountsAsPayment).length;
 
   for (const tx of merged) {
     await processSinglePluggyTransaction(itemId, tx);
@@ -185,5 +185,5 @@ export async function runPluggyBuscarReconciliation(
     await reconcileGuestContactLessonPayments(userId, c.id);
   }
 
-  return { ok: true, txSeen: merged.length, postedCreditTxSeen, pendingCreditTxSeen, fromDay, toDay: toDayInclusive, windowIndex };
+  return { ok: true, txSeen: merged.length, payableCreditTxSeen, fromDay, toDay: toDayInclusive, windowIndex };
 }

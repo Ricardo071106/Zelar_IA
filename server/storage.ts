@@ -157,7 +157,7 @@ export function pickGuestMvpPatch(data: GuestPanelUpsertData): Partial<(typeof u
   if (Object.prototype.hasOwnProperty.call(data, "lessonBalanceCents") && data.lessonBalanceCents !== undefined) {
     const v = data.lessonBalanceCents;
     if (v == null) patch.lessonBalanceCents = 0;
-    else if (typeof v === "number" && Number.isFinite(v)) patch.lessonBalanceCents = Math.max(0, Math.round(v));
+    else if (typeof v === "number" && Number.isFinite(v)) patch.lessonBalanceCents = Math.round(v);
   }
   if (Object.prototype.hasOwnProperty.call(data, "payerTaxId") && data.payerTaxId !== undefined) {
     const v = data.payerTaxId;
@@ -598,7 +598,7 @@ export class DatabaseStorage implements IStorage {
     if (!db) throw new Error("Database not connected");
     const res = await db.execute(sql`
       UPDATE user_guest_contacts
-      SET lesson_balance_cents = GREATEST(0, COALESCE(lesson_balance_cents, 0) + ${Math.round(deltaCents)}),
+      SET lesson_balance_cents = COALESCE(lesson_balance_cents, 0) + ${Math.round(deltaCents)},
           updated_at = now()
       WHERE id = ${contactId} AND user_id = ${userId}
       RETURNING lesson_balance_cents

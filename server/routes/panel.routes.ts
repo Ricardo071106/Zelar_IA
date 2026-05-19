@@ -467,8 +467,8 @@ router.post(
         const lb = (req.body as any).lessonBalanceCents;
         if (lb === undefined) lessonBalanceCents = undefined;
         else if (lb === null || lb === '') lessonBalanceCents = 0;
-        else if (typeof lb === 'number' && Number.isFinite(lb)) lessonBalanceCents = Math.max(0, Math.round(lb));
-        else lessonBalanceCents = Math.max(0, Math.round(parseMoneyToCentsFromPanel(lb) ?? 0));
+        else if (typeof lb === 'number' && Number.isFinite(lb)) lessonBalanceCents = Math.round(lb);
+        else lessonBalanceCents = Math.round(parseMoneyToCentsFromPanel(lb) ?? 0);
       }
 
       if (oldGuest && id !== undefined) {

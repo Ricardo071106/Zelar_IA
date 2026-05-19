@@ -1972,11 +1972,7 @@ class WhatsAppBot {
               `✅ *Busca concluída*\n\n` +
                 `Período: *${df(out.fromDay)}* → *${df(out.toDay)}* (${windowLabel}).\n` +
                 `Lançamentos retornados pelo banco: *${out.txSeen}* (até *${BUSCAR_WINDOW_DAYS}* dias por janela).\n` +
-                `Créditos confirmados (*POSTED*): *${out.postedCreditTxSeen}*.\n` +
-                `Créditos aguardando confirmação (*PENDING*): *${out.pendingCreditTxSeen}*.\n\n` +
-                (out.pendingCreditTxSeen > 0
-                  ? 'Pagamento *PENDING* continua como *pendente* no painel/agenda. Quando o banco confirmar como *POSTED*, rode `/buscar` novamente para marcar como *pago*.\n\n'
-                  : '') +
+                `Créditos considerados pagamento (*POSTED* ou *PENDING*): *${out.payableCreditTxSeen}*.\n\n` +
                 'Com *nome* batendo com a planilha (ou título *Aula com …*), o crédito *marca aulas pendentes* ou entra no *saldo retido* do aluno se ainda não houver pendência ou o PIX for anterior à primeira aula.\n\n' +
                 'Histórico mais antigo: `/buscar 1`, `/buscar 2`, …',
             );
