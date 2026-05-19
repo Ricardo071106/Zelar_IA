@@ -1733,13 +1733,8 @@ class WhatsAppBot {
         }
       }
 
-      if (studentContactId && guestRow && syncedCalendarProvider) {
-        const { tryConsumeLessonBalanceAfterEventCreated } = await import('../services/lessonCancellationCredit');
-        const refreshed = (await storage.listUserGuestContacts(user.id)).find((r) => r.id === studentContactId);
-        if (refreshed) {
-          await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, refreshed);
-        }
-      } else if (studentContactId && guestRow && !syncedCalendarProvider) {
+      // Pagamento (saldo retido / Pluggy) só via /buscar ou painel — não marcar pago ao criar a aula.
+      if (studentContactId && guestRow && !syncedCalendarProvider) {
         console.warn('[saldo] Aula sem sincronização de calendário; saldo não consumido automaticamente.', {
           userId: user.id,
           eventId: newEvent.id,

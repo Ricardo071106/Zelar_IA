@@ -72,7 +72,7 @@ function parseLessonCountToken(raw: string | undefined): number | null {
 function tryParseCountedRecurringLessons(rawText: string, timeZone: string): BulkLessonParse {
   const text = rawText.trim();
   const lower = text.toLowerCase();
-  if (!/(?:^|\b)(?:marque|marcar|agende)\b/i.test(lower)) return { ok: false };
+  if (!/(?:^|\b)(?:marque|marcar|agende|crie|criar|cria)\b/i.test(lower)) return { ok: false };
   if (/\bpacote\s+[a-z0-9_-]+\s+de\s+aulas\b/i.test(lower) || /\bpacote\s+de\s+aulas\s+[a-z0-9_-]+\b/i.test(lower)) {
     return { ok: false };
   }
@@ -153,7 +153,7 @@ export function tryParseBulkLessonSchedule(rawText: string, timeZone: string): B
   if (counted.ok) return counted;
 
   const lower = text.toLowerCase();
-  if (!/(?:^|\b)(?:marque|marcar|agende)\b[\s\S]{0,200}?\baulas?\b/i.test(lower)) {
+  if (!/(?:^|\b)(?:marque|marcar|agende|crie|criar|cria)\b[\s\S]{0,200}?\baulas?\b/i.test(lower)) {
     return { ok: false };
   }
 
