@@ -1,8 +1,14 @@
 import type { Event } from "@shared/schema";
+import { DateTime } from "luxon";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
+
+function startOfLocalDay(d: Date, timeZone: string | null | undefined): Date {
+  const zone = timeZone?.trim() || "America/Sao_Paulo";
+  return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
+}
 
 export type ReconcileGuestLessonsResult = {
   markedCount: number;
@@ -31,8 +37,9 @@ export async function reconcileGuestContactLessonPayments(
   const def = settings?.defaultLessonPriceCents ?? null;
 
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contactId);
-  const ledgerSum = firstLessonAt
-    ? await storage.sumPluggyContactCreditsSince(userId, contactId, firstLessonAt)
+  const ledgerSince = firstLessonAt ? startOfLocalDay(firstLessonAt, settings?.timeZone) : null;
+  const ledgerSum = ledgerSince
+    ? await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince)
     : 0;
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const totalPoolCents = ledgerSum + balanceBefore;

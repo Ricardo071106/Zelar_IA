@@ -1,4 +1,5 @@
 import type { Event, UserSettings } from "@shared/schema";
+import { DateTime } from "luxon";
 import { storage } from "../../storage";
 import type { UserGuestContactRow } from "../../storage";
 import { pluggyFetchJson } from "./pluggyApi";
@@ -36,6 +37,11 @@ export type PluggyTx = {
 };
 
 const DEBUG_PLUGGY = process.env.DEBUG_PLUGGY === "true";
+
+function startOfLocalDayForAllocation(d: Date, timeZone: string | null | undefined): Date {
+  const zone = timeZone?.trim() || "America/Sao_Paulo";
+  return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
+}
 
 /** Se true/1/yes, webhooks `transactions/*` conciliam sozinhos. Sem variável (padrão): só `/buscar` no WhatsApp. */
 export function pluggyWebhookAutoProcessesTransactions(): boolean {
@@ -422,11 +428,12 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   }
 
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
+  const ledgerSince = firstLessonAt ? startOfLocalDayForAllocation(firstLessonAt, settings?.timeZone) : null;
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
 
   const canAllocateToLessons =
-    firstLessonAt != null &&
-    txPostedAt.getTime() >= firstLessonAt.getTime() &&
+    ledgerSince != null &&
+    txPostedAt.getTime() >= ledgerSince.getTime() &&
     pending.length > 0;
 
   if (!canAllocateToLessons) {

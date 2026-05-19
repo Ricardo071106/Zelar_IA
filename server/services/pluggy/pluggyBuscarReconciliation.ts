@@ -6,6 +6,7 @@ import {
   processSinglePluggyTransaction,
   type PluggyTx,
 } from "./pluggyPaymentProcessor";
+import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 
 /** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
 export const BUSCAR_WINDOW_DAYS = 14;
@@ -125,6 +126,13 @@ export async function runPluggyBuscarReconciliation(
 
   for (const tx of merged) {
     await processSinglePluggyTransaction(itemId, tx);
+  }
+
+  // Retentiva idempotente: se uma busca anterior guardou o pagamento como saldo retido
+  // (ex.: transação bancária sem hora, mesmo dia da criação da aula), reaplica o saldo nas pendências.
+  const contacts = await storage.listUserGuestContacts(userId);
+  for (const c of contacts) {
+    await reconcileGuestContactLessonPayments(userId, c.id);
   }
 
   return { ok: true, txSeen: merged.length, fromDay, toDay: toDayInclusive, windowIndex };
