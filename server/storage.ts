@@ -241,6 +241,7 @@ export interface IStorage {
   softCancelEvent(eventId: number): Promise<Event | undefined>;
   getGuestContactByIdForUser(userId: number, contactId: number): Promise<UserGuestContactRow | undefined>;
   adjustGuestLessonBalanceCents(userId: number, contactId: number, deltaCents: number): Promise<number>;
+  setGuestLessonBalanceCents(userId: number, contactId: number, cents: number): Promise<number>;
 
   // Lembretes
   createReminder(reminder: InsertReminder): Promise<Reminder>;
@@ -638,6 +639,21 @@ export class DatabaseStorage implements IStorage {
     const rows = (res as { rows?: { lesson_balance_cents: number }[] }).rows;
     const v = rows?.[0]?.lesson_balance_cents;
     return typeof v === "number" && Number.isFinite(v) ? v : 0;
+  }
+
+  async setGuestLessonBalanceCents(userId: number, contactId: number, cents: number): Promise<number> {
+    if (!db) throw new Error("Database not connected");
+    const v = Math.round(cents);
+    const res = await db.execute(sql`
+      UPDATE user_guest_contacts
+      SET lesson_balance_cents = ${v},
+          updated_at = now()
+      WHERE id = ${contactId} AND user_id = ${userId}
+      RETURNING lesson_balance_cents
+    `);
+    const rows = (res as { rows?: { lesson_balance_cents: number }[] }).rows;
+    const out = rows?.[0]?.lesson_balance_cents;
+    return typeof out === "number" && Number.isFinite(out) ? out : 0;
   }
 
   async deleteEvent(eventId: number): Promise<boolean> {

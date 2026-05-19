@@ -13,6 +13,10 @@ import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCale
 import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
 import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
 import { earliestPendingLessonCreatedAt, pluggyCreditEligibleForPendingLessons } from "./pluggyLessonDateRules";
+import {
+  pluggyCreditAllowedForContact,
+  type PluggyCreditMatchKind,
+} from "./pluggyCreditAttribution";
 
 export type PluggyTx = {
   id?: string;
@@ -488,58 +492,11 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const settings = await storage.getUserSettings(userId);
 
   const memoBlob = buildCreditSearchBlob(tx);
-  const payerHintEarly = extractPayerNameFromPluggyTransaction(tx);
-
-  // Valor exato (ex. R$ 4 = 2× R$ 2) tem prioridade — evita CPF antigo no extrato bloquear o fluxo.
-  let contact: UserGuestContactRow | null = await tryResolveContactByAmountOnly(
-    userId,
-    amountCents,
-    settings,
-    payerHintEarly,
-  );
-  if (contact) {
-    console.log("[Pluggy] Match por valor × aulas pendentes → contato", contact.id, {
-      amountCents,
-      brl: (amountCents / 100).toFixed(2),
-    });
-  }
-
-  if (!contact) {
-    contact = await findGuestContactByTxTaxId(userId, tx);
-    if (contact) {
-      console.log("[Pluggy] Match CPF/CNPJ hash → contato", contact.id);
-    }
-  }
-
-  if (!contact) {
-    contact = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
-    if (contact) {
-      console.log("[Pluggy] Match extrato ↔ planilha (nome no texto) → contato", contact.id);
-    }
-  }
-
   const payerHint = extractPayerNameFromPluggyTransaction(tx);
 
-  if (!contact && payerHint) {
-    contact = await storage.findGuestContactByLooseName(userId, payerHint);
-    if (!contact && DEBUG_PLUGGY) {
-      console.log("[Pluggy] Nome extraído mas sem match no cadastro:", payerHint.slice(0, 80));
-    }
-  }
-
-  if (!contact && payerHint) {
-    contact = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
-    if (contact) {
-      console.log("[Pluggy] Match por título de aula pendente → contato", contact.id);
-    }
-  }
-
-  if (!contact && memoBlob.length >= 5) {
-    contact = await tryResolveContactFromPendingLessonMemo(userId, memoBlob);
-    if (contact) {
-      console.log("[Pluggy] Match memo extrato ↔ título aula pendente → contato", contact.id);
-    }
-  }
+  const resolved = await resolvePluggyCreditContact(userId, tx, amountCents, settings, memoBlob, payerHint);
+  const contact = resolved?.contact ?? null;
+  const matchKind = resolved?.matchKind ?? null;
 
   if (!contact) {
     console.log("[Pluggy] Crédito sem aluno identificado no extrato.", {
@@ -552,6 +509,17 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   }
 
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+
+  if (!matchKind || !pluggyCreditAllowedForContact(matchKind, amountCents, contact, pending, settings)) {
+    console.log("[Pluggy] Crédito ignorado: não é pagamento de aula (ex. transferência de teste entre contas).", {
+      contactId: contact.id,
+      matchKind,
+      amountCents,
+      brl: (amountCents / 100).toFixed(2),
+      pendingLessons: pending.length,
+    });
+    return;
+  }
 
   if (pending.length > 0 && !pluggyCreditEligibleForPendingLessons(txPostedAt, pending, settings?.timeZone)) {
     const earliest = earliestPendingLessonCreatedAt(pending);
@@ -585,22 +553,18 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     if (!ledgerInserted) {
       const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
       if (!already) {
-        console.warn("[Pluggy] Crédito identificado mas não foi registrado no ledger/saldo.", {
+        console.warn("[Pluggy] Crédito identificado mas não foi registrado no ledger.", {
           userId,
           contactId: contact.id,
           ledgerTxKey,
         });
         return;
       }
-      console.log("[Pluggy] Crédito já existia no ledger; saldo retido não será duplicado.", {
-        contactId: contact.id,
-        ledgerTxKey,
-      });
-      return;
     }
-    await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
+    const { syncGuestFinancialState } = await import("../guestLessonFinancials");
+    const fin = await syncGuestFinancialState(userId, contact.id);
     console.log(
-      `[Pluggy] Saldo retido +R$ ${(amountCents / 100).toFixed(2)} (contato ${contact.id}) — aluno sem aula pendente no momento.`,
+      `[Pluggy] Saldo retido normalizado R$ ${(fin.lessonBalanceCents / 100).toFixed(2)} (contato ${contact.id}) — sem aula pendente.`,
     );
     return;
   }
@@ -634,9 +598,10 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
       });
       return;
     }
-    await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
+    const { syncGuestFinancialState } = await import("../guestLessonFinancials");
+    await syncGuestFinancialState(userId, contact.id);
     console.warn(
-      `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); valor +R$ ${(amountCents / 100).toFixed(2)} creditado como saldo retido.`,
+      `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); ledger registrado, saldo normalizado.`,
     );
     return;
   }
@@ -659,7 +624,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     }
   }
 
-  const r = await reconcileGuestContactLessonPayments(userId, contact.id);
+  const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource: "pluggy" });
   if (r.markedCount === 0) {
     if (DEBUG_PLUGGY || r.totalPoolCents > 0) {
       console.log(
@@ -674,9 +639,74 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     await notifyGuestPaymentDigest(contact, r.markedCount, amountCents);
   }
 
+  const { syncGuestFinancialState } = await import("../guestLessonFinancials");
+  const fin = await syncGuestFinancialState(userId, contact.id);
   console.log(
-    `[Pluggy] Rateio cumulativo aluno ${contact.id}: pool R$ ${(r.totalPoolCents / 100).toFixed(2)} (ledger Pluggy + saldo retido) → ${r.markedCount} aula(s) marcada(s); abatido do saldo retido R$ ${(r.balanceConsumedCents / 100).toFixed(2)}.`,
+    `[Pluggy] Rateio aluno ${contact.id}: ${r.markedCount} aula(s) paga(s); saldo retido no painel R$ ${(fin.lessonBalanceCents / 100).toFixed(2)}.`,
   );
+}
+
+async function resolvePluggyCreditContact(
+  userId: number,
+  tx: PluggyTx,
+  amountCents: number,
+  settings: UserSettings | undefined,
+  memoBlob: string,
+  payerHint: string | null,
+): Promise<{ contact: UserGuestContactRow; matchKind: PluggyCreditMatchKind } | null> {
+  const byAmount = await tryResolveContactByAmountOnly(userId, amountCents, settings, payerHint);
+  if (byAmount) {
+    console.log("[Pluggy] Match por valor × aulas pendentes → contato", byAmount.id, {
+      amountCents,
+      brl: (amountCents / 100).toFixed(2),
+    });
+    return { contact: byAmount, matchKind: "amount_exact" };
+  }
+
+  const byCpf = await findGuestContactByTxTaxId(userId, tx);
+  if (byCpf) {
+    const pending = await storage.listPendingLessonEventsForContact(userId, byCpf.id);
+    const kind: PluggyCreditMatchKind = pluggyCreditAllowedForContact(
+      "cpf_only",
+      amountCents,
+      byCpf,
+      pending,
+      settings,
+    )
+      ? "cpf_with_amount"
+      : "cpf_only";
+    console.log("[Pluggy] Match CPF/CNPJ hash → contato", byCpf.id, { kind });
+    return { contact: byCpf, matchKind: kind };
+  }
+
+  const byMemo = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
+  if (byMemo) {
+    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id);
+    return { contact: byMemo, matchKind: "memo" };
+  }
+
+  if (payerHint) {
+    const byName = await storage.findGuestContactByLooseName(userId, payerHint);
+    if (byName) {
+      console.log("[Pluggy] Match nome pagador → contato", byName.id);
+      return { contact: byName, matchKind: "name" };
+    }
+    const byTitle = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
+    if (byTitle) {
+      console.log("[Pluggy] Match título de aula pendente → contato", byTitle.id);
+      return { contact: byTitle, matchKind: "lesson_title" };
+    }
+  }
+
+  if (memoBlob.length >= 5) {
+    const byLessonMemo = await tryResolveContactFromPendingLessonMemo(userId, memoBlob);
+    if (byLessonMemo) {
+      console.log("[Pluggy] Match memo ↔ aula pendente → contato", byLessonMemo.id);
+      return { contact: byLessonMemo, matchKind: "lesson_title" };
+    }
+  }
+
+  return null;
 }
 
 export async function markLessonPaidAndSyncCalendar(

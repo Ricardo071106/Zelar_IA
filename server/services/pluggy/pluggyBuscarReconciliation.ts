@@ -258,9 +258,11 @@ export async function runPluggyBuscarReconciliation(
 
   // Retentiva idempotente: se uma busca anterior guardou o pagamento como saldo retido
   // (ex.: transação bancária sem hora, mesmo dia da criação da aula), reaplica o saldo nas pendências.
+  const { syncGuestFinancialState } = await import("../guestLessonFinancials");
   const contacts = await storage.listUserGuestContacts(userId);
   for (const c of contacts) {
     await reconcileGuestContactLessonPayments(userId, c.id);
+    await syncGuestFinancialState(userId, c.id);
   }
 
   let pendingAfter = 0;

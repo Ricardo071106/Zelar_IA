@@ -14,7 +14,7 @@ import {
   extractConnectToken,
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
-import { computeGuestLessonFinancials } from '../services/guestLessonFinancials';
+import { syncGuestFinancialState } from '../services/guestLessonFinancials';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 
@@ -405,10 +405,10 @@ router.get(
     const def = settings?.defaultLessonPriceCents ?? null;
     const guests = await Promise.all(
       rows.map(async (r) => {
-        const fin = await computeGuestLessonFinancials(ctx.user.id, r, def);
+        const fin = await syncGuestFinancialState(ctx.user.id, r.id);
         return guestPanelDto(r, {
           pendingDebtCents: fin.pendingDebtCents,
-          lessonBalanceCents: fin.lessonBalanceCents + fin.pluggyLedgerUnappliedCents,
+          lessonBalanceCents: fin.lessonBalanceCents,
           lessonNetBalanceCents: fin.lessonNetBalanceCents,
         });
       }),
@@ -559,17 +559,12 @@ router.post(
         lessonBalanceCents,
       });
       await reconcileGuestContactLessonPayments(ctx.user.id, row.id);
-      const freshRow = await storage.getGuestContactByIdForUser(ctx.user.id, row.id);
-      const settingsAfter = await storage.getUserSettings(ctx.user.id);
-      const fin = await computeGuestLessonFinancials(
-        ctx.user.id,
-        freshRow ?? row,
-        settingsAfter?.defaultLessonPriceCents ?? null,
-      );
+      const fin = await syncGuestFinancialState(ctx.user.id, row.id);
+      const freshAfter = await storage.getGuestContactByIdForUser(ctx.user.id, row.id);
       res.json({
-        guest: guestPanelDto(freshRow ?? row, {
+        guest: guestPanelDto(freshAfter ?? row, {
           pendingDebtCents: fin.pendingDebtCents,
-          lessonBalanceCents: fin.lessonBalanceCents + fin.pluggyLedgerUnappliedCents,
+          lessonBalanceCents: fin.lessonBalanceCents,
           lessonNetBalanceCents: fin.lessonNetBalanceCents,
         }),
       });
