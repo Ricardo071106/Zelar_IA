@@ -499,9 +499,8 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contact.id);
   const ledgerSince = firstLessonAt ? startOfLocalDayForAllocation(firstLessonAt, settings?.timeZone) : null;
   const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
-  const canUseLedger = ledgerSince != null && txPostedAt.getTime() >= ledgerSince.getTime();
 
-  if (!canUseLedger) {
+  if (pending.length === 0) {
     if (txId) {
       const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
       if (!inserted) return;
@@ -512,39 +511,30 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     }
     await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
     console.log(
-      `[Pluggy] Saldo retido +R$ ${(amountCents / 100).toFixed(2)} (contato ${contact.id}) — sem aula pendente para ratear, ou PIX anterior à primeira aula do aluno.`,
+      `[Pluggy] Saldo retido +R$ ${(amountCents / 100).toFixed(2)} (contato ${contact.id}) — aluno sem aula pendente no momento.`,
     );
     return;
   }
 
-  if (pending.length > 0) {
-    const unitProbe = resolveLessonUnitCentsForAllocation(
-      pending[0],
-      contact,
-      settings?.defaultLessonPriceCents ?? null,
-    );
-    if (!unitProbe || unitProbe <= 0) {
-      if (txId) {
-        const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
-        if (!inserted) return;
-      } else {
-        const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
-        const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
-        if (!inserted) return;
-      }
-      await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
-      console.warn(
-        `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); valor +R$ ${(amountCents / 100).toFixed(2)} creditado como saldo retido.`,
-      );
-      return;
+  const unitProbe = resolveLessonUnitCentsForAllocation(
+    pending[0],
+    contact,
+    settings?.defaultLessonPriceCents ?? null,
+  );
+  if (!unitProbe || unitProbe <= 0) {
+    if (txId) {
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, txId);
+      if (!inserted) return;
+    } else {
+      const synKey = `pluggy_bal_${userId}_${contact.id}_${amountCents}_${txPostedAt.getTime()}`.slice(0, 128);
+      const inserted = await storage.tryRecordPluggyTransactionOnce(userId, synKey);
+      if (!inserted) return;
     }
-  }
-
-  if (pending.length === 0) {
     await storage.adjustGuestLessonBalanceCents(userId, contact.id, amountCents);
-    console.log(
-      `[Pluggy] Saldo retido +R$ ${(amountCents / 100).toFixed(2)} (contato ${contact.id}) — aluno sem aula pendente no momento.`,
+    console.warn(
+      `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); valor +R$ ${(amountCents / 100).toFixed(2)} creditado como saldo retido.`,
     );
+    return;
   }
 
   const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(

@@ -37,10 +37,8 @@ export async function reconcileGuestContactLessonPayments(
   const def = settings?.defaultLessonPriceCents ?? null;
 
   const firstLessonAt = await storage.getFirstLessonCreatedAtForContact(userId, contactId);
-  const ledgerSince = firstLessonAt ? startOfLocalDay(firstLessonAt, settings?.timeZone) : null;
-  const ledgerSum = ledgerSince
-    ? await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince)
-    : 0;
+  const ledgerSince = firstLessonAt ? startOfLocalDay(firstLessonAt, settings?.timeZone) : new Date(0);
+  const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, ledgerSince);
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);
   const totalPoolCents = ledgerSum + positiveBalanceCents;
