@@ -2121,7 +2121,19 @@ class WhatsAppBot {
             let msg = '📅 *Seus Eventos Futuros:*\n\n';
             allEvents.forEach(ev => {
               const date = DateTime.fromJSDate(ev.startDate).setZone(getUserTimezone(user.username));
-              msg += `🆔 *${ev.id}* | ${date.toFormat('dd/MM HH:mm')} - ${ev.title}\n`;
+              let title = ev.title;
+              if (ev.lessonPaymentStatus === 'pago') {
+                title = title
+                  .replace(/\s*·\s*Aluno\s*\(pendente\)\s*$/i, ' · Aluno (pago)')
+                  .replace(/\s*·\s*pendente\s*$/i, ' · pago');
+                if (!/\bpago\)?$/i.test(title)) title += ' · pago';
+              } else if (ev.lessonPaymentStatus === 'pendente') {
+                title = title
+                  .replace(/\s*·\s*Aluno\s*\(pago\)\s*$/i, ' · Aluno (pendente)')
+                  .replace(/\s*·\s*pago\s*$/i, ' · pendente');
+                if (!/\bpendente\)?$/i.test(title)) title += ' · pendente';
+              }
+              msg += `🆔 *${ev.id}* | ${date.toFormat('dd/MM HH:mm')} - ${title}\n`;
             });
             msg += '\nPara ver detalhes ou deletar, use o ID.';
             await this.sendMessage(remoteJid, msg);

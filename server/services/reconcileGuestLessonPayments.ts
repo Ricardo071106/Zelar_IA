@@ -38,12 +38,19 @@ export async function reconcileGuestContactLessonPayments(
 
   // O ledger já é por contato. Se um pagamento foi identificado para o aluno, ele deve entrar no pool
   // independentemente da data em que a aula foi criada (bancos frequentemente informam transação sem hora).
-  const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, new Date(0));
+  const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contactId, new Date(0));
   const balanceBefore = contact.lessonBalanceCents ?? 0;
   const positiveBalanceCents = Math.max(0, balanceBefore);
-  const totalPoolCents = ledgerSum + positiveBalanceCents;
+  const totalPoolCents = rawLedgerSum + positiveBalanceCents;
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
+  let existingPluggyPaidCents = 0;
+  for (const ev of chain) {
+    if (ev.lessonPaymentStatus !== "pago" || !lessonWasPaidByPluggy(ev)) continue;
+    const u = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
+    if (u && u > 0) existingPluggyPaidCents += u;
+  }
+  const availableLedgerCents = Math.max(0, rawLedgerSum - existingPluggyPaidCents);
   let pluggyConsumedCents = 0;
   let balanceRemainingCents = positiveBalanceCents;
   let balanceConsumedCents = 0;
@@ -59,9 +66,6 @@ export async function reconcileGuestContactLessonPayments(
     }
 
     if (ev.lessonPaymentStatus === "pago") {
-      if (lessonWasPaidByPluggy(ev)) {
-        pluggyConsumedCents += unitEv;
-      }
       continue;
     }
 
@@ -69,7 +73,7 @@ export async function reconcileGuestContactLessonPayments(
       continue;
     }
 
-    if (pluggyConsumedCents + unitEv <= ledgerSum) {
+    if (pluggyConsumedCents + unitEv <= availableLedgerCents) {
       eventsToMark.push({ event: ev, source: "pluggy" });
       pluggyConsumedCents += unitEv;
       continue;
@@ -90,7 +94,8 @@ export async function reconcileGuestContactLessonPayments(
       console.log("[reconcile] Pool > 0 mas nenhuma pendência coberta neste momento", {
         contactId,
         totalPoolCents,
-        ledgerSum,
+        ledgerSum: rawLedgerSum,
+        availableLedgerCents,
         balanceBefore,
       });
     }
