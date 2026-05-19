@@ -579,7 +579,12 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   );
 }
 
-export async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, studentLabel: string): Promise<void> {
+export async function markLessonPaidAndSyncCalendar(
+  userId: number,
+  ev: Event,
+  studentLabel: string,
+  paymentSource?: "pluggy" | "balance",
+): Promise<void> {
   const raw = (ev.rawData as Record<string, unknown> | null) || {};
   const zelar = (raw.zelarLesson as Record<string, unknown> | undefined) || {};
   const baseTitle =
@@ -608,6 +613,7 @@ export async function markLessonPaidAndSyncCalendar(userId: number, ev: Event, s
       ...zelar,
       baseTitle,
       paymentStatus: "pago",
+      ...(paymentSource ? { paymentSource } : {}),
     },
   };
 

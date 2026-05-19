@@ -10,6 +10,12 @@ function startOfLocalDay(d: Date, timeZone: string | null | undefined): Date {
   return DateTime.fromJSDate(d).setZone(zone).startOf("day").toJSDate();
 }
 
+function lessonWasPaidByPluggy(ev: Event): boolean {
+  const raw = ev.rawData as Record<string, unknown> | null;
+  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
+  return z?.paymentSource === "pluggy";
+}
+
 export type ReconcileGuestLessonsResult = {
   markedCount: number;
   /** Saldo retido (centavos) abatido porque cobriu aulas além do que o ledger Pluggy cobria sozinho. */
@@ -44,10 +50,10 @@ export async function reconcileGuestContactLessonPayments(
   const totalPoolCents = ledgerSum + positiveBalanceCents;
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
-  let cumulativeCents = 0;
+  let pluggyConsumedCents = 0;
   let balanceRemainingCents = positiveBalanceCents;
   let balanceConsumedCents = 0;
-  const eventsToMark: Event[] = [];
+  const eventsToMark: { event: Event; source: "pluggy" | "balance" }[] = [];
 
   for (const ev of chain) {
     const unitEv = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
@@ -58,20 +64,25 @@ export async function reconcileGuestContactLessonPayments(
       break;
     }
 
-    const coveredByLedger = cumulativeCents + unitEv <= ledgerSum;
-    cumulativeCents += unitEv;
+    if (ev.lessonPaymentStatus === "pago") {
+      if (lessonWasPaidByPluggy(ev)) {
+        pluggyConsumedCents += unitEv;
+      }
+      continue;
+    }
 
     if (ev.lessonPaymentStatus !== "pendente") {
       continue;
     }
 
-    if (coveredByLedger) {
-      eventsToMark.push(ev);
+    if (pluggyConsumedCents + unitEv <= ledgerSum) {
+      eventsToMark.push({ event: ev, source: "pluggy" });
+      pluggyConsumedCents += unitEv;
       continue;
     }
 
     if (balanceRemainingCents >= unitEv) {
-      eventsToMark.push(ev);
+      eventsToMark.push({ event: ev, source: "balance" });
       balanceRemainingCents -= unitEv;
       balanceConsumedCents += unitEv;
       continue;
@@ -94,8 +105,8 @@ export async function reconcileGuestContactLessonPayments(
 
   const { markLessonPaidAndSyncCalendar } = await import("./pluggy/pluggyPaymentProcessor");
   const displayName = displayNameFromGuestContact(contact);
-  for (const ev of eventsToMark) {
-    await markLessonPaidAndSyncCalendar(userId, ev, displayName);
+  for (const item of eventsToMark) {
+    await markLessonPaidAndSyncCalendar(userId, item.event, displayName, item.source);
   }
 
   if (balanceConsumedCents > 0) {
