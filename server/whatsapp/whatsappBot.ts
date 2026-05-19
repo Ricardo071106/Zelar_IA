@@ -1757,12 +1757,18 @@ class WhatsAppBot {
         }
       }
 
-      if (studentContactId && guestRow) {
+      if (studentContactId && guestRow && syncedCalendarProvider) {
         const { tryConsumeLessonBalanceAfterEventCreated } = await import('../services/lessonCancellationCredit');
         const refreshed = (await storage.listUserGuestContacts(user.id)).find((r) => r.id === studentContactId);
         if (refreshed) {
           await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, refreshed);
         }
+      } else if (studentContactId && guestRow && !syncedCalendarProvider) {
+        console.warn('[saldo] Aula sem sincronização de calendário; saldo não consumido automaticamente.', {
+          userId: user.id,
+          eventId: newEvent.id,
+          contactId: studentContactId,
+        });
       }
 
       const eventForUserMessage = (await storage.getEvent(newEvent.id)) ?? newEvent;

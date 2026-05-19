@@ -30,7 +30,7 @@ export async function applyLessonBalanceCreditBeforeSoftCancel(userId: number, e
   }
 }
 
-/** Após criar aula pendente: consome saldo retido e marca como pago se couber. */
+/** Após criar aula pendente sincronizada: consome saldo retido e marca como pago se couber. */
 export async function tryConsumeLessonBalanceAfterEventCreated(
   userId: number,
   eventId: number,
@@ -38,6 +38,14 @@ export async function tryConsumeLessonBalanceAfterEventCreated(
 ): Promise<void> {
   const ev = await storage.getEvent(eventId);
   if (!ev || ev.lessonPaymentStatus !== "pendente" || ev.cancelledAt) return;
+  if (!ev.calendarId?.trim()) {
+    console.warn("[saldo] Aula criada sem calendarId; não vou consumir saldo nem marcar como pago.", {
+      userId,
+      eventId,
+      contactId: contact.id,
+    });
+    return;
+  }
 
   const settings = await storage.getUserSettings(userId);
   const unit = resolveLessonUnitCentsForAllocation(ev, contact, settings?.defaultLessonPriceCents ?? null);
