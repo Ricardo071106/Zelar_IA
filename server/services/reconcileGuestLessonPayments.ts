@@ -84,7 +84,8 @@ export async function reconcileGuestContactLessonPayments(
   const { markLessonPaidAndSyncCalendar } = await import("./pluggy/pluggyPaymentProcessor");
   const displayName = displayNameFromGuestContact(freshContact);
   for (const item of eventsToMark) {
-    await markLessonPaidAndSyncCalendar(userId, item.event, displayName, item.source);
+    const freshEv = (await storage.getEvent(item.event.id)) ?? item.event;
+    await markLessonPaidAndSyncCalendar(userId, freshEv, displayName, item.source);
   }
 
   if (balanceConsumedCents > 0) {
@@ -92,6 +93,9 @@ export async function reconcileGuestContactLessonPayments(
   }
 
   await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
+
+  const { syncPaidLessonCalendarTitlesForContact } = await import("./pluggy/pluggyPaymentProcessor");
+  await syncPaidLessonCalendarTitlesForContact(userId, contactId);
 
   return {
     markedCount: eventsToMark.length,
