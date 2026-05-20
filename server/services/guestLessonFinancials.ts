@@ -87,6 +87,16 @@ function buildFinancialsFromParts(
 /**
  * Somente leitura para o painel — não re-soma o ledger Pluggy (evita saldo “pular” a R$ 1.487).
  */
+function poolCentsForRetainedDisplay(raw: {
+  dbBalanceCents: number;
+  rawLedgerUnappliedCents: number;
+  pendingDebtCents: number;
+}): number {
+  const db = Math.max(0, raw.dbBalanceCents);
+  if (raw.pendingDebtCents > 0) return db;
+  return Math.max(db, raw.rawLedgerUnappliedCents);
+}
+
 export async function computeGuestLessonFinancials(
   userId: number,
   contact: UserGuestContactRow,
@@ -94,7 +104,7 @@ export async function computeGuestLessonFinancials(
 ): Promise<GuestLessonFinancials> {
   const raw = await computeRawFinancials(userId, contact, defaultLessonPriceCents);
   const retido = capFairRetainedCents(
-    Math.max(0, raw.dbBalanceCents),
+    poolCentsForRetainedDisplay(raw),
     raw.pendingDebtCents,
     defaultLessonPriceCents,
     raw.hasBillableLessons,
@@ -124,9 +134,9 @@ export async function syncGuestFinancialState(
   const def = settings?.defaultLessonPriceCents ?? null;
   const raw = await computeRawFinancials(userId, contact, def);
 
-  let poolCents = Math.max(0, raw.dbBalanceCents);
+  let poolCents = poolCentsForRetainedDisplay(raw);
   if (opts?.applyLedgerTopUp && raw.rawLedgerUnappliedCents > 0) {
-    poolCents += raw.rawLedgerUnappliedCents;
+    poolCents = Math.max(poolCents, raw.dbBalanceCents + raw.rawLedgerUnappliedCents);
   }
 
   const fairRetido = capFairRetainedCents(

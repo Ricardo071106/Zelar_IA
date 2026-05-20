@@ -10,12 +10,13 @@ export type PluggyCreditMatchKind =
   | "cpf_with_amount"
   | "cpf_only";
 
-/** Máximo de crédito retido exibido (≈2 aulas) — evita PIX de teste inflar saldo no painel. */
-const MAX_IDLE_RETAINED_LESSONS = 2;
+/** Teto de retido no painel quando há dívidas pendentes (evita confusão retido vs débito). */
+const MAX_RETAINED_WHEN_OWING_LESSONS = 2;
 
 /**
- * Limita crédito retido exibido/gravado. Nunca infla acima do valor real (`rawRetainedCents`).
- * `pendingDebtCents` entra só no saldo líquido (retido − dívida), não no teto do retido.
+ * Normaliza crédito retido exibido/gravado. Nunca infla acima do valor real (`rawRetainedCents`).
+ * Sem dívidas pendentes: mostra o crédito integral (ex. R$ 12 após 3× PIX de R$ 4 no /buscar).
+ * Com dívidas: limita exibição a ~2 aulas para não mascarar o saldo líquido negativo.
  */
 export function capFairRetainedCents(
   rawRetainedCents: number,
@@ -23,14 +24,14 @@ export function capFairRetainedCents(
   defaultUnitCents: number | null,
   hasBillableLessons: boolean,
 ): number {
-  void pendingDebtCents;
+  void hasBillableLessons;
   if (rawRetainedCents <= 0) return 0;
+  if (pendingDebtCents <= 0) return rawRetainedCents;
   const unit =
     typeof defaultUnitCents === "number" && defaultUnitCents > 0
       ? Math.round(defaultUnitCents)
       : 200;
-  if (!hasBillableLessons) return 0;
-  return Math.min(rawRetainedCents, unit * MAX_IDLE_RETAINED_LESSONS);
+  return Math.min(rawRetainedCents, unit * MAX_RETAINED_WHEN_OWING_LESSONS);
 }
 
 function exactLessonPaymentMatch(
@@ -72,6 +73,6 @@ export function pluggyCreditAllowedForContact(
   if (!unit || unit <= 0) return false;
 
   const k = Math.floor(amountCents / unit);
-  if (k < 1 || k > MAX_IDLE_RETAINED_LESSONS) return false;
+  if (k < 1 || k > MAX_RETAINED_WHEN_OWING_LESSONS) return false;
   return amountCents === k * unit;
 }
