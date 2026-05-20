@@ -1524,8 +1524,18 @@ class WhatsAppBot {
       const unitSnapshot = guestRow
         ? resolveLessonUnitCentsForAllocation(fakeEv, guestRow, userSettings?.defaultLessonPriceCents ?? null)
         : resolveLessonUnitCents(null, userSettings?.defaultLessonPriceCents ?? null);
-      if (unitSnapshot != null && unitSnapshot > 0) {
-        (rawPayload.zelarLesson as Record<string, unknown>).lessonUnitPriceCentsSnapshot = unitSnapshot;
+      const defaultUnit = userSettings?.defaultLessonPriceCents ?? null;
+      const packUnitFromPayload =
+        typeof packUnitPriceCents === 'number' && packUnitPriceCents > 0 ? Math.round(packUnitPriceCents) : null;
+      const frozenUnit =
+        packUnitFromPayload ??
+        (typeof defaultUnit === 'number' && defaultUnit > 0
+          ? Math.round(defaultUnit)
+          : unitSnapshot != null && unitSnapshot > 0
+            ? unitSnapshot
+            : null);
+      if (frozenUnit != null && frozenUnit > 0) {
+        (rawPayload.zelarLesson as Record<string, unknown>).lessonUnitPriceCentsSnapshot = frozenUnit;
       }
 
       const packGroupId =
@@ -1746,7 +1756,7 @@ class WhatsAppBot {
         }
       }
 
-      if (studentContactId && guestRow) {
+      if (!fromBatch && studentContactId && guestRow) {
         const { reconcileGuestContactLessonPayments } = await import('../services/reconcileGuestLessonPayments');
         await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
       }

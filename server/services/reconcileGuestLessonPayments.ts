@@ -1,6 +1,6 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
-import { displayNameFromGuestContact, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
+import { displayNameFromGuestContact, getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
 import { computeRawFinancials, syncGuestFinancialState } from "./guestLessonFinancials";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
@@ -47,12 +47,12 @@ export async function reconcileGuestContactLessonPayments(
   for (const ev of chain) {
     if (ev.lessonPaymentStatus !== "pendente") continue;
 
-    const unitEv = getLessonUnitCentsFromEventSnapshot(ev, freshContact, def);
+    const unitEv = getLessonDebtUnitCents(ev, freshContact, def);
     if (!unitEv || unitEv <= 0) {
       if (DEBUG_RECONCILE) {
-        console.log("[reconcile] Parou: aula sem preço unitário", { eventId: ev.id, contactId });
+        console.log("[reconcile] Ignorou aula sem preço unitário", { eventId: ev.id, contactId });
       }
-      break;
+      continue;
     }
 
     if (poolCents >= unitEv) {
