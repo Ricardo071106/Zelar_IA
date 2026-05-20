@@ -4,6 +4,7 @@ import type { UserGuestContactRow } from "../storage";
 import { capFairRetainedCents } from "./pluggy/pluggyCreditAttribution";
 import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
 import { getLessonDebtUnitCents, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
+import { computeFullLedgerCreditsRemaining, computeLessonPaymentPoolCents } from "./guestLessonPaymentPool";
 
 export type GuestLessonFinancials = {
   pendingDebtCents: number;
@@ -107,7 +108,8 @@ export async function computeGuestLessonFinancials(
   defaultLessonPriceCents: number | null,
 ): Promise<GuestLessonFinancials> {
   const raw = await computeRawFinancials(userId, contact, defaultLessonPriceCents);
-  return buildFinancialsFromParts(raw.pendingDebtCents, poolCentsForRetainedDisplay(raw));
+  const { poolCents } = await computeLessonPaymentPoolCents(userId, contact, defaultLessonPriceCents);
+  return buildFinancialsFromParts(raw.pendingDebtCents, poolCents);
 }
 
 export type SyncGuestFinancialOpts = {
@@ -131,13 +133,14 @@ export async function syncGuestFinancialState(
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
   const raw = await computeRawFinancials(userId, contact, def);
+  const ledgerRemaining = await computeFullLedgerCreditsRemaining(userId, contactId, contact, def);
+  const db = contact.lessonBalanceCents ?? 0;
 
-  const available = poolCentsForRetainedDisplay(raw);
-  let targetBalance = contact.lessonBalanceCents ?? 0;
+  let targetBalance = db;
   if (opts?.applyLedgerTopUp) {
-    targetBalance = Math.max(targetBalance, available);
+    targetBalance = Math.max(db, ledgerRemaining);
   } else if (raw.pendingDebtCents <= 0) {
-    targetBalance = available;
+    targetBalance = db > 0 ? db : ledgerRemaining;
   }
 
   if ((contact.lessonBalanceCents ?? 0) !== targetBalance) {
@@ -152,9 +155,7 @@ export async function syncGuestFinancialState(
   }
 
   const fresh = await storage.getGuestContactByIdForUser(userId, contactId);
-  const availableAfter = poolCentsForRetainedDisplay({
-    dbBalanceCents: fresh?.lessonBalanceCents ?? targetBalance,
-    rawLedgerUnappliedCents: raw.rawLedgerUnappliedCents,
-  });
+  const contactAfter = fresh ?? contact;
+  const { poolCents: availableAfter } = await computeLessonPaymentPoolCents(userId, contactAfter, def);
   return buildFinancialsFromParts(raw.pendingDebtCents, availableAfter);
 }

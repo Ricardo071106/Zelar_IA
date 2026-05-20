@@ -1299,9 +1299,13 @@ class WhatsAppBot {
             }
           }
           if (contactIds.size === 0) {
-            console.warn('[aula] Lote: nenhum aluno vinculado — saldo não aplicado nem Google (pago).', {
+            console.warn('[aula] Lote: nenhum aluno vinculado — tentando pendentes recentes', {
               packGroupId: batchCtx?.packGroupId ?? null,
             });
+            const recentPending = await storage.listPendingLessonEventsForUserOrdered(user.id, 20, true);
+            for (const ev of recentPending) {
+              if (ev.studentContactId) contactIds.add(ev.studentContactId);
+            }
           }
           for (const cid of contactIds) {
             try {
@@ -1770,7 +1774,7 @@ class WhatsAppBot {
         }
       }
 
-      if (!fromBatch && studentContactId && guestRow) {
+      if (studentContactId && guestRow) {
         try {
           const { reconcileGuestContactLessonPayments } = await import(
             '../services/reconcileGuestLessonPayments',
@@ -1780,6 +1784,7 @@ class WhatsAppBot {
           console.error('[aula] Falha ao conciliar saldo após criar aula', {
             contactId: studentContactId,
             eventId: newEvent.id,
+            fromBatch,
             err,
           });
         }

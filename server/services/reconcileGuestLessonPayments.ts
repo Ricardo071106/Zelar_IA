@@ -1,7 +1,11 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
-import { computeRawFinancials, poolCentsForRetainedDisplay, syncGuestFinancialState } from "./guestLessonFinancials";
+import { syncGuestFinancialState } from "./guestLessonFinancials";
+import {
+  computeLessonPaymentPoolCents,
+  ensureSpendableBalanceInDb,
+} from "./guestLessonPaymentPool";
 
 export type ReconcileGuestLessonsResult = {
   markedCount: number;
@@ -10,66 +14,51 @@ export type ReconcileGuestLessonsResult = {
 };
 
 /**
- * Marca aulas pendentes como pagas enquanto houver pool (saldo retido + créditos Pluggy no ledger).
- * Só abate `lesson_balance_cents` do aluno quando a fonte é saldo manual/retido; Pluggy consome o ledger.
+ * Marca aulas pendentes como pagas enquanto houver saldo retido (centavos) ≥ preço da aula.
  */
 export async function reconcileGuestContactLessonPayments(
   userId: number,
   contactId: number,
-  opts?: { paymentSource?: "pluggy" | "balance" },
+  _opts?: { paymentSource?: "pluggy" | "balance" },
 ): Promise<ReconcileGuestLessonsResult> {
-  const paySource = opts?.paymentSource ?? "balance";
-  const contact = await storage.getGuestContactByIdForUser(userId, contactId);
+  void _opts;
+
+  await ensureSpendableBalanceInDb(userId, contactId);
+
+  let contact = await storage.getGuestContactByIdForUser(userId, contactId);
   if (!contact) {
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents: 0 };
   }
 
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
-  const freshContact = await storage.getGuestContactByIdForUser(userId, contactId);
-  if (!freshContact) {
-    return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents: 0 };
-  }
-  const raw = await computeRawFinancials(userId, freshContact, def);
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
 
-  const poolLeftStart = poolCentsForRetainedDisplay({
-    dbBalanceCents: freshContact.lessonBalanceCents ?? 0,
-    rawLedgerUnappliedCents: raw.rawLedgerUnappliedCents,
-  });
-  void paySource;
-  const totalPoolCents = poolLeftStart;
-  let poolLeft = poolLeftStart;
+  let { poolCents: poolLeft } = await computeLessonPaymentPoolCents(userId, contact, def);
+  const totalPoolCents = poolLeft;
 
   const pendingCount = chain.filter((e) => e.lessonPaymentStatus === "pendente").length;
   console.log("[reconcile] Início", {
     contactId,
-    poolCents: poolLeftStart,
-    dbBalance: freshContact.lessonBalanceCents ?? 0,
-    ledgerUnapplied: raw.rawLedgerUnappliedCents,
+    poolCents: poolLeft,
+    dbBalance: contact.lessonBalanceCents ?? 0,
     pendingLessons: pendingCount,
   });
 
-  const eventsToMark: { event: Event; source: "pluggy" | "balance" }[] = [];
-  let balanceConsumedCents = 0;
+  const eventsToMark: Event[] = [];
 
   for (const ev of chain) {
     if (ev.lessonPaymentStatus !== "pendente") continue;
 
-    const unitEv = getLessonDebtUnitCents(ev, freshContact, def);
+    const unitEv = getLessonDebtUnitCents(ev, contact, def);
     if (!unitEv || unitEv <= 0) {
       console.warn("[reconcile] Aula sem preço unitário", { eventId: ev.id, contactId });
       continue;
     }
 
     if (poolLeft >= unitEv) {
-      const dbLeft = Math.max(0, freshContact.lessonBalanceCents ?? 0) - balanceConsumedCents;
-      const source: "pluggy" | "balance" = dbLeft >= unitEv ? "balance" : "pluggy";
-      eventsToMark.push({ event: ev, source });
+      eventsToMark.push(ev);
       poolLeft -= unitEv;
-      if (source === "balance") {
-        balanceConsumedCents += unitEv;
-      }
       continue;
     }
     break;
@@ -80,36 +69,38 @@ export async function reconcileGuestContactLessonPayments(
       contactId,
       totalPoolCents,
       pendingLessons: pendingCount,
-      dbBalance: freshContact.lessonBalanceCents ?? 0,
+      dbBalance: contact.lessonBalanceCents ?? 0,
     });
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents };
   }
 
+  const balanceConsumedCents = totalPoolCents - poolLeft;
   const { markLessonPaidAndSyncCalendar } = await import("./pluggy/pluggyPaymentProcessor");
-  const displayName = displayNameFromGuestContact(freshContact);
-  for (const item of eventsToMark) {
-    const freshEv = (await storage.getEvent(item.event.id)) ?? item.event;
-    await markLessonPaidAndSyncCalendar(userId, freshEv, displayName, item.source);
+  const displayName = displayNameFromGuestContact(contact);
+
+  for (const ev of eventsToMark) {
+    const freshEv = (await storage.getEvent(ev.id)) ?? ev;
+    await markLessonPaidAndSyncCalendar(userId, freshEv, displayName, "balance");
   }
 
   if (balanceConsumedCents > 0) {
     await storage.adjustGuestLessonBalanceCents(userId, contactId, -balanceConsumedCents);
   }
 
+  contact = (await storage.getGuestContactByIdForUser(userId, contactId)) ?? contact;
   await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
 
   const { syncPaidLessonCalendarTitlesForContact } = await import("./lessonGoogleCalendarSync");
   const calendarFixed = await syncPaidLessonCalendarTitlesForContact(userId, contactId);
 
-  if (eventsToMark.length > 0 || calendarFixed > 0) {
-    console.log("[reconcile] Aulas pagas / agenda", {
-      contactId,
-      markedCount: eventsToMark.length,
-      balanceConsumedCents,
-      totalPoolCents,
-      calendarFixed,
-    });
-  }
+  console.log("[reconcile] Aulas pagas / agenda", {
+    contactId,
+    markedCount: eventsToMark.length,
+    balanceConsumedCents,
+    totalPoolCents,
+    poolRemaining: poolLeft,
+    calendarFixed,
+  });
 
   return {
     markedCount: eventsToMark.length,

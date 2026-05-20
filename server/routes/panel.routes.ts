@@ -428,7 +428,23 @@ router.get(
     const byId = new Map(rows.map((r) => [r.id, r]));
     const settings = await storage.getUserSettings(ctx.user.id);
     const def = settings?.defaultLessonPriceCents ?? null;
-    const pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500, true);
+
+    let pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500, true);
+    const contactIds = new Set<number>();
+    for (const ev of pendingEvents) {
+      if (ev.studentContactId != null) contactIds.add(ev.studentContactId);
+    }
+    const { reconcileGuestContactLessonPayments } = await import('../services/reconcileGuestLessonPayments');
+    for (const cid of contactIds) {
+      try {
+        await reconcileGuestContactLessonPayments(ctx.user.id, cid);
+      } catch (e) {
+        console.error('[panel] reconcile ao listar pendentes falhou', { contactId: cid, e });
+      }
+    }
+    if (contactIds.size > 0) {
+      pendingEvents = await storage.listPendingLessonEventsForUserOrdered(ctx.user.id, 2500, true);
+    }
 
     const lessons = pendingEvents
       .filter((ev) => ev.studentContactId != null && byId.has(ev.studentContactId))
