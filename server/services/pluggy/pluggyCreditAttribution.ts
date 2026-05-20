@@ -10,13 +10,12 @@ export type PluggyCreditMatchKind =
   | "cpf_with_amount"
   | "cpf_only";
 
-/** Teto de retido no painel quando há dívidas pendentes (evita confusão retido vs débito). */
+/** Teto só para PIX solto por CPF sem aulas (evita transferência de teste virar saldo). */
 const MAX_RETAINED_WHEN_OWING_LESSONS = 2;
 
 /**
- * Normaliza crédito retido exibido/gravado. Nunca infla acima do valor real (`rawRetainedCents`).
- * Sem dívidas pendentes: mostra o crédito integral (ex. R$ 12 após 3× PIX de R$ 4 no /buscar).
- * Com dívidas: limita exibição a ~2 aulas para não mascarar o saldo líquido negativo.
+ * Crédito disponível para exibir/gravar. Não reduz artificialmente o retido quando há dívidas
+ * (o saldo líquido já desconta as pendências).
  */
 export function capFairRetainedCents(
   rawRetainedCents: number,
@@ -24,14 +23,10 @@ export function capFairRetainedCents(
   defaultUnitCents: number | null,
   hasBillableLessons: boolean,
 ): number {
+  void pendingDebtCents;
+  void defaultUnitCents;
   void hasBillableLessons;
-  if (rawRetainedCents <= 0) return 0;
-  if (pendingDebtCents <= 0) return rawRetainedCents;
-  const unit =
-    typeof defaultUnitCents === "number" && defaultUnitCents > 0
-      ? Math.round(defaultUnitCents)
-      : 200;
-  return Math.min(rawRetainedCents, unit * MAX_RETAINED_WHEN_OWING_LESSONS);
+  return Math.max(0, rawRetainedCents);
 }
 
 function exactLessonPaymentMatch(

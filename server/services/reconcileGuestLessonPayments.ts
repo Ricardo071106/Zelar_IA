@@ -1,7 +1,7 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
-import { computeRawFinancials, syncGuestFinancialState } from "./guestLessonFinancials";
+import { computeRawFinancials, poolCentsForRetainedDisplay, syncGuestFinancialState } from "./guestLessonFinancials";
 
 const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
 
@@ -34,10 +34,11 @@ export async function reconcileGuestContactLessonPayments(
   }
   const raw = await computeRawFinancials(userId, freshContact, def);
 
-  let poolCents = Math.max(0, freshContact.lessonBalanceCents ?? 0);
-  if (paySource === "pluggy") {
-    poolCents += raw.rawLedgerUnappliedCents;
-  }
+  const poolCents = poolCentsForRetainedDisplay({
+    dbBalanceCents: freshContact.lessonBalanceCents ?? 0,
+    rawLedgerUnappliedCents: raw.rawLedgerUnappliedCents,
+  });
+  void paySource;
   const totalPoolCents = poolCents;
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
