@@ -1297,6 +1297,16 @@ class WhatsAppBot {
             await reconcileGuestContactLessonPayments(user.id, batchCtx.studentContactId, {
               paymentSource: 'balance',
             });
+            const { syncPaidLessonCalendarTitlesForContact } = await import(
+              '../services/lessonGoogleCalendarSync',
+            );
+            const calFixed = await syncPaidLessonCalendarTitlesForContact(
+              user.id,
+              batchCtx.studentContactId,
+            );
+            if (calFixed > 0) {
+              console.log('[aula] Lote: títulos Google atualizados para (pago):', calFixed);
+            }
           }
           this.pendingPackBatchContext = null;
         }

@@ -8,7 +8,7 @@ import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTra
 import { displayNameFromGuestContact, resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
-import { patchGoogleCalendarEventSummary } from "../../telegram/googleCalendarIntegration";
+import { patchLessonTitleOnGoogleCalendar } from "../lessonGoogleCalendarSync";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
 import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
@@ -707,101 +707,7 @@ async function resolvePluggyCreditContact(
   return null;
 }
 
-/** Atualiza summary no Google Calendar — tenta conta do evento, painel e Zelar. */
-async function tryPatchLessonOnGoogleCalendar(opts: {
-  userId: number;
-  eventId: number;
-  calendarId: string;
-  newTitle: string;
-  settings: UserSettings | null | undefined;
-  intKey: string;
-  oauthForGoogle: number;
-}): Promise<boolean> {
-  const { userId, eventId, calendarId, newTitle, settings, intKey, oauthForGoogle } = opts;
-  let calendarPatched = false;
-
-  try {
-    if (intKey) {
-      const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
-      const pack = await getGoogleIntegrationTokensByKey(intKey);
-      if (pack?.tokens) {
-        const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle, {
-          oauthClientId: oauthForGoogle,
-          tokens: pack.tokens,
-        });
-        calendarPatched = r.success;
-        if (!calendarPatched) {
-          console.warn(
-            "[aula] Falha Google (conta do evento); tentando painel.",
-            r.message,
-            { eventId, intKey },
-          );
-        }
-      } else {
-        console.warn("[aula] integration_key sem tokens; tentando painel.", { eventId, intKey });
-      }
-    }
-
-    if (!calendarPatched && settings?.googleTokens) {
-      const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle);
-      calendarPatched = r.success;
-      if (!calendarPatched) {
-        console.warn("[aula] Falha Google (painel); tentando conta Zelar.", r.message, { eventId });
-      }
-    }
-
-    if (!calendarPatched) {
-      const fbKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || "zelar_google_invites";
-      const fbOauth = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || "999001");
-      if (Number.isFinite(fbOauth)) {
-        const { getGoogleIntegrationTokensByKey } = await import("../systemCalendarGoogleTokens");
-        const pack = await getGoogleIntegrationTokensByKey(fbKey);
-        if (pack?.tokens) {
-          const r = await patchGoogleCalendarEventSummary(calendarId, userId, newTitle, {
-            oauthClientId: Math.floor(fbOauth),
-            tokens: pack.tokens,
-          });
-          calendarPatched = r.success;
-          if (!calendarPatched) {
-            console.warn("[aula] Falha Google (conta Zelar):", r.message, { eventId });
-          }
-        }
-      }
-    }
-
-    if (calendarPatched) {
-      console.log("[aula] Google Calendar → (pago)", { eventId, calendarId });
-    } else {
-      console.warn("[aula] Não foi possível atualizar título no Google Calendar.", { eventId, calendarId });
-    }
-  } catch (e) {
-    console.warn("[aula] Erro ao atualizar Google Calendar:", e, { eventId });
-  }
-
-  return calendarPatched;
-}
-
-/** Repara títulos no Google para aulas já `pago` no banco mas ainda `(pendente)` no Calendar. */
-export async function syncPaidLessonCalendarTitlesForContact(
-  userId: number,
-  contactId: number,
-): Promise<number> {
-  const contact = await storage.getGuestContactByIdForUser(userId, contactId);
-  if (!contact) return 0;
-  const displayName = displayNameFromGuestContact(contact);
-  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
-  let fixed = 0;
-  for (const ev of chain) {
-    if (ev.lessonPaymentStatus !== "pago" || ev.cancelledAt || !ev.calendarId?.trim()) continue;
-    if (String(ev.title || "").includes("(pago)")) continue;
-    const raw = ev.rawData as Record<string, unknown> | null;
-    const z = raw?.zelarLesson as Record<string, unknown> | undefined;
-    const src = z?.paymentSource === "pluggy" || z?.paymentSource === "balance" ? z.paymentSource : undefined;
-    await markLessonPaidAndSyncCalendar(userId, ev, displayName, src);
-    fixed += 1;
-  }
-  return fixed;
-}
+export { syncPaidLessonCalendarTitlesForContact } from "../lessonGoogleCalendarSync";
 
 export async function markLessonPaidAndSyncCalendar(
   userId: number,
@@ -862,21 +768,14 @@ export async function markLessonPaidAndSyncCalendar(
   const rawUp = (up.rawData as Record<string, unknown>) || {};
   const zelarUp = (rawUp.zelarLesson as Record<string, unknown>) || {};
   const provider = settings?.calendarProvider;
-  const intKey =
-    typeof zelarUp.googleCalendarIntegrationKey === "string" ? zelarUp.googleCalendarIntegrationKey.trim() : "";
-  const oauthForGoogle =
-    typeof zelarUp.googleCalendarOAuthUserId === "number" && Number.isFinite(zelarUp.googleCalendarOAuthUserId)
-      ? Math.floor(zelarUp.googleCalendarOAuthUserId)
-      : userId;
 
-  const googlePatched = await tryPatchLessonOnGoogleCalendar({
+  const googlePatched = await patchLessonTitleOnGoogleCalendar({
     userId,
     eventId: ev.id,
     calendarId,
     newTitle,
+    zelarUp,
     settings,
-    intKey,
-    oauthForGoogle,
   });
 
   if (!googlePatched && provider === "microsoft" && settings?.microsoftTokens) {

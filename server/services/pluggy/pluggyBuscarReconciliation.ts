@@ -260,7 +260,7 @@ export async function runPluggyBuscarReconciliation(
   // (ex.: transação bancária sem hora, mesmo dia da criação da aula), reaplica o saldo nas pendências.
   const { syncGuestFinancialState } = await import("../guestLessonFinancials");
   const contacts = await storage.listUserGuestContacts(userId);
-  const { syncPaidLessonCalendarTitlesForContact } = await import("./pluggyPaymentProcessor");
+  const { syncPaidLessonCalendarTitlesForContact } = await import("../lessonGoogleCalendarSync");
   for (const c of contacts) {
     await syncGuestFinancialState(userId, c.id, { applyLedgerTopUp: true });
     await reconcileGuestContactLessonPayments(userId, c.id, { paymentSource: "pluggy" });

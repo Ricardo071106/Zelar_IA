@@ -94,7 +94,7 @@ export async function reconcileGuestContactLessonPayments(
 
   await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
 
-  const { syncPaidLessonCalendarTitlesForContact } = await import("./pluggy/pluggyPaymentProcessor");
+  const { syncPaidLessonCalendarTitlesForContact } = await import("./lessonGoogleCalendarSync");
   await syncPaidLessonCalendarTitlesForContact(userId, contactId);
 
   return {
