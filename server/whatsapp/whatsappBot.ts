@@ -1290,23 +1290,24 @@ class WhatsAppBot {
             );
           }
         } finally {
-          if (batchCtx?.studentContactId) {
+          const contactIds = new Set<number>();
+          if (batchCtx?.studentContactId) contactIds.add(batchCtx.studentContactId);
+          if (batchCtx?.packGroupId) {
+            const packed = await storage.listEventsByPackGroupId(user.id, batchCtx.packGroupId);
+            for (const ev of packed) {
+              if (ev.studentContactId) contactIds.add(ev.studentContactId);
+            }
+          }
+          if (contactIds.size === 0) {
+            console.warn('[aula] Lote: nenhum aluno vinculado — saldo não aplicado nem Google (pago).', {
+              packGroupId: batchCtx?.packGroupId ?? null,
+            });
+          }
+          for (const cid of contactIds) {
             const { reconcileGuestContactLessonPayments } = await import(
               '../services/reconcileGuestLessonPayments',
             );
-            await reconcileGuestContactLessonPayments(user.id, batchCtx.studentContactId, {
-              paymentSource: 'balance',
-            });
-            const { syncPaidLessonCalendarTitlesForContact } = await import(
-              '../services/lessonGoogleCalendarSync',
-            );
-            const calFixed = await syncPaidLessonCalendarTitlesForContact(
-              user.id,
-              batchCtx.studentContactId,
-            );
-            if (calFixed > 0) {
-              console.log('[aula] Lote: títulos Google atualizados para (pago):', calFixed);
-            }
+            await reconcileGuestContactLessonPayments(user.id, cid, { paymentSource: 'balance' });
           }
           this.pendingPackBatchContext = null;
         }
@@ -2876,9 +2877,9 @@ class WhatsAppBot {
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-    const rawGuest = extractComGuestNameFromText(calendarText);
     let studentContactId: number | null = null;
     let studentDisplayName = '';
+    const rawGuest = extractComGuestNameFromText(calendarText);
     if (rawGuest) {
       const rawName = rawGuest.trim();
       const contact =
@@ -2887,6 +2888,13 @@ class WhatsAppBot {
       if (contact) {
         studentContactId = contact.id;
         studentDisplayName = this.displayGuestNameFromRow(contact);
+      }
+    }
+    if (!studentContactId) {
+      const byMention = await this.findGuestMentionedInText(userId, normalizedMsg);
+      if (byMention) {
+        studentContactId = byMention.id;
+        studentDisplayName = this.displayGuestNameFromRow(byMention);
       }
     }
     const first = expandedMessages[0] || '';

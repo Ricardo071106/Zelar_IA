@@ -51,6 +51,17 @@ const SCHEDULING_STOP = new Set(
     'manhã',
     'tarde',
     'noite',
+    'as',
+    'às',
+    'aos',
+    'a',
+    'o',
+    'e',
+    'da',
+    'de',
+    'do',
+    'das',
+    'dos',
   ].map((w) =>
     w
       .normalize('NFD')

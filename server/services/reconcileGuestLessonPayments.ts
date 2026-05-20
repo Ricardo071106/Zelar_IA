@@ -95,7 +95,17 @@ export async function reconcileGuestContactLessonPayments(
   await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
 
   const { syncPaidLessonCalendarTitlesForContact } = await import("./lessonGoogleCalendarSync");
-  await syncPaidLessonCalendarTitlesForContact(userId, contactId);
+  const calendarFixed = await syncPaidLessonCalendarTitlesForContact(userId, contactId);
+
+  if (eventsToMark.length > 0 || calendarFixed > 0) {
+    console.log("[reconcile] Aulas pagas / agenda", {
+      contactId,
+      markedCount: eventsToMark.length,
+      balanceConsumedCents,
+      totalPoolCents,
+      calendarFixed,
+    });
+  }
 
   return {
     markedCount: eventsToMark.length,

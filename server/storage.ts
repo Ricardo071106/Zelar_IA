@@ -289,6 +289,7 @@ export interface IStorage {
   listPendingLessonEventsForContact(userId: number, studentContactId: number): Promise<Event[]>;
   /** Aulas pagas + pendentes do aluno, por data da aula (rateio Pluggy cumulativo). */
   listBillableLessonEventsForContactOrdered(userId: number, studentContactId: number): Promise<Event[]>;
+  listEventsByPackGroupId(userId: number, packGroupId: string): Promise<Event[]>;
   /** Aulas (paga/pendente) sem snapshot nem pack unit — candidatas a congelar antes de mudar preço tabela. */
   listLessonEventsMissingUnitSnapshotForUser(userId: number): Promise<Event[]>;
   /** Retorna true se inseriu (primeira vez); false se transação já processada. */
@@ -1331,6 +1332,17 @@ export class DatabaseStorage implements IStorage {
           inArray(events.lessonPaymentStatus, ["pago", "pendente"]),
         ),
       )
+      .orderBy(asc(events.startDate), asc(events.id));
+  }
+
+  async listEventsByPackGroupId(userId: number, packGroupId: string): Promise<Event[]> {
+    if (!db) return [];
+    const gid = packGroupId?.trim();
+    if (!gid) return [];
+    return db
+      .select()
+      .from(events)
+      .where(and(eq(events.userId, userId), eq(events.packGroupId, gid), isNull(events.cancelledAt)))
       .orderBy(asc(events.startDate), asc(events.id));
   }
 
