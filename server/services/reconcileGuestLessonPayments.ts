@@ -3,8 +3,6 @@ import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
 import { computeRawFinancials, poolCentsForRetainedDisplay, syncGuestFinancialState } from "./guestLessonFinancials";
 
-const DEBUG_RECONCILE = process.env.DEBUG_PLUGGY === "true";
-
 export type ReconcileGuestLessonsResult = {
   markedCount: number;
   balanceConsumedCents: number;
@@ -33,15 +31,25 @@ export async function reconcileGuestContactLessonPayments(
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents: 0 };
   }
   const raw = await computeRawFinancials(userId, freshContact, def);
+  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
 
-  const poolCents = poolCentsForRetainedDisplay({
+  const poolLeftStart = poolCentsForRetainedDisplay({
     dbBalanceCents: freshContact.lessonBalanceCents ?? 0,
     rawLedgerUnappliedCents: raw.rawLedgerUnappliedCents,
   });
   void paySource;
-  const totalPoolCents = poolCents;
+  const totalPoolCents = poolLeftStart;
+  let poolLeft = poolLeftStart;
 
-  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
+  const pendingCount = chain.filter((e) => e.lessonPaymentStatus === "pendente").length;
+  console.log("[reconcile] Início", {
+    contactId,
+    poolCents: poolLeftStart,
+    dbBalance: freshContact.lessonBalanceCents ?? 0,
+    ledgerUnapplied: raw.rawLedgerUnappliedCents,
+    pendingLessons: pendingCount,
+  });
+
   const eventsToMark: { event: Event; source: "pluggy" | "balance" }[] = [];
   let balanceConsumedCents = 0;
 
@@ -50,17 +58,15 @@ export async function reconcileGuestContactLessonPayments(
 
     const unitEv = getLessonDebtUnitCents(ev, freshContact, def);
     if (!unitEv || unitEv <= 0) {
-      if (DEBUG_RECONCILE) {
-        console.log("[reconcile] Ignorou aula sem preço unitário", { eventId: ev.id, contactId });
-      }
+      console.warn("[reconcile] Aula sem preço unitário", { eventId: ev.id, contactId });
       continue;
     }
 
-    if (poolCents >= unitEv) {
+    if (poolLeft >= unitEv) {
       const dbLeft = Math.max(0, freshContact.lessonBalanceCents ?? 0) - balanceConsumedCents;
       const source: "pluggy" | "balance" = dbLeft >= unitEv ? "balance" : "pluggy";
       eventsToMark.push({ event: ev, source });
-      poolCents -= unitEv;
+      poolLeft -= unitEv;
       if (source === "balance") {
         balanceConsumedCents += unitEv;
       }
@@ -70,14 +76,12 @@ export async function reconcileGuestContactLessonPayments(
   }
 
   if (eventsToMark.length === 0) {
-    if (DEBUG_RECONCILE && totalPoolCents > 0) {
-      console.log("[reconcile] Pool > 0 mas nenhuma pendência coberta", {
-        contactId,
-        totalPoolCents,
-        ledgerUnapplied: raw.rawLedgerUnappliedCents,
-        dbBalance: freshContact.lessonBalanceCents,
-      });
-    }
+    console.log("[reconcile] Nenhuma aula marcada paga", {
+      contactId,
+      totalPoolCents,
+      pendingLessons: pendingCount,
+      dbBalance: freshContact.lessonBalanceCents ?? 0,
+    });
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents };
   }
 

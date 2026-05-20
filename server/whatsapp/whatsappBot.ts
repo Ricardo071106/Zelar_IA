@@ -1304,10 +1304,14 @@ class WhatsAppBot {
             });
           }
           for (const cid of contactIds) {
-            const { reconcileGuestContactLessonPayments } = await import(
-              '../services/reconcileGuestLessonPayments',
-            );
-            await reconcileGuestContactLessonPayments(user.id, cid, { paymentSource: 'balance' });
+            try {
+              const { reconcileGuestContactLessonPayments } = await import(
+                '../services/reconcileGuestLessonPayments',
+              );
+              await reconcileGuestContactLessonPayments(user.id, cid, { paymentSource: 'balance' });
+            } catch (err) {
+              console.error('[aula] Lote: falha ao conciliar saldo', { contactId: cid, err });
+            }
           }
           this.pendingPackBatchContext = null;
         }
@@ -1549,8 +1553,7 @@ class WhatsAppBot {
         (rawPayload.zelarLesson as Record<string, unknown>).lessonUnitPriceCentsSnapshot = frozenUnit;
       }
 
-      const packGroupId =
-        lessonTot != null && lessonTot > 1 && batchCtx?.packGroupId ? batchCtx.packGroupId : null;
+      const packGroupId = batchCtx?.packGroupId ?? null;
 
       const emailsFromRawText = filterPlausibleGuestEmails(extractEmails(calendarText));
       const emailSeed = [
@@ -1768,8 +1771,18 @@ class WhatsAppBot {
       }
 
       if (!fromBatch && studentContactId && guestRow) {
-        const { reconcileGuestContactLessonPayments } = await import('../services/reconcileGuestLessonPayments');
-        await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
+        try {
+          const { reconcileGuestContactLessonPayments } = await import(
+            '../services/reconcileGuestLessonPayments',
+          );
+          await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
+        } catch (err) {
+          console.error('[aula] Falha ao conciliar saldo após criar aula', {
+            contactId: studentContactId,
+            eventId: newEvent.id,
+            err,
+          });
+        }
       }
 
       const eventForUserMessage = (await storage.getEvent(newEvent.id)) ?? newEvent;
