@@ -261,8 +261,9 @@ export async function runPluggyBuscarReconciliation(
   const { syncGuestFinancialState } = await import("../guestLessonFinancials");
   const contacts = await storage.listUserGuestContacts(userId);
   for (const c of contacts) {
-    await reconcileGuestContactLessonPayments(userId, c.id);
-    await syncGuestFinancialState(userId, c.id);
+    await syncGuestFinancialState(userId, c.id, { applyLedgerTopUp: true });
+    await reconcileGuestContactLessonPayments(userId, c.id, { paymentSource: "pluggy" });
+    await syncGuestFinancialState(userId, c.id, { applyLedgerTopUp: false });
   }
 
   let pendingAfter = 0;

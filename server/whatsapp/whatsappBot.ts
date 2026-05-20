@@ -1290,6 +1290,14 @@ class WhatsAppBot {
             );
           }
         } finally {
+          if (batchCtx?.studentContactId) {
+            const { reconcileGuestContactLessonPayments } = await import(
+              '../services/reconcileGuestLessonPayments',
+            );
+            await reconcileGuestContactLessonPayments(user.id, batchCtx.studentContactId, {
+              paymentSource: 'balance',
+            });
+          }
           this.pendingPackBatchContext = null;
         }
         return;
@@ -1544,6 +1552,11 @@ class WhatsAppBot {
         }
       }
 
+      if (studentContactId != null) {
+        const { softCancelOverlappingLessonsAtSlot } = await import('../services/lessonSlotConflict');
+        await softCancelOverlappingLessonsAtSlot(user.id, studentContactId, finalStartDate);
+      }
+
       const newEvent = await storage.createEvent({
         userId: user.id,
         title: calTitle,
@@ -1733,13 +1746,9 @@ class WhatsAppBot {
         }
       }
 
-      // Pagamento (saldo retido / Pluggy) só via /buscar ou painel — não marcar pago ao criar a aula.
-      if (studentContactId && guestRow && !syncedCalendarProvider) {
-        console.warn('[saldo] Aula sem sincronização de calendário; saldo não consumido automaticamente.', {
-          userId: user.id,
-          eventId: newEvent.id,
-          contactId: studentContactId,
-        });
+      if (studentContactId && guestRow) {
+        const { reconcileGuestContactLessonPayments } = await import('../services/reconcileGuestLessonPayments');
+        await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
       }
 
       const eventForUserMessage = (await storage.getEvent(newEvent.id)) ?? newEvent;

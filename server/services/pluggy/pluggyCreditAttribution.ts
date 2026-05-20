@@ -10,26 +10,25 @@ export type PluggyCreditMatchKind =
   | "cpf_with_amount"
   | "cpf_only";
 
-/** Máximo de aulas de crédito retido sem pendências (evita PIX de teste inflar saldo). */
+/** Máximo de crédito retido exibido (≈2 aulas) — evita PIX de teste inflar saldo no painel. */
 const MAX_IDLE_RETAINED_LESSONS = 2;
-/** Folga de retido quando há dívidas pendentes (em múltiplos de aula). */
-const MAX_EXTRA_RETAINED_WHEN_DEBT_LESSONS = 2;
 
+/**
+ * Limita crédito retido exibido/gravado. Nunca infla acima do valor real (`rawRetainedCents`).
+ * `pendingDebtCents` entra só no saldo líquido (retido − dívida), não no teto do retido.
+ */
 export function capFairRetainedCents(
   rawRetainedCents: number,
   pendingDebtCents: number,
   defaultUnitCents: number | null,
   hasBillableLessons: boolean,
 ): number {
+  void pendingDebtCents;
   if (rawRetainedCents <= 0) return 0;
   const unit =
     typeof defaultUnitCents === "number" && defaultUnitCents > 0
       ? Math.round(defaultUnitCents)
       : 200;
-
-  if (pendingDebtCents > 0) {
-    return Math.min(rawRetainedCents, pendingDebtCents + unit * MAX_EXTRA_RETAINED_WHEN_DEBT_LESSONS);
-  }
   if (!hasBillableLessons) return 0;
   return Math.min(rawRetainedCents, unit * MAX_IDLE_RETAINED_LESSONS);
 }

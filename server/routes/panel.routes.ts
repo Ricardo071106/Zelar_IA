@@ -14,7 +14,7 @@ import {
   extractConnectToken,
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
-import { syncGuestFinancialState } from '../services/guestLessonFinancials';
+import { computeGuestLessonFinancials, syncGuestFinancialState } from '../services/guestLessonFinancials';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 
@@ -405,7 +405,7 @@ router.get(
     const def = settings?.defaultLessonPriceCents ?? null;
     const guests = await Promise.all(
       rows.map(async (r) => {
-        const fin = await syncGuestFinancialState(ctx.user.id, r.id);
+        const fin = await computeGuestLessonFinancials(ctx.user.id, r, def);
         return guestPanelDto(r, {
           pendingDebtCents: fin.pendingDebtCents,
           lessonBalanceCents: fin.lessonBalanceCents,
@@ -558,9 +558,14 @@ router.post(
         remainingLessons,
         lessonBalanceCents,
       });
-      await reconcileGuestContactLessonPayments(ctx.user.id, row.id);
-      const fin = await syncGuestFinancialState(ctx.user.id, row.id);
+      await reconcileGuestContactLessonPayments(ctx.user.id, row.id, { paymentSource: 'balance' });
       const freshAfter = await storage.getGuestContactByIdForUser(ctx.user.id, row.id);
+      const settingsAfter = await storage.getUserSettings(ctx.user.id);
+      const fin = await computeGuestLessonFinancials(
+        ctx.user.id,
+        freshAfter ?? row,
+        settingsAfter?.defaultLessonPriceCents ?? null,
+      );
       res.json({
         guest: guestPanelDto(freshAfter ?? row, {
           pendingDebtCents: fin.pendingDebtCents,

@@ -562,10 +562,8 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
       }
     }
     const { syncGuestFinancialState } = await import("../guestLessonFinancials");
-    const fin = await syncGuestFinancialState(userId, contact.id);
-    console.log(
-      `[Pluggy] Saldo retido normalizado R$ ${(fin.lessonBalanceCents / 100).toFixed(2)} (contato ${contact.id}) — sem aula pendente.`,
-    );
+    await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
+    console.log(`[Pluggy] Crédito registrado (contato ${contact.id}) — sem aula pendente no momento.`);
     return;
   }
 
@@ -640,9 +638,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   }
 
   const { syncGuestFinancialState } = await import("../guestLessonFinancials");
-  const fin = await syncGuestFinancialState(userId, contact.id);
+  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: true });
   console.log(
-    `[Pluggy] Rateio aluno ${contact.id}: ${r.markedCount} aula(s) paga(s); saldo retido no painel R$ ${(fin.lessonBalanceCents / 100).toFixed(2)}.`,
+    `[Pluggy] Rateio aluno ${contact.id}: ${r.markedCount} aula(s) paga(s); saldo normalizado após PIX.`,
   );
 }
 

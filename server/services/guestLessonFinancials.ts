@@ -7,8 +7,9 @@ import { getLessonDebtUnitCents, getLessonUnitCentsFromEventSnapshot } from "./p
 
 export type GuestLessonFinancials = {
   pendingDebtCents: number;
-  /** Crédito retido exibido no painel (única fonte após sync). */
+  /** Crédito retido disponível para quitar aulas (centavos). */
   lessonBalanceCents: number;
+  /** Saldo líquido = retido − dívidas pendentes (pode ser negativo). */
   lessonNetBalanceCents: number;
 };
 
@@ -18,7 +19,6 @@ function lessonWasPaidByPluggy(ev: Event): boolean {
   return z?.paymentSource === "pluggy";
 }
 
-/** Data mínima para somar créditos Pluggy — nunca epoch 0 quando há aulas no histórico. */
 export function resolveLedgerSinceForContact(
   pending: Event[],
   billableChain: Event[],
@@ -29,7 +29,7 @@ export function resolveLedgerSinceForContact(
   return new Date(0);
 }
 
-async function computeRawFinancials(
+export async function computeRawFinancials(
   userId: number,
   contact: UserGuestContactRow,
   defaultLessonPriceCents: number | null,
@@ -73,43 +73,64 @@ async function computeRawFinancials(
   };
 }
 
-/** Lê saldo/dívida sem gravar (painel rápido). */
+function buildFinancialsFromParts(
+  pendingDebtCents: number,
+  lessonBalanceCents: number,
+): GuestLessonFinancials {
+  return {
+    pendingDebtCents,
+    lessonBalanceCents,
+    lessonNetBalanceCents: lessonBalanceCents - pendingDebtCents,
+  };
+}
+
+/**
+ * Somente leitura para o painel — não re-soma o ledger Pluggy (evita saldo “pular” a R$ 1.487).
+ */
 export async function computeGuestLessonFinancials(
   userId: number,
   contact: UserGuestContactRow,
   defaultLessonPriceCents: number | null,
 ): Promise<GuestLessonFinancials> {
   const raw = await computeRawFinancials(userId, contact, defaultLessonPriceCents);
-  const consolidated = capFairRetainedCents(
-    Math.max(0, raw.dbBalanceCents) + raw.rawLedgerUnappliedCents,
+  const retido = capFairRetainedCents(
+    Math.max(0, raw.dbBalanceCents),
     raw.pendingDebtCents,
     defaultLessonPriceCents,
     raw.hasBillableLessons,
   );
-  return {
-    pendingDebtCents: raw.pendingDebtCents,
-    lessonBalanceCents: consolidated,
-    lessonNetBalanceCents: consolidated - raw.pendingDebtCents,
-  };
+  return buildFinancialsFromParts(raw.pendingDebtCents, retido);
 }
 
+export type SyncGuestFinancialOpts = {
+  /** true após /buscar Pluggy: incorpora créditos do ledger no saldo retido. */
+  applyLedgerTopUp?: boolean;
+};
+
 /**
- * Normaliza `lesson_balance_cents` no banco (corrige PIX de teste / ledger inflado).
- * Chamar após /buscar, reconcile ou ao listar alunos no painel.
+ * Grava saldo retido normalizado no banco. Use com applyLedgerTopUp após conciliação Pluggy;
+ * no painel prefira computeGuestLessonFinancials (sem escrita).
  */
 export async function syncGuestFinancialState(
   userId: number,
   contactId: number,
+  opts?: SyncGuestFinancialOpts,
 ): Promise<GuestLessonFinancials> {
   const contact = await storage.getGuestContactByIdForUser(userId, contactId);
   if (!contact) {
-    return { pendingDebtCents: 0, lessonBalanceCents: 0, lessonNetBalanceCents: 0 };
+    return buildFinancialsFromParts(0, 0);
   }
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
   const raw = await computeRawFinancials(userId, contact, def);
+
+  let poolCents = Math.max(0, raw.dbBalanceCents);
+  if (opts?.applyLedgerTopUp && raw.rawLedgerUnappliedCents > 0) {
+    poolCents += raw.rawLedgerUnappliedCents;
+  }
+
   const fairRetido = capFairRetainedCents(
-    Math.max(0, raw.dbBalanceCents) + raw.rawLedgerUnappliedCents,
+    poolCents,
     raw.pendingDebtCents,
     def,
     raw.hasBillableLessons,
@@ -126,9 +147,5 @@ export async function syncGuestFinancialState(
     await storage.updateGuestContactFields(userId, contactId, { financialStatus: "pendente" });
   }
 
-  return {
-    pendingDebtCents: raw.pendingDebtCents,
-    lessonBalanceCents: fairRetido,
-    lessonNetBalanceCents: fairRetido - raw.pendingDebtCents,
-  };
+  return buildFinancialsFromParts(raw.pendingDebtCents, fairRetido);
 }
