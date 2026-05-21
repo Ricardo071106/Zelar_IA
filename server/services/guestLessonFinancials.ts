@@ -4,7 +4,7 @@ import type { UserGuestContactRow } from "../storage";
 import { capFairRetainedCents } from "./pluggy/pluggyCreditAttribution";
 import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
 import { getLessonDebtUnitCents, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
-import { computeFullLedgerCreditsRemaining, computeLessonPaymentPoolCents } from "./guestLessonPaymentPool";
+import { computeFullLedgerCreditsRemaining } from "./guestLessonPaymentPool";
 
 export type GuestLessonFinancials = {
   pendingDebtCents: number;
@@ -87,29 +87,16 @@ function buildFinancialsFromParts(
 }
 
 /**
- * Somente leitura para o painel — não re-soma o ledger Pluggy (evita saldo “pular” a R$ 1.487).
+ * Somente leitura para o painel — saldo retido = `lesson_balance_cents` no banco.
  */
-/**
- * Crédito disponível: saldo retido no banco (já incorporou PIX no /buscar).
- * Se o banco está zerado, usa o ledger Pluggy ainda não convertido em saldo.
- */
-export function poolCentsForRetainedDisplay(raw: {
-  dbBalanceCents: number;
-  rawLedgerUnappliedCents: number;
-}): number {
-  const db = Math.max(0, raw.dbBalanceCents);
-  if (db > 0) return db;
-  return Math.max(0, raw.rawLedgerUnappliedCents);
-}
-
 export async function computeGuestLessonFinancials(
   userId: number,
   contact: UserGuestContactRow,
   defaultLessonPriceCents: number | null,
 ): Promise<GuestLessonFinancials> {
   const raw = await computeRawFinancials(userId, contact, defaultLessonPriceCents);
-  const { poolCents } = await computeLessonPaymentPoolCents(userId, contact, defaultLessonPriceCents);
-  return buildFinancialsFromParts(raw.pendingDebtCents, poolCents);
+  const retido = Math.max(0, raw.dbBalanceCents);
+  return buildFinancialsFromParts(raw.pendingDebtCents, retido);
 }
 
 export type SyncGuestFinancialOpts = {
@@ -140,7 +127,7 @@ export async function syncGuestFinancialState(
   if (opts?.applyLedgerTopUp) {
     targetBalance = Math.max(db, ledgerRemaining);
   } else if (raw.pendingDebtCents <= 0) {
-    targetBalance = db > 0 ? db : ledgerRemaining;
+    targetBalance = Math.max(0, db);
   }
 
   if ((contact.lessonBalanceCents ?? 0) !== targetBalance) {
@@ -150,12 +137,11 @@ export async function syncGuestFinancialState(
   const stillPending = await storage.listPendingLessonEventsForContact(userId, contactId);
   if (stillPending.length === 0 && raw.pendingDebtCents === 0) {
     await storage.updateGuestContactFields(userId, contactId, { financialStatus: "pago" });
-  } else if (raw.pendingDebtCents > 0) {
+  } else if (stillPending.length > 0 || raw.pendingDebtCents > 0) {
     await storage.updateGuestContactFields(userId, contactId, { financialStatus: "pendente" });
   }
 
   const fresh = await storage.getGuestContactByIdForUser(userId, contactId);
-  const contactAfter = fresh ?? contact;
-  const { poolCents: availableAfter } = await computeLessonPaymentPoolCents(userId, contactAfter, def);
-  return buildFinancialsFromParts(raw.pendingDebtCents, availableAfter);
+  const retidoAfter = Math.max(0, fresh?.lessonBalanceCents ?? targetBalance);
+  return buildFinancialsFromParts(raw.pendingDebtCents, retidoAfter);
 }

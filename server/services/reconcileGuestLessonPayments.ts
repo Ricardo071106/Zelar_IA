@@ -1,11 +1,7 @@
 import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import { displayNameFromGuestContact, getLessonDebtUnitCents } from "./pluggy/lessonUnitPrice";
-import { syncGuestFinancialState } from "./guestLessonFinancials";
-import {
-  computeLessonPaymentPoolCents,
-  ensureSpendableBalanceInDb,
-} from "./guestLessonPaymentPool";
+import { spendableDbBalanceCents } from "./guestLessonPaymentPool";
 
 export type ReconcileGuestLessonsResult = {
   markedCount: number;
@@ -14,7 +10,8 @@ export type ReconcileGuestLessonsResult = {
 };
 
 /**
- * Marca aulas pendentes como pagas enquanto houver saldo retido (centavos) ≥ preço da aula.
+ * Marca aulas pendentes como pagas enquanto `lesson_balance_cents` ≥ preço da aula.
+ * Não re-soma ledger Pluggy (evita pagar aula em dobro).
  */
 export async function reconcileGuestContactLessonPayments(
   userId: number,
@@ -23,9 +20,7 @@ export async function reconcileGuestContactLessonPayments(
 ): Promise<ReconcileGuestLessonsResult> {
   void _opts;
 
-  await ensureSpendableBalanceInDb(userId, contactId);
-
-  let contact = await storage.getGuestContactByIdForUser(userId, contactId);
+  const contact = await storage.getGuestContactByIdForUser(userId, contactId);
   if (!contact) {
     return { markedCount: 0, balanceConsumedCents: 0, totalPoolCents: 0 };
   }
@@ -34,7 +29,7 @@ export async function reconcileGuestContactLessonPayments(
   const def = settings?.defaultLessonPriceCents ?? null;
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
 
-  let { poolCents: poolLeft } = await computeLessonPaymentPoolCents(userId, contact, def);
+  let poolLeft = spendableDbBalanceCents(contact);
   const totalPoolCents = poolLeft;
 
   const pendingCount = chain.filter((e) => e.lessonPaymentStatus === "pendente").length;
@@ -86,9 +81,6 @@ export async function reconcileGuestContactLessonPayments(
   if (balanceConsumedCents > 0) {
     await storage.adjustGuestLessonBalanceCents(userId, contactId, -balanceConsumedCents);
   }
-
-  contact = (await storage.getGuestContactByIdForUser(userId, contactId)) ?? contact;
-  await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
 
   const { syncPaidLessonCalendarTitlesForContact } = await import("./lessonGoogleCalendarSync");
   const calendarFixed = await syncPaidLessonCalendarTitlesForContact(userId, contactId);

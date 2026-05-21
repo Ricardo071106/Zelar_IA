@@ -11,6 +11,7 @@ function lessonWasPaidByPluggy(ev: Event): boolean {
 
 /**
  * Créditos Pluggy ainda não consumidos (ledger total − aulas já pagas).
+ * Usado só no /buscar para incorporar PIX ao saldo retido.
  */
 export async function computeFullLedgerCreditsRemaining(
   userId: number,
@@ -32,32 +33,15 @@ export async function computeFullLedgerCreditsRemaining(
   return Math.max(0, fullSum - pluggyPaidCents - balancePaidCents);
 }
 
-/**
- * Pool para pagar aulas = saldo retido no banco; se zerado, usa créditos do ledger.
- */
-export async function computeLessonPaymentPoolCents(
-  userId: number,
-  contact: UserGuestContactRow,
-  defaultLessonPriceCents: number | null,
-): Promise<{ poolCents: number; dbCents: number; ledgerRemainingCents: number }> {
-  const dbCents = Math.max(0, contact.lessonBalanceCents ?? 0);
-  const ledgerRemainingCents = await computeFullLedgerCreditsRemaining(
-    userId,
-    contact.id,
-    contact,
-    defaultLessonPriceCents,
-  );
-
-  if (dbCents > 0) {
-    return { poolCents: dbCents, dbCents, ledgerRemainingCents };
-  }
-  return { poolCents: ledgerRemainingCents, dbCents: 0, ledgerRemainingCents };
+/** Saldo retido disponível para pagar aulas = só o que está em `lesson_balance_cents`. */
+export function spendableDbBalanceCents(contact: UserGuestContactRow): number {
+  return Math.max(0, contact.lessonBalanceCents ?? 0);
 }
 
 /**
- * Garante `lesson_balance_cents` > 0 quando há PIX no ledger e o banco está zerado.
+ * Incorpora ledger → banco. Chamar apenas no /buscar (applyLedgerTopUp), nunca ao criar aula.
  */
-export async function ensureSpendableBalanceInDb(
+export async function mergeLedgerIntoDbBalance(
   userId: number,
   contactId: number,
 ): Promise<number> {
@@ -66,13 +50,11 @@ export async function ensureSpendableBalanceInDb(
   const settings = await storage.getUserSettings(userId);
   const def = settings?.defaultLessonPriceCents ?? null;
   const dbCents = Math.max(0, contact.lessonBalanceCents ?? 0);
-  if (dbCents > 0) return dbCents;
-
   const ledgerRemaining = await computeFullLedgerCreditsRemaining(userId, contactId, contact, def);
-  if (ledgerRemaining > 0) {
-    await storage.setGuestLessonBalanceCents(userId, contactId, ledgerRemaining);
-    console.log("[saldo] Ledger → saldo retido no banco", { contactId, cents: ledgerRemaining });
-    return ledgerRemaining;
+  const merged = Math.max(dbCents, ledgerRemaining);
+  if (merged !== dbCents) {
+    await storage.setGuestLessonBalanceCents(userId, contactId, merged);
+    console.log("[saldo] /buscar: ledger → saldo retido", { contactId, cents: merged });
   }
-  return 0;
+  return merged;
 }
