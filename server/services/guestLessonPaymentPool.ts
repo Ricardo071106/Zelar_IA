@@ -2,6 +2,7 @@ import type { Event } from "@shared/schema";
 import { storage } from "../storage";
 import type { UserGuestContactRow } from "../storage";
 import { getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
+import { maxPrepaymentCentsWithoutLessons } from "./pluggy/pluggyCreditAttribution";
 
 function lessonWasPaidByPluggy(ev: Event): boolean {
   const raw = ev.rawData as Record<string, unknown> | null;
@@ -30,7 +31,13 @@ export async function computeFullLedgerCreditsRemaining(
     if (lessonWasPaidByPluggy(ev)) pluggyPaidCents += u;
     else balancePaidCents += u;
   }
-  return Math.max(0, fullSum - pluggyPaidCents - balancePaidCents);
+  let remaining = Math.max(0, fullSum - pluggyPaidCents - balancePaidCents);
+  if (chain.length === 0) {
+    const settings = await storage.getUserSettings(userId);
+    const maxPrepay = maxPrepaymentCentsWithoutLessons(contact, settings ?? undefined);
+    if (maxPrepay != null) remaining = Math.min(remaining, maxPrepay);
+  }
+  return remaining;
 }
 
 /** Saldo retido disponível para pagar aulas = só o que está em `lesson_balance_cents`. */

@@ -11,7 +11,17 @@ export type PluggyCreditMatchKind =
   | "cpf_only";
 
 /** Teto só para PIX solto por CPF sem aulas (evita transferência de teste virar saldo). */
-const MAX_RETAINED_WHEN_OWING_LESSONS = 2;
+export const MAX_RETAINED_WHEN_OWING_LESSONS = 2;
+
+/** Prepagamento máximo (centavos) quando o aluno ainda não tem aulas no sistema. */
+export function maxPrepaymentCentsWithoutLessons(
+  contact: UserGuestContactRow,
+  settings: UserSettings | undefined,
+): number | null {
+  const unit = resolveLessonUnitCents(contact, settings?.defaultLessonPriceCents ?? null);
+  if (!unit || unit <= 0) return null;
+  return MAX_RETAINED_WHEN_OWING_LESSONS * unit;
+}
 
 /**
  * Crédito disponível para exibir/gravar. Não reduz artificialmente o retido quando há dívidas

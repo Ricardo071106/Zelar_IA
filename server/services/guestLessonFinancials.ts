@@ -123,9 +123,15 @@ export async function syncGuestFinancialState(
   const ledgerRemaining = await computeFullLedgerCreditsRemaining(userId, contactId, contact, def);
   const db = contact.lessonBalanceCents ?? 0;
 
+  const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
   let targetBalance = db;
   if (opts?.applyLedgerTopUp) {
-    targetBalance = Math.max(db, ledgerRemaining);
+    // Sem aulas no sistema: saldo = ledger capado (corrige PIX de teste acumulados).
+    if (chain.length === 0 && raw.pendingDebtCents <= 0) {
+      targetBalance = ledgerRemaining;
+    } else {
+      targetBalance = Math.max(db, ledgerRemaining);
+    }
   } else if (raw.pendingDebtCents <= 0) {
     targetBalance = Math.max(0, db);
   }

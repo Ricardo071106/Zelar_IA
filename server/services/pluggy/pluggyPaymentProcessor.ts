@@ -14,6 +14,7 @@ import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pl
 import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
 import { earliestPendingLessonCreatedAt, pluggyCreditEligibleForPendingLessons } from "./pluggyLessonDateRules";
 import {
+  maxPrepaymentCentsWithoutLessons,
   pluggyCreditAllowedForContact,
   type PluggyCreditMatchKind,
 } from "./pluggyCreditAttribution";
@@ -543,6 +544,24 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
   });
 
   if (pending.length === 0) {
+    const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contact.id);
+    if (chain.length === 0) {
+      const maxPrepay = maxPrepaymentCentsWithoutLessons(contact, settings ?? undefined);
+      if (maxPrepay != null) {
+        const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contact.id, new Date(0));
+        if (ledgerSum + amountCents > maxPrepay) {
+          console.log("[Pluggy] Crédito ignorado: prepagamento sem aulas (teto atingido).", {
+            contactId: contact.id,
+            amountCents,
+            brl: (amountCents / 100).toFixed(2),
+            ledgerSum,
+            maxPrepay,
+            brlMax: (maxPrepay / 100).toFixed(2),
+          });
+          return;
+        }
+      }
+    }
     const ledgerInserted = await storage.insertPluggyContactCredit(
       userId,
       contact.id,
