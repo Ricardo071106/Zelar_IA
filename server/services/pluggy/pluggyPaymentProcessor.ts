@@ -16,7 +16,6 @@ import { earliestPendingLessonCreatedAt, pluggyCreditEligibleForPendingLessons }
 import {
   maxPrepaymentCentsWithoutLessons,
   pluggyCreditAllowedForContact,
-  pluggyCreditSkipsPendingLessonDateGate,
   type PluggyCreditMatchKind,
 } from "./pluggyCreditAttribution";
 
@@ -523,14 +522,9 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  if (
-    pending.length > 0 &&
-    matchKind &&
-    !pluggyCreditSkipsPendingLessonDateGate(matchKind) &&
-    !pluggyCreditEligibleForPendingLessons(txPostedAt, pending, settings?.timeZone)
-  ) {
+  if (pending.length > 0 && !pluggyCreditEligibleForPendingLessons(txPostedAt, pending, settings?.timeZone)) {
     const earliest = earliestPendingLessonCreatedAt(pending);
-    console.log("[Pluggy] Crédito ignorado: lançamento anterior às aulas pendentes atuais.", {
+    console.log("[Pluggy] Crédito ignorado: lançamento anterior ao instante de criação da aula pendente.", {
       contactId: contact.id,
       txId: txId ?? null,
       txPostedAt: txPostedAt.toISOString(),

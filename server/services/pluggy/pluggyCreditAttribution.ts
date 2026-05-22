@@ -10,11 +10,6 @@ export type PluggyCreditMatchKind =
   | "cpf_with_amount"
   | "cpf_only";
 
-/** Match por valor ou CPF+valor: não exige PIX no mesmo dia da criação da aula (pagou antes de agendar). */
-export function pluggyCreditSkipsPendingLessonDateGate(matchKind: PluggyCreditMatchKind): boolean {
-  return matchKind === "amount_exact" || matchKind === "cpf_with_amount";
-}
-
 /** Teto só para PIX solto por CPF sem aulas (evita transferência de teste virar saldo). */
 export const MAX_RETAINED_WHEN_OWING_LESSONS = 2;
 

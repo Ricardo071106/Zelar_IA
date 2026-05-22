@@ -1,5 +1,4 @@
 import type { Event } from "@shared/schema";
-import { DateTime } from "luxon";
 
 export function earliestPendingLessonCreatedAt(events: Event[]): Date | null {
   if (!events.length) return null;
@@ -11,28 +10,25 @@ export function earliestPendingLessonCreatedAt(events: Event[]): Date | null {
 }
 
 /**
- * PIX/crédito no extrato só pode quitar aulas pendentes se o lançamento for no mesmo dia
- * ou depois da criação da aula mais antiga ainda pendente (evita pagamento antigo na janela /buscar).
+ * PIX/crédito no extrato só quita aulas pendentes se o lançamento for **após**
+ * o instante exato (data/hora/segundo) em que a aula mais antiga ainda pendente foi criada.
  */
 export function pluggyCreditEligibleForPendingLessons(
   txPostedAt: Date,
   pending: Event[],
-  timeZone?: string | null,
+  _timeZone?: string | null,
 ): boolean {
+  void _timeZone;
   if (!pending.length) return true;
   const earliest = earliestPendingLessonCreatedAt(pending);
   if (!earliest) return true;
-  const zone = timeZone?.trim() || "America/Sao_Paulo";
-  const txDay = DateTime.fromJSDate(txPostedAt).setZone(zone).startOf("day");
-  const lessonDay = DateTime.fromJSDate(earliest).setZone(zone).startOf("day");
-  return txDay >= lessonDay;
+  return txPostedAt.getTime() >= earliest.getTime();
 }
 
-/** Início do dia da aula pendente mais antiga — alinhado a `pluggyCreditEligibleForPendingLessons`. */
-export function ledgerSinceForPendingLessons(pending: Event[], timeZone?: string | null): Date {
+/** Timestamp da aula pendente mais antiga — alinhado a `pluggyCreditEligibleForPendingLessons`. */
+export function ledgerSinceForPendingLessons(pending: Event[], _timeZone?: string | null): Date {
+  void _timeZone;
   if (!pending.length) return new Date(0);
   const earliest = earliestPendingLessonCreatedAt(pending);
-  if (!earliest) return new Date(0);
-  const zone = timeZone?.trim() || "America/Sao_Paulo";
-  return DateTime.fromJSDate(earliest).setZone(zone).startOf("day").toJSDate();
+  return earliest ?? new Date(0);
 }
