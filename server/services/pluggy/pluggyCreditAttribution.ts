@@ -39,26 +39,36 @@ export function capFairRetainedCents(
   return Math.max(0, rawRetainedCents);
 }
 
-function exactLessonPaymentMatch(
-  amountCents: number,
+function pendingLessonUnitCents(
   pending: Event[],
   contact: UserGuestContactRow,
   defaultLessonPriceCents: number | null | undefined,
-): boolean {
-  if (pending.length === 0) return false;
+): number | null {
+  if (pending.length === 0) return null;
   const unit = resolveLessonUnitCentsForAllocation(
     pending[0]!,
     contact,
     defaultLessonPriceCents ?? null,
   );
-  if (!unit || unit <= 0) return false;
+  return unit && unit > 0 ? unit : null;
+}
+
+/** Valor fecha exatamente N×aula (N ≥ 1), inclusive quando N > pendências (overpayment). */
+export function exactLessonPaymentMatch(
+  amountCents: number,
+  pending: Event[],
+  contact: UserGuestContactRow,
+  defaultLessonPriceCents: number | null | undefined,
+): boolean {
+  const unit = pendingLessonUnitCents(pending, contact, defaultLessonPriceCents);
+  if (!unit) return false;
   const k = Math.floor(amountCents / unit);
-  return k >= 1 && k <= pending.length && amountCents === k * unit;
+  return k >= 1 && amountCents === k * unit;
 }
 
 /**
  * CPF sozinho não basta: evita PIX entre contas próprias (mesmo CPF) virarem saldo do aluno.
- * Com pendências: valor deve fechar N×aula. Sem pendências: valor ≤ poucas aulas e múltiplo exato.
+ * Com pendências: aceita ≥ 1 aula (excedente vira saldo no rateio). Sem pendências: teto curto e múltiplo exato.
  */
 export function pluggyCreditAllowedForContact(
   matchKind: PluggyCreditMatchKind,
@@ -71,7 +81,8 @@ export function pluggyCreditAllowedForContact(
 
   const def = settings?.defaultLessonPriceCents ?? null;
   if (pending.length > 0) {
-    return exactLessonPaymentMatch(amountCents, pending, contact, def);
+    const unit = pendingLessonUnitCents(pending, contact, def);
+    return unit != null && amountCents >= unit;
   }
 
   const unit = resolveLessonUnitCents(contact, def);

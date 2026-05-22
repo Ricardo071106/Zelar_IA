@@ -316,8 +316,8 @@ async function fetchTransactionsByIds(ids: string[]): Promise<PluggyTx[]> {
 }
 
 /**
- * Associa PIX ao aluno quando o valor fecha *exatamente* N aulas pendentes (N ≥ 1).
- * Ex.: R$ 4,00 com aula a R$ 2,00 e 3 pendências → N = 2 (sobra 1 pendente).
+ * Associa PIX ao aluno quando o valor fecha *exatamente* N×preço da aula (N ≥ 1).
+ * N pode ser maior que as pendências (ex.: R$ 75 = 15× R$ 5 com 10 pendentes → 10 pagas + saldo).
  * Só retorna se um único aluno satisfizer a conta.
  */
 async function tryResolveContactByAmountOnly(
@@ -341,7 +341,7 @@ async function tryResolveContactByAmountOnly(
     if (!unit || unit <= 0) continue;
 
     const k = Math.floor(amountCents / unit);
-    if (k >= 1 && k <= pending.length && amountCents === k * unit) {
+    if (k >= 1 && amountCents === k * unit) {
       exactHits.push({ contact: c, pendingCount: pending.length });
     }
   }
