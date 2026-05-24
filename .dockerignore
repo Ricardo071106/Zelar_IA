@@ -10,3 +10,5 @@ dist
 !.env.example
 .whatsapp-auth
 quickstart-master
+# Código-fonte Ollama (referência local); runtime usa binário da imagem ollama/ollama
+ollama-main

@@ -3,9 +3,9 @@
  * Abordagem manual para evitar conflitos
  */
 
-import { parseEventWithClaude } from '../utils/claudeParser';
+import { parseEvent, extractEventTitle } from '../services/eventParser';
 import { DateTime } from 'luxon';
-import { getUserTimezone, extractEventTitle } from './utils/parseDate';
+import { getUserTimezone } from './utils/parseDate';
 import { storage } from '../storage';
 import type { InsertEvent } from '@shared/schema';
 import { addEventToGoogleCalendar, setTokens, cancelGoogleCalendarEvent } from './googleCalendarIntegration';
@@ -1160,22 +1160,19 @@ Use o comando \`lembrete ID 2h\` para criar um.');
         return;
       }
 
-      // Interpretar novo conteúdo com Claude
+      // Interpretar novo conteúdo
       const userTimezone = getUserTimezone(telegramUserId);
-      const claudeResult = await parseEventWithClaude(newContent, userTimezone);
+      const parsed = await parseEvent(newContent, telegramUserId, userTimezone, undefined, dbUser.id, dbUser.email);
 
-      if (!claudeResult.isValid) {
+      if (!parsed) {
         await sendMessage(chatId, '❌ Não consegui entender a nova data/hora. Tente novamente.');
         return;
       }
 
-      // Criar nova data
-      const newDate = DateTime.fromFormat(claudeResult.date, 'yyyy-MM-dd', { zone: userTimezone })
-        .set({ hour: claudeResult.hour, minute: claudeResult.minute });
+      const newDate = DateTime.fromISO(parsed.startDate, { zone: userTimezone });
 
-      // Atualizar no banco
       const updateData: any = {
-        title: claudeResult.title,
+        title: parsed.title,
         startDate: newDate.toJSDate(),
         updatedAt: new Date()
       };
@@ -1235,7 +1232,7 @@ Use o comando \`lembrete ID 2h\` para criar um.');
 
       await sendMessage(chatId,
         `✅ *Evento atualizado com sucesso!*\n\n` +
-        `🎯 ${claudeResult.title}\n` +
+        `🎯 ${parsed.title}\n` +
         `📅 ${newDate.toFormat('dd/MM/yyyy HH:mm', { locale: 'pt-BR' })}`
       );
 
@@ -1249,21 +1246,9 @@ Use o comando \`lembrete ID 2h\` para criar um.');
   if (message.startsWith('/')) return;
 
   try {
-    // Usar Claude para interpretar
     const telegramUserId = update.message?.from?.id?.toString() || 'unknown';
     const username = update.message?.from?.username || `telegram_${telegramUserId}`;
     const userTimezone = getUserTimezone(telegramUserId);
-    const claudeResult = await parseEventWithClaude(message, userTimezone);
-
-    if (!claudeResult.isValid) {
-      await sendMessage(chatId,
-        '❌ *Não consegui entender a data/hora*\n\n' +
-        '💡 *Tente algo como:*\n' +
-        '• "jantar hoje às 19h"\n' +
-        '• "reunião quarta às 15h"'
-      );
-      return;
-    }
 
     // Buscar ou criar usuário no banco
     let dbUser;
@@ -1271,7 +1256,6 @@ Use o comando \`lembrete ID 2h\` para criar um.');
       dbUser = await storage.getUserByTelegramId(telegramUserId);
 
       if (!dbUser) {
-        // Criar novo usuário se não existir
         dbUser = await storage.createUser({
           username: username,
           password: `telegram_${telegramUserId}`,
@@ -1279,7 +1263,6 @@ Use o comando \`lembrete ID 2h\` para criar um.');
           name: username,
         });
 
-        // Criar configurações padrão
         await storage.createUserSettings({
           userId: dbUser.id,
           notificationsEnabled: true,
@@ -1292,43 +1275,51 @@ Use o comando \`lembrete ID 2h\` para criar um.');
       }
     } catch (error) {
       console.error('❌ Erro ao buscar/criar usuário:', error);
-      // Continuar sem salvar no banco se houver erro
     }
 
-    // Criar evento
-    const eventDate = DateTime.fromObject({
-      year: parseInt(claudeResult.date.split('-')[0]),
-      month: parseInt(claudeResult.date.split('-')[1]),
-      day: parseInt(claudeResult.date.split('-')[2]),
-      hour: claudeResult.hour,
-      minute: claudeResult.minute
-    }, { zone: userTimezone });
+    const parsed = await parseEvent(
+      message,
+      telegramUserId,
+      userTimezone,
+      undefined,
+      dbUser?.id,
+      dbUser?.email ?? null,
+    );
 
-    // NOVO: Limpar nome do evento se necessário
-    let eventTitle = claudeResult.title && claudeResult.title.length > 2 ? claudeResult.title : extractEventTitle(message);
+    if (!parsed) {
+      await sendMessage(chatId,
+        '❌ *Não consegui entender a data/hora*\n\n' +
+        '💡 *Tente algo como:*\n' +
+        '• "jantar hoje às 19h"\n' +
+        '• "reunião quarta às 15h"'
+      );
+      return;
+    }
+
+    const eventDate = DateTime.fromISO(parsed.startDate, { zone: userTimezone });
+    const eventTitle = parsed.title && parsed.title.length > 2 ? parsed.title : extractEventTitle(message);
     const event: Event = {
       title: eventTitle,
-      startDate: eventDate.toISO() || eventDate.toString(),
-      description: eventTitle,
-      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' })
+      startDate: parsed.startDate,
+      description: parsed.description || eventTitle,
+      displayDate: parsed.displayDate,
     };
 
-    // Salvar evento no banco de dados
     if (dbUser) {
       try {
-        const endDate = eventDate.plus({ hours: 1 }); // Evento padrão de 1 hora
+        const endDate = eventDate.plus({ hours: 1 });
 
         const insertEvent: InsertEvent = {
           userId: dbUser.id,
           title: eventTitle,
-          description: eventTitle, // Usar título como descrição por enquanto
+          description: eventTitle,
           startDate: eventDate.toJSDate(),
           endDate: endDate.toJSDate(),
-          location: undefined, // Claude não retorna location ainda
+          location: undefined,
           isAllDay: false,
           rawData: {
             originalMessage: message,
-            claudeResult: claudeResult,
+            parsedEvent: parsed,
             userTimezone: userTimezone
           }
         };

@@ -1,21 +1,20 @@
 # Zelar IA - WhatsApp Assistant 🤖
 
-Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembretes, integrado com Google Calendar, Microsoft Calendar e Google AI (Gemini/Claude).
+Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembretes, integrado com Google Calendar, Microsoft Calendar e Pluggy (Open Finance).
 
 ## 🚀 Funcionalidades
 
-- **Interpretação Inteligente**: Crie eventos com linguagem natural (ex: "Jantar com Maria sexta às 20h").
+- **Agendamento por mensagem**: Crie eventos com linguagem natural (ex: "Jantar com Maria sexta às 20h").
 - **Integração de Calendário**: Sincronização automática com Google Calendar ou Microsoft Calendar (Outlook).
-- **Sistema de Lembretes**: Lembretes automáticos 12h antes do evento via WhatsApp.
-- **Comandos Completos**: Gerencie tudo pelo chat (`/eventos`, `/deletar`, etc.).
-- **Multi-plataforma**: Suporte para múltiplos usuários com verificação de assinatura Premium.
+- **Sistema de Lembretes**: Lembretes automáticos via WhatsApp.
+- **Painel web**: Alunos, pacotes de aula, preços e conciliação opcional via Pluggy.
 
 ## 🛠️ Tecnologias
 
 - **Backend**: Node.js, Express, TypeScript
 - **Banco de Dados**: PostgreSQL (via NeonDB), Drizzle ORM
 - **WhatsApp**: @whiskeysockets/baileys
-- **IA**: OpenRouter (Claude Haiku)
+- **IA**: Parser local (regex) + Ollama local (opcional, via `LLM_BASE_URL`)
 - **Pagamentos**: Stripe
 
 ## 📋 Pré-requisitos
@@ -24,7 +23,7 @@ Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembrete
 - PostgreSQL
 - Conta no Google Cloud (opcional, para Google Calendar API)
 - Conta no Microsoft Entra/Azure (opcional, para Microsoft Calendar API)
-- Conta na OpenRouter (para IA)
+- Ollama no mesmo servidor (opcional, para interpretação avançada)
 - Conta no Stripe (para assinaturas)
 
 ## ⚙️ Configuração
@@ -62,8 +61,9 @@ Um assistente inteligente para WhatsApp que ajuda a gerenciar eventos e lembrete
     MICROSOFT_TENANT_ID=common
     MICROSOFT_REDIRECT_URI=https://seu-dominio-ngrok.app/api/auth/microsoft/callback
 
-    # AI (OpenRouter)
-    OPENROUTER_API_KEY=sk-or-...
+    # LLM local (Ollama) — opcional
+    # LLM_BASE_URL=http://127.0.0.1:11434/v1
+    # LLM_MODEL=qwen2.5:3b-instruct
 
     # Stripe (Pagamentos)
     STRIPE_SECRET_KEY=sk_test_...

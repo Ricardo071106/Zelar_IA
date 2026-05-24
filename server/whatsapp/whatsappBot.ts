@@ -35,9 +35,8 @@ import {
   listUpcomingMicrosoftEvents,
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
-import { emailService } from '../services/emailService';
 import { db } from '../db';
-import { parseDeleteCommandWithOpenRouter } from '../utils/openRouterCommandParser';
+import { parseDeleteCommand } from '../utils/commandParser';
 import { detectMessageType } from '../utils/detectMessageType';
 import { extractPlainTextFromWhatsAppMessage } from '../utils/whatsappPlainText';
 import type { UserGuestContactRow } from '../storage';
@@ -1190,7 +1189,7 @@ class WhatsAppBot {
     // Segurança extra: só entra no fluxo de apagar se o texto contiver verbo explícito de exclusão.
     const hasDeleteVerb = this.hasExplicitDeleteVerb(calendarText);
     const deleteIntent = hasDeleteVerb
-      ? await parseDeleteCommandWithOpenRouter(calendarText, userTimezone)
+      ? await parseDeleteCommand(calendarText, userTimezone)
       : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
     if (deleteIntent.isDeleteIntent) {
       let targetTitle = (deleteIntent.targetTitle || '').trim();
@@ -1323,9 +1322,7 @@ class WhatsAppBot {
       }
     }
 
-    // =========================================================================
-    // 3. PROCESSAMENTO DE EVENTOS (INTEGRAÇÃO COM CLAUDE)
-    // =========================================================================
+    // 3. PROCESSAMENTO DE EVENTOS
     const processingNoticeTimer = suppressSuccessReply
       ? null
       : setTimeout(() => {
@@ -1338,7 +1335,31 @@ class WhatsAppBot {
       }
 
       console.log(`🧠 Processando mensagem como evento para ${user.username}...`);
-      let event = await parseEvent(calendarText, whatsappId, userTimezone, undefined, user.id, user.email);
+
+      const guestRows = await storage.listUserGuestContacts(user.id);
+      const guestNames = Array.from(
+        new Set(
+          guestRows.flatMap((r) => {
+            const names = [(r.aliasNames ?? []).join(' '), r.canonicalEmail?.split('@')[0] ?? ''].filter(Boolean);
+            return names.map((n) => n.trim()).filter((n) => n.length >= 2);
+          }),
+        ),
+      );
+      const lessonPackages = this.buildLessonPackageHints(userSettings?.lessonPackagesJson ?? null);
+
+      let event = await parseEvent(
+        calendarText,
+        whatsappId,
+        userTimezone,
+        undefined,
+        user.id,
+        user.email,
+        {
+          lessonPackages,
+          guestNames,
+          defaultLessonPriceCents: userSettings?.defaultLessonPriceCents ?? null,
+        },
+      );
       const localParsedDate = parseUserDateTime(calendarText, whatsappId);
 
       if (!event) {
@@ -1486,6 +1507,9 @@ class WhatsAppBot {
             c = await storage.findGuestContactByLooseName(user.id, guessed);
           }
         }
+        if (!c && event.studentName?.trim()) {
+          c = await storage.findGuestContactByLooseName(user.id, event.studentName.trim());
+        }
         if (c) {
           studentContactId = c.id;
           studentDisplayName = this.displayGuestNameFromRow(c);
@@ -1511,7 +1535,11 @@ class WhatsAppBot {
         paymentStatus: 'pendente',
       });
 
-      const pkgInline = this.findConfiguredLessonPackage(calendarText, userSettings?.lessonPackagesJson ?? null);
+      const pkgInline = this.resolveLessonPackage(
+        calendarText,
+        userSettings?.lessonPackagesJson ?? null,
+        event.packageSlug,
+      );
       let packUnitPriceCents = batchCtx?.packUnitPriceCents ?? null;
       let packId = batchCtx?.packId ?? null;
       if (
@@ -1616,8 +1644,6 @@ class WhatsAppBot {
       const defaultOrganizerIntegrationKey = process.env.DEFAULT_ORGANIZER_INTEGRATION_KEY || 'default_google_organizer';
       const zelarCalendarKey = process.env.ZELAR_CALENDAR_INTEGRATION_KEY?.trim() || 'zelar_google_invites';
       const zelarCalendarOAuthUserId = Number(process.env.ZELAR_CALENDAR_OAUTH_USER_ID || '999001');
-      let fallbackEmailSentTo: string[] = [];
-      let fallbackEmailFailedTo: string[] = [];
 
       if (userSettings?.calendarProvider === 'google' && userSettings.googleTokens) {
         try {
@@ -1837,32 +1863,8 @@ class WhatsAppBot {
           responseText += `\n📹 Teams: ${evtWithLink.conferenceLink}`;
         }
       } else {
-        // ICS por e-mail: só endereços explícitos como convidados; se não houver, envia cópia ao organizador.
-        const fallbackRecipients =
-          emailsMerged.length > 0
-            ? ([...new Set(emailsMerged)] as string[])
-            : user.email
-              ? [user.email]
-              : [];
-        const fallbackIcsLink = generateLinks(event).ics;
-        for (const recipient of fallbackRecipients) {
-          const sent = await emailService.sendInvitation(
-            recipient,
-            newEvent,
-            user.name || user.username || 'Zelar IA',
-            fallbackIcsLink
-          );
-          if (sent) {
-            fallbackEmailSentTo.push(recipient);
-          } else {
-            fallbackEmailFailedTo.push(recipient);
-          }
-        }
-        if (fallbackEmailFailedTo.length > 0) {
-          console.warn('⚠️ Falha no envio de fallback por email para:', fallbackEmailFailedTo.join(', '));
-        }
         if (calendarSyncErrorMessage) {
-          console.warn('⚠️ Calendar não sincronizou (fallback email aplicado):', calendarSyncErrorMessage);
+          console.warn('⚠️ Calendar não sincronizou:', calendarSyncErrorMessage);
         }
         responseText += `\n\n✅ *Evento criado*`;
       }
@@ -1882,7 +1884,6 @@ class WhatsAppBot {
               `📝 *${newEvent.title}*\n` +
               `🗓️ ${event.displayDate}\n\n` +
               `🔔 *Lembretes automáticos:* 3h, 1h e 15min antes.\n\n` +
-              `📨 O convite também será enviado por e-mail, se o anfitrião tiver e-mails cadastrados.\n\n` +
               `_Enviado via Zelar IA pelo anfitrião_`
             );
           }
@@ -2922,6 +2923,79 @@ class WhatsAppBot {
     return { packGroupId, studentContactId, studentDisplayName, baseTitle, packUnitPriceCents, packId };
   }
 
+  private buildLessonPackageHints(
+    lessonPackagesJson: unknown,
+  ): { id: string; label: string; lessons: number; priceCents: number }[] {
+    if (!Array.isArray(lessonPackagesJson)) return [];
+    const out: { id: string; label: string; lessons: number; priceCents: number }[] = [];
+    for (const row of lessonPackagesJson) {
+      if (!row || typeof row !== 'object') continue;
+      const r = row as Record<string, unknown>;
+      const id = String(r.id ?? '').trim();
+      const label = String(r.label ?? id).trim();
+      const lessons = Number(r.lessons);
+      const priceCents = Number(r.priceCents);
+      if (!id || !Number.isFinite(lessons) || lessons < 1) continue;
+      if (!Number.isFinite(priceCents) || priceCents <= 0) continue;
+      out.push({ id, label, lessons, priceCents });
+    }
+    return out;
+  }
+
+  private lookupLessonPackageBySlug(
+    lessonPackagesJson: unknown,
+    slugHint: string,
+  ): { id: string; lessons: number; priceCents: number } | null {
+    const slug = slugHint
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
+    if (!slug || !Array.isArray(lessonPackagesJson)) return null;
+
+    for (const row of lessonPackagesJson) {
+      if (!row || typeof row !== 'object') continue;
+      const r = row as Record<string, unknown>;
+      const id = String(r.id ?? '')
+        .toLowerCase()
+        .trim();
+      const label = String(r.label ?? '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '_');
+      const labelTokens = label.split('_').filter(Boolean);
+      const slugMatches =
+        slug === id ||
+        slug === label ||
+        labelTokens.includes(slug) ||
+        labelTokens[labelTokens.length - 1] === slug;
+      if (!slugMatches) continue;
+      const lessons = Number(r.lessons);
+      const priceCents = Number(r.priceCents);
+      if (!Number.isFinite(lessons) || lessons < 1) continue;
+      return {
+        id: String(r.id ?? slug),
+        lessons,
+        priceCents: Number.isFinite(priceCents) ? priceCents : 0,
+      };
+    }
+    return null;
+  }
+
+  private resolveLessonPackage(
+    text: string,
+    lessonPackagesJson: unknown,
+    slugHint?: string | null,
+  ): { id: string; lessons: number; priceCents: number } | null {
+    if (slugHint?.trim()) {
+      const bySlug = this.lookupLessonPackageBySlug(lessonPackagesJson, slugHint.trim());
+      if (bySlug && bySlug.priceCents > 0) return bySlug;
+    }
+    return this.findConfiguredLessonPackage(text, lessonPackagesJson);
+  }
+
   private findConfiguredLessonPackage(
     text: string,
     lessonPackagesJson: unknown,
@@ -2936,6 +3010,7 @@ class WhatsAppBot {
     const slugPatterns = [
       /\bpacote\s+([a-z0-9_-]+)\s+de\s+aulas\b/i,
       /\bpacote\s+de\s+aulas\s+([a-z0-9_-]+)\b/i,
+      /\bpacote\s+de\s+([a-z0-9_-]+)\b/i,
       /\baulas?\s+do\s+pacote\s+([a-z0-9_-]+)\b/i,
       /\bpacote\s+([a-z0-9_-]+)\b/i,
     ];

@@ -23,7 +23,7 @@ router.get('/', asyncHandler(async (req: Request, res: Response) => {
         telegram: isTelegramBotEnabled() && !!process.env.TELEGRAM_BOT_TOKEN,
         whatsapp: true,
         database: !!process.env.DATABASE_URL,
-        ai: !!process.env.OPENROUTER_API_KEY || !!process.env.ANTHROPIC_API_KEY,
+        ai: !!process.env.LLM_BASE_URL?.trim() && !!process.env.LLM_MODEL?.trim(),
       },
     },
   });
@@ -71,7 +71,7 @@ router.get('/detailed', asyncHandler(async (req: Request, res: Response) => {
         ai: {
           status: aiCheck.status,
           details: aiCheck.details,
-          provider: 'Claude Haiku / OpenRouter',
+          provider: process.env.LLM_BASE_URL ? 'Ollama (local)' : 'Parser local',
           responseTime: aiCheck.responseTime,
         },
       },

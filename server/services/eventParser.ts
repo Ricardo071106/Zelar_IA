@@ -1,11 +1,8 @@
 import { DateTime } from 'luxon';
 import { parseUserDateTime } from './dateService';
 import { extractEmails, stripEmails, filterPlausibleGuestEmails } from '../utils/attendeeExtractor';
-import { parseEventWithClaude, ClaudeEventResponse } from '../utils/claudeParser';
 import {
   extractPhonesFromWrittenAndSpoken,
-  normalizeBrazilianPhone,
-  phoneDigitsCorroboratedInText,
   isPlaceholderOrFakePhoneDigits,
 } from '../utils/phoneExtraction';
 import { resolveGuestEmailsFromAliases, resolveGuestPhonesFromAliases } from './guestContactAliasService';
@@ -15,79 +12,29 @@ import {
   applyCanonicalAndFuzzyGuestEmails,
 } from './guestSavedEmailService';
 import { normalizeTranscriptionForCalendarText } from '../utils/transcriptionNormalize';
-
-// =================== SISTEMA DE APRENDIZADO SIMPLES ===================
-export interface LearnedPattern {
-  originalText: string;
-  title: string;
-  hour: number;
-  minute: number;
-  date: string;
-  confidence: number;
-  usageCount: number;
-}
-
-// Cache em memória para padrões aprendidos
-const learnedPatterns: LearnedPattern[] = [];
-
-/**
- * Salva um padrão bem-sucedido do Claude para uso futuro
- */
-export function savePatternForLearning(originalText: string, title: string, hour: number, minute: number, date: string): void {
-  const existing = learnedPatterns.find(p => p.originalText === originalText);
-
-  if (existing) {
-    existing.usageCount++;
-    existing.confidence = Math.min(existing.confidence + 0.1, 1.0);
-  } else {
-    learnedPatterns.push({
-      originalText,
-      title,
-      hour,
-      minute,
-      date,
-      confidence: 0.8,
-      usageCount: 1
-    });
-  }
-
-  console.log(`📚 Padrão aprendido: "${originalText}" → ${title} às ${hour}:${minute.toString().padStart(2, '0')}`);
-}
-
-/**
- * Calcula similaridade simples entre dois textos
- */
-function calculateSimpleSimilarity(text1: string, text2: string): number {
-  const words1 = text1.split(' ').filter(w => w.length > 2);
-  const words2 = text2.split(' ').filter(w => w.length > 2);
-
-  let matches = 0;
-  for (const word1 of words1) {
-    if (words2.some(word2 => word1.includes(word2) || word2.includes(word1))) {
-      matches++;
-    }
-  }
-
-  return matches / Math.max(words1.length, words2.length);
-}
+import {
+  parseScheduleWithOllama,
+  type LessonPackageHint,
+} from '../utils/ollamaIntentParser';
 
 export interface Event {
   title: string;
-  startDate: string; // ISO string 
+  startDate: string;
   description: string;
-  displayDate: string; // Formatted date for display
+  displayDate: string;
   attendees?: string[];
   targetPhones?: string[];
+  /** Nome do aluno/convidado extraído pela IA (opcional). */
+  studentName?: string | null;
+  /** id/slug do pacote nomeado (opcional). */
+  packageSlug?: string | null;
 }
 
-/**
- * Verifica se existe um padrão similar aprendido
- */
-export function checkLearnedPatterns(userText: string, userTimezone: string = 'America/Sao_Paulo'): Event | null {
-  // Desabilitado temporariamente para corrigir bug de data fixa (May 30th)
-  // O sistema de aprendizado estava forçando datas antigas/hardcoded
-  return null;
-}
+export type ParseEventOptions = {
+  lessonPackages?: LessonPackageHint[];
+  guestNames?: string[];
+  defaultLessonPriceCents?: number | null;
+};
 
 /**
  * Extrai título inteligente do evento focando na ação principal
@@ -111,7 +58,7 @@ export function extractEventTitle(text: string): string {
 
   const temporalPatterns = [
     /\b(próxima|proxima|que\s+vem)\b/gi,
-    /\b(depois|antes|agora|já|ainda)\b/gi
+    /\b(depois|antes|agora|já|ainda)\b/gi,
   ];
 
   for (const pattern of temporalPatterns) {
@@ -124,7 +71,7 @@ export function extractEventTitle(text: string): string {
     .replace(/\s+(no|na|em|de|da|do|às|as|para|pra)\s*$/i, '')
     .replace(/^\s*(e|com|sem|por)\s+/i, '')
     .trim()
-    .replace(/^./, char => char.toUpperCase());
+    .replace(/^./, (char) => char.toUpperCase());
 
   if (cleanTitle.length > 2) {
     return capitalizeFirst(cleanTitle);
@@ -136,7 +83,7 @@ export function extractEventTitle(text: string): string {
     { regex: /dentista\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Dentista Dr. ${match}` },
     { regex: /médico\s+(?:com\s+)?(?:dr\.?\s+|dra\.?\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Médico Dr. ${match}` },
     { regex: /aniversário\s+(?:do\s+|da\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Aniversário ${match}` },
-    { regex: /festa\s+(?:do\s+|da\s+|de\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Festa ${match}` }
+    { regex: /festa\s+(?:do\s+|da\s+|de\s+)?([^,\s]+(?:\s+[^,\s]+)*)/i, format: (match: string) => `Festa ${match}` },
   ];
 
   for (const pattern of specificPatterns) {
@@ -151,7 +98,7 @@ export function extractEventTitle(text: string): string {
     /(?:vou\s+|ir\s+)?fazer\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
     /agende?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
     /marque?\s+(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
-    /criar?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i
+    /criar?\s+(?:um\s+|uma\s+)?(.+?)(?:\s+(?:hoje|amanhã|segunda|terça|quarta|quinta|sexta|sábado|domingo|às|na|no)|\s*$)/i,
   ];
 
   for (const verb of actionVerbs) {
@@ -165,7 +112,7 @@ export function extractEventTitle(text: string): string {
 
   const directKeywords = [
     'jantar', 'almoço', 'almoco', 'academia', 'trabalho', 'escola', 'aula',
-    'compromisso', 'consulta', 'exame', 'reunião', 'reuniao', 'compras'
+    'compromisso', 'consulta', 'exame', 'reunião', 'reuniao', 'compras',
   ];
 
   for (const keyword of directKeywords) {
@@ -211,7 +158,8 @@ function stripOwnerEmailUnlessInText(
 }
 
 /**
- * Processa mensagem usando interpretação avançada de datas com detecção de fuso horário
+ * Processa mensagem usando interpretação local de datas (regex/chrono).
+ * LLM local (Ollama) será plugado aqui depois.
  */
 export async function processMessage(
   text: string,
@@ -261,7 +209,7 @@ export async function processMessage(
 }
 
 /**
- * Processa mensagem completa usando Claude ou fallback
+ * Processa mensagem: Ollama (texto) quando configurado, senão parser local regex.
  */
 export async function parseEvent(
   text: string,
@@ -270,97 +218,81 @@ export async function parseEvent(
   languageCode?: string,
   ownerDbUserId?: number,
   ownerAccountEmail?: string | null,
+  options?: ParseEventOptions,
 ): Promise<Event | null> {
   const textNorm = normalizeTranscriptionForCalendarText(text);
-  console.log(`🤖 Usando Claude Haiku para interpretar: "${textNorm}"`);
-
   await recordTypedGuestEmailsFromText(ownerDbUserId, textNorm);
-
-  let claudeResult: ClaudeEventResponse = {
-    title: '',
-    isValid: false,
-    date: '',
-    hour: 0,
-    minute: 0,
-    target_phones: [],
-    attendees: []
-  };
-
-  try {
-    // E-mails de convidados vêm só do texto + aliases no servidor — não passar lista ao LLM (evita “escolher” contato salvo).
-    claudeResult = await parseEventWithClaude(textNorm, userTimezone);
-  } catch (error) {
-    console.warn('⚠️ Erro ao usar Claude (ignorando e usando fallback):', error);
-  }
 
   let event: Event | null = null;
 
-  if (claudeResult.isValid) {
-    const eventDate = DateTime.fromObject({
-      year: parseInt(claudeResult.date.split('-')[0]),
-      month: parseInt(claudeResult.date.split('-')[1]),
-      day: parseInt(claudeResult.date.split('-')[2]),
-      hour: claudeResult.hour,
-      minute: claudeResult.minute
-    }, { zone: userTimezone });
+  const llmIntent = await parseScheduleWithOllama(textNorm, {
+    userTimezone,
+    lessonPackages: options?.lessonPackages,
+    guestNames: options?.guestNames,
+    defaultLessonPriceCents: options?.defaultLessonPriceCents,
+  });
 
-    const phonesFromText = extractPhonesFromWrittenAndSpoken(textNorm);
-    const phonesFromClaude = (claudeResult.target_phones || [])
-      .map((phone) => normalizeBrazilianPhone(phone))
-      .filter((phone): phone is string => !!phone);
-
-    const filteredClaudePhones = phonesFromClaude.filter((phone) => {
-      const d = phone.replace(/\D/g, '');
-      if (isPlaceholderOrFakePhoneDigits(d)) return false;
-      if (phonesFromText.includes(phone)) return true;
-      return phoneDigitsCorroboratedInText(phone, textNorm);
-    });
-    const fromAliasPhones =
-      ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, textNorm) : [];
-    const fromGroups =
-      ownerDbUserId != null
-        ? await resolveGuestEmailsAndPhonesFromGroups(ownerDbUserId, textNorm)
-        : { emails: [], phones: [] };
-    const targetPhones = [
-      ...new Set([...phonesFromText, ...filteredClaudePhones, ...fromAliasPhones, ...fromGroups.phones]),
-    ].filter((p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')));
-
-    const emailsInText = filterPlausibleGuestEmails(extractEmails(textNorm));
-    const fromAliases =
-      ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
-    // Ignorar attendees do Claude: o modelo costumava repetir e-mails salvos sem aparecerem no texto.
-    const attendees = filterPlausibleGuestEmails(
-      [...new Set([...emailsInText, ...fromAliases, ...fromGroups.emails])],
+  if (llmIntent) {
+    const eventDate = DateTime.fromObject(
+      {
+        year: parseInt(llmIntent.date.split('-')[0], 10),
+        month: parseInt(llmIntent.date.split('-')[1], 10),
+        day: parseInt(llmIntent.date.split('-')[2], 10),
+        hour: llmIntent.hour,
+        minute: llmIntent.minute,
+      },
+      { zone: userTimezone },
     );
 
-    const cleanedClaudeTitle = extractEventTitle(claudeResult.title || textNorm);
-    const fallbackTitle = extractEventTitle(textNorm);
-    const normalizedTitle =
-      (cleanedClaudeTitle && cleanedClaudeTitle.length > 2 ? cleanedClaudeTitle : '') ||
-      (fallbackTitle && fallbackTitle.length > 2 ? fallbackTitle : '') ||
-      claudeResult.title ||
-      'Compromisso';
+    if (eventDate.isValid) {
+      const emailsInText = filterPlausibleGuestEmails(extractEmails(textNorm));
+      const fromAliases =
+        ownerDbUserId != null ? await resolveGuestEmailsFromAliases(ownerDbUserId, textNorm) : [];
+      const fromGroups =
+        ownerDbUserId != null
+          ? await resolveGuestEmailsAndPhonesFromGroups(ownerDbUserId, textNorm)
+          : { emails: [], phones: [] };
+      const phonesFromText = extractPhonesFromWrittenAndSpoken(textNorm).filter(
+        (p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')),
+      );
+      const fromAliasPhones =
+        ownerDbUserId != null ? await resolveGuestPhonesFromAliases(ownerDbUserId, textNorm) : [];
+      const targetPhones = [
+        ...new Set([...phonesFromText, ...fromAliasPhones, ...fromGroups.phones]),
+      ].filter((p) => !isPlaceholderOrFakePhoneDigits(p.replace(/\D/g, '')));
 
-    event = {
-      title: normalizedTitle,
-      startDate: eventDate.toISO() || eventDate.toString(),
-      description: normalizedTitle,
-      displayDate: eventDate.toFormat('EEEE, dd \'de\' MMMM \'às\' HH:mm', { locale: 'pt-BR' }),
-      attendees,
-      targetPhones,
-    };
+      const cleanedTitle = extractEventTitle(llmIntent.title || textNorm);
+      const fallbackTitle = extractEventTitle(textNorm);
+      const normalizedTitle =
+        (cleanedTitle && cleanedTitle.length > 2 ? cleanedTitle : '') ||
+        (fallbackTitle && fallbackTitle.length > 2 ? fallbackTitle : '') ||
+        llmIntent.title ||
+        'Compromisso';
 
-    console.log(`✅ Claude interpretou: ${normalizedTitle} em ${claudeResult.date} às ${claudeResult.hour}:${claudeResult.minute}`);
-  } else {
-    // Fallback
-    const learnedPattern = checkLearnedPatterns(text, userTimezone);
-    if (learnedPattern) {
-      event = learnedPattern;
-      event.title = extractEventTitle(text);
-      event.description = event.title;
-    } else {
-      event = await processMessage(textNorm, userId, languageCode, ownerDbUserId);
+      event = {
+        title: normalizedTitle,
+        startDate: eventDate.toISO() || eventDate.toString(),
+        description: normalizedTitle,
+        displayDate: eventDate.toFormat("EEEE, dd 'de' MMMM 'às' HH:mm", { locale: 'pt-BR' }),
+        attendees: filterPlausibleGuestEmails(
+          [...new Set([...emailsInText, ...fromAliases, ...fromGroups.emails])],
+        ),
+        targetPhones,
+        studentName: llmIntent.studentName?.trim() || null,
+        packageSlug: llmIntent.packageSlug?.trim().toLowerCase() || null,
+      };
+
+      console.log(
+        `✅ Ollama interpretou: ${normalizedTitle} em ${llmIntent.date} às ${llmIntent.hour}:${llmIntent.minute}` +
+          (event.packageSlug ? ` [pacote=${event.packageSlug}]` : '') +
+          (event.studentName ? ` [aluno=${event.studentName}]` : ''),
+      );
     }
+  }
+
+  if (!event) {
+    console.log(`📋 Interpretando evento (parser local): "${textNorm}"`);
+    event = await processMessage(textNorm, userId, languageCode, ownerDbUserId);
   }
 
   if (event && ownerDbUserId != null) {
@@ -381,20 +313,14 @@ export function generateLinks(event: Event) {
   const eventDateTime = DateTime.fromISO(event.startDate);
   const endDateTime = eventDateTime.plus({ hours: 1 });
 
-  // Para Google Calendar: converter para UTC porque Google espera UTC no formato sem Z
   const startUTC = eventDateTime.toUTC();
   const endUTC = endDateTime.toUTC();
 
-  const startFormatted = startUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
-  const endFormatted = endUTC.toFormat('yyyyMMdd\'T\'HHmmss\'Z\'');
+  const startFormatted = startUTC.toFormat("yyyyMMdd'T'HHmmss'Z'");
+  const endFormatted = endUTC.toFormat("yyyyMMdd'T'HHmmss'Z'");
 
-  // Para Outlook: usar ISO com fuso horário original
   const startISO = eventDateTime.toISO();
   const endISO = endDateTime.toISO();
-
-  console.log(`🔗 Links gerados:`);
-  console.log(`📅 Google UTC: ${startFormatted}/${endFormatted}`);
-  console.log(`📅 Outlook: ${startISO} → ${endISO}`);
 
   const google = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}${serializeGoogleAttendees(event.attendees)}`;
   const outlook = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startISO}&enddt=${endISO}${serializeOutlookAttendees(event.attendees)}`;

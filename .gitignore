@@ -23,6 +23,9 @@ build/
 whatsapp_session/
 auth_info_baileys/
 
+# Ollama source (referência local; runtime usa binário da imagem Docker)
+ollama-main/
+
 # TypeScript
 *.tsbuildinfo
 

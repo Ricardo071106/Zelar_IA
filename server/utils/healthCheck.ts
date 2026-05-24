@@ -3,6 +3,7 @@
  */
 
 import { isTelegramBotEnabled } from '../telegram/telegramEnabled';
+import { isLlmConfigured } from './llmClient';
 
 interface HealthCheckResult {
   component: string;
@@ -153,35 +154,29 @@ export class HealthChecker {
 
   async checkAI(): Promise<HealthCheckResult> {
     const start = Date.now();
-    
-    try {
-      // Verificar se a chave da Anthropic está configurada
-      if (process.env.ANTHROPIC_API_KEY) {
-        const result: HealthCheckResult = {
-          component: 'ai_claude',
-          status: 'healthy',
-          responseTime: Date.now() - start,
-          details: 'Claude API configurada',
-          timestamp: new Date()
-        };
-        
-        this.lastChecks.set('ai_claude', result);
-        return result;
-      } else {
-        throw new Error('ANTHROPIC_API_KEY não configurada');
-      }
-    } catch (error) {
+    const llmBase = process.env.LLM_BASE_URL?.trim();
+
+    if (isLlmConfigured()) {
       const result: HealthCheckResult = {
-        component: 'ai_claude',
-        status: 'unhealthy',
+        component: 'ai_llm',
+        status: 'healthy',
         responseTime: Date.now() - start,
-        details: `Erro: ${error instanceof Error ? error.message : String(error)}`,
-        timestamp: new Date()
+        details: `LLM local configurado (${llmBase})`,
+        timestamp: new Date(),
       };
-      
-      this.lastChecks.set('ai_claude', result);
+      this.lastChecks.set('ai_llm', result);
       return result;
     }
+
+    const result: HealthCheckResult = {
+      component: 'ai_llm',
+      status: 'degraded',
+      responseTime: Date.now() - start,
+      details: 'LLM local não configurado (defina LLM_BASE_URL quando Ollama estiver ativo)',
+      timestamp: new Date(),
+    };
+    this.lastChecks.set('ai_llm', result);
+    return result;
   }
 
   async performFullHealthCheck(): Promise<SystemHealth> {

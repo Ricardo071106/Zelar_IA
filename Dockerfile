@@ -1,34 +1,36 @@
+# Binário Ollama (mesmo motor do repositório ollama-main; build from-source no Render levaria horas)
+FROM ollama/ollama:latest AS ollama
+
 FROM node:20-slim
 
-# Chrome + fonts (Puppeteer); ffmpeg/whisper/tesseract para mídia WhatsApp
+# Chrome (Puppeteer) + libs do Ollama + tesseract (OCR imagem)
 RUN apt-get update \
   && apt-get install -y wget gnupg \
   && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
   && sh -c 'echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list' \
   && apt-get update \
   && apt-get install -y google-chrome-stable fonts-ipafont-gothic fonts-wqy-zenhei fonts-thai-tlwg fonts-kacst fonts-freefont-ttf libxss1 \
-  ffmpeg build-essential git ca-certificates curl libgomp1 \
+  ffmpeg ca-certificates curl libgomp1 libopenblas0 libvulkan1 \
   tesseract-ocr tesseract-ocr-por tesseract-ocr-eng \
   --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
-RUN git clone --depth 1 --branch v1.5.4 https://github.com/ggerganov/whisper.cpp.git /tmp/whisper.cpp \
-  && make -C /tmp/whisper.cpp -j"$(nproc)" \
-  && install -m 755 /tmp/whisper.cpp/main /usr/local/bin/whisper-cli \
-  && mkdir -p /opt/whisper-models \
-  && cd /tmp/whisper.cpp && bash ./models/download-ggml-model.sh base \
-  && cp /tmp/whisper.cpp/models/ggml-base.bin /opt/whisper-models/ggml-base.bin \
-  && rm -rf /tmp/whisper.cpp
+COPY --from=ollama /usr/bin/ollama /usr/local/bin/ollama
+COPY --from=ollama /usr/lib/ollama /usr/lib/ollama
 
-ENV WHISPER_CLI_PATH=/usr/local/bin/whisper-cli
-ENV WHISPER_MODEL_PATH=/opt/whisper-models/ggml-base.bin
+ENV LD_LIBRARY_PATH=/usr/lib/ollama
+ENV PATH=/usr/local/bin:$PATH
+ENV OLLAMA_HOST=127.0.0.1:11434
+ENV OLLAMA_MODELS=/app/.ollama-models
+ENV LLM_BASE_URL=http://127.0.0.1:11434/v1
+ENV LLM_MODEL=qwen2.5:3b-instruct
+ENV LLM_API_KEY=ollama
+ENV OLLAMA_AUTO_PULL=true
 
 WORKDIR /app
 
 COPY package*.json ./
 
-# npm install (não npm ci): o lock gerado em outro npm às vezes falha EUSAGE no Node 20 do Docker
-# (peers picomatch/express-handlebars). Install resolve a árvore no build; retries cobrem ECONNRESET.
 RUN npm config set fetch-retries 10 \
   && npm config set fetch-retry-mintimeout 20000 \
   && npm config set fetch-retry-maxtimeout 120000 \
@@ -39,8 +41,8 @@ RUN npm config set fetch-retries 10 \
 
 COPY . .
 
-RUN npm run build
+RUN npm run build \
+  && npm prune --production \
+  && chmod +x /app/scripts/docker-entrypoint.sh
 
-RUN npm prune --production
-
-CMD ["sh", "-c", "npm run db:migrate && npm run start:prod"]
+CMD ["/app/scripts/docker-entrypoint.sh"]

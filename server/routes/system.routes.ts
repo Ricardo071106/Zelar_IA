@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { asyncHandler } from '../middleware/errorHandler';
 import { db } from '../db';
 import { getPublicOverviewStats } from '../services/publicStats';
+import { isLlmConfigured } from '../utils/llmClient';
 
 const router = Router();
 
@@ -14,7 +15,7 @@ router.get(
   asyncHandler(async (_req: Request, res: Response) => {
     const stats = await getPublicOverviewStats();
     const whatsappOn = process.env.ENABLE_WHATSAPP_BOT !== 'false';
-    const aiOn = !!(process.env.OPENROUTER_API_KEY || process.env.ANTHROPIC_API_KEY);
+    const aiOn = isLlmConfigured();
 
     res.json({
       whatsapp: {
@@ -32,7 +33,7 @@ router.get(
       },
       ai: {
         status: aiOn ? 'active' : 'inactive',
-        provider: process.env.OPENROUTER_API_KEY ? 'OpenRouter' : 'Claude / OpenRouter',
+        provider: aiOn ? 'Ollama (local)' : 'Parser local (regex)',
         requestsProcessed: stats.totals.eventsCreated,
         averageResponseTime: '—',
       },

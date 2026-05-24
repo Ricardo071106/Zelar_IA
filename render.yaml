@@ -2,12 +2,12 @@ services:
   - type: web
     name: zelar-ia
     runtime: docker
-    plan: free
+    plan: standard
     branch: main
     disk:
-      name: whatsapp-auth
-      mountPath: /opt/render/project/src/.whatsapp-auth
-      sizeGB: 1
+      name: zelar-data
+      mountPath: /opt/render/project/src/.zelar-data
+      sizeGB: 5
     envVars:
       - key: PANEL_TOKEN_SECRET
         generateValue: true
@@ -18,7 +18,19 @@ services:
       - key: NODE_ENV
         value: production
       - key: WHATSAPP_AUTH_DIR
-        value: /opt/render/project/src/.whatsapp-auth
+        value: /opt/render/project/src/.zelar-data/whatsapp-auth
+      - key: OLLAMA_MODELS
+        value: /opt/render/project/src/.zelar-data/ollama-models
+      - key: LLM_BASE_URL
+        value: http://127.0.0.1:11434/v1
+      - key: LLM_MODEL
+        value: qwen2.5:3b-instruct
+      - key: LLM_API_KEY
+        value: ollama
+      - key: OLLAMA_AUTO_PULL
+        value: "true"
+      - key: OLLAMA_HOST
+        value: 127.0.0.1:11434
   - type: cron
     name: zelar-ia-midnight-restart
     runtime: node
