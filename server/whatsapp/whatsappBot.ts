@@ -110,6 +110,9 @@ class WhatsAppBot {
   >();
   private activeRunByJid = new Map<string, number>();
   private lastReconnectScheduledAt = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private closingIntentionally = false;
+  private baileysVersion: any = undefined;
 
   /** Contexto compartilhado ao expandir um pacote de aulas em várias mensagens sequenciais */
   private pendingPackBatchContext: {
@@ -121,9 +124,17 @@ class WhatsAppBot {
     packId: string | null;
   } | null = null;
 
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
   private closePreviousSocket(reason: string): void {
     const s = this.sock;
     if (!s) return;
+    this.closingIntentionally = true;
     console.log(`[WhatsApp] Encerrando socket anterior (${reason})`);
     try {
       s.end(undefined);
@@ -176,6 +187,10 @@ class WhatsAppBot {
 
   async initialize() {
     if (this.isInitializing) return;
+    if (this.isConnected && this.sock) {
+      console.log('[WhatsApp] Já conectado — initialize ignorado.');
+      return;
+    }
     this.isInitializing = true;
 
     try {
@@ -196,6 +211,7 @@ class WhatsAppBot {
       const { version, isLatest } = await fetchLatestBaileysVersion();
       console.log(`WhatsApp version: ${version.join('.')} (latest: ${isLatest})`);
 
+      this.baileysVersion = version;
       this.startSock(version);
       this.scheduleQrRecoveryCheck(version);
 
@@ -207,15 +223,20 @@ class WhatsAppBot {
   }
 
   private startSock(version?: any) {
+    const resolvedVersion = version ?? this.baileysVersion;
+    this.clearReconnectTimer();
     this.closePreviousSocket('reinício de sessão Baileys');
 
     this.socketStartedAtMs = Date.now();
     this.sock = makeWASocket({
-      version: version,
+      version: resolvedVersion,
       printQRInTerminal: false,
       auth: this.authState,
       logger: baileysLogger(),
       browser: ['Zelar IA', 'Chrome', '1.0.0'],
+      connectTimeoutMs: Number.parseInt(process.env.WHATSAPP_CONNECT_TIMEOUT_MS || '60000', 10) || 60000,
+      defaultQueryTimeoutMs: Number.parseInt(process.env.WHATSAPP_QUERY_TIMEOUT_MS || '90000', 10) || 90000,
+      keepAliveIntervalMs: Number.parseInt(process.env.WHATSAPP_KEEPALIVE_MS || '30000', 10) || 30000,
     });
 
     this.sock.ev.on('creds.update', this.saveCreds);
@@ -250,6 +271,8 @@ class WhatsAppBot {
       if (connection === 'close') {
         this.isConnected = false;
         this.lastQrCode = null;
+        const intentional = this.closingIntentionally;
+        this.closingIntentionally = false;
         const isLoggedOut = statusCode === DisconnectReason.loggedOut;
         const reasonLabel = disconnectReasonLabel(statusCode);
         console.log(
@@ -257,6 +280,11 @@ class WhatsAppBot {
         );
         if (boom?.stack) {
           console.log('[WhatsApp] stack:', boom.stack);
+        }
+
+        if (intentional) {
+          console.log('[WhatsApp] Fechamento intencional — reconexão automática ignorada.');
+          return;
         }
 
         if (isLoggedOut) {
@@ -277,13 +305,20 @@ class WhatsAppBot {
         }
         this.lastReconnectScheduledAt = now;
         console.log(`[WhatsApp] Reagendando reconexão em ${delay}ms...`);
-        setTimeout(() => {
-          this.startSock(version);
+        this.reconnectTimer = setTimeout(() => {
+          this.reconnectTimer = null;
+          if (this.isConnected) {
+            console.log('[WhatsApp] Já conectado — reconexão agendada cancelada.');
+            return;
+          }
+          this.startSock(resolvedVersion);
         }, delay);
       } else if (connection === 'open') {
         this.isConnected = true;
         this.lastQrCode = null;
         this.qrRecoveryAttempts = 0;
+        this.closingIntentionally = false;
+        this.clearReconnectTimer();
         console.log(`✅ Conexão WhatsApp aberta | ${new Date().toISOString()}`);
       } else if (connection === 'connecting') {
         console.log(`[WhatsApp] Conectando... | ${new Date().toISOString()}`);

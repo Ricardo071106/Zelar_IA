@@ -18,6 +18,12 @@ import {
   pluggyCreditAllowedForContact,
   type PluggyCreditMatchKind,
 } from "./pluggyCreditAttribution";
+import {
+  parsePluggyTransactionWithOllama,
+  pluggyLlmExtractEnabled,
+  pluggyLlmExtractOnEveryTransaction,
+  type PluggyExtractHints,
+} from "./ollamaPluggyExtractParser";
 
 export type PluggyTx = {
   id?: string;
@@ -208,8 +214,10 @@ function extractTaxIdCandidatesFromPluggyTx(value: unknown, depth = 0, keyHint =
   return [...new Set(out)];
 }
 
-async function findGuestContactByTxTaxId(userId: number, tx: PluggyTx): Promise<UserGuestContactRow | null> {
-  const docs = extractTaxIdCandidatesFromPluggyTx(tx);
+async function findGuestContactByTaxIdDocs(
+  userId: number,
+  docs: string[],
+): Promise<UserGuestContactRow | null> {
   if (!docs.length) return null;
   const contacts = await storage.listUserGuestContacts(userId);
   for (const doc of docs) {
@@ -227,15 +235,52 @@ async function findGuestContactByTxTaxId(userId: number, tx: PluggyTx): Promise<
   return null;
 }
 
-/**
- * Procura cada aluno da planilha: se algum alias aparece no texto do crédito (extrato), devolve o contato.
- * Evita atribuir PIX só por valor quando há vários alunos.
- */
-async function findGuestContactByTxMemoAgainstPlanilha(
+async function findGuestContactByTxTaxId(userId: number, tx: PluggyTx): Promise<UserGuestContactRow | null> {
+  const docs = extractTaxIdCandidatesFromPluggyTx(tx);
+  return findGuestContactByTaxIdDocs(userId, docs);
+}
+
+async function maybeParseTxWithOllama(
   userId: number,
   tx: PluggyTx,
+  knownAmountCents: number,
+  direction: "credit" | "debit",
+): Promise<PluggyExtractHints | null> {
+  if (!pluggyLlmExtractEnabled()) return null;
+
+  const taxFromTx = extractTaxIdCandidatesFromPluggyTx(tx);
+  const regexName =
+    direction === "credit"
+      ? extractPayerNameFromPluggyTransaction(tx)
+      : extractReceiverNameFromPluggyTransaction(tx);
+
+  const needsLlm =
+    pluggyLlmExtractOnEveryTransaction() || !regexName || taxFromTx.length === 0;
+  if (!needsLlm) return null;
+
+  const contacts = await storage.listUserGuestContacts(userId);
+  const guestNames = Array.from(
+    new Set(contacts.flatMap((c) => (c.aliasNames ?? []).map((a) => a.trim()).filter((a) => a.length >= 2))),
+  );
+
+  return parsePluggyTransactionWithOllama(tx, {
+    guestNames,
+    knownAmountCents,
+    direction,
+  });
+}
+
+function collectTaxDocsFromTxAndLlm(tx: PluggyTx, llmHints: PluggyExtractHints | null): string[] {
+  const docs = extractTaxIdCandidatesFromPluggyTx(tx);
+  if (llmHints?.cpf) docs.push(llmHints.cpf);
+  if (llmHints?.cnpj) docs.push(llmHints.cnpj);
+  return [...new Set(docs.map((d) => normalizeBrazilianTaxId(d)).filter((d): d is string => Boolean(d)))];
+}
+
+async function findGuestContactByMemoBlob(
+  userId: number,
+  blob: string,
 ): Promise<UserGuestContactRow | null> {
-  const blob = buildCreditSearchBlob(tx);
   if (!blob || blob.length < 4) return null;
 
   const sigTokens = (s: string) => s.split(/\s+/).filter((t) => t.length >= 3);
@@ -460,8 +505,10 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     if (globalFirstLessonAt && txPostedAt.getTime() < globalFirstLessonAt.getTime()) {
       return;
     }
-    const receiverHint = extractReceiverNameFromPluggyTransaction(tx);
-    let contact = await findGuestContactByTxTaxId(userId, tx);
+    const receiverHintRegex = extractReceiverNameFromPluggyTransaction(tx);
+    const llmHints = await maybeParseTxWithOllama(userId, tx, amountCents, "debit");
+    const receiverHint = receiverHintRegex ?? llmHints?.receiverName ?? llmHints?.payerName ?? null;
+    let contact = await findGuestContactByTaxIdDocs(userId, collectTaxDocsFromTxAndLlm(tx, llmHints));
     if (!contact && receiverHint) {
       contact = await storage.findGuestContactByLooseName(userId, receiverHint);
     }
@@ -492,10 +539,24 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const settings = await storage.getUserSettings(userId);
 
-  const memoBlob = buildCreditSearchBlob(tx);
-  const payerHint = extractPayerNameFromPluggyTransaction(tx);
+  const llmHints = await maybeParseTxWithOllama(userId, tx, amountCents, "credit");
+  const payerHintRegex = extractPayerNameFromPluggyTransaction(tx);
+  const payerHint = payerHintRegex ?? llmHints?.payerName ?? null;
 
-  const resolved = await resolvePluggyCreditContact(userId, tx, amountCents, settings, memoBlob, payerHint);
+  let memoBlob = buildCreditSearchBlob(tx);
+  if (llmHints?.payerName) {
+    memoBlob = normalizeAliasKey(`${memoBlob} ${normalizeAliasKey(llmHints.payerName)}`);
+  }
+
+  const resolved = await resolvePluggyCreditContact(
+    userId,
+    tx,
+    amountCents,
+    settings,
+    memoBlob,
+    payerHint,
+    llmHints,
+  );
   const contact = resolved?.contact ?? null;
   const matchKind = resolved?.matchKind ?? null;
 
@@ -670,6 +731,7 @@ async function resolvePluggyCreditContact(
   settings: UserSettings | undefined,
   memoBlob: string,
   payerHint: string | null,
+  llmHints: PluggyExtractHints | null = null,
 ): Promise<{ contact: UserGuestContactRow; matchKind: PluggyCreditMatchKind } | null> {
   const byAmount = await tryResolveContactByAmountOnly(userId, amountCents, settings, payerHint);
   if (byAmount) {
@@ -680,7 +742,7 @@ async function resolvePluggyCreditContact(
     return { contact: byAmount, matchKind: "amount_exact" };
   }
 
-  const byCpf = await findGuestContactByTxTaxId(userId, tx);
+  const byCpf = await findGuestContactByTaxIdDocs(userId, collectTaxDocsFromTxAndLlm(tx, llmHints));
   if (byCpf) {
     const pending = await storage.listPendingLessonEventsForContact(userId, byCpf.id);
     const kind: PluggyCreditMatchKind = pluggyCreditAllowedForContact(
@@ -692,20 +754,27 @@ async function resolvePluggyCreditContact(
     )
       ? "cpf_with_amount"
       : "cpf_only";
-    console.log("[Pluggy] Match CPF/CNPJ hash → contato", byCpf.id, { kind });
+    console.log("[Pluggy] Match CPF/CNPJ hash → contato", byCpf.id, {
+      kind,
+      viaLlm: Boolean(llmHints?.cpf || llmHints?.cnpj),
+    });
     return { contact: byCpf, matchKind: kind };
   }
 
-  const byMemo = await findGuestContactByTxMemoAgainstPlanilha(userId, tx);
+  const byMemo = await findGuestContactByMemoBlob(userId, memoBlob);
   if (byMemo) {
-    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id);
+    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id, {
+      viaLlm: Boolean(llmHints?.payerName),
+    });
     return { contact: byMemo, matchKind: "memo" };
   }
 
   if (payerHint) {
     const byName = await storage.findGuestContactByLooseName(userId, payerHint);
     if (byName) {
-      console.log("[Pluggy] Match nome pagador → contato", byName.id);
+      console.log("[Pluggy] Match nome pagador → contato", byName.id, {
+        viaLlm: payerHint !== extractPayerNameFromPluggyTransaction(tx),
+      });
       return { contact: byName, matchKind: "name" };
     }
     const byTitle = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
