@@ -103,7 +103,10 @@ class WhatsAppBot {
   private processedMsgIds = new Set<string>();
   private processedFingerprints = new Map<string, number>();
   private userStates = new Map<string, string>();
-  private pendingDeleteAllConfirmations = new Map<string, { userId: number; targetTitle: string; createdAtMs: number }>();
+  private pendingDeleteAllConfirmations = new Map<
+    string,
+    { userId: number; targetTitle: string; createdAtMs: number; deleteAfterMs: number }
+  >();
   private pendingPixConfirmations = new Map<
     string,
     { userId: number; contactId: number; payerLabel: string; amountCents: number; createdAtMs: number }
@@ -528,6 +531,14 @@ class WhatsAppBot {
     if (source === 'both') return 3;
     if (source === 'calendar_only') return 2;
     return 1;
+  }
+
+  /** Só permite apagar aulas/eventos com início estritamente depois do instante do comando. */
+  private filterDeletionCandidatesAfterInstant(candidates: any[], cutoffMs: number): any[] {
+    return candidates.filter((c) => {
+      const startMs = new Date(c.startDate).getTime();
+      return Number.isFinite(startMs) && startMs > cutoffMs;
+    });
   }
 
   /** Carrega tokens OAuth da linha system_calendar_integrations e aplica no cache google (oauthUserId). */
@@ -1092,13 +1103,16 @@ class WhatsAppBot {
         const answer = strictAnswer;
         if (answer === 'yes') {
           const deletionScope = await this.getDeletionCandidates(user);
-          const matches = this.findEventsByTitle(deletionScope.candidates, pendingDeleteAll.targetTitle)
+          const allMatches = this.findEventsByTitle(deletionScope.candidates, pendingDeleteAll.targetTitle)
             .sort((a: any, b: any) => this.getDeletionSourcePriority(b.source) - this.getDeletionSourcePriority(a.source));
+          const matches = this.filterDeletionCandidatesAfterInstant(allMatches, pendingDeleteAll.deleteAfterMs);
 
           if (matches.length === 0) {
             await this.sendMessage(
               remoteJid,
-              '✅ Não encontrei outros eventos com esse nome para apagar.',
+              allMatches.length > 0
+                ? '✅ Não há outras aulas *futuras* com esse nome para apagar (as restantes já passaram).'
+                : '✅ Não encontrei outros eventos com esse nome para apagar.',
             );
             this.pendingDeleteAllConfirmations.delete(remoteJid);
             return;
@@ -1227,6 +1241,7 @@ class WhatsAppBot {
       ? await parseDeleteCommand(calendarText, userTimezone)
       : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
     if (deleteIntent.isDeleteIntent) {
+      const deleteAfterMs = Date.now();
       let targetTitle = (deleteIntent.targetTitle || '').trim();
       const refined = targetTitle
         .replace(/^(as\s+)?(todas\s+)?(as\s+)?aulas?\s+(com|de|do|da)\s+/i, '')
@@ -1247,16 +1262,20 @@ class WhatsAppBot {
       }
 
       const deletionScope = await this.getDeletionCandidates(user);
-      const matches = this.findEventsByTitle(deletionScope.candidates, targetTitle, deleteIntent.targetDateISO)
+      const allMatches = this.findEventsByTitle(deletionScope.candidates, targetTitle, deleteIntent.targetDateISO)
         .sort((a: any, b: any) => this.getDeletionSourcePriority(b.source) - this.getDeletionSourcePriority(a.source));
+      const matches = this.filterDeletionCandidatesAfterInstant(allMatches, deleteAfterMs);
 
       if (matches.length === 0) {
         const staleHint = deletionScope.dbStaleCount > 0
           ? `\n\nℹ️ Detectei *${deletionScope.dbStaleCount}* evento(s) no banco que já não existem na agenda e ignorei eles para evitar confusão.`
           : '';
+        const cutoffLabel = DateTime.fromMillis(deleteAfterMs).setZone(userTimezone).toFormat('dd/MM/yyyy HH:mm:ss');
         await this.sendMessage(
           remoteJid,
-          `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para ver a agenda ou digite *apagar as aulas do Nome*.${staleHint}`,
+          allMatches.length > 0
+            ? `❌ Encontrei aula(s) com "*${targetTitle}*", mas só *já passaram* (antes de ${cutoffLabel}).\n\nSó apago aulas com horário *depois* do momento em que você manda o comando.${staleHint}`
+            : `❌ Não encontrei evento próximo com o nome "*${targetTitle}*".\nUse \`/eventos\` para ver a agenda ou digite *apagar as aulas do Nome*.${staleHint}`,
         );
         return;
       }
@@ -1276,13 +1295,14 @@ class WhatsAppBot {
 
         await this.sendMessage(
           remoteJid,
-          `🗑️ Evento apagado com sucesso:\n*${eventToDelete.title}*\n📅 ${eventDate}\n📌 Origem: *${sourceLabel}*\n\n🔎 Cruzamento atual: *${deletionScope.bothCount}* em ambos, *${deletionScope.calendarOnlyCount}* só na agenda, *${deletionScope.dbLocalCount}* só no banco local.\n\nDeseja apagar *todos* os eventos com esse nome?\nResponda com *sim/s* ou *não/n*.`,
+          `🗑️ Evento apagado com sucesso:\n*${eventToDelete.title}*\n📅 ${eventDate}\n📌 Origem: *${sourceLabel}*\n\n🔎 Cruzamento atual: *${deletionScope.bothCount}* em ambos, *${deletionScope.calendarOnlyCount}* só na agenda, *${deletionScope.dbLocalCount}* só no banco local.\n\nDeseja apagar *todas as outras aulas futuras* com esse nome (depois de agora)?\nResponda com *sim/s* ou *não/n*.`,
         );
 
         this.pendingDeleteAllConfirmations.set(remoteJid, {
           userId: user.id,
           targetTitle,
           createdAtMs: Date.now(),
+          deleteAfterMs,
         });
       } catch (error) {
         console.error('Erro ao apagar evento por linguagem natural:', error);

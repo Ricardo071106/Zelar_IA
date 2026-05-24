@@ -24,7 +24,15 @@ services:
       - key: LLM_BASE_URL
         value: http://127.0.0.1:11434/v1
       - key: LLM_MODEL
-        value: qwen2.5:3b-instruct
+        value: qwen2.5:1.5b-instruct
+      - key: LLM_NUM_CTX
+        value: "2048"
+      - key: LLM_NUM_PREDICT
+        value: "512"
+      - key: OLLAMA_NUM_PARALLEL
+        value: "1"
+      - key: OLLAMA_MAX_LOADED_MODELS
+        value: "1"
       - key: LLM_API_KEY
         value: ollama
       - key: OLLAMA_AUTO_PULL

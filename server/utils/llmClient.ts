@@ -9,7 +9,17 @@ function llmBaseUrl(): string {
 }
 
 function llmModel(): string {
-  return process.env.LLM_MODEL || 'qwen2.5:3b-instruct';
+  return process.env.LLM_MODEL || 'qwen2.5:1.5b-instruct';
+}
+
+function llmNumCtx(): number {
+  const n = Number.parseInt(process.env.LLM_NUM_CTX || '2048', 10);
+  return Number.isFinite(n) && n >= 512 ? n : 2048;
+}
+
+function llmNumPredict(): number {
+  const n = Number.parseInt(process.env.LLM_NUM_PREDICT || '512', 10);
+  return Number.isFinite(n) && n >= 64 ? n : 512;
 }
 
 function llmTimeoutMs(): number {
@@ -42,6 +52,10 @@ export async function chatJsonCompletion<T extends Record<string, unknown>>(
         ],
         temperature: 0,
         response_format: { type: 'json_object' },
+        options: {
+          num_ctx: llmNumCtx(),
+          num_predict: llmNumPredict(),
+        },
       },
       {
         headers: {
