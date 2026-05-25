@@ -16,7 +16,7 @@ export type ReconcileGuestLessonsResult = {
 export async function reconcileGuestContactLessonPayments(
   userId: number,
   contactId: number,
-  _opts?: { paymentSource?: "pluggy" | "balance" },
+  _opts?: { paymentSource?: "pluggy" | "balance" | "upload" },
 ): Promise<ReconcileGuestLessonsResult> {
   void _opts;
 

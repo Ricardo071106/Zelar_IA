@@ -6,7 +6,6 @@ import { pluggyFetchJson } from "./pluggyApi";
 import { buildLessonCalendarTitle } from "./lessonTitle";
 import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTransaction } from "./pluggyPayerExtract";
 import { displayNameFromGuestContact, resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
-import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 import { patchLessonTitleOnGoogleCalendar } from "../lessonGoogleCalendarSync";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
@@ -14,7 +13,6 @@ import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pl
 import { hashBrazilianTaxId, normalizeBrazilianTaxId } from "../../utils/taxIdHash";
 import { earliestPendingLessonCreatedAt, pluggyCreditEligibleForPendingLessons } from "./pluggyLessonDateRules";
 import {
-  maxPrepaymentCentsWithoutLessons,
   pluggyCreditAllowedForContact,
   type PluggyCreditMatchKind,
 } from "./pluggyCreditAttribution";
@@ -24,9 +22,16 @@ import {
   pluggyLlmExtractOnEveryTransaction,
   type PluggyExtractHints,
 } from "./ollamaPluggyExtractParser";
+import {
+  buildFingerprintDedupeKey,
+  resolvePaymentDedupeKeyFromPluggyTx,
+} from "../payments/pixDedupeKey";
+import { applyIncomingCreditToContact } from "../payments/applyIncomingCredit";
 
 export type PluggyTx = {
   id?: string;
+  providerId?: string | null;
+  providerCode?: string | null;
   type?: string;
   status?: string;
   amount?: number | string | null;
@@ -169,7 +174,7 @@ export function pluggyTxIsIncomingCredit(tx: PluggyTx): boolean {
 }
 
 /** Texto normalizado do extrato para buscar nomes da planilha (LGPD: não persistimos o extrato). */
-function buildCreditSearchBlob(tx: PluggyTx): string {
+export function buildCreditSearchBlob(tx: PluggyTx): string {
   const parts: string[] = [];
   const payer = tx.paymentData?.payer?.name?.trim();
   if (payer) parts.push(payer);
@@ -594,137 +599,66 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
     return;
   }
 
-  const ledgerTxKey = (txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`).slice(
-    0,
-    128,
-  );
+  let ledgerTxKey =
+    resolvePaymentDedupeKeyFromPluggyTx(tx) ||
+    buildFingerprintDedupeKey({
+      txPostedAt,
+      amountCents,
+      payerName: payerHint,
+      timeZone: settings?.timeZone,
+    });
+  if (!ledgerTxKey) {
+    ledgerTxKey = (`pluggy:${txId?.trim() || `noid_${userId}_${contact.id}_${txPostedAt.getTime()}_${amountCents}`}`).slice(
+      0,
+      128,
+    );
+  }
+
+  if (await storage.hasPluggyContactCredit(userId, ledgerTxKey)) {
+    console.log("[Pluggy] Crédito já registrado (mesmo identificador Pluggy/upload):", {
+      contactId: contact.id,
+      ledgerTxKey,
+    });
+    return;
+  }
+
   console.log("[Pluggy] Crédito identificado para contato", contact.id, {
-    txId: ledgerTxKey,
+    txId: txId ?? null,
+    ledgerTxKey,
     amountCents,
     pendingLessons: pending.length,
   });
 
-  if (pending.length === 0) {
-    const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contact.id);
-    if (chain.length === 0) {
-      const maxPrepay = maxPrepaymentCentsWithoutLessons(contact, settings ?? undefined);
-      if (maxPrepay != null) {
-        const ledgerSum = await storage.sumPluggyContactCreditsSince(userId, contact.id, new Date(0));
-        if (ledgerSum + amountCents > maxPrepay) {
-          console.log("[Pluggy] Crédito ignorado: prepagamento sem aulas (teto atingido).", {
-            contactId: contact.id,
-            amountCents,
-            brl: (amountCents / 100).toFixed(2),
-            ledgerSum,
-            maxPrepay,
-            brlMax: (maxPrepay / 100).toFixed(2),
-          });
-          return;
-        }
-      }
-    }
-    const ledgerInserted = await storage.insertPluggyContactCredit(
-      userId,
-      contact.id,
-      ledgerTxKey,
-      amountCents,
-      txPostedAt,
-    );
-    if (!ledgerInserted) {
-      const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
-      if (!already) {
-        console.warn("[Pluggy] Crédito identificado mas não foi registrado no ledger.", {
-          userId,
-          contactId: contact.id,
-          ledgerTxKey,
-        });
-        return;
-      }
-    }
-    const { syncGuestFinancialState } = await import("../guestLessonFinancials");
-    await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
-    console.log(`[Pluggy] Crédito registrado (contato ${contact.id}) — sem aula pendente no momento.`);
-    return;
-  }
-
-  const unitProbe = resolveLessonUnitCentsForAllocation(
-    pending[0],
-    contact,
-    settings?.defaultLessonPriceCents ?? null,
-  );
-  if (!unitProbe || unitProbe <= 0) {
-    const ledgerInserted = await storage.insertPluggyContactCredit(
-      userId,
-      contact.id,
-      ledgerTxKey,
-      amountCents,
-      txPostedAt,
-    );
-    if (!ledgerInserted) {
-      const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
-      if (!already) {
-        console.warn("[Pluggy] Crédito sem preço por aula não foi registrado no ledger/saldo.", {
-          userId,
-          contactId: contact.id,
-          ledgerTxKey,
-        });
-        return;
-      }
-      console.log("[Pluggy] Crédito sem preço já existia no ledger; saldo retido não será duplicado.", {
-        contactId: contact.id,
-        ledgerTxKey,
-      });
-      return;
-    }
-    const { syncGuestFinancialState } = await import("../guestLessonFinancials");
-    await syncGuestFinancialState(userId, contact.id);
-    console.warn(
-      `[Pluggy] Sem preço por aula para ratear (contato ${contact.id}); ledger registrado, saldo normalizado.`,
-    );
-    return;
-  }
-
-  const ledgerInserted = await storage.insertPluggyContactCredit(
+  const apply = await applyIncomingCreditToContact({
     userId,
-    contact.id,
-    ledgerTxKey,
+    contact,
     amountCents,
     txPostedAt,
-  );
-  if (!ledgerInserted) {
-    const already = await storage.hasPluggyContactCredit(userId, ledgerTxKey);
-    if (!already) {
-      console.warn(
-        "[Pluggy] Ledger não registrou o crédito (tabela ausente ou falha); rateio abortado.",
-        { userId, contactId: contact.id, ledgerTxKey },
-      );
-      return;
-    }
-  }
+    ledgerTxKey,
+    matchKind,
+    paymentSource: "pluggy",
+  });
 
-  const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource: "pluggy" });
-  if (r.markedCount === 0) {
-    if (DEBUG_PLUGGY || r.totalPoolCents > 0) {
-      console.log(
-        "[Pluggy] Pool (ledger + saldo retido) atualizado; nenhuma aula pendente coberta neste momento.",
-        { contactId: contact.id, totalPoolCents: r.totalPoolCents },
-      );
-    }
+  if (apply.duplicate) {
+    console.log("[Pluggy] Dedupe no ledger:", ledgerTxKey);
+    return;
+  }
+  if (!apply.applied) {
+    console.log("[Pluggy] Crédito não aplicado:", apply.reason ?? "desconhecido", { contactId: contact.id });
     return;
   }
 
-  if (ledgerInserted) {
-    await notifyGuestPaymentDigest(contact, r.markedCount, amountCents);
+  if (apply.markedLessons > 0) {
+    await notifyGuestPaymentDigest(contact, apply.markedLessons, amountCents);
+    console.log(
+      `[Pluggy] Rateio aluno ${contact.id}: ${apply.markedLessons} aula(s) paga(s); saldo normalizado após PIX.`,
+    );
+  } else {
+    console.log(`[Pluggy] Crédito registrado (contato ${contact.id}) — saldo/aulas conforme regras.`);
   }
-
-  const { syncGuestFinancialState } = await import("../guestLessonFinancials");
-  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: true });
-  console.log(
-    `[Pluggy] Rateio aluno ${contact.id}: ${r.markedCount} aula(s) paga(s); saldo normalizado após PIX.`,
-  );
 }
 
-async function resolvePluggyCreditContact(
+export async function resolvePluggyCreditContact(
   userId: number,
   tx: PluggyTx,
   amountCents: number,

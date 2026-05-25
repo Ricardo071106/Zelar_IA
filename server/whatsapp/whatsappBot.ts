@@ -54,6 +54,8 @@ import { resolveLessonUnitCents, resolveLessonUnitCentsForAllocation } from '../
 import { mergeLessonGoogleCalendarPatchMeta } from '../services/lessonCalendarPatchMeta';
 import { tryParseBulkLessonSchedule } from './bulkLessonSchedule';
 import { extractComGuestNameFromText } from './extractComGuestName';
+import { getReceiptMediaKind, downloadWhatsAppReceiptBuffer } from './whatsappReceiptMedia';
+import { processReceiptUpload } from '../services/payments/receiptUploadProcessor';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -353,12 +355,27 @@ class WhatsAppBot {
         }
 
         try {
+          const receiptKind = getReceiptMediaKind(msg);
+          if (receiptKind) {
+            let targetJid = msg.key.remoteJid;
+            if ((msg.key as any).senderPn) {
+              targetJid = (msg.key as any).senderPn;
+            } else if (msg.key.participant) {
+              targetJid = msg.key.participant;
+            }
+            const whatsappId = jidNormalizedUser(targetJid).replace(/\D/g, '');
+            await this.handleReceiptMedia(msg, msg.key.remoteJid, whatsappId);
+            continue;
+          }
+
           const incomingType = detectMessageType(msg);
           if (incomingType !== 'text') {
             await this.sendMessage(
               msg.key.remoteJid,
-              '📝 *Somente texto*\n\n' +
-                'Neste modo o Zelar aceita *apenas mensagens digitadas*. Não processamos áudio, imagem, vídeo, documento, figurinha, contato ou localização. Envie o pedido em texto.',
+              '📝 *Texto ou comprovante*\n\n' +
+                '• Agendamentos e comandos: *mensagem de texto*\n' +
+                '• PIX recebido: envie *foto ou print* do comprovante (JPG/PNG)\n\n' +
+                'Não processamos áudio, vídeo, figurinha, PDF ou localização por aqui.',
             );
             continue;
           }
@@ -970,6 +987,78 @@ class WhatsAppBot {
       await applyLessonBalanceCreditBeforeSoftCancel(user.id, full);
     }
     await storage.softCancelEvent(event.id);
+  }
+
+  /** Comprovante PIX (imagem) — OCR + mesma conciliação/dedupe do Pluggy. */
+  private async handleReceiptMedia(msg: any, remoteJid: string, whatsappId: string): Promise<void> {
+    const { user } = await this.getOrCreateUser(whatsappId);
+    if (!user) {
+      await this.sendMessage(remoteJid, 'Não foi possível identificar sua conta. Tente de novo em instantes.');
+      return;
+    }
+
+    if (!this.sock) {
+      await this.sendMessage(remoteJid, 'WhatsApp ainda não está pronto. Aguarde a conexão e envie o comprovante de novo.');
+      return;
+    }
+
+    await this.sendMessage(
+      remoteJid,
+      '⏳ Lendo o comprovante… Isso pode levar até ~1 minuto.',
+    );
+
+    const media = await downloadWhatsAppReceiptBuffer(this.sock, msg);
+    if (!media) {
+      await this.sendMessage(
+        remoteJid,
+        '❌ Não consegui baixar a imagem. Envie de novo como *foto* (não figurinha) ou documento de imagem (JPG/PNG).',
+      );
+      return;
+    }
+
+    const out = await processReceiptUpload({
+      userId: user.id,
+      buffer: media.buffer,
+      mimeType: media.mimeType,
+      originalName: media.originalName,
+    });
+
+    if (out.status === 'duplicate') {
+      await this.sendMessage(
+        remoteJid,
+        `ℹ️ *Comprovante já registrado*\n\n${out.message}\n\nEsse PIX já entrou pelo extrato (Pluggy) ou por outro comprovante enviado antes.`,
+      );
+      return;
+    }
+
+    if (out.status === 'matched') {
+      const brl =
+        out.amountCents != null ?
+          (out.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+        : '';
+      const lessons =
+        out.markedLessons && out.markedLessons > 0 ?
+          `\n✅ *${out.markedLessons}* aula(s) marcada(s) como paga(s).`
+        : '\n💰 Crédito registrado no saldo (aguardando aulas pendentes).';
+      await this.sendMessage(
+        remoteJid,
+        `✅ *Comprovante aceito*${brl ? ` — ${brl}` : ''}${lessons}\n\n${out.message}`,
+      );
+      return;
+    }
+
+    if (out.status === 'unreadable' || out.status === 'not_credit') {
+      await this.sendMessage(
+        remoteJid,
+        `❌ *Não deu para usar este comprovante*\n\n${out.message}\n\nDica: foto nítida do PIX *recebido*, com valor e nome do pagador visíveis.`,
+      );
+      return;
+    }
+
+    await this.sendMessage(
+      remoteJid,
+      `⚠️ *Comprovante sem match*\n\n${out.message}\n\nConfira o cadastro do aluno (nome/CPF) ou use \`/buscar\` se o banco estiver no Pluggy.`,
+    );
   }
 
   private async handleMessage(
@@ -1989,6 +2078,7 @@ class WhatsAppBot {
         '• `/eventos` — próximos compromissos criados pelo Zelar\n' +
         '• `/buscar` — conciliar PIX no extrato (últimas *2 semanas*)\n' +
         '• `/buscar 1`, `/buscar 2`… — blocos mais antigos do extrato\n\n' +
+        '🧾 *Comprovante PIX:* envie a *foto* ou print do PIX recebido (sem comando).\n\n' +
         '🗑️ *Apagar aulas* _(sem comando, só texto):_\n' +
         'Ex.: *apagar as aulas do João* · *apagar a da Maria*\n\n' +
         '🎛️ Painel (e-mail, calendário, alunos): digite `/ajuda`',

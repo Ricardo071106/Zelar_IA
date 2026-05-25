@@ -17,7 +17,6 @@ import {
 import { computeGuestLessonFinancials, syncGuestFinancialState } from '../services/guestLessonFinancials';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
-
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),

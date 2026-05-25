@@ -134,6 +134,13 @@
       "when": 1775400000000,
       "tag": "0018_guest_contact_payer_tax_id",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1775500000000,
+      "tag": "0019_payment_receipt_uploads",
+      "breakpoints": true
     }
   ]
 }

@@ -310,6 +310,30 @@ export interface IStorage {
   ): Promise<boolean>;
   /** True se já existe linha no ledger para essa transação (dedupe / retomada após falha). */
   hasPluggyContactCredit(userId: number, transactionId: string): Promise<boolean>;
+  insertPaymentReceiptUpload(row: {
+    userId: number;
+    dedupeKey: string;
+    contactId: number | null;
+    amountCents: number | null;
+    originalFilename: string | null;
+    status: string;
+    detail: string | null;
+  }): Promise<void>;
+  listPaymentReceiptUploads(
+    userId: number,
+    limit?: number,
+  ): Promise<
+    {
+      id: number;
+      dedupeKey: string;
+      contactId: number | null;
+      amountCents: number | null;
+      originalFilename: string | null;
+      status: string;
+      detail: string | null;
+      createdAt: Date;
+    }[]
+  >;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -1491,6 +1515,73 @@ export class DatabaseStorage implements IStorage {
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === "42P01") return false;
+      throw e;
+    }
+  }
+
+  async insertPaymentReceiptUpload(row: {
+    userId: number;
+    dedupeKey: string;
+    contactId: number | null;
+    amountCents: number | null;
+    originalFilename: string | null;
+    status: string;
+    detail: string | null;
+  }): Promise<void> {
+    if (!db) return;
+    const key = row.dedupeKey.trim().slice(0, 128);
+    if (!key) return;
+    try {
+      await db.execute(sql`
+        INSERT INTO payment_receipt_uploads (
+          user_id, dedupe_key, contact_id, amount_cents, original_filename, status, detail
+        )
+        VALUES (
+          ${row.userId},
+          ${key},
+          ${row.contactId},
+          ${row.amountCents != null ? Math.round(row.amountCents) : null},
+          ${row.originalFilename?.slice(0, 255) ?? null},
+          ${row.status.slice(0, 32)},
+          ${row.detail}
+        )
+      `);
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") {
+        console.warn("[storage] payment_receipt_uploads ausente; rode migration 0019.");
+        return;
+      }
+      throw e;
+    }
+  }
+
+  async listPaymentReceiptUploads(userId: number, limit = 30) {
+    if (!db) return [];
+    const lim = Math.min(Math.max(1, limit), 100);
+    try {
+      const res = await db.execute(sql`
+        SELECT id, dedupe_key, contact_id, amount_cents, original_filename, status, detail, created_at
+        FROM payment_receipt_uploads
+        WHERE user_id = ${userId}
+        ORDER BY created_at DESC
+        LIMIT ${lim}
+      `);
+      const rows = (res as { rows?: Record<string, unknown>[] }).rows ?? [];
+      return rows.map((r) => ({
+        id: Number(r.id),
+        dedupeKey: String(r.dedupe_key ?? ""),
+        contactId: r.contact_id != null ? Number(r.contact_id) : null,
+        amountCents: r.amount_cents != null ? Number(r.amount_cents) : null,
+        originalFilename: r.original_filename != null ? String(r.original_filename) : null,
+        status: String(r.status ?? ""),
+        detail: r.detail != null ? String(r.detail) : null,
+        createdAt:
+          r.created_at instanceof Date ? r.created_at : new Date(String(r.created_at ?? Date.now())),
+      }));
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") return [];
       throw e;
     }
   }
