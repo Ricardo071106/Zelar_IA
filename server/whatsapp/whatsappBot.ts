@@ -131,6 +131,9 @@ class WhatsAppBot {
     }>
   >();
 
+  /** Alunos tocados no lote — conciliação Pluggy/saldo só no flush. */
+  private bulkLessonContactIds = new Map<string, Set<number>>();
+
   /** Contexto compartilhado ao expandir um pacote de aulas em várias mensagens sequenciais */
   private pendingPackBatchContext: {
     packGroupId: string;
@@ -1315,21 +1318,29 @@ class WhatsAppBot {
           remoteJid,
           `📅 *Agendando ${bulk.syntheticLines.length} aula(s):*\n${bulk.summaryLines.map((l) => `• ${l}`).join('\n')}`,
         );
-        for (const line of bulk.syntheticLines) {
-          if (!isRunStillActive()) break;
-          await this.handleMessage(
-            remoteJid,
-            whatsappId,
-            line,
-            msg,
-            true,
-            currentRunId,
-            undefined,
-            undefined,
-            true,
-          );
+        const { beginPluggySyncPause, endPluggySyncPause } = await import(
+          '../services/pluggy/pluggySyncGate',
+        );
+        beginPluggySyncPause();
+        try {
+          for (const line of bulk.syntheticLines) {
+            if (!isRunStillActive()) break;
+            await this.handleMessage(
+              remoteJid,
+              whatsappId,
+              line,
+              msg,
+              true,
+              currentRunId,
+              undefined,
+              undefined,
+              true,
+            );
+          }
+          await this.flushBulkLessonOutcomes(remoteJid, currentRunId, user.id);
+        } finally {
+          endPluggySyncPause();
         }
-        await this.flushBulkLessonOutcomes(remoteJid, currentRunId);
         return;
       }
     }
@@ -1974,17 +1985,24 @@ class WhatsAppBot {
 
       if (studentContactId && guestRow) {
         try {
-          const { syncGuestFinancialState } = await import('../services/guestLessonFinancials');
-          const { reconcileGuestContactLessonPayments } = await import(
-            '../services/reconcileGuestLessonPayments',
-          );
           const { tryConsumeLessonBalanceAfterEventCreated } = await import(
             '../services/lessonCancellationCredit',
           );
-          await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: true });
-          await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
-          await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, guestRow);
-          await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: false });
+          if (fromBatch) {
+            this.recordBulkLessonContact(remoteJid, currentRunId, studentContactId);
+            await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, guestRow);
+          } else {
+            const { syncGuestFinancialState } = await import('../services/guestLessonFinancials');
+            const { reconcileGuestContactLessonPayments } = await import(
+              '../services/reconcileGuestLessonPayments',
+            );
+            await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: true });
+            await reconcileGuestContactLessonPayments(user.id, studentContactId, {
+              paymentSource: 'balance',
+            });
+            await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, guestRow);
+            await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: false });
+          }
         } catch (err) {
           console.error('[aula] Falha ao conciliar saldo após criar aula', {
             contactId: studentContactId,
@@ -2114,10 +2132,40 @@ class WhatsAppBot {
     this.bulkLessonOutcomes.set(key, list);
   }
 
-  private async flushBulkLessonOutcomes(remoteJid: string, runId: number): Promise<void> {
+  private recordBulkLessonContact(remoteJid: string, runId: number, contactId: number): void {
+    const key = this.bulkLessonOutcomeKey(remoteJid, runId);
+    const set = this.bulkLessonContactIds.get(key) ?? new Set<number>();
+    set.add(contactId);
+    this.bulkLessonContactIds.set(key, set);
+  }
+
+  private async flushBulkLessonOutcomes(remoteJid: string, runId: number, userId: number): Promise<void> {
     const key = this.bulkLessonOutcomeKey(remoteJid, runId);
     const outcomes = this.bulkLessonOutcomes.get(key);
+    const contactIds = this.bulkLessonContactIds.get(key);
     this.bulkLessonOutcomes.delete(key);
+    this.bulkLessonContactIds.delete(key);
+
+    if (contactIds?.size) {
+      try {
+        const { syncGuestFinancialState } = await import('../services/guestLessonFinancials');
+        const { reconcileGuestContactLessonPayments } = await import(
+          '../services/reconcileGuestLessonPayments',
+        );
+        const { syncPaidLessonCalendarTitlesForContact } = await import(
+          '../services/lessonGoogleCalendarSync',
+        );
+        for (const contactId of contactIds) {
+          await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: true });
+          await reconcileGuestContactLessonPayments(userId, contactId, { paymentSource: 'pluggy' });
+          await syncGuestFinancialState(userId, contactId, { applyLedgerTopUp: false });
+          await syncPaidLessonCalendarTitlesForContact(userId, contactId);
+        }
+      } catch (err) {
+        console.error('[aula/lote] Falha na conciliação financeira pós-lote', { userId, err });
+      }
+    }
+
     if (!outcomes?.length) return;
 
     const lines = outcomes.map((o) => {

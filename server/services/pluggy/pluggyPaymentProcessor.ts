@@ -498,6 +498,9 @@ export async function processSinglePluggyTransaction(
   tx: PluggyTx,
   opts?: ProcessPluggyTxOpts,
 ): Promise<void> {
+  const { isPluggySyncPaused } = await import("./pluggySyncGate");
+  if (isPluggySyncPaused()) return;
+
   const txId = typeof tx.id === "string" ? tx.id : null;
 
   let userId: number | null = itemId ? await storage.findUserIdByPluggyItemId(itemId) : null;
@@ -530,9 +533,15 @@ export async function processSinglePluggyTransaction(
     const dedupeKey = (
       txId?.trim() ? `debit_bal_${txId.trim()}` : `debit_bal_${userId}_${txPostedAt.getTime()}_${amountCents}`
     ).slice(0, 128);
-    const inserted = await storage.tryRecordPluggyTransactionOnce(userId, dedupeKey);
-    if (!inserted) return;
-    await storage.adjustGuestLessonBalanceCents(userId, contact.id, -amountCents);
+    const { applyOutgoingPaymentReversal } = await import("../payments/paymentReversal");
+    await applyOutgoingPaymentReversal({
+      userId,
+      contact,
+      amountCents,
+      txPostedAt,
+      dedupeKey,
+      reason: "debit",
+    });
     return;
   }
 
@@ -548,6 +557,48 @@ export async function processSinglePluggyTransaction(
   if (amountCents <= 0) return;
 
   if (memoLooksLikeInstitutionalNoise(tx)) {
+    return;
+  }
+
+  const { memoLooksLikeInboundRefundCredit, applyOutgoingPaymentReversal } = await import(
+    "../payments/paymentReversal",
+  );
+  if (memoLooksLikeInboundRefundCredit(tx)) {
+    const settingsEarly = await storage.getUserSettings(userId);
+    const receiverHintRegex = extractReceiverNameFromPluggyTransaction(tx);
+    const llmHintsRefund = opts?.skipLlm ? null : await maybeParseTxWithOllama(userId, tx, amountCents, "credit");
+    const payerHint =
+      extractPayerNameFromPluggyTransaction(tx) ??
+      receiverHintRegex ??
+      llmHintsRefund?.payerName ??
+      llmHintsRefund?.receiverName ??
+      null;
+    let memoBlobRefund = buildCreditSearchBlob(tx);
+    if (llmHintsRefund?.payerName) {
+      memoBlobRefund = normalizeAliasKey(`${memoBlobRefund} ${normalizeAliasKey(llmHintsRefund.payerName)}`);
+    }
+    const resolvedRefund = await resolvePluggyCreditContact(
+      userId,
+      tx,
+      amountCents,
+      settingsEarly,
+      memoBlobRefund,
+      payerHint,
+      llmHintsRefund,
+    );
+    if (resolvedRefund?.contact) {
+      const dedupeKey = (
+        txId?.trim() ? `refund_cred_${txId.trim()}` : `refund_cred_${userId}_${txPostedAt.getTime()}_${amountCents}`
+      ).slice(0, 128);
+      await applyOutgoingPaymentReversal({
+        userId,
+        contact: resolvedRefund.contact,
+        amountCents,
+        txPostedAt,
+        dedupeKey,
+        reason: "refund_credit",
+      });
+    }
     return;
   }
 
@@ -817,6 +868,82 @@ export async function markLessonPaidAndSyncCalendar(
       }
     } catch (e) {
       console.warn("[Pluggy] Falha ao atualizar Microsoft Calendar:", e);
+    }
+  }
+}
+
+/** Reabre aula paga (estorno PIX) e atualiza título no Google/Microsoft para (pendente). */
+export async function unmarkLessonPaidAndSyncCalendar(
+  userId: number,
+  ev: Event,
+  studentLabel: string,
+): Promise<void> {
+  const raw = (ev.rawData as Record<string, unknown> | null) || {};
+  const zelar = (raw.zelarLesson as Record<string, unknown> | undefined) || {};
+  const baseTitle =
+    typeof zelar.baseTitle === "string" && zelar.baseTitle.trim()
+      ? zelar.baseTitle.trim()
+      : String(ev.title || "Aula")
+          .split(" · ")[0]
+          ?.trim() || "Aula";
+
+  const lessonIndex =
+    typeof ev.lessonIndexInPack === "number" && ev.lessonIndexInPack > 0 ? ev.lessonIndexInPack : null;
+  const lessonTotal =
+    typeof ev.lessonTotalInPack === "number" && ev.lessonTotalInPack > 0 ? ev.lessonTotalInPack : null;
+
+  const newTitle = buildLessonCalendarTitle({
+    baseTitle,
+    studentLabel,
+    lessonIndex,
+    lessonTotal,
+    paymentStatus: "pendente",
+  });
+
+  const { paymentSource: _removed, ...zelarWithoutSource } = zelar;
+  const nextRaw = {
+    ...raw,
+    zelarLesson: {
+      ...zelarWithoutSource,
+      baseTitle,
+      paymentStatus: "pendente",
+    },
+  };
+
+  await storage.updateEvent(ev.id, {
+    title: newTitle,
+    lessonPaymentStatus: "pendente",
+    rawData: nextRaw as Event["rawData"],
+  });
+
+  const up = await storage.getEvent(ev.id);
+  if (!up) return;
+
+  const settings = await storage.getUserSettings(userId);
+  const calendarId = up.calendarId?.trim();
+  if (!calendarId) return;
+
+  const rawUp = (up.rawData as Record<string, unknown>) || {};
+  const zelarUp = (rawUp.zelarLesson as Record<string, unknown>) || {};
+  const provider = settings?.calendarProvider;
+
+  const googlePatched = await patchLessonTitleOnGoogleCalendar({
+    userId,
+    eventId: ev.id,
+    calendarId,
+    newTitle,
+    zelarUp,
+    settings,
+  });
+
+  if (!googlePatched && provider === "microsoft" && settings?.microsoftTokens) {
+    try {
+      const r = await patchMicrosoftCalendarEventSubject(calendarId, userId, newTitle);
+      if (!r.success) {
+        console.warn("[estorno] Falha ao atualizar Microsoft Calendar:", r.message, { eventId: ev.id });
+      }
+    } catch (e) {
+      console.warn("[estorno] Falha ao atualizar Microsoft Calendar:", e);
     }
   }
 }
