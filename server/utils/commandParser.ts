@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { extractComGuestNameFromText } from '../whatsapp/extractComGuestName';
 import { parseDeleteWithOllama } from './ollamaIntentParser';
 
 const DeleteCommandSchema = z.object({
@@ -21,13 +22,32 @@ function normalizeBasicText(text: string): string {
     .trim();
 }
 
-function parseDeleteCommandLocal(message: string): DeleteCommandIntent {
-  const normalized = normalizeBasicText(message);
-  const hasDeleteVerb = /\b(cancele|cancelar|apague|apagar|deletar|delete|remova|remover|exclua|excluir)\b/i.test(
-    normalized,
-  );
+const DELETE_VERB_RE =
+  /\b(cancele|cancelar|apague|apagar|deletar|delete|remova|remover|exclua|excluir)\b/i;
 
-  if (!hasDeleteVerb) {
+function hasDeleteVerbInText(message: string): boolean {
+  return DELETE_VERB_RE.test(
+    message
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, ''),
+  );
+}
+
+function refineDeleteTargetTitle(raw: string): string {
+  let t = raw
+    .replace(/^(as\s+)?(todas?\s+)?(os\s+)?(as\s+)?aulas?\s+(com|de|do|da|dos|das)\s+/i, '')
+    .replace(/^(com|de|do|da|dos|das)\s+/i, '')
+    .replace(/\b(aula|aulas|evento|compromisso|reuniao|reunião|pacote)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (t.length >= 2) return t;
+  return raw.trim();
+}
+
+/** Parser síncrono — fonte de verdade quando há verbo de apagar/cancelar. */
+export function parseDeleteCommandLocal(message: string): DeleteCommandIntent {
+  if (!hasDeleteVerbInText(message)) {
     return {
       isDeleteIntent: false,
       targetTitle: '',
@@ -36,37 +56,77 @@ function parseDeleteCommandLocal(message: string): DeleteCommandIntent {
     };
   }
 
-  const guessedTitle = message
-    .replace(/\b(cancele|cancelar|apague|apagar|deletar|delete|remova|remover|exclua|excluir)\b/gi, '')
-    .replace(/\b(a|o|os|as|um|uma|meu|minha|evento|compromisso|aula|reuniao|reunião|pacote)\b/gi, ' ')
-    .replace(/\b(amanha|amanhã|hoje|ontem|segunda|terca|terça|quarta|quinta|sexta|sabado|sábado|domingo)\b/gi, ' ')
-    .replace(/\bde\s+aulas?\b/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\bauals\b/gi, 'aulas');
+  const fromCom = extractComGuestNameFromText(message);
+  let targetTitle = fromCom?.trim() || '';
+
+  if (!targetTitle || targetTitle.length < 2) {
+    const afterVerb = message
+      .replace(DELETE_VERB_RE, ' ')
+      .replace(/\b(todas?|todos?|as|os)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const rel = afterVerb.match(/\b(?:com|de|do|da|dos|das)\s+(.+)$/i);
+    if (rel?.[1]?.trim()) {
+      targetTitle = rel[1].trim();
+    } else {
+      targetTitle = afterVerb
+        .replace(/\b(a|o|os|as|um|uma|meu|minha|evento|compromisso|aula|reuniao|reunião|pacote)\b/gi, ' ')
+        .replace(/\b(amanha|amanhã|hoje|ontem|segunda|terca|terça|quarta|quinta|sexta|sabado|sábado|domingo)(-feira)?\b/gi, ' ')
+        .replace(/\bde\s+aulas?\b/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/\bauals\b/gi, 'aulas');
+    }
+  }
+
+  targetTitle = refineDeleteTargetTitle(targetTitle);
+  const norm = normalizeBasicText(targetTitle);
+  if (norm === 'aula' || norm === 'aulas' || targetTitle.length < 2) {
+    return {
+      isDeleteIntent: true,
+      targetTitle: '',
+      targetDateISO: null,
+      confidence: 0.5,
+    };
+  }
 
   const parsed = DeleteCommandSchema.safeParse({
     isDeleteIntent: true,
-    targetTitle: guessedTitle,
+    targetTitle,
     targetDateISO: null,
-    confidence: 0.55,
+    confidence: 0.85,
   });
-  return parsed.success ? parsed.data : { isDeleteIntent: true, targetTitle: guessedTitle, targetDateISO: null };
+  return parsed.success ? parsed.data : { isDeleteIntent: true, targetTitle, targetDateISO: null, confidence: 0.85 };
 }
 
-/** Ollama quando disponível; fallback regex local. */
+/**
+ * Verbo de exclusão manda no fluxo (parser local). Ollama só enriquece nome/data;
+ * nunca pode transformar "apague aulas com X" em agendamento.
+ */
 export async function parseDeleteCommand(
   message: string,
   userTimezone: string = 'America/Sao_Paulo',
 ): Promise<DeleteCommandIntent> {
+  const local = parseDeleteCommandLocal(message);
+  if (!local.isDeleteIntent) {
+    const llm = await parseDeleteWithOllama(message, userTimezone);
+    if (llm?.isDeleteIntent && llm.targetTitle.trim().length >= 2) {
+      return llm;
+    }
+    return local;
+  }
+
   const llm = await parseDeleteWithOllama(message, userTimezone);
-  if (llm?.isDeleteIntent && llm.targetTitle.trim().length >= 2) {
-    return llm;
+  if (llm?.targetTitle && llm.targetTitle.trim().length >= 2) {
+    return {
+      isDeleteIntent: true,
+      targetTitle: refineDeleteTargetTitle(llm.targetTitle.trim()),
+      targetDateISO: llm.targetDateISO ?? local.targetDateISO ?? null,
+      confidence: Math.max(local.confidence ?? 0.85, llm.confidence ?? 0),
+    };
   }
-  if (llm && !llm.isDeleteIntent) {
-    return llm;
-  }
-  return parseDeleteCommandLocal(message);
+
+  return local;
 }
 
 export function parseYesNo(message: string): YesNoIntent {

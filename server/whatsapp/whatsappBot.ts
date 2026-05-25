@@ -36,7 +36,7 @@ import {
 } from '../telegram/microsoftCalendarIntegration';
 import { reminderService } from '../services/reminderService';
 import { db } from '../db';
-import { parseDeleteCommand } from '../utils/commandParser';
+import { parseDeleteCommand, parseDeleteCommandLocal } from '../utils/commandParser';
 import { detectMessageType } from '../utils/detectMessageType';
 import { extractPlainTextFromWhatsAppMessage } from '../utils/whatsappPlainText';
 import type { UserGuestContactRow } from '../storage';
@@ -1339,9 +1339,24 @@ class WhatsAppBot {
 
     // Segurança extra: só entra no fluxo de apagar se o texto contiver verbo explícito de exclusão.
     const hasDeleteVerb = this.hasExplicitDeleteVerb(calendarText);
-    const deleteIntent = hasDeleteVerb
-      ? await parseDeleteCommand(calendarText, userTimezone)
+    let deleteIntent = hasDeleteVerb
+      ? parseDeleteCommandLocal(calendarText)
       : { isDeleteIntent: false, targetTitle: '', targetDateISO: null };
+    if (hasDeleteVerb && deleteIntent.isDeleteIntent && (deleteIntent.targetTitle || '').trim().length < 2) {
+      try {
+        deleteIntent = await parseDeleteCommand(calendarText, userTimezone);
+      } catch (err) {
+        console.warn('[delete] LLM opcional falhou; usando parser local:', err);
+      }
+    }
+    if (hasDeleteVerb && !deleteIntent.isDeleteIntent) {
+      await this.sendMessage(
+        remoteJid,
+        '🗑️ Entendi que você quer *apagar aulas*, mas não achei o nome do aluno.\n\n' +
+          'Ex.: *apagar as aulas do João Marques* · *apagar aula com Maria amanhã*',
+      );
+      return;
+    }
     if (deleteIntent.isDeleteIntent) {
       const deleteAfterMs = Date.now();
       let targetTitle = (deleteIntent.targetTitle || '').trim();

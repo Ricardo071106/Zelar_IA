@@ -131,10 +131,10 @@ Contexto:
 
 Regras:
 1) JSON apenas.
-2) isDeleteIntent=true se pedir cancelar/apagar/deletar/remover evento ou aula.
-3) targetTitle: nome do aluno ou do evento SEM verbos temporais. Para aulas, preferir o NOME DO ALUNO (ex.: "Ricardo Abrahão"), nunca só "aulas".
+2) isDeleteIntent=true SEMPRE que houver verbo cancelar/apagar/deletar/remover/excluir (mesmo que cite "aulas" ou só o nome do aluno).
+3) targetTitle: nome do aluno ou do evento SEM verbos temporais. Ex.: "apague aulas com João Marques" → isDeleteIntent=true, targetTitle="João Marques".
 4) targetDateISO: YYYY-MM-DD se mencionar data relativa; senão null.
-5) Se não for exclusão: isDeleteIntent=false, targetTitle="", targetDateISO=null.
+5) isDeleteIntent=false APENAS se a mensagem for agendar/marcar/consultar horário SEM pedido de exclusão.
 
 Formato:
 {"isDeleteIntent":true,"targetTitle":"Ricardo Abrahão","targetDateISO":null,"confidence":0.9}`;
