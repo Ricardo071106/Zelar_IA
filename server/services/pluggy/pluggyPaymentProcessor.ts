@@ -488,7 +488,16 @@ export async function processPluggyTransactionsPayload(itemId: string | undefine
   }
 }
 
-export async function processSinglePluggyTransaction(itemId: string | undefined, tx: PluggyTx): Promise<void> {
+export type ProcessPluggyTxOpts = {
+  /** Evita Ollama no /buscar (Render 2GB); regex/CPF/valor continuam valendo. */
+  skipLlm?: boolean;
+};
+
+export async function processSinglePluggyTransaction(
+  itemId: string | undefined,
+  tx: PluggyTx,
+  opts?: ProcessPluggyTxOpts,
+): Promise<void> {
   const txId = typeof tx.id === "string" ? tx.id : null;
 
   let userId: number | null = itemId ? await storage.findUserIdByPluggyItemId(itemId) : null;
@@ -511,7 +520,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
       return;
     }
     const receiverHintRegex = extractReceiverNameFromPluggyTransaction(tx);
-    const llmHints = await maybeParseTxWithOllama(userId, tx, amountCents, "debit");
+    const llmHints = opts?.skipLlm ? null : await maybeParseTxWithOllama(userId, tx, amountCents, "debit");
     const receiverHint = receiverHintRegex ?? llmHints?.receiverName ?? llmHints?.payerName ?? null;
     let contact = await findGuestContactByTaxIdDocs(userId, collectTaxDocsFromTxAndLlm(tx, llmHints));
     if (!contact && receiverHint) {
@@ -544,7 +553,7 @@ export async function processSinglePluggyTransaction(itemId: string | undefined,
 
   const settings = await storage.getUserSettings(userId);
 
-  const llmHints = await maybeParseTxWithOllama(userId, tx, amountCents, "credit");
+  const llmHints = opts?.skipLlm ? null : await maybeParseTxWithOllama(userId, tx, amountCents, "credit");
   const payerHintRegex = extractPayerNameFromPluggyTransaction(tx);
   const payerHint = payerHintRegex ?? llmHints?.payerName ?? null;
 

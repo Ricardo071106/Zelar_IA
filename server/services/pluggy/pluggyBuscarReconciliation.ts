@@ -106,6 +106,42 @@ async function fetchRecentAccountTransactions(accountId: string, pageSize = 50):
   }
 }
 
+function mergeUniqueTransactions(
+  merged: PluggyTx[],
+  seenIds: Set<string>,
+  incoming: PluggyTx[],
+  recentCutoff: Date,
+): number {
+  let added = 0;
+  for (const tx of incoming) {
+    const id = typeof tx.id === "string" ? tx.id : null;
+    if (!id || seenIds.has(id)) continue;
+    const posted = extractTxPostedAtFromPluggyTx(tx);
+    if (posted < recentCutoff) continue;
+    seenIds.add(id);
+    merged.push(tx);
+    added += 1;
+  }
+  return added;
+}
+
+/** Rebusca página 1 sem filtro de data (PIX do dia costuma demorar na janela `from`/`to`). */
+async function appendRecentTransactionsFromAccounts(
+  accounts: { id: string }[],
+  merged: PluggyTx[],
+  seenIds: Set<string>,
+  timeZone: string,
+  pageSize: number,
+): Promise<number> {
+  const recentCutoff = DateTime.now().setZone(timeZone).minus({ days: 14 }).startOf("day");
+  let added = 0;
+  for (const acc of accounts) {
+    const recent = await fetchRecentAccountTransactions(acc.id, pageSize);
+    added += mergeUniqueTransactions(merged, seenIds, recent, recentCutoff.toJSDate());
+  }
+  return added;
+}
+
 /**
  * Conciliação sob demanda (WhatsApp `/buscar` e `/buscar N`): lê o extrato Pluggy na janela de datas
  * e aplica regras em pluggyPaymentProcessor (aulas pendentes, saldo retido, etc.).
@@ -141,7 +177,7 @@ export async function runPluggyBuscarReconciliation(
       await triggerPluggyItemSync(itemId);
       itemSyncTriggered = true;
       console.log("[Pluggy/buscar] Sync do item disparado; aguardando banco…");
-      await waitForPluggyItemSynced(itemId);
+      await waitForPluggyItemSynced(itemId, 25_000);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       if (/409/.test(msg) || /allowed at most every/i.test(msg)) {
@@ -214,25 +250,35 @@ export async function runPluggyBuscarReconciliation(
     }
   }
 
+  const tz = settings?.timeZone || "America/Sao_Paulo";
   if (windowIndex === 0) {
-    const tz = settings?.timeZone || "America/Sao_Paulo";
-    const recentCutoff = DateTime.now().setZone(tz).minus({ days: 14 }).startOf("day");
-    let addedRecent = 0;
-    for (const acc of accounts) {
-      const recent = await fetchRecentAccountTransactions(acc.id, 100);
-      for (const tx of recent) {
-        const id = typeof tx.id === "string" ? tx.id : null;
-        if (!id || seenIds.has(id)) continue;
-        const posted = extractTxPostedAtFromPluggyTx(tx);
-        if (posted < recentCutoff.toJSDate()) continue;
-        seenIds.add(id);
-        merged.push(tx);
-        addedRecent += 1;
-      }
-    }
+    let addedRecent = await appendRecentTransactionsFromAccounts(accounts, merged, seenIds, tz, 200);
     if (addedRecent > 0) {
       console.log("[Pluggy/buscar] Transações recentes adicionais (sem filtro data):", addedRecent);
     }
+    // PIX de hoje às vezes só aparece segundos após o sync — nova leitura antes de conciliar.
+    await new Promise((r) => setTimeout(r, 4000));
+    const addedRetry = await appendRecentTransactionsFromAccounts(accounts, merged, seenIds, tz, 200);
+    if (addedRetry > 0) {
+      console.log("[Pluggy/buscar] Transações recentes na 2ª leitura:", addedRetry);
+    }
+    const todayStart = DateTime.now().setZone(tz).startOf("day");
+    const todayCredits = merged.filter((tx) => {
+      if (!pluggyTxCreditCountsAsPayment(tx)) return false;
+      const posted = extractTxPostedAtFromPluggyTx(tx);
+      return posted >= todayStart.toJSDate();
+    });
+    console.log("[Pluggy/buscar] Créditos com data de hoje no fuso do usuário:", todayCredits.length, {
+      tz,
+      samples: todayCredits.slice(0, 5).map((tx) => ({
+        txId: tx.id ?? null,
+        brl: (pluggyTransactionAmountToCents(tx) / 100).toFixed(2),
+        postedAtLocal: DateTime.fromJSDate(extractTxPostedAtFromPluggyTx(tx))
+          .setZone(tz)
+          .toFormat("yyyy-MM-dd HH:mm"),
+        desc: String(tx.description || tx.descriptionRaw || "").slice(0, 80),
+      })),
+    });
   }
 
   merged.sort((a, b) => extractTxPostedAtFromPluggyTx(a).getTime() - extractTxPostedAtFromPluggyTx(b).getTime());
@@ -253,7 +299,7 @@ export async function runPluggyBuscarReconciliation(
         desc: String(tx.description || tx.descriptionRaw || "").slice(0, 100),
       });
     }
-    await processSinglePluggyTransaction(itemId, tx);
+    await processSinglePluggyTransaction(itemId, tx, { skipLlm: true });
   }
 
   // Retentiva idempotente: se uma busca anterior guardou o pagamento como saldo retido

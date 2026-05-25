@@ -2241,7 +2241,8 @@ class WhatsAppBot {
                 ? `✅ *${out.lessonsMarked}* aula(s) marcada(s) como *pago*.\n\n`
                 : out.payableCreditTxSeen === 0
                   ? '⚠️ Nenhum *PIX/crédito* apareceu no extrato nesta janela. Confira se o pagamento foi na *conta conectada* no painel; aguarde alguns minutos e tente de novo.\n\n'
-                  : 'ℹ️ Há créditos no extrato, mas nenhuma aula pendente foi quitada (nome/valor não bateram ou PIX é de outro aluno).\n\n';
+                  : 'ℹ️ Há créditos no extrato, mas nenhuma aula pendente foi quitada (nome/valor não bateram, PIX antigo ou PIX de hoje ainda não veio do banco).\n\n' +
+                    '_PIX recente: aguarde 2–3 min e rode `/buscar` de novo, ou envie a *foto do comprovante* no WhatsApp._\n\n';
             await this.sendMessage(
               remoteJid,
               `✅ *Busca concluída*\n\n` +

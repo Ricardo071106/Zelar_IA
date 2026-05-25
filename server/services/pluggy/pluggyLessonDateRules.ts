@@ -1,4 +1,5 @@
 import type { Event } from "@shared/schema";
+import { DateTime } from "luxon";
 
 export function earliestPendingLessonCreatedAt(events: Event[]): Date | null {
   if (!events.length) return null;
@@ -16,13 +17,18 @@ export function earliestPendingLessonCreatedAt(events: Event[]): Date | null {
 export function pluggyCreditEligibleForPendingLessons(
   txPostedAt: Date,
   pending: Event[],
-  _timeZone?: string | null,
+  timeZone?: string | null,
 ): boolean {
-  void _timeZone;
   if (!pending.length) return true;
   const earliest = earliestPendingLessonCreatedAt(pending);
   if (!earliest) return true;
-  return txPostedAt.getTime() >= earliest.getTime();
+  if (txPostedAt.getTime() >= earliest.getTime()) return true;
+
+  // Open Finance às vezes manda só a data (00:00), anterior ao horário real da aula no mesmo dia.
+  const zone = timeZone?.trim() || "America/Sao_Paulo";
+  const txDay = DateTime.fromJSDate(txPostedAt).setZone(zone).startOf("day");
+  const lessonDay = DateTime.fromJSDate(earliest).setZone(zone).startOf("day");
+  return txDay >= lessonDay;
 }
 
 /** Timestamp da aula pendente mais antiga — alinhado a `pluggyCreditEligibleForPendingLessons`. */
