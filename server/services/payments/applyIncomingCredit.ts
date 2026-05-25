@@ -11,7 +11,75 @@ import {
   pluggyCreditAllowedForContact,
   type PluggyCreditMatchKind,
 } from "../pluggy/pluggyCreditAttribution";
-import { resolveLessonUnitCentsForAllocation } from "../pluggy/lessonUnitPrice";
+import { displayNameFromGuestContact, resolveLessonUnitCentsForAllocation } from "../pluggy/lessonUnitPrice";
+
+/** Marca aulas pendentes em ordem enquanto o valor do PIX/comprovante cobrir o preço unitário. */
+async function markPendingLessonsFromCreditAmount(
+  userId: number,
+  contact: UserGuestContactRow,
+  poolCents: number,
+  paymentSource: "pluggy" | "upload",
+): Promise<number> {
+  if (poolCents <= 0) return 0;
+  const settings = await storage.getUserSettings(userId);
+  const pending = await storage.listPendingLessonEventsForContact(userId, contact.id);
+  const { markLessonPaidAndSyncCalendar } = await import("../pluggy/pluggyPaymentProcessor");
+  const displayName = displayNameFromGuestContact(contact);
+
+  let pool = poolCents;
+  let marked = 0;
+  let consumedFromBalance = 0;
+
+  for (const ev of pending) {
+    const unit = resolveLessonUnitCentsForAllocation(
+      ev,
+      contact,
+      settings?.defaultLessonPriceCents ?? null,
+    );
+    if (!unit || unit <= 0 || pool < unit) break;
+
+    const fresh = (await storage.getEvent(ev.id)) ?? ev;
+    if (fresh.lessonPaymentStatus !== "pendente" || fresh.cancelledAt) continue;
+
+    await markLessonPaidAndSyncCalendar(userId, fresh, displayName, paymentSource);
+    pool -= unit;
+    consumedFromBalance += unit;
+    marked += 1;
+  }
+
+  if (consumedFromBalance > 0) {
+    const freshContact = await storage.getGuestContactByIdForUser(userId, contact.id);
+    const bal = Math.max(0, freshContact?.lessonBalanceCents ?? 0);
+    const deduct = Math.min(consumedFromBalance, bal);
+    if (deduct > 0) {
+      await storage.adjustGuestLessonBalanceCents(userId, contact.id, -deduct);
+    }
+  }
+
+  return marked;
+}
+
+async function settleCreditAndMarkLessons(
+  userId: number,
+  contact: UserGuestContactRow,
+  amountCents: number,
+  paymentSource: "pluggy" | "upload",
+): Promise<number> {
+  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: true });
+  const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource });
+  let marked = r.markedCount;
+  if (marked === 0 && amountCents > 0) {
+    marked = await markPendingLessonsFromCreditAmount(userId, contact, amountCents, paymentSource);
+  }
+  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
+
+  const { syncPaidLessonCalendarTitlesForContact } = await import("../lessonGoogleCalendarSync");
+  const calendarFixed = await syncPaidLessonCalendarTitlesForContact(userId, contact.id);
+  if (calendarFixed > 0) {
+    console.log("[crédito] Títulos (pago) corrigidos no Google:", { contactId: contact.id, calendarFixed });
+  }
+  return marked;
+}
 
 export type ApplyIncomingCreditResult = {
   duplicate: boolean;
@@ -40,6 +108,17 @@ export async function applyIncomingCreditToContact(opts: {
   }
 
   if (await storage.hasPluggyContactCredit(userId, key)) {
+    const pendingDup = await storage.listPendingLessonEventsForContact(userId, contact.id);
+    if (pendingDup.length > 0) {
+      const marked = await settleCreditAndMarkLessons(userId, contact, 0, paymentSource);
+      return {
+        duplicate: true,
+        applied: true,
+        markedLessons: marked,
+        ledgerTxKey: key,
+        reason: "ja_registrado_reconciliado",
+      };
+    }
     return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key, reason: "ja_registrado" };
   }
 
@@ -132,13 +211,12 @@ export async function applyIncomingCreditToContact(opts: {
     return { duplicate: false, applied: false, markedLessons: 0, ledgerTxKey: key, reason: "ledger_falhou" };
   }
 
-  const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource });
-  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: true });
+  const markedLessons = await settleCreditAndMarkLessons(userId, contact, amountCents, paymentSource);
 
   return {
     duplicate: false,
     applied: true,
-    markedLessons: r.markedCount,
+    markedLessons,
     ledgerTxKey: key,
   };
 }

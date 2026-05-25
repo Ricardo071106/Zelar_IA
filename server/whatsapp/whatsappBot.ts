@@ -1974,10 +1974,17 @@ class WhatsAppBot {
 
       if (studentContactId && guestRow) {
         try {
+          const { syncGuestFinancialState } = await import('../services/guestLessonFinancials');
           const { reconcileGuestContactLessonPayments } = await import(
             '../services/reconcileGuestLessonPayments',
           );
+          const { tryConsumeLessonBalanceAfterEventCreated } = await import(
+            '../services/lessonCancellationCredit',
+          );
+          await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: true });
           await reconcileGuestContactLessonPayments(user.id, studentContactId, { paymentSource: 'balance' });
+          await tryConsumeLessonBalanceAfterEventCreated(user.id, newEvent.id, guestRow);
+          await syncGuestFinancialState(user.id, studentContactId, { applyLedgerTopUp: false });
         } catch (err) {
           console.error('[aula] Falha ao conciliar saldo após criar aula', {
             contactId: studentContactId,

@@ -38,14 +38,6 @@ export async function tryConsumeLessonBalanceAfterEventCreated(
 ): Promise<void> {
   const ev = await storage.getEvent(eventId);
   if (!ev || ev.lessonPaymentStatus !== "pendente" || ev.cancelledAt) return;
-  if (!ev.calendarId?.trim()) {
-    console.warn("[saldo] Aula criada sem calendarId; não vou consumir saldo nem marcar como pago.", {
-      userId,
-      eventId,
-      contactId: contact.id,
-    });
-    return;
-  }
 
   const settings = await storage.getUserSettings(userId);
   const unit = resolveLessonUnitCentsForAllocation(ev, contact, settings?.defaultLessonPriceCents ?? null);
@@ -58,5 +50,13 @@ export async function tryConsumeLessonBalanceAfterEventCreated(
   await storage.adjustGuestLessonBalanceCents(userId, contact.id, -unit);
   const displayName = displayNameFromGuestContact(contact);
   const again = await storage.getEvent(eventId);
-  if (again) await markLessonPaidAndSyncCalendar(userId, again, displayName);
+  if (!again) return;
+
+  await markLessonPaidAndSyncCalendar(userId, again, displayName, "balance");
+  if (!again.calendarId?.trim()) {
+    console.warn(
+      "[saldo] Aula marcada paga no Zelar; Google sem calendarId — título (pago) só na agenda após sync.",
+      { userId, eventId, contactId: contact.id },
+    );
+  }
 }
