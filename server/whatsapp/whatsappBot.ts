@@ -119,6 +119,18 @@ class WhatsAppBot {
   private closingIntentionally = false;
   private baileysVersion: any = undefined;
 
+  /** Resultados de sync de calendário por lote de aulas (tryParseBulkLessonSchedule) */
+  private bulkLessonOutcomes = new Map<
+    string,
+    Array<{
+      label: string;
+      eventId: number;
+      synced: boolean;
+      provider?: 'google' | 'microsoft';
+      error?: string;
+    }>
+  >();
+
   /** Contexto compartilhado ao expandir um pacote de aulas em várias mensagens sequenciais */
   private pendingPackBatchContext: {
     packGroupId: string;
@@ -1317,6 +1329,7 @@ class WhatsAppBot {
             true,
           );
         }
+        await this.flushBulkLessonOutcomes(remoteJid, currentRunId);
         return;
       }
     }
@@ -1794,7 +1807,7 @@ class WhatsAppBot {
           setTokens(user.id, JSON.parse(userSettings.googleTokens));
           const googleResult = await addEventToGoogleCalendar({
             ...newEvent,
-            startDate: new Date(event.startDate),
+            startDate: new Date(newEvent.startDate),
             endDate: null,
             attendeePhones: phones,
             attendeeEmails: emailsMerged,
@@ -1824,7 +1837,7 @@ class WhatsAppBot {
         try {
           const microsoftResult = await addEventToMicrosoftCalendar({
             ...newEvent,
-            startDate: new Date(event.startDate),
+            startDate: new Date(newEvent.startDate),
             endDate: null,
             attendeePhones: phones,
             attendeeEmails: emailsMerged,
@@ -1899,7 +1912,7 @@ class WhatsAppBot {
 
         const organizerEvent = {
           ...newEvent,
-          startDate: new Date(event.startDate),
+          startDate: new Date(newEvent.startDate),
           endDate: null,
           attendeePhones: phones,
           attendeeEmails: serviceAttendeeEmails,
@@ -2013,6 +2026,16 @@ class WhatsAppBot {
         responseText += `\n\n✅ *Evento criado*`;
       }
 
+      if (suppressSuccessReply && fromBatch) {
+        this.recordBulkLessonOutcome(remoteJid, currentRunId, {
+          label: eventForUserMessage.displayDate || event.displayDate || calTitle,
+          eventId: newEvent.id,
+          synced: !!syncedCalendarProvider,
+          provider: syncedCalendarProvider ?? undefined,
+          error: syncedCalendarProvider ? undefined : calendarSyncErrorMessage || undefined,
+        });
+      }
+
       if (!suppressSuccessReply) {
         await this.sendMessage(remoteJid, responseText);
       }
@@ -2046,6 +2069,56 @@ class WhatsAppBot {
     } finally {
       if (processingNoticeTimer) clearTimeout(processingNoticeTimer);
     }
+  }
+
+  private bulkLessonOutcomeKey(remoteJid: string, runId: number): string {
+    return `${remoteJid}::${runId}`;
+  }
+
+  private recordBulkLessonOutcome(
+    remoteJid: string,
+    runId: number,
+    outcome: {
+      label: string;
+      eventId: number;
+      synced: boolean;
+      provider?: 'google' | 'microsoft';
+      error?: string;
+    },
+  ): void {
+    const key = this.bulkLessonOutcomeKey(remoteJid, runId);
+    const list = this.bulkLessonOutcomes.get(key) ?? [];
+    list.push(outcome);
+    this.bulkLessonOutcomes.set(key, list);
+  }
+
+  private async flushBulkLessonOutcomes(remoteJid: string, runId: number): Promise<void> {
+    const key = this.bulkLessonOutcomeKey(remoteJid, runId);
+    const outcomes = this.bulkLessonOutcomes.get(key);
+    this.bulkLessonOutcomes.delete(key);
+    if (!outcomes?.length) return;
+
+    const lines = outcomes.map((o) => {
+      if (o.synced) {
+        const prov = o.provider === 'microsoft' ? 'Microsoft' : 'Google';
+        return `• ${o.label} — ✅ ${prov} Calendar`;
+      }
+      const err = (o.error || '').toLowerCase();
+      const hint = err.includes('autenticado') || err.includes('autorize')
+        ? 'conecte Google/Microsoft no painel'
+        : o.error?.trim() || 'não entrou na agenda';
+      return `• ${o.label} — ⚠️ ${hint}`;
+    });
+
+    const allSynced = outcomes.every((o) => o.synced);
+    const footer = allSynced
+      ? '_Todas aparecem na sua agenda._'
+      : '_Itens com ⚠️ ficaram só no Zelar até o calendário estar conectado (painel → Agenda)._';
+
+    await this.sendMessage(
+      remoteJid,
+      `✅ *${outcomes.length} aula(s) salvas no Zelar:*\n\n${lines.join('\n')}\n\n${footer}`,
+    );
   }
 
   /** Primeiro token do texto (ex.: `/eventos`, `/eventos@bot`). */
