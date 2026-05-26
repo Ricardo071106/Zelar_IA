@@ -216,6 +216,15 @@ export interface IStorage {
   getUserSettings(userId: number): Promise<UserSettings | undefined>;
   createUserSettings(settings: InsertUserSettings): Promise<UserSettings>;
   updateUserSettings(userId: number, data: Partial<InsertUserSettings>): Promise<UserSettings | undefined>;
+  /** Usuários com busca automática Pluggy ativa e banco conectado. */
+  listPluggyAutoBuscarScheduleCandidates(): Promise<
+    {
+      userId: number;
+      timeZone: string;
+      pluggyAutoBuscarTime: string;
+      pluggyAutoBuscarLastRunAt: Date | null;
+    }[]
+  >;
   /** Substitui todos os pacotes do usuário na tabela relacional (fonte de verdade). */
   replaceUserLessonPackages(
     userId: number,
@@ -523,6 +532,47 @@ export class DatabaseStorage implements IStorage {
       }
 
       throw error;
+    }
+  }
+
+  async listPluggyAutoBuscarScheduleCandidates(): Promise<
+    {
+      userId: number;
+      timeZone: string;
+      pluggyAutoBuscarTime: string;
+      pluggyAutoBuscarLastRunAt: Date | null;
+    }[]
+  > {
+    if (!db) return [];
+    try {
+      const rows = await db
+        .select({
+          userId: userSettings.userId,
+          timeZone: userSettings.timeZone,
+          pluggyAutoBuscarTime: userSettings.pluggyAutoBuscarTime,
+          pluggyAutoBuscarLastRunAt: userSettings.pluggyAutoBuscarLastRunAt,
+        })
+        .from(userSettings)
+        .where(
+          and(
+            eq(userSettings.pluggyAutoBuscarEnabled, true),
+            isNotNull(userSettings.pluggyItemId),
+            sql`length(trim(${userSettings.pluggyItemId})) > 0`,
+          ),
+        );
+      return rows.map((r) => ({
+        userId: r.userId,
+        timeZone: r.timeZone?.trim() || "America/Sao_Paulo",
+        pluggyAutoBuscarTime: (r.pluggyAutoBuscarTime?.trim() || "21:00").slice(0, 5),
+        pluggyAutoBuscarLastRunAt: r.pluggyAutoBuscarLastRunAt ?? null,
+      }));
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42703") {
+        console.warn("[storage] Colunas pluggy_auto_buscar_* ausentes; rode migration 0020.");
+        return [];
+      }
+      throw e;
     }
   }
 

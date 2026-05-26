@@ -425,6 +425,14 @@ CREATE INDEX IF NOT EXISTS "user_guest_contacts_user_tax_hash_idx"
   ON "user_guest_contacts" ("user_id", "payer_tax_id_hash")
   WHERE "payer_tax_id_hash" IS NOT NULL;
 
+-- -----------------------------------------------------------------------------
+-- 0020 — Busca automática Pluggy (horário diário no painel)
+-- -----------------------------------------------------------------------------
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "pluggy_auto_buscar_enabled" boolean NOT NULL DEFAULT false;
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "pluggy_auto_buscar_time" varchar(5) DEFAULT '21:00';
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "pluggy_auto_buscar_last_run_at" timestamp;
+ALTER TABLE "user_settings" ADD COLUMN IF NOT EXISTS "pluggy_auto_buscar_last_summary" varchar(255);
+
 -- =============================================================================
 -- Fim. Opcional: habilitar RLS nas tabelas públicas se expuser API direta ao
 -- Supabase — o backend Node atual usa service role / pooler e não depende de RLS.

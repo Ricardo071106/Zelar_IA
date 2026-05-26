@@ -17,6 +17,18 @@ import {
 import { computeGuestLessonFinancials, syncGuestFinancialState } from '../services/guestLessonFinancials';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
+import { runPluggyBuscarReconciliation } from '../services/pluggy/pluggyBuscarReconciliation';
+
+const PLUGGY_BUSCAR_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function parsePluggyBuscarTimeInput(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const t = raw.trim();
+  if (!PLUGGY_BUSCAR_TIME_RE.test(t)) return null;
+  const [h, m] = t.split(':');
+  return `${h.padStart(2, '0')}:${m}`;
+}
+
 const router = Router();
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -304,6 +316,10 @@ router.get(
         pluggyItemId: settings?.pluggyItemId ?? null,
         defaultLessonPriceCents: settings?.defaultLessonPriceCents ?? null,
         lessonPackagesJson: settings?.lessonPackagesJson ?? null,
+        pluggyAutoBuscarEnabled: settings?.pluggyAutoBuscarEnabled ?? false,
+        pluggyAutoBuscarTime: settings?.pluggyAutoBuscarTime?.trim() || '21:00',
+        pluggyAutoBuscarLastRunAt: settings?.pluggyAutoBuscarLastRunAt ?? null,
+        pluggyAutoBuscarLastSummary: settings?.pluggyAutoBuscarLastSummary ?? null,
       },
       pluggy,
       timezones: COMMON_TIMEZONES,
@@ -893,6 +909,105 @@ router.patch(
         lessonPackagesJson: next?.lessonPackagesJson ?? null,
       },
     });
+  }),
+);
+
+router.patch(
+  '/settings/pluggy-buscar-schedule',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+
+    const body = req.body as {
+      pluggyAutoBuscarEnabled?: unknown;
+      pluggyAutoBuscarTime?: unknown;
+    };
+
+    if (
+      !Object.prototype.hasOwnProperty.call(body, 'pluggyAutoBuscarEnabled') &&
+      !Object.prototype.hasOwnProperty.call(body, 'pluggyAutoBuscarTime')
+    ) {
+      return res.status(400).json({ error: 'nada para atualizar' });
+    }
+
+    const patch: {
+      pluggyAutoBuscarEnabled?: boolean;
+      pluggyAutoBuscarTime?: string;
+    } = {};
+
+    if (Object.prototype.hasOwnProperty.call(body, 'pluggyAutoBuscarEnabled')) {
+      patch.pluggyAutoBuscarEnabled = Boolean(body.pluggyAutoBuscarEnabled);
+    }
+    if (Object.prototype.hasOwnProperty.call(body, 'pluggyAutoBuscarTime')) {
+      const parsed = parsePluggyBuscarTimeInput(body.pluggyAutoBuscarTime);
+      if (!parsed) {
+        return res.status(400).json({ error: 'horario invalido; use HH:mm (ex.: 21:00)' });
+      }
+      patch.pluggyAutoBuscarTime = parsed;
+    }
+
+    const s = await storage.getUserSettings(ctx.user.id);
+    if (s) {
+      await storage.updateUserSettings(ctx.user.id, patch);
+    } else {
+      await storage.createUserSettings({
+        userId: ctx.user.id,
+        notificationsEnabled: true,
+        reminderTimes: [12],
+        language: 'pt-BR',
+        timeZone: 'America/Sao_Paulo',
+        pluggyAutoBuscarEnabled: patch.pluggyAutoBuscarEnabled ?? false,
+        pluggyAutoBuscarTime: patch.pluggyAutoBuscarTime ?? '21:00',
+      });
+    }
+
+    const next = await storage.getUserSettings(ctx.user.id);
+    res.json({
+      ok: true,
+      pluggyBuscarSchedule: {
+        pluggyAutoBuscarEnabled: next?.pluggyAutoBuscarEnabled ?? false,
+        pluggyAutoBuscarTime: next?.pluggyAutoBuscarTime?.trim() || '21:00',
+        pluggyAutoBuscarLastRunAt: next?.pluggyAutoBuscarLastRunAt ?? null,
+        pluggyAutoBuscarLastSummary: next?.pluggyAutoBuscarLastSummary ?? null,
+      },
+    });
+  }),
+);
+
+router.post(
+  '/pluggy/buscar-now',
+  asyncHandler(async (req: Request, res: Response) => {
+    const ctx = await panelUser(req);
+    if (!ctx) {
+      return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+
+    if (!pluggyCredentialsConfigured()) {
+      return res.status(503).json({ error: 'Pluggy não está configurado no servidor.' });
+    }
+
+    const settings = await storage.getUserSettings(ctx.user.id);
+    if (!settings?.pluggyItemId?.trim()) {
+      return res.status(400).json({ error: 'Conecte o banco (Pluggy) antes de buscar o extrato.' });
+    }
+
+    const result = await runPluggyBuscarReconciliation(ctx.user.id, { windowIndex: 0 });
+    const summary = result.ok
+      ? `OK: ${result.lessonsMarked} aula(s); ${result.txSeen} lançamento(s)`
+      : `Erro: ${result.message.slice(0, 200)}`;
+
+    await storage.updateUserSettings(ctx.user.id, {
+      pluggyAutoBuscarLastRunAt: new Date(),
+      pluggyAutoBuscarLastSummary: summary.slice(0, 255),
+    });
+
+    if (!result.ok) {
+      return res.status(502).json({ error: result.message, lastSummary: summary });
+    }
+
+    res.json({ ok: true, result, lastSummary: summary });
   }),
 );
 

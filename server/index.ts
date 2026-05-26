@@ -165,6 +165,12 @@ async function startServer() {
       log(`⚠️ Falha ao iniciar reminder service: ${error}`, 'warn');
     }
     setupDailyRestart();
+    try {
+      const { startPluggyAutoBuscarScheduler } = await import('./services/pluggy/pluggyAutoBuscarScheduler');
+      startPluggyAutoBuscarScheduler();
+    } catch (e) {
+      log(`⚠️ Falha ao iniciar agendador Pluggy: ${e}`, 'warn');
+    }
 
     // Validar e iniciar servidor
     const port = validatePort(process.env.PORT);

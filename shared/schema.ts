@@ -212,6 +212,12 @@ export const userSettings = pgTable("user_settings", {
   defaultLessonPriceCents: integer("default_lesson_price_cents"),
   /** Pacotes nomeados: [{ "id":"10","label":"pacote 10","lessons":10,"priceCents":80000 }] */
   lessonPackagesJson: jsonb("lesson_packages_json"),
+  /** Busca diária automática do extrato Pluggy (mesma lógica do /buscar). */
+  pluggyAutoBuscarEnabled: boolean("pluggy_auto_buscar_enabled").default(false).notNull(),
+  /** Horário local (HH:mm) no fuso `time_zone` do usuário. */
+  pluggyAutoBuscarTime: varchar("pluggy_auto_buscar_time", { length: 5 }).default("21:00"),
+  pluggyAutoBuscarLastRunAt: timestamp("pluggy_auto_buscar_last_run_at"),
+  pluggyAutoBuscarLastSummary: varchar("pluggy_auto_buscar_last_summary", { length: 255 }),
 });
 
 /** Pacotes de aula persistidos por usuário (slug = id do painel/WhatsApp). */
@@ -332,6 +338,10 @@ export const insertUserSettingsSchema = createInsertSchema(userSettings).pick({
   pluggyItemId: true,
   defaultLessonPriceCents: true,
   lessonPackagesJson: true,
+  pluggyAutoBuscarEnabled: true,
+  pluggyAutoBuscarTime: true,
+  pluggyAutoBuscarLastRunAt: true,
+  pluggyAutoBuscarLastSummary: true,
 });
 
 

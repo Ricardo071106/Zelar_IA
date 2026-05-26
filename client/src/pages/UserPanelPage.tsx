@@ -29,6 +29,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { PluggyConnect } from "react-pluggy-connect";
+import { Switch } from "@/components/ui/switch";
 
 type PanelMe = {
   user: {
@@ -45,6 +46,10 @@ type PanelMe = {
     pluggyItemId: string | null;
     defaultLessonPriceCents: number | null;
     lessonPackagesJson: unknown | null;
+    pluggyAutoBuscarEnabled: boolean;
+    pluggyAutoBuscarTime: string;
+    pluggyAutoBuscarLastRunAt: string | null;
+    pluggyAutoBuscarLastSummary: string | null;
   };
   pluggy: { itemId: string; label: string } | null;
   timezones: string[];
@@ -186,6 +191,10 @@ export default function UserPanelPage() {
   const [pluggyTokenLoading, setPluggyTokenLoading] = useState(false);
   const [pluggyDialogOpen, setPluggyDialogOpen] = useState(false);
   const [pluggyConnectToken, setPluggyConnectToken] = useState<string | null>(null);
+  const [pluggyAutoBuscarEnabled, setPluggyAutoBuscarEnabled] = useState(false);
+  const [pluggyAutoBuscarTime, setPluggyAutoBuscarTime] = useState("21:00");
+  const [pluggyScheduleSaving, setPluggyScheduleSaving] = useState(false);
+  const [pluggyBuscarNowLoading, setPluggyBuscarNowLoading] = useState(false);
 
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
@@ -260,6 +269,9 @@ export default function UserPanelPage() {
     } else {
       setPackageRows([]);
     }
+    setPluggyAutoBuscarEnabled(Boolean(data.settings.pluggyAutoBuscarEnabled));
+    const buscarTime = data.settings.pluggyAutoBuscarTime?.trim() || "21:00";
+    setPluggyAutoBuscarTime(/^\d{1,2}:\d{2}$/.test(buscarTime) ? buscarTime : "21:00");
   }, [token]);
 
   const loadGuests = useCallback(async () => {
@@ -326,6 +338,64 @@ export default function UserPanelPage() {
     }
     toast({ title: "Perfil salvo" });
     loadMe().catch(() => {});
+  };
+
+  const savePluggyBuscarSchedule = async () => {
+    if (!token) return;
+    setPluggyScheduleSaving(true);
+    try {
+      const r = await fetch("/api/panel/settings/pluggy-buscar-schedule", {
+        method: "PATCH",
+        headers: jsonPostHeaders,
+        body: JSON.stringify({
+          t: token,
+          pluggyAutoBuscarEnabled,
+          pluggyAutoBuscarTime,
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({ title: "Erro", description: j.error || "Não salvou", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Horário da busca salvo" });
+      loadMe().catch(() => {});
+    } finally {
+      setPluggyScheduleSaving(false);
+    }
+  };
+
+  const runPluggyBuscarNow = async () => {
+    if (!token) return;
+    setPluggyBuscarNowLoading(true);
+    try {
+      const r = await fetch("/api/panel/pluggy/buscar-now", {
+        method: "POST",
+        headers: jsonPostHeaders,
+        body: JSON.stringify({ t: token }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        toast({
+          title: "Busca no extrato",
+          description: j.error || j.lastSummary || "Falha na busca",
+          variant: "destructive",
+        });
+        loadMe().catch(() => {});
+        return;
+      }
+      const lessons = j.result?.lessonsMarked ?? 0;
+      toast({
+        title: "Extrato atualizado",
+        description:
+          lessons > 0
+            ? `${lessons} aula(s) marcada(s) como paga(s).`
+            : "Busca concluída. Veja o resumo abaixo ou use /buscar no WhatsApp.",
+      });
+      loadMe().catch(() => {});
+    } finally {
+      setPluggyBuscarNowLoading(false);
+    }
   };
 
   const saveFinance = async () => {
@@ -878,6 +948,79 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                     Nenhum banco vinculado ainda. Use <strong>Conectar banco</strong> abaixo.
                   </p>
                 )}
+
+                <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 space-y-4">
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-900">Busca automática do extrato</p>
+                    <p className="text-xs text-slate-600 mt-1">
+                      Todo dia no horário escolhido (fuso{" "}
+                      <span className="font-mono text-emerald-800">{me.settings.timeZone}</span>), o Zelar roda a
+                      mesma conciliação do <span className="font-mono">/buscar</span> no WhatsApp. Você ainda pode
+                      buscar manualmente quando quiser.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-3">
+                      <Switch
+                        id="pluggy-auto-buscar"
+                        checked={pluggyAutoBuscarEnabled}
+                        onCheckedChange={setPluggyAutoBuscarEnabled}
+                        disabled={!me.pluggy}
+                      />
+                      <Label htmlFor="pluggy-auto-buscar" className="text-slate-700 cursor-pointer">
+                        Ativar busca diária
+                      </Label>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="pluggy-buscar-time" className="text-xs text-slate-600">
+                        Horário
+                      </Label>
+                      <Input
+                        id="pluggy-buscar-time"
+                        type="time"
+                        className={`${inputClass} w-[8.5rem]`}
+                        value={pluggyAutoBuscarTime}
+                        onChange={(e) => setPluggyAutoBuscarTime(e.target.value)}
+                        disabled={!me.pluggy || !pluggyAutoBuscarEnabled}
+                      />
+                    </div>
+                  </div>
+                  {!me.pluggy && (
+                    <p className="text-xs text-amber-800">Conecte o banco para ativar a busca automática.</p>
+                  )}
+                  {me.settings.pluggyAutoBuscarLastRunAt && (
+                    <p className="text-xs text-slate-600">
+                      Última busca:{" "}
+                      {new Date(me.settings.pluggyAutoBuscarLastRunAt).toLocaleString("pt-BR", {
+                        timeZone: me.settings.timeZone,
+                      })}
+                      {me.settings.pluggyAutoBuscarLastSummary ?
+                        ` — ${me.settings.pluggyAutoBuscarLastSummary}`
+                      : ""}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="border-emerald-600 text-emerald-800 hover:bg-emerald-50"
+                      disabled={pluggyScheduleSaving || !me.pluggy}
+                      onClick={() => void savePluggyBuscarSchedule()}
+                    >
+                      {pluggyScheduleSaving ? "Salvando…" : "Salvar horário"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      className="bg-white border border-emerald-200 text-emerald-900 hover:bg-emerald-50"
+                      disabled={pluggyBuscarNowLoading || !me.pluggy}
+                      onClick={() => void runPluggyBuscarNow()}
+                    >
+                      {pluggyBuscarNowLoading ? "Buscando…" : "Buscar agora"}
+                    </Button>
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <Label className="text-slate-700">Preço por aula (referência, R$)</Label>
                   <Input
