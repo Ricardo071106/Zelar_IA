@@ -18,6 +18,7 @@ import { computeGuestLessonFinancials, syncGuestFinancialState } from '../servic
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 import { runPluggyBuscarReconciliation } from '../services/pluggy/pluggyBuscarReconciliation';
+import { isPluggyInMaintenance, PLUGGY_MAINTENANCE_MESSAGE } from '../services/pluggy/pluggyMaintenance';
 
 const PLUGGY_BUSCAR_TIME_RE = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
@@ -322,6 +323,8 @@ router.get(
         pluggyAutoBuscarLastSummary: settings?.pluggyAutoBuscarLastSummary ?? null,
       },
       pluggy,
+      pluggyMaintenance: isPluggyInMaintenance(),
+      pluggyMaintenanceMessage: PLUGGY_MAINTENANCE_MESSAGE,
       timezones: COMMON_TIMEZONES,
       links: {
         googleConnect,
@@ -797,6 +800,13 @@ router.patch(
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
 
+    if (
+      isPluggyInMaintenance() &&
+      Object.prototype.hasOwnProperty.call(req.body || {}, 'pluggyItemId')
+    ) {
+      return res.status(503).json({ error: PLUGGY_MAINTENANCE_MESSAGE });
+    }
+
     let defaultLessonPriceCents: number | null | undefined = undefined;
     if (Object.prototype.hasOwnProperty.call(req.body || {}, 'defaultLessonPriceReais')) {
       const raw = (req.body as { defaultLessonPriceReais?: unknown }).defaultLessonPriceReais;
@@ -919,6 +929,9 @@ router.patch(
     if (!ctx) {
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
+    if (isPluggyInMaintenance()) {
+      return res.status(503).json({ error: PLUGGY_MAINTENANCE_MESSAGE });
+    }
 
     const body = req.body as {
       pluggyAutoBuscarEnabled?: unknown;
@@ -983,6 +996,9 @@ router.post(
     if (!ctx) {
       return res.status(401).json({ error: 'token invalido ou expirado' });
     }
+    if (isPluggyInMaintenance()) {
+      return res.status(503).json({ error: PLUGGY_MAINTENANCE_MESSAGE });
+    }
 
     if (!pluggyCredentialsConfigured()) {
       return res.status(503).json({ error: 'Pluggy não está configurado no servidor.' });
@@ -1017,6 +1033,9 @@ router.post(
     const ctx = await panelUser(req);
     if (!ctx) {
       return res.status(401).json({ error: 'token invalido ou expirado' });
+    }
+    if (isPluggyInMaintenance()) {
+      return res.status(503).json({ error: PLUGGY_MAINTENANCE_MESSAGE });
     }
 
     if (!pluggyCredentialsConfigured()) {

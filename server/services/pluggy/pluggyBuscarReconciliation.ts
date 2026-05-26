@@ -14,6 +14,7 @@ import {
 } from "./pluggyPaymentProcessor";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import { pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
+import { isPluggyInMaintenance, PLUGGY_MAINTENANCE_MESSAGE } from "./pluggyMaintenance";
 
 /** Cada `/buscar` ou `/buscar N` cobre esta quantidade de dias (calendário no fuso do usuário). */
 export const BUSCAR_WINDOW_DAYS = 14;
@@ -150,6 +151,9 @@ export async function runPluggyBuscarReconciliation(
   userId: number,
   opts?: { windowIndex?: number },
 ): Promise<BuscarPluggyResult> {
+  if (isPluggyInMaintenance()) {
+    return { ok: false, message: PLUGGY_MAINTENANCE_MESSAGE };
+  }
   if (!pluggyCredentialsConfigured()) {
     return { ok: false, message: "Pluggy não está configurado no servidor." };
   }

@@ -52,6 +52,8 @@ type PanelMe = {
     pluggyAutoBuscarLastSummary: string | null;
   };
   pluggy: { itemId: string; label: string } | null;
+  pluggyMaintenance: boolean;
+  pluggyMaintenanceMessage?: string;
   timezones: string[];
   links: {
     googleConnect: string;
@@ -135,6 +137,10 @@ function sanitizePanelTokenFromUrl(raw: string): string {
   return cut;
 }
 
+function pluggyMaintLabel(text: string, maintenance: boolean): string {
+  return maintenance ? `${text} (manutenção)` : text;
+}
+
 function readPanelToken(): string | null {
   if (typeof window === "undefined") return null;
   const q = new URLSearchParams(window.location.search).get("t");
@@ -195,6 +201,8 @@ export default function UserPanelPage() {
   const [pluggyAutoBuscarTime, setPluggyAutoBuscarTime] = useState("21:00");
   const [pluggyScheduleSaving, setPluggyScheduleSaving] = useState(false);
   const [pluggyBuscarNowLoading, setPluggyBuscarNowLoading] = useState(false);
+
+  const pluggyMaintenance = me?.pluggyMaintenance ?? true;
 
   const [gName, setGName] = useState("");
   const [gEmail, setGEmail] = useState("");
@@ -341,7 +349,7 @@ export default function UserPanelPage() {
   };
 
   const savePluggyBuscarSchedule = async () => {
-    if (!token) return;
+    if (!token || pluggyMaintenance) return;
     setPluggyScheduleSaving(true);
     try {
       const r = await fetch("/api/panel/settings/pluggy-buscar-schedule", {
@@ -366,7 +374,7 @@ export default function UserPanelPage() {
   };
 
   const runPluggyBuscarNow = async () => {
-    if (!token) return;
+    if (!token || pluggyMaintenance) return;
     setPluggyBuscarNowLoading(true);
     try {
       const r = await fetch("/api/panel/pluggy/buscar-now", {
@@ -456,6 +464,14 @@ export default function UserPanelPage() {
 
   const openPluggyConnect = async () => {
     if (!token) return;
+    if (pluggyMaintenance) {
+      toast({
+        title: "Manutenção",
+        description: me?.pluggyMaintenanceMessage || "Pluggy temporariamente indisponível.",
+        variant: "destructive",
+      });
+      return;
+    }
     setPluggyTokenLoading(true);
     try {
       const r = await fetch("/api/panel/pluggy/connect-token", {
@@ -481,7 +497,7 @@ export default function UserPanelPage() {
   };
 
   const copyPluggyTokenOnly = async () => {
-    if (!token) return;
+    if (!token || pluggyMaintenance) return;
     setPluggyTokenLoading(true);
     try {
       const r = await fetch("/api/panel/pluggy/connect-token", {
@@ -508,7 +524,7 @@ export default function UserPanelPage() {
   };
 
   const disconnectPluggy = async () => {
-    if (!token) return;
+    if (!token || pluggyMaintenance) return;
     if (
       !window.confirm(
         "Desconectar o banco no Pluggy? O Zelar deixa de ler o extrato para marcar aulas como pagas até você conectar de novo.",
@@ -923,9 +939,18 @@ export default function UserPanelPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                {pluggyMaintenance && (
+                  <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    {me.pluggyMaintenanceMessage ||
+                      "Open Finance (Pluggy) em manutenção. Use comprovante PIX (foto ou PDF) no WhatsApp."}
+                  </p>
+                )}
                 <p className="text-xs text-slate-500">
                   Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário (qualquer
-aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, rode <strong className="font-mono text-emerald-900">/buscar</strong> para ler o extrato (Pluggy) ou envie <strong>foto ou PDF</strong> do comprovante do PIX recebido — o mesmo pagamento não entra duas vezes.
+                  aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp,{" "}
+                  <strong className="font-mono text-emerald-900">/buscar</strong>
+                  {pluggyMaintenance ? " (manutenção)" : ""} lê o extrato (Pluggy) ou envie{" "}
+                  <strong>foto ou PDF</strong> do comprovante do PIX recebido — o mesmo pagamento não entra duas vezes.
                 </p>
                 {me.pluggy ? (
                   <div className="rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-white p-4 space-y-3">
@@ -938,9 +963,10 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                       type="button"
                       variant="outline"
                       className="border-red-300 text-red-800 hover:bg-red-50"
+                      disabled={pluggyMaintenance}
                       onClick={() => void disconnectPluggy()}
                     >
-                      Desconectar banco
+                      {pluggyMaintLabel("Desconectar banco", pluggyMaintenance)}
                     </Button>
                   </div>
                 ) : (
@@ -965,10 +991,10 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                         id="pluggy-auto-buscar"
                         checked={pluggyAutoBuscarEnabled}
                         onCheckedChange={setPluggyAutoBuscarEnabled}
-                        disabled={!me.pluggy}
+                        disabled={!me.pluggy || pluggyMaintenance}
                       />
                       <Label htmlFor="pluggy-auto-buscar" className="text-slate-700 cursor-pointer">
-                        Ativar busca diária
+                        {pluggyMaintLabel("Ativar busca diária", pluggyMaintenance)}
                       </Label>
                     </div>
                     <div className="space-y-1.5">
@@ -981,11 +1007,11 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                         className={`${inputClass} w-[8.5rem]`}
                         value={pluggyAutoBuscarTime}
                         onChange={(e) => setPluggyAutoBuscarTime(e.target.value)}
-                        disabled={!me.pluggy || !pluggyAutoBuscarEnabled}
+                        disabled={!me.pluggy || !pluggyAutoBuscarEnabled || pluggyMaintenance}
                       />
                     </div>
                   </div>
-                  {!me.pluggy && (
+                  {!me.pluggy && !pluggyMaintenance && (
                     <p className="text-xs text-amber-800">Conecte o banco para ativar a busca automática.</p>
                   )}
                   {me.settings.pluggyAutoBuscarLastRunAt && (
@@ -1004,19 +1030,23 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                       type="button"
                       variant="outline"
                       className="border-emerald-600 text-emerald-800 hover:bg-emerald-50"
-                      disabled={pluggyScheduleSaving || !me.pluggy}
+                      disabled={pluggyScheduleSaving || !me.pluggy || pluggyMaintenance}
                       onClick={() => void savePluggyBuscarSchedule()}
                     >
-                      {pluggyScheduleSaving ? "Salvando…" : "Salvar horário"}
+                      {pluggyScheduleSaving ?
+                        "Salvando…"
+                      : pluggyMaintLabel("Salvar horário", pluggyMaintenance)}
                     </Button>
                     <Button
                       type="button"
                       variant="secondary"
                       className="bg-white border border-emerald-200 text-emerald-900 hover:bg-emerald-50"
-                      disabled={pluggyBuscarNowLoading || !me.pluggy}
+                      disabled={pluggyBuscarNowLoading || !me.pluggy || pluggyMaintenance}
                       onClick={() => void runPluggyBuscarNow()}
                     >
-                      {pluggyBuscarNowLoading ? "Buscando…" : "Buscar agora"}
+                      {pluggyBuscarNowLoading ?
+                        "Buscando…"
+                      : pluggyMaintLabel("Buscar agora", pluggyMaintenance)}
                     </Button>
                   </div>
                 </div>
@@ -1114,20 +1144,22 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                   <Button
                     type="button"
                     variant="default"
-                    disabled={pluggyTokenLoading}
+                    disabled={pluggyTokenLoading || pluggyMaintenance}
                     className="bg-slate-800 text-white hover:bg-slate-900"
                     onClick={() => void openPluggyConnect()}
                   >
-                    {pluggyTokenLoading ? "Abrindo…" : "Conectar banco (Pluggy)"}
+                    {pluggyTokenLoading ?
+                      "Abrindo…"
+                    : pluggyMaintLabel("Conectar banco (Pluggy)", pluggyMaintenance)}
                   </Button>
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={pluggyTokenLoading}
+                    disabled={pluggyTokenLoading || pluggyMaintenance}
                     className="border-emerald-600 text-emerald-800 hover:bg-emerald-50"
                     onClick={() => void copyPluggyTokenOnly()}
                   >
-                    Copiar token
+                    {pluggyMaintLabel("Copiar token", pluggyMaintenance)}
                   </Button>
                 </div>
               </CardContent>
@@ -1170,7 +1202,8 @@ aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, ro
                   <strong>Pendente (aulas)</strong> soma o valor das aulas ainda não pagas (cada uma com o preço
                   congelado no dia em que foi marcada; mudar o preço no painel não altera aulas antigas).{" "}
                   <strong>Saldo retido</strong> é crédito (ex.: cancelamento); o Pluggy pode abatê-lo no{" "}
-                  <span className="font-mono text-emerald-900">/buscar</span>. No WhatsApp use{" "}
+                  <span className="font-mono text-emerald-900">/buscar</span>
+                  {pluggyMaintenance ? " (manutenção)" : ""}. No WhatsApp use{" "}
                   <span className="font-mono text-emerald-900">/aula</span> para ver a agenda do dia.
                 </CardDescription>
               </CardHeader>

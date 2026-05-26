@@ -1073,7 +1073,7 @@ class WhatsAppBot {
 
     await this.sendMessage(
       remoteJid,
-      `⚠️ *Comprovante sem match*\n\n${out.message}\n\nConfira o cadastro do aluno (nome/CPF) ou use \`/buscar\` se o banco estiver no Pluggy.`,
+      `⚠️ *Comprovante sem match*\n\n${out.message}\n\nConfira o cadastro do aluno (nome/CPF). O extrato Pluggy (\`/buscar\`) está em manutenção — use comprovante com nome e valor visíveis.`,
     );
   }
 
@@ -2206,7 +2206,7 @@ class WhatsAppBot {
         'Use:\n' +
         '• `/comandos` — lista de comandos\n' +
         '• `/ajuda` — link do painel\n' +
-        '• `/eventos` · `/buscar` (ou `/buscar N`)\n\n' +
+        '• `/eventos` · `/buscar` (manutenção) (ou `/buscar N`)\n\n' +
         '🗑️ *Para apagar aulas*, digite em texto, por exemplo:\n' +
         '• *apagar as aulas do João*\n' +
         '• *apagar a da Maria*',
@@ -2220,8 +2220,8 @@ class WhatsAppBot {
         '📋 *Comandos com barra (/):*\n' +
         '• `/comandos` — esta mensagem\n' +
         '• `/eventos` — próximos compromissos criados pelo Zelar\n' +
-        '• `/buscar` — conciliar PIX no extrato (últimas *2 semanas*)\n' +
-        '• `/buscar 1`, `/buscar 2`… — blocos mais antigos do extrato\n\n' +
+        '• `/buscar` *(manutenção)* — conciliar PIX no extrato (últimas *2 semanas*)\n' +
+        '• `/buscar 1`, `/buscar 2`… *(manutenção)* — blocos mais antigos do extrato\n\n' +
         '🧾 *Comprovante PIX:* envie a *foto* ou print do PIX recebido (sem comando).\n\n' +
         '🗑️ *Apagar aulas* _(sem comando, só texto):_\n' +
         'Ex.: *apagar as aulas do João* · *apagar a da Maria*\n\n' +
@@ -2273,6 +2273,16 @@ class WhatsAppBot {
           break;
 
         case '/buscar': {
+          const { isPluggyInMaintenance, PLUGGY_MAINTENANCE_MESSAGE } = await import(
+            '../services/pluggy/pluggyMaintenance',
+          );
+          if (isPluggyInMaintenance()) {
+            await this.sendMessage(
+              remoteJid,
+              `ℹ️ *Extrato (Pluggy) em manutenção*\n\n${PLUGGY_MAINTENANCE_MESSAGE}`,
+            );
+            break;
+          }
           let windowIdx = 0;
           const rawArg = args.trim();
           if (rawArg) {

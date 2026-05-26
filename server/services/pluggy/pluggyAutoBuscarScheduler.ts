@@ -2,6 +2,7 @@ import { DateTime } from "luxon";
 import schedule from "node-schedule";
 import { storage } from "../../storage";
 import { runPluggyBuscarReconciliation } from "./pluggyBuscarReconciliation";
+import { isPluggyInMaintenance } from "./pluggyMaintenance";
 
 let tickRunning = false;
 
@@ -28,6 +29,7 @@ async function runScheduledBuscarForUser(userId: number): Promise<void> {
 }
 
 async function tickPluggyAutoBuscar(): Promise<void> {
+  if (isPluggyInMaintenance()) return;
   if (tickRunning) return;
   tickRunning = true;
   try {
@@ -68,6 +70,10 @@ async function tickPluggyAutoBuscar(): Promise<void> {
 
 /** Verifica a cada minuto se algum usuário deve rodar `/buscar` no horário configurado. */
 export function startPluggyAutoBuscarScheduler(): void {
+  if (isPluggyInMaintenance()) {
+    console.log("[Pluggy/auto] Agendador não iniciado — Pluggy em manutenção.");
+    return;
+  }
   schedule.scheduleJob("* * * * *", () => {
     void tickPluggyAutoBuscar();
   });

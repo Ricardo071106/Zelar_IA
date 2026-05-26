@@ -499,6 +499,9 @@ export async function processSinglePluggyTransaction(
   tx: PluggyTx,
   opts?: ProcessPluggyTxOpts,
 ): Promise<void> {
+  const { isPluggyInMaintenance } = await import("./pluggyMaintenance");
+  if (isPluggyInMaintenance()) return;
+
   const { isPluggySyncPaused } = await import("./pluggySyncGate");
   if (isPluggySyncPaused()) return;
 
@@ -1000,6 +1003,8 @@ export async function handlePluggyItemLinkedFromWebhook(
   clientUserId: string | undefined,
   itemId: string | undefined,
 ): Promise<void> {
+  const { isPluggyInMaintenance } = await import("./pluggyMaintenance");
+  if (isPluggyInMaintenance()) return;
   if (eventName !== "item/created") return;
   if (!clientUserId || !itemId) return;
   const m = /^zelar-user-(\d+)$/.exec(clientUserId.trim());

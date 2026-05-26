@@ -5,6 +5,7 @@ import {
   handlePluggyTransactionsUpdatedWebhook,
   handlePluggyItemLinkedFromWebhook,
 } from "../services/pluggy/pluggyPaymentProcessor";
+import { isPluggyInMaintenance } from "../services/pluggy/pluggyMaintenance";
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.post(
     setImmediate(() => {
       void (async () => {
         try {
+          if (isPluggyInMaintenance()) return;
           if (event === "item/created" || event === "item/updated") {
             await handlePluggyItemLinkedFromWebhook(
               event,
