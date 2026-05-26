@@ -855,7 +855,7 @@ export default function UserPanelPage() {
               <CardContent className="space-y-4">
                 <p className="text-xs text-slate-500">
                   Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário (qualquer
-                  aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, rode <strong className="font-mono text-emerald-900">/buscar</strong> para ler o extrato (Pluggy) ou envie a <strong>foto do comprovante</strong> do PIX recebido — o mesmo pagamento não entra duas vezes.
+                  aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp, rode <strong className="font-mono text-emerald-900">/buscar</strong> para ler o extrato (Pluggy) ou envie <strong>foto ou PDF</strong> do comprovante (PIX ou cartão) — o mesmo pagamento não entra duas vezes.
                 </p>
                 {me.pluggy ? (
                   <div className="rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-white p-4 space-y-3">

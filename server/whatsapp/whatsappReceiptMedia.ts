@@ -12,7 +12,7 @@ function getInnerMessage(raw: unknown): Record<string, unknown> | null {
 
 export type ReceiptMediaKind = "image" | "document";
 
-/** Imagem ou documento com MIME de imagem (comprovante). Ignora figurinha, vídeo, PDF. */
+/** Imagem, PDF ou documento-imagem (comprovante). Ignora figurinha e vídeo. */
 export function getReceiptMediaKind(message: unknown): ReceiptMediaKind | null {
   const inner = getInnerMessage(message);
   if (!inner) return null;
@@ -22,7 +22,9 @@ export function getReceiptMediaKind(message: unknown): ReceiptMediaKind | null {
 
   const doc = inner.documentMessage as { mimetype?: string; fileName?: string } | undefined;
   const mime = doc?.mimetype?.toLowerCase() ?? "";
+  const name = (doc?.fileName || "").toLowerCase();
   if (mime.startsWith("image/")) return "document";
+  if (mime.includes("pdf") || name.endsWith(".pdf")) return "document";
 
   return null;
 }
@@ -35,8 +37,14 @@ function resolveMimeAndName(message: unknown, kind: ReceiptMediaKind): { mimeTyp
     return { mimeType: mime, originalName: "comprovante-whatsapp.jpg" };
   }
   const doc = inner?.documentMessage as { mimetype?: string; fileName?: string } | undefined;
-  const mime = doc?.mimetype?.toLowerCase() || "image/jpeg";
-  const name = (doc?.fileName?.trim() || "comprovante-whatsapp").slice(0, 200);
+  const nameRaw = doc?.fileName?.trim() || "";
+  const mime =
+    doc?.mimetype?.toLowerCase() ||
+    (nameRaw.toLowerCase().endsWith(".pdf") ? "application/pdf" : "image/jpeg");
+  const name = (nameRaw || (mime.includes("pdf") ? "comprovante-whatsapp.pdf" : "comprovante-whatsapp")).slice(
+    0,
+    200,
+  );
   return { mimeType: mime, originalName: name };
 }
 

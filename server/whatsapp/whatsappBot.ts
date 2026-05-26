@@ -389,8 +389,8 @@ class WhatsAppBot {
               msg.key.remoteJid,
               '📝 *Texto ou comprovante*\n\n' +
                 '• Agendamentos e comandos: *mensagem de texto*\n' +
-                '• PIX recebido: envie *foto ou print* do comprovante (JPG/PNG)\n\n' +
-                'Não processamos áudio, vídeo, figurinha, PDF ou localização por aqui.',
+                '• Pagamento: envie *foto, print ou PDF* do comprovante (PIX ou cartão)\n\n' +
+                'Não processamos áudio, vídeo, figurinha ou localização por aqui.',
             );
             continue;
           }
@@ -1019,14 +1019,14 @@ class WhatsAppBot {
 
     await this.sendMessage(
       remoteJid,
-      '⏳ Lendo o comprovante… Isso pode levar até ~1 minuto.',
+      '⏳ Lendo o comprovante (imagem ou PDF)… Isso pode levar até ~1 minuto.',
     );
 
     const media = await downloadWhatsAppReceiptBuffer(this.sock, msg);
     if (!media) {
       await this.sendMessage(
         remoteJid,
-        '❌ Não consegui baixar a imagem. Envie de novo como *foto* (não figurinha) ou documento de imagem (JPG/PNG).',
+        '❌ Não consegui baixar o arquivo. Envie de novo como *foto*, documento *PDF* ou imagem (JPG/PNG).',
       );
       return;
     }
@@ -2313,7 +2313,7 @@ class WhatsAppBot {
                 : out.payableCreditTxSeen === 0
                   ? '⚠️ Nenhum *PIX/crédito* apareceu no extrato nesta janela. Confira se o pagamento foi na *conta conectada* no painel; aguarde alguns minutos e tente de novo.\n\n'
                   : 'ℹ️ Há créditos no extrato, mas nenhuma aula pendente foi quitada (nome/valor não bateram, PIX antigo ou PIX de hoje ainda não veio do banco).\n\n' +
-                    '_PIX recente: aguarde 2–3 min e rode `/buscar` de novo, ou envie a *foto do comprovante* no WhatsApp._\n\n';
+                    '_PIX recente: aguarde 2–3 min e rode `/buscar` de novo, ou envie *foto/PDF do comprovante* no WhatsApp._\n\n';
             await this.sendMessage(
               remoteJid,
               `✅ *Busca concluída*\n\n` +

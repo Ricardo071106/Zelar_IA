@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { storage } from "../../storage";
-import { extractTextFromImage } from "../imageOCR";
+import { extractTextFromReceiptDocument, receiptDocumentMimeSupported } from "../documentTextExtract";
 import { parseReceiptFromOcrText } from "./receiptTextParser";
 import {
   resolvePaymentDedupeKeyFromReceiptText,
@@ -63,17 +63,16 @@ export async function processReceiptUpload(opts: {
   const settings = await storage.getUserSettings(userId);
   const timeZone = settings?.timeZone ?? "America/Sao_Paulo";
 
-  const isImage = /^image\//i.test(mimeType);
-  if (!isImage) {
+  if (!receiptDocumentMimeSupported(mimeType, originalName)) {
     return {
       ok: false,
       status: "unreadable",
       message:
-        "Envie foto ou print do comprovante (JPG, PNG ou WebP). PDF ainda não é suportado — exporte como imagem.",
+        "Envie comprovante em imagem (JPG, PNG, WebP) ou PDF (até ~12 MB). Outros formatos não são suportados.",
     };
   }
 
-  const ocrText = await extractTextFromImage(buffer, mimeType);
+  const ocrText = await extractTextFromReceiptDocument(buffer, mimeType, originalName);
   if (!ocrText?.trim()) {
     const fileKey = resolvePaymentDedupeKeyFromUploadFile(sha256(buffer), userId);
     if (await storage.hasPluggyContactCredit(userId, fileKey)) {
@@ -88,7 +87,7 @@ export async function processReceiptUpload(opts: {
       ok: false,
       status: "unreadable",
       message:
-        "Não foi possível ler o texto da imagem. Use foto nítida ou configure OCR (TESSERACT_PATH / OCR_SERVICE_URL).",
+        "Não foi possível ler o comprovante. Em PDF, use arquivo com texto selecionável (não só scan). Em imagem, use foto nítida ou OCR (TESSERACT_PATH / OCR_SERVICE_URL).",
     };
   }
 
