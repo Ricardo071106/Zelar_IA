@@ -389,7 +389,7 @@ class WhatsAppBot {
               msg.key.remoteJid,
               '📝 *Texto ou comprovante*\n\n' +
                 '• Agendamentos e comandos: *mensagem de texto*\n' +
-                '• Pagamento: envie *foto, print ou PDF* do comprovante (PIX ou cartão)\n\n' +
+                '• PIX recebido: envie *foto, print ou PDF* do comprovante\n\n' +
                 'Não processamos áudio, vídeo, figurinha ou localização por aqui.',
             );
             continue;
@@ -1066,7 +1066,7 @@ class WhatsAppBot {
     if (out.status === 'unreadable' || out.status === 'not_credit') {
       await this.sendMessage(
         remoteJid,
-        `❌ *Não deu para usar este comprovante*\n\n${out.message}\n\nDica: se for *cartão*, envie a imagem com legenda tipo: *cartão João 50*. Se for PIX, mande o print do PIX *recebido* com valor e nome do pagador visíveis.`,
+        `❌ *Não deu para usar este comprovante*\n\n${out.message}\n\nDica: mande o print/PDF do PIX *recebido* com valor e nome do pagador visíveis.`,
       );
       return;
     }
