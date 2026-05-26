@@ -8,6 +8,7 @@ export type ParsedReceipt = {
   payerName: string | null;
   endToEndId: string | null;
   rawText: string;
+  paymentMethod?: "PIX" | "CARD";
 };
 
 function parseBrlAmountCents(text: string): number | null {
@@ -86,11 +87,24 @@ export function parseReceiptFromOcrText(text: string, timeZone = "America/Sao_Pa
   const payerName = parsePayerName(rawText);
   const endToEndId = extractPixEndToEndId(rawText);
 
+  // PIX: tem E2E ou texto típico.
+  const looksPix =
+    Boolean(endToEndId) ||
+    /PIX\s+RECEBID|RECEBIDO.{0,32}PIX|CREDITO\s+DE\s+PIX|CR[EÉ]DITO\s+PIX/i.test(upper);
+
+  // Cartão: quando o usuário manda legenda "cartão ..." ou o texto indica recebimento/venda.
+  const looksCard =
+    /\bCARTAO\b|\bCARTÃO\b|\bCR[EÉ]DITO\b|\bRECEBIMENTO\b|\bVENDA\b|\bAPROVAD[AO]\b/i.test(upper) &&
+    !/\bFATURA\b|\bPAGAMENTO\s+FATURA\b|\bANUIDADE\b|\bIOF\b|\bTARIFA\b|\bCOMPRA\b/i.test(upper);
+
+  if (!looksPix && !looksCard) return null;
+
   return {
     amountCents,
     txPostedAt,
     payerName,
     endToEndId,
     rawText,
+    paymentMethod: looksPix ? "PIX" : "CARD",
   };
 }

@@ -88,6 +88,27 @@ function memoLooksLikeInstitutionalNoise(tx: PluggyTx): boolean {
   if (/PIX\s+RECEBIDO|RECEBIDO.{0,32}PIX|TRANSFER[EÊ]NCIA\s+RECEBIDA|TRANSF\s+RECEBIDA|TED\s+RECEBIDA/i.test(blob)) {
     return false;
   }
+
+  // Recebíveis de adquirentes: normalmente aparecem como "cartão", mas são pagamento do aluno via link/maquininha.
+  // Preferimos errar para "tentar casar" (resolvePluggyCreditContact) do que ignorar e perder pagamento real.
+  const acquirers = [
+    "PAGSEGURO",
+    "MERCADO PAGO",
+    "MERCADOPAGO",
+    "PICPAY",
+    "STONE",
+    "CIELO",
+    "GETNET",
+    "REDE",
+    "SUMUP",
+    "SUMUP*",
+    "TON",
+    "INFINITEPAY",
+    "ASAAS",
+    "STRIPE",
+  ];
+  if (acquirers.some((k) => blob.includes(k))) return false;
+
   const keys = [
     "FATURA",
     "BOLETO",

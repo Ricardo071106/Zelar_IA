@@ -1036,6 +1036,7 @@ class WhatsAppBot {
       buffer: media.buffer,
       mimeType: media.mimeType,
       originalName: media.originalName,
+      contextText: media.captionText,
     });
 
     if (out.status === 'duplicate') {
@@ -1065,7 +1066,7 @@ class WhatsAppBot {
     if (out.status === 'unreadable' || out.status === 'not_credit') {
       await this.sendMessage(
         remoteJid,
-        `❌ *Não deu para usar este comprovante*\n\n${out.message}\n\nDica: foto nítida do PIX *recebido*, com valor e nome do pagador visíveis.`,
+        `❌ *Não deu para usar este comprovante*\n\n${out.message}\n\nDica: se for *cartão*, envie a imagem com legenda tipo: *cartão João 50*. Se for PIX, mande o print do PIX *recebido* com valor e nome do pagador visíveis.`,
       );
       return;
     }

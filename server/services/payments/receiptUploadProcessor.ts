@@ -34,6 +34,7 @@ function syntheticTxFromReceipt(parsed: {
   payerName: string | null;
   endToEndId: string | null;
   rawText: string;
+  paymentMethod?: "PIX" | "CARD";
 }): PluggyTx {
   return {
     id: undefined,
@@ -44,7 +45,7 @@ function syntheticTxFromReceipt(parsed: {
     description: parsed.rawText.slice(0, 400),
     descriptionRaw: parsed.rawText.slice(0, 800),
     paymentData: {
-      paymentMethod: "PIX",
+      paymentMethod: parsed.paymentMethod || "PIX",
       payer: parsed.payerName ? { name: parsed.payerName } : undefined,
       referenceNumber: parsed.endToEndId ?? undefined,
     },
@@ -56,8 +57,9 @@ export async function processReceiptUpload(opts: {
   buffer: Buffer;
   mimeType: string;
   originalName: string;
+  contextText?: string;
 }): Promise<ReceiptUploadResult> {
-  const { userId, buffer, mimeType, originalName } = opts;
+  const { userId, buffer, mimeType, originalName, contextText } = opts;
   const settings = await storage.getUserSettings(userId);
   const timeZone = settings?.timeZone ?? "America/Sao_Paulo";
 
@@ -90,12 +92,16 @@ export async function processReceiptUpload(opts: {
     };
   }
 
-  const parsed = parseReceiptFromOcrText(ocrText, timeZone);
+  const parsed = parseReceiptFromOcrText(
+    contextText?.trim() ? `${contextText.trim()}\n\n${ocrText}` : ocrText,
+    timeZone,
+  );
   if (!parsed) {
     return {
       ok: false,
       status: "not_credit",
-      message: "Não identificamos um PIX recebido com valor no comprovante.",
+      message:
+        "Não identificamos um recebimento com valor no comprovante. Se for cartão, envie com legenda tipo: `cartão João 50`.",
     };
   }
 

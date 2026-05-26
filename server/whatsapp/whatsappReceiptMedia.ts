@@ -45,13 +45,21 @@ const silentLogger = pino({ level: "silent" });
 export async function downloadWhatsAppReceiptBuffer(
   sock: { updateMediaMessage?: (message: unknown) => Promise<unknown> },
   message: unknown,
-): Promise<{ buffer: Buffer; mimeType: string; originalName: string } | null> {
+): Promise<{ buffer: Buffer; mimeType: string; originalName: string; captionText?: string } | null> {
   const kind = getReceiptMediaKind(message);
   if (!kind) return null;
   if (!sock.updateMediaMessage) {
     console.warn("[WhatsApp/comprovante] Socket sem updateMediaMessage");
     return null;
   }
+
+  const inner = getInnerMessage(message);
+  const captionText =
+    typeof (inner?.imageMessage as { caption?: unknown } | undefined)?.caption === "string"
+      ? ((inner?.imageMessage as { caption?: string }).caption || "").trim()
+      : typeof (inner?.documentMessage as { caption?: unknown } | undefined)?.caption === "string"
+        ? ((inner?.documentMessage as { caption?: string }).caption || "").trim()
+        : undefined;
 
   try {
     const raw = await downloadMediaMessage(
@@ -66,7 +74,7 @@ export async function downloadWhatsAppReceiptBuffer(
     const buffer = Buffer.isBuffer(raw) ? raw : Buffer.from(raw as Uint8Array);
     if (!buffer.length) return null;
     const { mimeType, originalName } = resolveMimeAndName(message, kind);
-    return { buffer, mimeType, originalName };
+    return { buffer, mimeType, originalName, captionText: captionText || undefined };
   } catch (e) {
     console.error("[WhatsApp/comprovante] Falha ao baixar mídia:", e);
     return null;
