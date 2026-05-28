@@ -930,29 +930,36 @@ export default function UserPanelPage() {
 
             <Card className={cardClass}>
               <CardHeader>
-                <CardTitle className="font-mago text-2xl text-emerald-900">Pluggy &amp; preços de aula</CardTitle>
+                <CardTitle className="font-mago text-2xl text-emerald-900">
+                  {pluggyMaintenance ? "Preços de aula e pagamentos" : "Pluggy & preços de aula"}
+                </CardTitle>
                 <CardDescription className="text-slate-600">
-                  Conecte o Open Finance (Pluggy) para o sistema reconhecer PIX e créditos com base no <strong>nome do
-                  pagador</strong> e no <strong>valor</strong>, e atualizar o título da aula de «pendente» para «pago».
-                  Aqui você define o preço de referência e os pacotes — status de pagamento no dia a dia vem do banco, não
-                  de campos manuais na aba de alunos.
+                  {pluggyMaintenance ?
+                    <>
+                      Defina o preço de referência e os pacotes. Para marcar aulas como <strong>pago</strong>, envie o{" "}
+                      <strong>comprovante PIX</strong> (foto ou PDF) no WhatsApp — a leitura automática do banco está
+                      desativada.
+                    </>
+                  : <>
+                      Conecte o Open Finance (Pluggy) para o sistema reconhecer PIX com base no{" "}
+                      <strong>nome do pagador</strong> e no <strong>valor</strong>. Aqui você define preços e pacotes.
+                    </>
+                  }
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {pluggyMaintenance && (
+                {pluggyMaintenance ? (
                   <p className="text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                    {me.pluggyMaintenanceMessage ||
-                      "Open Finance (Pluggy) em manutenção. Use comprovante PIX (foto ou PDF) no WhatsApp."}
+                    {me.pluggyMaintenanceMessage}
+                  </p>
+                ) : (
+                  <p className="text-xs text-slate-500">
+                    Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário. No
+                    WhatsApp, <strong className="font-mono text-emerald-900">/buscar</strong> lê o extrato ou envie{" "}
+                    <strong>foto ou PDF</strong> do comprovante do PIX recebido.
                   </p>
                 )}
-                <p className="text-xs text-slate-500">
-                  Só usamos créditos no extrato com <strong>data ≥ primeira aula</strong> criada no calendário (qualquer
-                  aluno). Faturas de cartão, corretoras e boletos são ignorados. No WhatsApp,{" "}
-                  <strong className="font-mono text-emerald-900">/buscar</strong>
-                  {pluggyMaintenance ? " (manutenção)" : ""} lê o extrato (Pluggy) ou envie{" "}
-                  <strong>foto ou PDF</strong> do comprovante do PIX recebido — o mesmo pagamento não entra duas vezes.
-                </p>
-                {me.pluggy ? (
+                {!pluggyMaintenance && me.pluggy ? (
                   <div className="rounded-xl border border-emerald-200/90 bg-gradient-to-br from-emerald-50/90 to-white p-4 space-y-3">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Banco conectado</p>
@@ -969,12 +976,13 @@ export default function UserPanelPage() {
                       {pluggyMaintLabel("Desconectar banco", pluggyMaintenance)}
                     </Button>
                   </div>
-                ) : (
+                ) : !pluggyMaintenance ? (
                   <p className="text-sm text-slate-600">
                     Nenhum banco vinculado ainda. Use <strong>Conectar banco</strong> abaixo.
                   </p>
-                )}
+                ) : null}
 
+                {!pluggyMaintenance && (
                 <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/40 p-4 space-y-4">
                   <div>
                     <p className="text-sm font-semibold text-emerald-900">Busca automática do extrato</p>
@@ -1050,6 +1058,7 @@ export default function UserPanelPage() {
                     </Button>
                   </div>
                 </div>
+                )}
 
                 <div className="space-y-2">
                   <Label className="text-slate-700">Preço por aula (referência, R$)</Label>
