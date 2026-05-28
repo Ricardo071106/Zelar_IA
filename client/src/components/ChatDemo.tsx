@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { format } from "date-fns";
+import { format, addDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { motion } from "framer-motion";
 
@@ -18,92 +18,83 @@ interface ChatDemoProps {
 
 export default function ChatDemo({ step }: ChatDemoProps) {
   const chatRef = useRef<HTMLDivElement>(null);
-  
-  // Rola para o final do chat quando novas mensagens são adicionadas
+
   useEffect(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight;
     }
   }, [step]);
 
+  const tomorrow = format(addDays(new Date(), 1), "EEEE, dd 'de' MMMM", { locale: ptBR });
+
   const chatDemo: ChatMessage[][] = [
     [
       {
         type: "bot",
-        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+        text: "Olá! Sou o Zelar. Me diga o horário — cliente, serviço e dia.",
       },
     ],
     [
       {
         type: "bot",
-        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+        text: "Olá! Sou o Zelar. Me diga o horário — cliente, serviço e dia.",
       },
-      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
-      { type: "thinking", text: "Processando..." },
+      { type: "user", text: "Manicure com a Carla sexta às 14h" },
+      { type: "thinking", text: "Organizando..." },
     ],
     [
       {
         type: "bot",
-        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+        text: "Olá! Sou o Zelar. Me diga o horário — cliente, serviço e dia.",
       },
-      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
+      { type: "user", text: "Manicure com a Carla sexta às 14h" },
       {
         type: "bot",
-        text: "✅ Aula registrada na sua agenda!\n\nResumo:",
-        title: "Violão · Lucas",
-        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
-        time: "10:00",
-        description: "Local: Estúdio",
+        text: "Agendado na sua agenda!",
+        title: "Manicure · Carla",
+        day: tomorrow,
+        time: "14:00",
       },
     ],
     [
       {
         type: "bot",
-        text: "👋 Olá! Sou o Zelar. Pode dizer sua aula em português — aluno, matéria, dia e horário.",
+        text: "Olá! Sou o Zelar. Me diga o horário — cliente, serviço e dia.",
       },
-      { type: "user", text: "Aula de violão com o Lucas sábado às 10h no estúdio" },
+      { type: "user", text: "Manicure com a Carla sexta às 14h" },
       {
         type: "bot",
-        text: "✅ Aula registrada na sua agenda!\n\nResumo:",
-        title: "Violão · Lucas",
-        day: format(new Date(new Date().setDate(new Date().getDate() + 1)), "EEEE, dd 'de' MMMM", { locale: ptBR }),
-        time: "10:00",
-        description: "Local: Estúdio",
+        text: "Agendado na sua agenda!",
+        title: "Manicure · Carla",
+        day: tomorrow,
+        time: "14:00",
       },
-      { type: "user", text: "Quais aulas eu tenho amanhã?" },
+      { type: "user", text: "Quem tenho amanhã?" },
       {
         type: "bot",
-        text: "📅 *Suas aulas para amanhã:*\n\n*Violão · Lucas*\n🕒 10:00\n📍 Estúdio\n\nQuer lembrete no WhatsApp antes da aula?",
+        text: "Amanhã você tem:\n\nManicure · Carla\n14:00\n\nLembrete de confirmação já enviado para ela.",
       },
     ],
   ];
 
-  // Pega a conversa atual com base no passo
   const currentChat = chatDemo[Math.min(step, chatDemo.length - 1)];
 
   return (
-    <div className="flex flex-col h-[500px] overflow-hidden">
-      {/* Cabeçalho do chat */}
-      <div className="flex items-center p-3 border-b">
-        <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-          <span className="text-primary-600 text-lg font-semibold">Z</span>
+    <div className="flex flex-col h-[420px] sm:h-[460px] overflow-hidden bg-[#ece5dd]">
+      <div className="flex items-center p-3 bg-[#075E54]">
+        <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center">
+          <span className="text-white text-sm font-bold">Z</span>
         </div>
         <div className="ml-3">
-          <h3 className="font-medium">Zelar</h3>
-          <p className="text-xs text-gray-500">Aulas no WhatsApp</p>
+          <h3 className="font-medium text-white text-sm">Zelar</h3>
+          <p className="text-xs text-emerald-100">online</p>
         </div>
       </div>
-      
-      {/* Área de mensagens */}
-      <div 
-        ref={chatRef}
-        className="flex-1 p-4 overflow-y-auto space-y-4"
-        style={{ scrollBehavior: 'smooth' }}
-      >
+
+      <div ref={chatRef} className="flex-1 p-3 overflow-y-auto space-y-2" style={{ scrollBehavior: "smooth" }}>
         {currentChat.map((message, index) => {
-          // Animação para mensagens que aparecem em etapas
-          const delay = index * 0.2;
-          
+          const delay = index * 0.15;
+
           if (message.type === "thinking") {
             return (
               <motion.div
@@ -113,74 +104,70 @@ export default function ChatDemo({ step }: ChatDemoProps) {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3, delay }}
               >
-                <div className="flex-1 max-w-[80%] bg-gray-100 rounded-lg p-3 ml-2">
+                <div className="max-w-[80%] bg-white rounded-lg rounded-tl-none p-3 shadow-sm">
                   <div className="flex space-x-1">
-                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce"></div>
-                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }}></div>
-                    <div className="h-2 w-2 bg-gray-300 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }}></div>
+                    <div className="h-2 w-2 bg-emerald-300 rounded-full animate-bounce" />
+                    <div
+                      className="h-2 w-2 bg-emerald-300 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.2s" }}
+                    />
+                    <div
+                      className="h-2 w-2 bg-emerald-300 rounded-full animate-bounce"
+                      style={{ animationDelay: "0.4s" }}
+                    />
                   </div>
                 </div>
               </motion.div>
             );
           }
-          
+
+          const isUser = message.type === "user";
+
           return (
             <motion.div
               key={index}
-              className={`flex items-start ${message.type === "user" ? "justify-end" : ""}`}
-              initial={{ opacity: 0, y: 10 }}
+              className={`flex items-end gap-1 ${isUser ? "justify-end" : ""}`}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, delay }}
             >
-              {message.type === "bot" && (
-                <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center flex-shrink-0">
-                  <span className="text-primary-600 text-sm font-semibold">Z</span>
-                </div>
-              )}
-              
-              <div 
-                className={`flex-1 max-w-[80%] ${
-                  message.type === "user" 
-                    ? "bg-primary-600 text-black rounded-lg rounded-tr-none" 
-                    : "bg-gray-100 text-gray-800 rounded-lg rounded-tl-none"
-                } p-3 mx-2`}
+              <div
+                className={`max-w-[85%] p-2.5 shadow-sm ${
+                  isUser
+                    ? "bg-[#DCF8C6] text-slate-800 rounded-lg rounded-tr-none"
+                    : "bg-white text-slate-800 rounded-lg rounded-tl-none"
+                }`}
               >
-                <div className="whitespace-pre-wrap">{message.text}</div>
-                
+                <div className="whitespace-pre-wrap text-sm">{message.text}</div>
+
                 {message.title && (
-                  <div className="mt-2 p-3 bg-white rounded-md shadow-sm">
-                    <p className="font-semibold">{message.title}</p>
-                    {message.day && <p className="text-sm mt-1">📅 {message.day}</p>}
-                    {message.time && <p className="text-sm">🕒 {message.time}</p>}
-                    {message.description && <p className="text-sm mt-1">{message.description}</p>}
+                  <div className="mt-2 p-2.5 bg-emerald-50 rounded-lg border border-emerald-100">
+                    <p className="font-semibold text-sm text-emerald-900">{message.title}</p>
+                    {message.day && <p className="text-xs mt-1 text-slate-600">{message.day}</p>}
+                    {message.time && <p className="text-xs text-slate-600">{message.time}</p>}
+                    {message.description && <p className="text-xs mt-1 text-slate-600">{message.description}</p>}
                   </div>
                 )}
               </div>
-              
-              {message.type === "user" && (
-                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-gray-600 text-sm">EU</span>
-                </div>
-              )}
             </motion.div>
           );
         })}
       </div>
-      
-      {/* Área de entrada de mensagem */}
-      <div className="p-3 border-t">
-        <div className="flex items-center bg-gray-100 rounded-full px-4 py-2">
-          <input
-            type="text"
-            placeholder="Digite uma mensagem..."
-            className="flex-1 bg-transparent outline-none text-sm"
-            disabled
-          />
-          <button className="ml-2 text-primary-600" disabled>
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" className="h-5 w-5">
+
+      <div className="p-2.5 bg-[#f0f0f0]">
+        <div className="flex items-center bg-white rounded-full px-4 py-2">
+          <span className="flex-1 text-sm text-slate-400">Mensagem</span>
+          <div className="w-8 h-8 rounded-full bg-[#075E54] flex items-center justify-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="white"
+              className="h-4 w-4"
+            >
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
             </svg>
-          </button>
+          </div>
         </div>
       </div>
     </div>

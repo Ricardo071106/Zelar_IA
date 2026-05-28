@@ -12,56 +12,30 @@ interface TestimonialProps {
 
 function Testimonial({ stars, text, initials, name, role, delay }: TestimonialProps) {
   return (
-    <motion.div 
-      className="bg-white rounded-xl p-6 shadow-md"
+    <motion.div
+      className="bg-white rounded-2xl p-6 border border-emerald-100 shadow-sm"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay }}
     >
       <div className="flex items-center mb-4">
-        <div className="text-primary">
-          {Array(Math.floor(stars)).fill(0).map((_, i) => (
-            <Star key={i} className="inline-block fill-current" size={16} />
-          ))}
-          {stars % 1 > 0 && (
-            <svg 
-              className="inline-block text-primary" 
-              width="16" 
-              height="16" 
-              viewBox="0 0 24 24" 
-              fill="none" 
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path 
-                d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" 
-                fill="currentColor" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-                clipPath="inset(0 50% 0 0)"
-              />
-              <path 
-                d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" 
-                fill="none" 
-                stroke="currentColor" 
-                strokeWidth="2" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              />
-            </svg>
-          )}
+        <div className="text-emerald-600">
+          {Array(Math.floor(stars))
+            .fill(0)
+            .map((_, i) => (
+              <Star key={i} className="inline-block fill-current" size={16} />
+            ))}
         </div>
       </div>
-      <p className="text-gray-600 mb-6">{text}</p>
+      <p className="text-slate-600 mb-6 text-sm leading-relaxed">{text}</p>
       <div className="flex items-center">
-        <div className="w-10 h-10 bg-primary/20 rounded-full flex items-center justify-center text-primary font-semibold">
+        <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-700 font-semibold text-sm">
           {initials}
         </div>
         <div className="ml-3">
-          <h4 className="font-medium">{name}</h4>
-          <p className="text-sm text-gray-500">{role}</p>
+          <h4 className="font-medium text-slate-900 text-sm">{name}</h4>
+          <p className="text-xs text-slate-500">{role}</p>
         </div>
       </div>
     </motion.div>
@@ -72,46 +46,49 @@ export default function TestimonialsSection() {
   const testimonials = [
     {
       stars: 5,
-      text: "\"Dou aula particular de violão: marco tudo pelo WhatsApp e o Zelar já manda para o Google Calendar. No painel deixo alunos e preço da aula organizados.\"",
-      initials: "MR",
-      name: "Marina R.",
-      role: "Professora de música",
+      text: "Antes eu anotava tudo no WhatsApp e no caderno. Agora marco corte pelo Zelar e mando confirmação automática. Parou de faltar cliente.",
+      initials: "RF",
+      name: "Rafael F.",
+      role: "Dono de barbearia",
     },
     {
       stars: 5,
-      text: "\"Uso os pacotes nomeados no bot e o painel para lembrar valores. Estamos testando Pluggy para cruzar PIX com aulas pendentes — reduz planilha paralela.\"",
-      initials: "JL",
-      name: "João L.",
-      role: "Professor de reforço escolar",
+      text: "Uso no salão todo dia. Escrevo 'escova com a Patrícia amanhã 10h' e pronto. A agenda fica organizada e eu não perco mensagem.",
+      initials: "CM",
+      name: "Camila M.",
+      role: "Salão de beleza",
     },
     {
-      stars: 4.5,
-      text: "\"Lembretes no WhatsApp salvam no-show. Não precisei instalar outro app para aluno nem para mim — só conversar e abrir o painel quando preciso.\"",
-      initials: "SK",
-      name: "Sofia K.",
-      role: "Instrutora de idiomas",
+      stars: 5,
+      text: "Dou aula particular e atendo pelo WhatsApp. O Zelar me ajuda a confirmar horário com aluno e ver a semana no painel. Simples demais.",
+      initials: "AL",
+      name: "Ana L.",
+      role: "Professora particular",
     },
   ];
 
   return (
-    <section id="testimonials" className="py-16 md:py-24 bg-light">
+    <section id="depoimentos" className="py-16 md:py-24 bg-emerald-50/40">
       <div className="container mx-auto px-4">
-        <motion.div 
-          className="text-center mb-16"
+        <motion.div
+          className="text-center mb-12"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">O Que Nossos Usuários Dizem</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Relatos de quem usa o Zelar na rotina de aulas e alunos — menos troca de app, mais tempo ensinando.
+          <p className="text-emerald-700 font-medium text-sm uppercase tracking-wide mb-3">Depoimentos</p>
+          <h2 className="font-mago text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+            Quem usa, sente a diferença na rotina
+          </h2>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            Pequenos negócios que organizaram atendimento e agenda sem complicação.
           </p>
         </motion.div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {testimonials.map((testimonial, index) => (
-            <Testimonial 
+            <Testimonial
               key={index}
               stars={testimonial.stars}
               text={testimonial.text}

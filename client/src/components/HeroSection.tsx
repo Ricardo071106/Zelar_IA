@@ -1,125 +1,130 @@
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { FaWhatsapp } from "react-icons/fa";
+import { WHATSAPP_URL } from "@/lib/whatsapp";
 
 export default function HeroSection() {
   return (
-    <section className="pt-24 pb-16 md:pt-32 md:pb-24 bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-800 text-white relative">
+    <section className="pt-24 pb-12 md:pt-32 md:pb-20 bg-white relative">
       <div className="container mx-auto px-4">
-        <div className="flex flex-col md:flex-row items-center">
+        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-16">
           <motion.div
-            className="md:w-1/2 mb-10 md:mb-0"
+            className="lg:w-1/2 text-center lg:text-left"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
-            <h1 className="font-mago text-4xl md:text-5xl font-bold mb-6 leading-tight">
-              Aulas organizadas no WhatsApp — com calendário e alunos no painel
+            <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-4 py-1.5 text-sm text-emerald-800 font-medium mb-6">
+              <FaWhatsapp className="text-[#25D366] text-base" />
+              Organização no WhatsApp
+            </div>
+
+            <h1 className="font-mago text-4xl md:text-5xl lg:text-[3.25rem] font-bold mb-6 leading-tight text-slate-900">
+              Organize sua agenda e confirme clientes automaticamente no WhatsApp
             </h1>
-            <p className="text-lg md:text-xl mb-8 text-white/90">
-              Feito para professores e quem presta serviço por hora: marque aulas em português, sincronize Google ou
-              Microsoft, cadastre alunos e pacotes no painel e receba lembretes no WhatsApp. Opcionalmente, conecte o
-              banco (Pluggy) para apoiar a conferência de pagamentos.
+
+            <p className="text-lg md:text-xl mb-8 text-slate-600 leading-relaxed max-w-xl mx-auto lg:mx-0">
+              Menos faltas, menos mensagens perdidas e mais controle da rotina do seu negócio — sem planilha, sem
+              complicação.
             </p>
-            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center lg:justify-start">
               <Button
                 asChild
                 variant="default"
                 size="lg"
-                className="bg-white text-emerald-800 hover:bg-emerald-50 font-semibold rounded-full px-8 py-4 text-lg shadow-lg"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full px-8 py-4 text-base shadow-md"
+              >
+                <a href="#demo" className="inline-flex items-center justify-center">
+                  Ver funcionando
+                </a>
+              </Button>
+
+              <Button
+                asChild
+                variant="outline"
+                size="lg"
+                className="border-emerald-300 text-emerald-800 hover:bg-emerald-50 font-semibold rounded-full px-8 py-4 text-base"
               >
                 <a
-                  href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
+                  href={WHATSAPP_URL}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center"
+                  className="inline-flex items-center justify-center"
                 >
-                  <FaWhatsapp className="mr-3 text-xl" />
-                  Começar no WhatsApp
+                  <FaWhatsapp className="mr-2 text-lg text-[#25D366]" />
+                  Testar grátis
                 </a>
               </Button>
             </div>
+
+            <p className="mt-6 text-sm text-slate-500">
+              Para barbearias, salões, estúdios, freelancers e profissionais autônomos.
+            </p>
           </motion.div>
 
           <motion.div
-            className="md:w-1/2 flex justify-center md:justify-end"
+            className="lg:w-1/2 flex justify-center"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <div className="relative w-72 h-[500px] md:w-80 md:h-[560px]">
-              <div className="absolute inset-0 bg-black rounded-[40px] shadow-xl" />
-              <div className="absolute inset-2 bg-white rounded-[32px] overflow-hidden">
-                <div className="bg-[#e8f7f0] h-full flex flex-col">
-                  <div className="bg-emerald-700 py-3 px-4 flex items-center">
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="20"
-                      height="20"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="white"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      className="mr-3"
-                    >
-                      <path d="m15 19-7-7 7-7" />
-                    </svg>
+            <div className="relative w-[280px] sm:w-72 md:w-80">
+              <div className="absolute -inset-4 bg-emerald-100/60 rounded-[3rem] blur-2xl" />
+              <div className="relative bg-slate-900 rounded-[2.5rem] p-2 shadow-2xl">
+                <div className="bg-[#ece5dd] rounded-[2rem] overflow-hidden">
+                  <div className="bg-[#075E54] py-3 px-4 flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                      Z
+                    </div>
                     <div>
-                      <p className="text-white font-medium">Zelar</p>
-                      <p className="text-white text-xs opacity-80">WhatsApp</p>
+                      <p className="text-white font-medium text-sm">Zelar</p>
+                      <p className="text-emerald-100 text-xs">online</p>
                     </div>
                   </div>
 
-                  <div className="flex-1 p-3 overflow-y-auto">
-                    <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm text-slate-700">
-                        Olá! Sou o Zelar. Diga sua aula em português — data, horário e aluno.
+                  <div className="p-3 space-y-2 min-h-[340px]">
+                    <div className="bg-white rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[85%]">
+                      <p className="text-sm text-slate-800">
+                        Olá! Sou o Zelar. Me diga o horário — cliente, serviço e dia.
                       </p>
+                      <p className="text-[10px] text-slate-400 text-right mt-1">09:12</p>
                     </div>
 
-                    <div className="bg-emerald-600 rounded-lg p-3 shadow-sm mb-3 ml-auto max-w-[80%]">
-                      <p className="text-sm text-white">
-                        Aula de inglês com a Marina quinta às 19h online
+                    <div className="bg-[#DCF8C6] rounded-lg rounded-tr-none p-2.5 shadow-sm max-w-[85%] ml-auto">
+                      <p className="text-sm text-slate-800">Corte com a Ana amanhã às 15h</p>
+                      <p className="text-[10px] text-slate-500 text-right mt-1">09:13</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[85%]">
+                      <p className="text-sm text-slate-800">Agendado!</p>
+                      <div className="mt-2 bg-emerald-50 rounded-lg p-2 border border-emerald-100">
+                        <p className="text-xs font-semibold text-emerald-900">Corte · Ana Silva</p>
+                        <p className="text-xs text-slate-600">Amanhã · 15:00</p>
+                      </div>
+                      <p className="text-[10px] text-slate-400 text-right mt-1">09:13</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg rounded-tl-none p-2.5 shadow-sm max-w-[85%]">
+                      <p className="text-sm text-slate-800">
+                        Lembrete enviado para a Ana confirmar o horário.
                       </p>
-                    </div>
-
-                    <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm text-slate-700">Aula registrada na sua agenda!</p>
-                      <div className="mt-2 bg-emerald-50 rounded-md p-2">
-                        <p className="text-xs font-medium text-emerald-900">Inglês · Marina</p>
-                        <p className="text-xs text-slate-600">Quinta · 19:00</p>
-                        <p className="text-xs text-slate-600">Online</p>
-                      </div>
-                    </div>
-
-                    <div className="bg-white rounded-lg p-3 shadow-sm mb-3 max-w-[80%]">
-                      <p className="text-sm text-slate-700">Adicione ao calendário:</p>
-                      <div className="mt-2 flex flex-col gap-1">
-                        <div className="bg-emerald-600 text-white text-xs px-2 py-1 rounded">Google</div>
-                        <div style={{ height: "8px" }} />
-                        <div className="bg-sky-600 text-white text-xs px-2 py-1 rounded">Outlook</div>
-                      </div>
+                      <p className="text-[10px] text-slate-400 text-right mt-1">09:14</p>
                     </div>
                   </div>
 
-                  <div className="bg-emerald-100/80 p-3 flex items-center">
-                    <div className="bg-white rounded-full flex-1 py-2 px-4 flex items-center border border-emerald-200">
-                      <span className="text-slate-400 text-sm">Mensagem</span>
+                  <div className="bg-[#f0f0f0] px-3 py-2 flex items-center gap-2">
+                    <div className="flex-1 bg-white rounded-full py-2 px-4 text-sm text-slate-400">
+                      Mensagem
                     </div>
-                    <button
-                      type="button"
-                      className="ml-2 bg-emerald-600 text-white rounded-full w-10 h-10 flex items-center justify-center"
-                      aria-label="Enviar"
-                    >
+                    <div className="w-9 h-9 rounded-full bg-[#075E54] flex items-center justify-center">
                       <svg
                         xmlns="http://www.w3.org/2000/svg"
-                        width="18"
-                        height="18"
+                        width="16"
+                        height="16"
                         viewBox="0 0 24 24"
                         fill="none"
-                        stroke="currentColor"
+                        stroke="white"
                         strokeWidth="2"
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -127,28 +132,13 @@ export default function HeroSection() {
                         <path d="m22 2-7 20-4-9-9-4Z" />
                         <path d="M22 2 11 13" />
                       </svg>
-                    </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </motion.div>
         </div>
-      </div>
-
-      <div className="absolute bottom-0 left-0 w-full overflow-hidden line-height-0">
-        <svg
-          data-name="Layer 1"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 0 1200 120"
-          preserveAspectRatio="none"
-          className="relative block w-[calc(100%+1.3px)] h-[70px]"
-        >
-          <path
-            d="M321.39,56.44c58-10.79,114.16-30.13,172-41.86,82.39-16.72,168.19-17.73,250.45-.39C823.78,31,906.67,72,985.66,92.83c70.05,18.48,146.53,26.09,214.34,3V0H0V27.35A600.21,600.21,0,0,0,321.39,56.44Z"
-            fill="#ffffff"
-          />
-        </svg>
       </div>
     </section>
   );

@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { FaWhatsapp } from "react-icons/fa";
 import ChatDemo from "@/components/ChatDemo";
+import { WHATSAPP_URL } from "@/lib/whatsapp";
 
 export default function BotDemoSection() {
   const [step, setStep] = useState(0);
@@ -13,7 +14,7 @@ export default function BotDemoSection() {
         () => {
           setStep((prev) => prev + 1);
         },
-        step === 0 ? 1000 : 5000,
+        step === 0 ? 1200 : 4500,
       );
 
       return () => clearTimeout(timer);
@@ -21,99 +22,100 @@ export default function BotDemoSection() {
   }, [step]);
 
   return (
-    <section id="demo" className="py-20 bg-white/60 backdrop-blur-sm">
+    <section id="demo" className="py-16 md:py-24 bg-white border-y border-emerald-100/80">
       <div className="container mx-auto px-4">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10 md:mb-14">
+          <motion.div
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-50 border border-emerald-200 px-4 py-1.5 text-sm text-emerald-800 font-medium mb-4"
+            initial={{ opacity: 0, y: 10 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+          >
+            <FaWhatsapp className="text-[#25D366]" />
+            Demonstração
+          </motion.div>
           <motion.h2
-            className="font-mago text-3xl md:text-4xl font-bold text-emerald-950 mb-4"
+            className="font-mago text-3xl md:text-4xl font-bold text-slate-900 mb-4"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            Veja o Zelar em ação
+            Veja como funciona no WhatsApp
           </motion.h2>
           <motion.p
-            className="text-xl text-slate-600 max-w-3xl mx-auto"
+            className="text-lg text-slate-600 max-w-2xl mx-auto"
             initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            Marque aulas pelo WhatsApp como se estivesse falando com um assistente — o painel cuida de alunos,
-            preços e calendário.
+            Marque um horário, confirme com o cliente e consulte sua agenda — tudo na conversa que você já usa
+            todo dia.
           </motion.p>
         </div>
 
-        <div className="flex flex-col lg:flex-row items-center justify-between gap-8 lg:gap-12">
-          <div className="w-full lg:w-1/2">
-            <motion.div
-              className="rounded-2xl border border-emerald-200/70 bg-white/90 backdrop-blur-md shadow-[0_0_48px_rgba(16,185,129,0.08)] p-4 md:p-6 max-w-lg mx-auto"
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5 }}
-            >
+        <div className="flex flex-col lg:flex-row items-center gap-10 lg:gap-14">
+          <motion.div
+            className="w-full lg:w-1/2 max-w-md mx-auto lg:max-w-none"
+            initial={{ opacity: 0, scale: 0.97 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="rounded-2xl border border-emerald-200 bg-white shadow-lg overflow-hidden">
               <ChatDemo step={step} />
-            </motion.div>
-          </div>
+            </div>
+          </motion.div>
 
-          <div className="w-full lg:w-1/2">
-            <motion.div
-              className="space-y-6 max-w-lg mx-auto"
-              initial={{ opacity: 0, x: 20 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <h3 className="text-2xl font-bold text-emerald-950 font-mago">No WhatsApp</h3>
-              <p className="text-slate-600">
-                O Zelar roda onde o professor já está. Envie texto ou áudio com a aula; o compromisso nasce com
-                título, horário e local — e pode ir para o Google ou Microsoft Calendar ligado no painel.
-              </p>
+          <motion.div
+            className="w-full lg:w-1/2 max-w-lg mx-auto lg:mx-0"
+            initial={{ opacity: 0, x: 20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+          >
+            <h3 className="text-xl font-semibold text-slate-900 mb-4">Na prática, você ganha:</h3>
 
-              <div className="space-y-4">
-                {[
-                  "Aulas e reagendamentos em português natural",
-                  "Lembretes automáticos no WhatsApp",
-                  "Google Calendar e Microsoft (Outlook) no painel",
-                  "Painel com alunos, grupos, preço por aula, pacotes e Pluggy opcional",
-                ].map((feature, index) => (
-                  <div key={index} className="flex items-start">
-                    <div className="flex-shrink-0 h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center mt-1">
-                      <svg
-                        className="h-4 w-4 text-emerald-700"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                    </div>
-                    <p className="ml-3 text-slate-600">{feature}</p>
+            <div className="space-y-4 mb-8">
+              {[
+                "Agenda organizada sem sair do WhatsApp",
+                "Confirmações e lembretes automáticos para clientes",
+                "Menos mensagens perdidas e menos faltas",
+                "Painel simples para consultar a semana no celular",
+              ].map((item, index) => (
+                <div key={index} className="flex items-start gap-3">
+                  <div className="flex-shrink-0 h-6 w-6 rounded-full bg-emerald-100 flex items-center justify-center mt-0.5">
+                    <svg
+                      className="h-3.5 w-3.5 text-emerald-700"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
                   </div>
-                ))}
-              </div>
+                  <p className="text-slate-600">{item}</p>
+                </div>
+              ))}
+            </div>
 
-              <div className="pt-4">
-                <Button
-                  asChild
-                  variant="default"
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full px-8 py-4 text-lg w-full sm:w-auto"
-                >
-                  <a
-                    href="https://wa.me/5511988049268?text=Ol%C3%A1%2C%20quero%20usar%20o%20Zelar%20para%20organizar%20minhas%20aulas%20e%20alunos"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center"
-                  >
-                    <FaWhatsapp className="mr-3 text-xl" />
-                    Abrir WhatsApp
-                  </a>
-                </Button>
-              </div>
-            </motion.div>
-          </div>
+            <Button
+              asChild
+              variant="default"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-full px-8 py-4 text-base w-full sm:w-auto"
+            >
+              <a
+                href={WHATSAPP_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center"
+              >
+                <FaWhatsapp className="mr-2 text-xl text-white" />
+                Começar agora
+              </a>
+            </Button>
+          </motion.div>
         </div>
       </div>
     </section>

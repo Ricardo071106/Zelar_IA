@@ -1,96 +1,98 @@
 import { motion } from "framer-motion";
-import { MessageSquare, Globe2, Users, Link, Wallet, Send } from "lucide-react";
+import { CalendarCheck, Bell, MessageCircle, LayoutDashboard, Clock, UserCheck } from "lucide-react";
 
-interface FeatureCardProps {
+interface BenefitCardProps {
   icon: React.ReactNode;
   title: string;
   description: string;
   delay: number;
 }
 
-function FeatureCard({ icon, title, description, delay }: FeatureCardProps) {
+function BenefitCard({ icon, title, description, delay }: BenefitCardProps) {
   return (
-    <motion.div 
-      className="feature-card bg-light rounded-xl p-6 shadow-md transition-all duration-300 hover:translate-y-[-5px] hover:shadow-lg"
+    <motion.div
+      className="rounded-2xl border border-emerald-100 bg-white p-6 shadow-sm transition-all duration-300 hover:shadow-md hover:border-emerald-200"
       initial={{ opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay }}
     >
-      <div className="bg-primary/10 rounded-full w-14 h-14 flex items-center justify-center mb-5">
+      <div className="bg-emerald-50 rounded-xl w-12 h-12 flex items-center justify-center mb-4">
         {icon}
       </div>
-      <h3 className="text-xl font-semibold mb-3">{title}</h3>
-      <p className="text-gray-600">{description}</p>
+      <h3 className="text-lg font-semibold text-slate-900 mb-2">{title}</h3>
+      <p className="text-slate-600 text-sm leading-relaxed">{description}</p>
     </motion.div>
   );
 }
 
 export default function FeaturesSection() {
-  const features = [
+  const benefits = [
     {
-      icon: <MessageSquare className="text-primary text-2xl" />,
-      title: "Aulas em português natural",
+      icon: <MessageCircle className="text-emerald-700 text-xl" />,
+      title: "Agende pelo WhatsApp",
       description:
-        "Diga “aula de violão com o Lucas sábado às 10h” ou use pacotes nomeados no WhatsApp: o Zelar monta o evento na sua agenda.",
+        "Escreva em português, como você fala com o cliente: serviço, horário e nome. O Zelar organiza na sua agenda.",
     },
     {
-      icon: <Globe2 className="text-primary text-2xl" />,
-      title: "Fuso horário certo",
+      icon: <Bell className="text-emerald-700 text-xl" />,
+      title: "Confirmações automáticas",
       description:
-        "Você define o fuso no painel ou no bot; horários de aula e lembretes respeitam a região do professor e do compromisso.",
+        "Lembretes enviados no WhatsApp reduzem faltas. Seu cliente recebe aviso — você não precisa cobrar manualmente.",
     },
     {
-      icon: <Users className="text-primary text-2xl" />,
-      title: "Alunos e grupos no painel",
+      icon: <CalendarCheck className="text-emerald-700 text-xl" />,
+      title: "Agenda sempre visível",
       description:
-        "Planilha de convidados, grupos para marcar vários alunos de uma vez e dados que acompanham a rotina de aulas — sem planilha solta fora do fluxo.",
+        "Veja o que tem hoje, amanhã e na semana. Sem caderno, sem print de conversa, sem adivinhar quem vem.",
     },
     {
-      icon: <Link className="text-primary text-2xl" />,
-      title: "Google e Microsoft Calendar",
+      icon: <UserCheck className="text-emerald-700 text-xl" />,
+      title: "Clientes organizados",
       description:
-        "Conecte o calendário no painel: as aulas criadas pelo WhatsApp podem ir para a mesma agenda que você já usa com alunos.",
+        "Histórico de atendimentos e dados dos clientes num painel simples — para você acompanhar quem já veio e quem falta confirmar.",
     },
     {
-      icon: <Wallet className="text-primary text-2xl" />,
-      title: "Preços, pacotes e Pluggy (opcional)",
+      icon: <Clock className="text-emerald-700 text-xl" />,
+      title: "Menos tempo respondendo",
       description:
-        "Defina valor por aula e pacotes no painel. Com Pluggy (Open Finance), o sistema pode usar movimentações da conta para apoiar a marcação de aulas como pagas, conforme as regras configuradas.",
+        "Pare de repetir horários disponíveis toda hora. Consulte a agenda na conversa e responda com mais rapidez.",
     },
     {
-      icon: <Send className="text-primary text-2xl" />,
-      title: "Lembretes no WhatsApp",
+      icon: <LayoutDashboard className="text-emerald-700 text-xl" />,
+      title: "Painel simples no celular",
       description:
-        "Sem outro app para o professor: criar, listar e ajustar aulas na conversa, com lembretes enviados pelo próprio WhatsApp.",
+        "Acesse pelo link que enviamos no WhatsApp. Funciona bem no smartphone — que é onde você já trabalha.",
     },
   ];
 
   return (
-    <section id="features" className="py-16 md:py-24 bg-white">
+    <section id="beneficios" className="py-16 md:py-24 bg-white">
       <div className="container mx-auto px-4">
-        <motion.div 
-          className="text-center mb-16"
+        <motion.div
+          className="text-center mb-12 md:mb-16"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Feito para quem dá aula</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            O Zelar une WhatsApp, calendário e painel do organizador: menos troca de app, mais clareza para você e
-            para o aluno.
+          <p className="text-emerald-700 font-medium text-sm uppercase tracking-wide mb-3">Benefícios</p>
+          <h2 className="font-mago text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+            O que muda na sua rotina
+          </h2>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            Organização operacional de verdade — sem promessas de ERP, sem complicação desnecessária.
           </p>
         </motion.div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {features.map((feature, index) => (
-            <FeatureCard 
-              key={index}
-              icon={feature.icon}
-              title={feature.title}
-              description={feature.description}
-              delay={index * 0.1}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {benefits.map((benefit, index) => (
+            <BenefitCard
+              key={benefit.title}
+              icon={benefit.icon}
+              title={benefit.title}
+              description={benefit.description}
+              delay={index * 0.08}
             />
           ))}
         </div>

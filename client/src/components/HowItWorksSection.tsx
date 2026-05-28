@@ -9,120 +9,115 @@ export default function HowItWorksSection() {
   const steps = [
     {
       number: 1,
-      title: "Fale a aula no WhatsApp",
+      title: "Converse no WhatsApp",
       description:
-        "Em português, diga disciplina, aluno, dia e horário — por exemplo: “matemática com o Pedro amanhã às 16h online”.",
+        "Mande uma mensagem com o horário — como você já faz com clientes. Exemplo: “Manicure com a Carla sexta às 14h”.",
     },
     {
       number: 2,
-      title: "Interpretação inteligente",
+      title: "O Zelar organiza",
       description:
-        "O Zelar entende o texto (e pode usar IA quando preciso) para montar o compromisso na sua agenda com título e horário coerentes.",
+        "O horário entra na sua agenda com cliente, serviço e data. Tudo registrado, sem anotar em outro lugar.",
     },
     {
       number: 3,
-      title: "Calendário conectado",
+      title: "Cliente recebe confirmação",
       description:
-        "Com Google ou Microsoft ligados no painel, a aula pode aparecer na mesma agenda que você já compartilha com alunos.",
+        "Lembretes automáticos ajudam a confirmar presença. Menos faltas, menos buracos na agenda.",
     },
     {
       number: 4,
-      title: "Acompanhe e ajuste",
+      title: "Acompanhe no painel",
       description:
-        "Liste próximas aulas, altere horários ou cancele pela conversa; no painel você complementa alunos, preços, pacotes e Pluggy se quiser conciliar recebimentos.",
+        "Quando precisar, abra o painel pelo celular: veja a semana, consulte clientes e ajuste horários com calma.",
     },
   ];
 
   return (
-    <section id="how-it-works" className="py-16 md:py-24 bg-light">
+    <section id="como-funciona" className="py-16 md:py-24 bg-emerald-50/40">
       <div className="container mx-auto px-4">
-        <motion.div 
-          className="text-center mb-16"
+        <motion.div
+          className="text-center mb-12 md:mb-16"
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
         >
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">Como o Zelar funciona</h2>
-          <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Um fluxo pensado para professor autônomo ou estúdio pequeno: conversa no WhatsApp, organização no painel e
-            calendário profissional.
+          <p className="text-emerald-700 font-medium text-sm uppercase tracking-wide mb-3">Como funciona</p>
+          <h2 className="font-mago text-3xl md:text-4xl font-bold text-slate-900 mb-4">
+            Simples como mandar uma mensagem
+          </h2>
+          <p className="text-lg text-slate-600 max-w-2xl mx-auto">
+            Você continua no WhatsApp. O Zelar cuida da organização por trás.
           </p>
         </motion.div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-14 items-center">
           <motion.div
             initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="space-y-12">
+            <div className="space-y-8">
               {steps.map((step) => (
-                <div className="flex" key={step.number}>
-                  <div className="flex-shrink-0 mr-4">
-                    <div className="bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center font-semibold">
+                <div className="flex gap-4" key={step.number}>
+                  <div className="flex-shrink-0">
+                    <div className="bg-emerald-600 text-white rounded-full w-10 h-10 flex items-center justify-center font-semibold text-sm">
                       {step.number}
                     </div>
                   </div>
                   <div>
-                    <h3 className="text-xl font-semibold mb-2">{step.title}</h3>
-                    <p className="text-gray-600">{step.description}</p>
+                    <h3 className="text-lg font-semibold text-slate-900 mb-1">{step.title}</h3>
+                    <p className="text-slate-600 text-sm leading-relaxed">{step.description}</p>
                   </div>
                 </div>
               ))}
             </div>
           </motion.div>
-          
-          <motion.div 
-            className="relative mt-10 lg:mt-0"
+
+          <motion.div
+            className="relative"
             initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.5 }}
           >
-            <div className="bg-white p-6 rounded-xl shadow-lg">
-              <div className="rounded-lg overflow-hidden bg-gray-200 mb-6">
-                <div className="bg-[#f6f6f6] h-[400px] rounded-lg p-4 overflow-hidden">
-                  <div className="bg-primary rounded-t-lg p-3">
-                    <div className="flex items-center">
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-                        <span className="text-primary font-bold">Z</span>
-                      </div>
-                      <div className="ml-3">
-                        <p className="text-white font-medium">Zelar</p>
-                        <p className="text-white text-xs opacity-80">Aulas no WhatsApp</p>
-                      </div>
-                    </div>
+            <div className="bg-white rounded-2xl border border-emerald-100 shadow-lg overflow-hidden">
+              <div className="bg-[#075E54] p-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center">
+                    <span className="text-emerald-700 font-bold text-sm">Z</span>
                   </div>
-                  <ChatDemo step={activeStep} />
+                  <div>
+                    <p className="text-white font-medium text-sm">Zelar</p>
+                    <p className="text-emerald-100 text-xs">Agenda no WhatsApp</p>
+                  </div>
                 </div>
               </div>
-              
-              <div className="flex flex-wrap gap-3 justify-center">
-                {[1, 2, 3, 4].map((step) => (
-                  <Button
-                    key={step}
-                    onClick={() => setActiveStep(step)}
-                    variant={activeStep === step ? "default" : "secondary"}
-                    className={`rounded-full text-sm ${
-                      activeStep === step 
-                        ? "bg-primary text-white" 
-                        : "bg-gray-200 text-dark"
-                    }`}
-                  >
-                    {step === 1 && "Mensagem"}
-                    {step === 2 && "Interpretação"}
-                    {step === 3 && "Calendário"}
-                    {step === 4 && "Painel"}
-                  </Button>
-                ))}
-              </div>
+              <ChatDemo step={activeStep} />
             </div>
-            
-            {/* Decorative elements */}
-            <div className="absolute -bottom-4 -right-4 w-64 h-64 bg-primary/10 rounded-full -z-10"></div>
-            <div className="absolute -top-4 -left-4 w-32 h-32 bg-primary/10 rounded-full -z-10"></div>
+
+            <div className="flex flex-wrap gap-2 justify-center mt-4">
+              {[1, 2, 3, 4].map((step) => (
+                <Button
+                  key={step}
+                  onClick={() => setActiveStep(step)}
+                  variant={activeStep === step ? "default" : "secondary"}
+                  size="sm"
+                  className={`rounded-full text-xs sm:text-sm ${
+                    activeStep === step
+                      ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                      : "bg-white text-slate-700 border border-emerald-100"
+                  }`}
+                >
+                  {step === 1 && "Mensagem"}
+                  {step === 2 && "Agenda"}
+                  {step === 3 && "Confirmação"}
+                  {step === 4 && "Consulta"}
+                </Button>
+              ))}
+            </div>
           </motion.div>
         </div>
       </div>
