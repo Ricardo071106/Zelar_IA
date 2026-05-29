@@ -12,7 +12,7 @@ import type { PluggyTx } from "../pluggy/pluggyPaymentProcessor";
 import {
   resolvePluggyCreditContact,
 } from "../pluggy/pluggyPaymentProcessor";
-import { buildReceiptPayerMemoBlob, parseReceiptPayerName, parseReceiptReceiverName } from "./receiptPayerExtract";
+import { buildReceiptPayerMemoBlob, extractPersonLikeLinesFromReceipt, isGarbagePayerName, parseReceiptPayerName, parseReceiptReceiverName } from "./receiptPayerExtract";
 import { displayNameFromGuestContact } from "../pluggy/lessonUnitPrice";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 
@@ -162,13 +162,15 @@ export async function processReceiptUpload(opts: {
   const receiverName = parseReceiptReceiverName(parsed.rawText);
   if (receiverName) accountOwnerNameKeys.push(normalizeAliasKey(receiverName));
 
-  const payerHint = parseReceiptPayerName(parsed.rawText, accountOwnerNameKeys);
+  const payerHintRaw = parseReceiptPayerName(parsed.rawText, accountOwnerNameKeys);
+  const payerHint = payerHintRaw && !isGarbagePayerName(payerHintRaw) ? payerHintRaw : null;
   const memoBlob = buildReceiptPayerMemoBlob(parsed.rawText, payerHint, accountOwnerNameKeys);
 
   console.log("[comprovante] Identificação", {
-    payerHint: payerHint ?? null,
+    payerHint,
     receiverName: receiverName ?? null,
-    memoBlob: memoBlob.slice(0, 80),
+    personLines: extractPersonLikeLinesFromReceipt(parsed.rawText).slice(0, 5),
+    memoBlob: memoBlob.slice(0, 120),
   });
 
   const resolved = await resolvePluggyCreditContact(
