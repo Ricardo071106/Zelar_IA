@@ -60,13 +60,28 @@ async function markPendingLessonsFromCreditAmount(
   return marked;
 }
 
+async function applyCreditToGuestBalance(
+  userId: number,
+  contactId: number,
+  amountCents: number,
+): Promise<number> {
+  if (amountCents <= 0) return 0;
+  const next = await storage.adjustGuestLessonBalanceCents(userId, contactId, amountCents);
+  console.log("[saldo] crédito → lesson_balance_cents", { contactId, deltaCents: amountCents, balanceCents: next });
+  return next;
+}
+
 async function settleCreditAndMarkLessons(
   userId: number,
   contact: UserGuestContactRow,
   amountCents: number,
   paymentSource: "pluggy" | "upload",
 ): Promise<number> {
-  await mergeLedgerIntoDbBalance(userId, contact.id);
+  if (amountCents > 0) {
+    await applyCreditToGuestBalance(userId, contact.id, amountCents);
+  } else {
+    await mergeLedgerIntoDbBalance(userId, contact.id);
+  }
   const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource });
   let marked = r.markedCount;
   if (marked === 0 && amountCents > 0) {
@@ -181,7 +196,7 @@ export async function applyIncomingCreditToContact(opts: {
     if (!ledgerInserted) {
       return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key, reason: "conflito_insert" };
     }
-    await mergeLedgerIntoDbBalance(userId, contact.id);
+    await applyCreditToGuestBalance(userId, contact.id, amountCents);
     await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
     return { duplicate: false, applied: true, markedLessons: 0, ledgerTxKey: key };
   }
@@ -202,7 +217,7 @@ export async function applyIncomingCreditToContact(opts: {
     if (!ledgerInserted) {
       return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key };
     }
-    await mergeLedgerIntoDbBalance(userId, contact.id);
+    await applyCreditToGuestBalance(userId, contact.id, amountCents);
     await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
     return { duplicate: false, applied: true, markedLessons: 0, ledgerTxKey: key, reason: "sem_preco_aula" };
   }

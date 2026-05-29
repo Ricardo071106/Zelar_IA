@@ -5,6 +5,7 @@ import { capFairRetainedCents } from "./pluggy/pluggyCreditAttribution";
 import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
 import { getLessonDebtUnitCents, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 import { computeFullLedgerCreditsRemaining } from "./guestLessonPaymentPool";
+import { lessonPaidFromLedgerCredits } from "./payments/lessonLedgerAllocation";
 
 export type GuestLessonFinancials = {
   pendingDebtCents: number;
@@ -13,12 +14,6 @@ export type GuestLessonFinancials = {
   /** Saldo líquido = retido − dívidas pendentes (pode ser negativo). */
   lessonNetBalanceCents: number;
 };
-
-function lessonWasPaidByPluggy(ev: Event): boolean {
-  const raw = ev.rawData as Record<string, unknown> | null;
-  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
-  return z?.paymentSource === "pluggy";
-}
 
 export function resolveLedgerSinceForContact(
   pending: Event[],
@@ -56,14 +51,14 @@ export async function computeRawFinancials(
   const ledgerSince = resolveLedgerSinceForContact(pending, chain, tz);
   const rawLedgerSum = await storage.sumPluggyContactCreditsSince(userId, contact.id, ledgerSince);
 
-  let pluggyPaidCents = 0;
+  let ledgerAllocatedCents = 0;
   for (const ev of chain) {
-    if (ev.lessonPaymentStatus !== "pago" || !lessonWasPaidByPluggy(ev)) continue;
+    if (ev.lessonPaymentStatus !== "pago" || !lessonPaidFromLedgerCredits(ev)) continue;
     const u = getLessonUnitCentsFromEventSnapshot(ev, contact, def);
-    if (u && u > 0) pluggyPaidCents += u;
+    if (u && u > 0) ledgerAllocatedCents += u;
   }
 
-  const rawLedgerUnappliedCents = Math.max(0, rawLedgerSum - pluggyPaidCents);
+  const rawLedgerUnappliedCents = Math.max(0, rawLedgerSum - ledgerAllocatedCents);
   const dbBalanceCents = contact.lessonBalanceCents ?? 0;
 
   return {
@@ -87,7 +82,7 @@ function buildFinancialsFromParts(
 }
 
 /**
- * Somente leitura para o painel — saldo retido = `lesson_balance_cents` no banco.
+ * Somente leitura para o painel — saldo retido = banco ou crédito ainda no ledger.
  */
 export async function computeGuestLessonFinancials(
   userId: number,
@@ -95,7 +90,7 @@ export async function computeGuestLessonFinancials(
   defaultLessonPriceCents: number | null,
 ): Promise<GuestLessonFinancials> {
   const raw = await computeRawFinancials(userId, contact, defaultLessonPriceCents);
-  const retido = Math.max(0, raw.dbBalanceCents);
+  const retido = Math.max(0, raw.dbBalanceCents, raw.rawLedgerUnappliedCents);
   return buildFinancialsFromParts(raw.pendingDebtCents, retido);
 }
 

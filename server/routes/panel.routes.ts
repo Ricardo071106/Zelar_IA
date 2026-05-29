@@ -434,6 +434,7 @@ router.get(
         });
       }),
     );
+    res.setHeader('Cache-Control', 'no-store');
     res.json({ guests });
   }),
 );

@@ -3,12 +3,7 @@ import { storage } from "../storage";
 import type { UserGuestContactRow } from "../storage";
 import { getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 import { maxPrepaymentCentsWithoutLessons } from "./pluggy/pluggyCreditAttribution";
-
-function lessonWasPaidByPluggy(ev: Event): boolean {
-  const raw = ev.rawData as Record<string, unknown> | null;
-  const z = raw?.zelarLesson as Record<string, unknown> | undefined;
-  return z?.paymentSource === "pluggy";
-}
+import { lessonPaidFromLedgerCredits } from "./payments/lessonLedgerAllocation";
 
 /**
  * Créditos Pluggy ainda não consumidos (ledger total − aulas já pagas).
@@ -22,16 +17,14 @@ export async function computeFullLedgerCreditsRemaining(
 ): Promise<number> {
   const fullSum = await storage.sumPluggyContactCreditsSince(userId, contactId, new Date(0));
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
-  let pluggyPaidCents = 0;
-  let balancePaidCents = 0;
+  let ledgerAllocatedCents = 0;
   for (const ev of chain) {
-    if (ev.lessonPaymentStatus !== "pago") continue;
+    if (ev.lessonPaymentStatus !== "pago" || !lessonPaidFromLedgerCredits(ev)) continue;
     const u = getLessonUnitCentsFromEventSnapshot(ev, contact, defaultLessonPriceCents);
     if (!u || u <= 0) continue;
-    if (lessonWasPaidByPluggy(ev)) pluggyPaidCents += u;
-    else balancePaidCents += u;
+    ledgerAllocatedCents += u;
   }
-  let remaining = Math.max(0, fullSum - pluggyPaidCents - balancePaidCents);
+  let remaining = Math.max(0, fullSum - ledgerAllocatedCents);
   if (chain.length === 0) {
     const settings = await storage.getUserSettings(userId);
     const maxPrepay = maxPrepaymentCentsWithoutLessons(contact, settings ?? undefined);
@@ -61,7 +54,7 @@ export async function mergeLedgerIntoDbBalance(
   const merged = Math.max(dbCents, ledgerRemaining);
   if (merged !== dbCents) {
     await storage.setGuestLessonBalanceCents(userId, contactId, merged);
-    console.log("[saldo] /buscar: ledger → saldo retido", { contactId, cents: merged });
+    console.log("[saldo] ledger → saldo retido", { contactId, cents: merged, was: dbCents });
   }
   return merged;
 }
