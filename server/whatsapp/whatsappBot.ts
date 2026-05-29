@@ -1040,9 +1040,13 @@ class WhatsAppBot {
     });
 
     if (out.status === 'duplicate') {
+      const extra =
+        out.balanceSyncedCents != null && out.balanceSyncedCents > 0 ?
+          `\n\n💰 Saldo sincronizado no painel: ${(out.balanceSyncedCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`
+        : '';
       await this.sendMessage(
         remoteJid,
-        `ℹ️ *Comprovante já registrado*\n\n${out.message}\n\nEsse PIX já entrou pelo extrato (Pluggy) ou por outro comprovante enviado antes.`,
+        `ℹ️ *Comprovante já registrado*\n\n${out.message}${extra}\n\nNão precisa apagar — o pagamento já está no sistema.`,
       );
       return;
     }

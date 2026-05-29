@@ -120,7 +120,15 @@ export async function applyIncomingCreditToContact(opts: {
         reason: "ja_registrado_reconciliado",
       };
     }
-    return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key, reason: "ja_registrado" };
+    await mergeLedgerIntoDbBalance(userId, contact.id);
+    await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
+    return {
+      duplicate: true,
+      applied: true,
+      markedLessons: 0,
+      ledgerTxKey: key,
+      reason: "ja_registrado_saldo_sincronizado",
+    };
   }
 
   const settings = await storage.getUserSettings(userId);

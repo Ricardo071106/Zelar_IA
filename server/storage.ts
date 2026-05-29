@@ -319,6 +319,8 @@ export interface IStorage {
   ): Promise<boolean>;
   /** True se já existe linha no ledger para essa transação (dedupe / retomada após falha). */
   hasPluggyContactCredit(userId: number, transactionId: string): Promise<boolean>;
+  /** Aluno vinculado a um crédito já registrado no ledger (comprovante/Pluggy). */
+  findContactIdByPluggyLedgerKey(userId: number, transactionId: string): Promise<number | null>;
   insertPaymentReceiptUpload(row: {
     userId: number;
     dedupeKey: string;
@@ -1565,6 +1567,27 @@ export class DatabaseStorage implements IStorage {
     } catch (e: unknown) {
       const code = (e as { code?: string })?.code;
       if (code === "42P01") return false;
+      throw e;
+    }
+  }
+
+  async findContactIdByPluggyLedgerKey(userId: number, transactionId: string): Promise<number | null> {
+    if (!db) return null;
+    const tid = (transactionId.trim() || "").slice(0, 128);
+    if (!tid) return null;
+    try {
+      const res = await db.execute(sql`
+        SELECT contact_id AS cid
+        FROM pluggy_contact_payment_ledger
+        WHERE user_id = ${userId} AND transaction_id = ${tid}
+        LIMIT 1
+      `);
+      const row = (res as { rows?: { cid?: number | string }[] }).rows?.[0];
+      const cid = row?.cid != null ? Number(row.cid) : NaN;
+      return Number.isFinite(cid) ? cid : null;
+    } catch (e: unknown) {
+      const code = (e as { code?: string })?.code;
+      if (code === "42P01") return null;
       throw e;
     }
   }

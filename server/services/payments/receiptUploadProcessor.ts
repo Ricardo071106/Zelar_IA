@@ -7,6 +7,7 @@ import {
   resolvePaymentDedupeKeyFromUploadFile,
 } from "./pixDedupeKey";
 import { applyIncomingCreditToContact } from "./applyIncomingCredit";
+import { syncExistingLedgerCreditToBalance } from "./syncExistingLedgerCredit";
 import type { PluggyTx } from "../pluggy/pluggyPaymentProcessor";
 import {
   buildCreditSearchBlob,
@@ -21,6 +22,7 @@ export type ReceiptUploadResult = {
   markedLessons?: number;
   amountCents?: number;
   payerName?: string | null;
+  balanceSyncedCents?: number;
   message: string;
 };
 
@@ -114,22 +116,35 @@ export async function processReceiptUpload(opts: {
   }
 
   if (await storage.hasPluggyContactCredit(userId, dedupeKey)) {
+    const synced = await syncExistingLedgerCreditToBalance(userId, dedupeKey);
     await storage.insertPaymentReceiptUpload({
       userId,
       dedupeKey,
-      contactId: null,
+      contactId: synced.contactId,
       amountCents: parsed.amountCents,
       originalFilename: originalName.slice(0, 255),
       status: "duplicate",
-      detail: "Pagamento já registrado (Pluggy ou comprovante anterior).",
+      detail:
+        synced.contactId != null ?
+          `Pagamento já registrado; saldo sincronizado (${synced.balanceCents} centavos).`
+        : "Pagamento já registrado (Pluggy ou comprovante anterior).",
     });
+    const brl =
+      synced.balanceCents > 0 ?
+        (synced.balanceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      : null;
     return {
       ok: true,
       status: "duplicate",
       dedupeKey,
+      contactId: synced.contactId ?? undefined,
       amountCents: parsed.amountCents,
       payerName: parsed.payerName,
-      message: "Este pagamento já foi registrado (mesmo identificador no extrato ou em outro comprovante).",
+      balanceSyncedCents: synced.balanceCents > 0 ? synced.balanceCents : undefined,
+      message:
+        synced.contactId != null && brl ?
+          `Este pagamento já estava registrado. Saldo atualizado no painel: ${brl}.`
+        : "Este pagamento já foi registrado (mesmo identificador no extrato ou em outro comprovante).",
     };
   }
 
@@ -180,6 +195,7 @@ export async function processReceiptUpload(opts: {
   });
 
   if (apply.duplicate) {
+    const synced = await syncExistingLedgerCreditToBalance(userId, dedupeKey, resolved.contact.id);
     await storage.insertPaymentReceiptUpload({
       userId,
       dedupeKey,
@@ -189,6 +205,10 @@ export async function processReceiptUpload(opts: {
       status: "duplicate",
       detail: apply.reason ?? "duplicate",
     });
+    const brl =
+      synced.balanceCents > 0 ?
+        (synced.balanceCents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+      : null;
     return {
       ok: true,
       status: "duplicate",
@@ -196,7 +216,11 @@ export async function processReceiptUpload(opts: {
       contactId: resolved.contact.id,
       amountCents,
       payerName: parsed.payerName,
-      message: "Pagamento já estava registrado.",
+      balanceSyncedCents: synced.balanceCents > 0 ? synced.balanceCents : undefined,
+      message:
+        brl ?
+          `Pagamento já estava registrado. Saldo atualizado no painel: ${brl}.`
+        : "Pagamento já estava registrado.",
     };
   }
 
