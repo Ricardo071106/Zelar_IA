@@ -10,9 +10,12 @@ import { applyIncomingCreditToContact } from "./applyIncomingCredit";
 import { syncExistingLedgerCreditToBalance } from "./syncExistingLedgerCredit";
 import type { PluggyTx } from "../pluggy/pluggyPaymentProcessor";
 import {
-  buildCreditSearchBlob,
   resolvePluggyCreditContact,
 } from "../pluggy/pluggyPaymentProcessor";
+import { extractPayerNameFromPluggyTransaction } from "../pluggy/pluggyPayerExtract";
+import { buildReceiptPayerMemoBlob, parseReceiptPayerName } from "./receiptPayerExtract";
+import { displayNameFromGuestContact } from "../pluggy/lessonUnitPrice";
+import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 
 export type ReceiptUploadResult = {
   ok: boolean;
@@ -23,6 +26,7 @@ export type ReceiptUploadResult = {
   amountCents?: number;
   payerName?: string | null;
   balanceSyncedCents?: number;
+  contactStudentName?: string;
   message: string;
 };
 
@@ -150,8 +154,16 @@ export async function processReceiptUpload(opts: {
 
   const tx = syntheticTxFromReceipt(parsed);
   const amountCents = parsed.amountCents;
-  const payerHint = parsed.payerName;
-  const memoBlob = buildCreditSearchBlob(tx);
+  const payerHint =
+    parsed.payerName ??
+    parseReceiptPayerName(parsed.rawText) ??
+    extractPayerNameFromPluggyTransaction(tx);
+  const memoBlob = buildReceiptPayerMemoBlob(parsed.rawText, payerHint);
+
+  const user = await storage.getUser(userId);
+  const accountOwnerNameKeys = [user?.name, user?.username]
+    .map((n) => (typeof n === "string" ? normalizeAliasKey(n.trim()) : ""))
+    .filter((k) => k.length >= 3);
 
   const resolved = await resolvePluggyCreditContact(
     userId,
@@ -161,6 +173,7 @@ export async function processReceiptUpload(opts: {
     memoBlob,
     payerHint,
     null,
+    { accountOwnerNameKeys },
   );
 
   if (!resolved?.contact) {
@@ -183,6 +196,8 @@ export async function processReceiptUpload(opts: {
         "Valor e pagador lidos, mas nenhum aluno bateu. Confira nome/CPF no cadastro ou envie comprovante com nome completo.",
     };
   }
+
+  const studentName = displayNameFromGuestContact(resolved.contact);
 
   const apply = await applyIncomingCreditToContact({
     userId,
@@ -266,8 +281,8 @@ export async function processReceiptUpload(opts: {
 
   const msg =
     apply.markedLessons > 0 ?
-      `Comprovante aceito: ${apply.markedLessons} aula(s) marcada(s) como paga(s).`
-    : "Comprovante aceito: crédito registrado (saldo retido / aguardando aulas pendentes).";
+      `Comprovante aceito: ${apply.markedLessons} aula(s) marcada(s) como paga(s) para ${studentName}.`
+    : `Comprovante aceito: crédito registrado para ${studentName} (saldo retido / aguardando aulas pendentes).`;
 
   return {
     ok: true,
@@ -277,6 +292,7 @@ export async function processReceiptUpload(opts: {
     markedLessons: apply.markedLessons,
     amountCents,
     payerName: parsed.payerName,
+    contactStudentName: studentName,
     message: msg,
   };
 }

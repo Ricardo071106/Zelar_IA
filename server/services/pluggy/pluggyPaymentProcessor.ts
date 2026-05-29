@@ -283,9 +283,46 @@ function collectTaxDocsFromTxAndLlm(tx: PluggyTx, llmHints: PluggyExtractHints |
   return [...new Set(docs.map((d) => normalizeBrazilianTaxId(d)).filter((d): d is string => Boolean(d)))];
 }
 
+export type ResolvePluggyCreditOpts = {
+  /** Nome do titular da conta (professor) — evita casar comprovante pelo recebedor. */
+  accountOwnerNameKeys?: string[];
+};
+
+function contactMatchesOwnerKeys(row: UserGuestContactRow, ownerKeys: string[]): boolean {
+  if (!ownerKeys.length) return false;
+  for (const alias of row.aliasNames ?? []) {
+    const ak = normalizeAliasKey(alias);
+    if (!ak) continue;
+    for (const ok of ownerKeys) {
+      if (!ok) continue;
+      if (ak === ok) return true;
+      if (ak.length >= 5 && ok.length >= 5 && (ak.includes(ok) || ok.includes(ak))) return true;
+      const tokA = ak.split(/\s+/).filter((t) => t.length >= 3);
+      const tokO = ok.split(/\s+/).filter((t) => t.length >= 3);
+      if (tokA.length >= 2 && tokO.length >= 2 && tokA.every((t) => ok.includes(t))) return true;
+      if (tokO.length >= 2 && tokA.length >= 2 && tokO.every((t) => ak.includes(t))) return true;
+    }
+  }
+  return false;
+}
+
+async function accountOwnerNameKeys(userId: number): Promise<string[]> {
+  const user = await storage.getUser(userId);
+  if (!user) return [];
+  return [user.name, user.username]
+    .map((n) => (typeof n === "string" ? normalizeAliasKey(n.trim()) : ""))
+    .filter((k) => k.length >= 3);
+}
+
+type MemoMatchOpts = {
+  ownerKeys?: string[];
+  payerKey?: string | null;
+};
+
 async function findGuestContactByMemoBlob(
   userId: number,
   blob: string,
+  opts?: MemoMatchOpts,
 ): Promise<UserGuestContactRow | null> {
   if (!blob || blob.length < 4) return null;
 
@@ -315,7 +352,29 @@ async function findGuestContactByMemoBlob(
       if (!best || score > best.score) best = { row, score };
     }
   }
-  return best?.row ?? null;
+
+  if (!best) return null;
+
+  const ownerKeys = opts?.ownerKeys ?? [];
+  const payerKey = opts?.payerKey?.trim() ? normalizeAliasKey(opts.payerKey) : null;
+
+  if (ownerKeys.length && payerKey && contactMatchesOwnerKeys(best.row, ownerKeys)) {
+    const byPayer = await storage.findGuestContactByLooseName(userId, payerKey);
+    if (byPayer && !contactMatchesOwnerKeys(byPayer, ownerKeys)) {
+      console.log("[Pluggy] Memo apontava titular; preferindo pagador → contato", byPayer.id, {
+        payerKey,
+        ownerContactId: best.row.id,
+      });
+      return byPayer;
+    }
+    console.log("[Pluggy] Memo ignorado: bate só com titular da conta, pagador não cadastrado.", {
+      ownerContactId: best.row.id,
+      payerKey,
+    });
+    return null;
+  }
+
+  return best.row;
 }
 
 /** Cruza o memo do extrato com "Aula com …" das aulas pendentes (sem depender do parser de pagador). */
@@ -730,7 +789,13 @@ export async function resolvePluggyCreditContact(
   memoBlob: string,
   payerHint: string | null,
   llmHints: PluggyExtractHints | null = null,
+  opts?: ResolvePluggyCreditOpts,
 ): Promise<{ contact: UserGuestContactRow; matchKind: PluggyCreditMatchKind } | null> {
+  const ownerKeys =
+    opts?.accountOwnerNameKeys?.length ?
+      opts.accountOwnerNameKeys
+    : await accountOwnerNameKeys(userId);
+
   const byAmount = await tryResolveContactByAmountOnly(userId, amountCents, settings, payerHint);
   if (byAmount) {
     console.log("[Pluggy] Match por valor × aulas pendentes → contato", byAmount.id, {
@@ -759,27 +824,36 @@ export async function resolvePluggyCreditContact(
     return { contact: byCpf, matchKind: kind };
   }
 
-  const byMemo = await findGuestContactByMemoBlob(userId, memoBlob);
-  if (byMemo) {
-    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id, {
-      viaLlm: Boolean(llmHints?.payerName),
-    });
-    return { contact: byMemo, matchKind: "memo" };
-  }
-
   if (payerHint) {
     const byName = await storage.findGuestContactByLooseName(userId, payerHint);
-    if (byName) {
+    if (byName && !contactMatchesOwnerKeys(byName, ownerKeys)) {
       console.log("[Pluggy] Match nome pagador → contato", byName.id, {
+        payerHint,
         viaLlm: payerHint !== extractPayerNameFromPluggyTransaction(tx),
       });
       return { contact: byName, matchKind: "name" };
     }
     const byTitle = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
     if (byTitle) {
-      console.log("[Pluggy] Match título de aula pendente → contato", byTitle.id);
+      console.log("[Pluggy] Match título de aula pendente → contato", byTitle.id, { payerHint });
       return { contact: byTitle, matchKind: "lesson_title" };
     }
+    if (byName) {
+      console.log("[Pluggy] Match nome pagador (titular) → contato", byName.id, { payerHint });
+      return { contact: byName, matchKind: "name" };
+    }
+  }
+
+  const byMemo = await findGuestContactByMemoBlob(userId, memoBlob, {
+    ownerKeys,
+    payerKey: payerHint,
+  });
+  if (byMemo) {
+    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id, {
+      viaLlm: Boolean(llmHints?.payerName),
+      payerHint: payerHint ?? null,
+    });
+    return { contact: byMemo, matchKind: "memo" };
   }
 
   if (memoBlob.length >= 5) {

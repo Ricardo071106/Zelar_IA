@@ -1,6 +1,7 @@
 import * as chrono from "chrono-node";
 import { DateTime } from "luxon";
 import { extractPixEndToEndId } from "./pixDedupeKey";
+import { parseReceiptPayerName } from "./receiptPayerExtract";
 
 export type ParsedReceipt = {
   amountCents: number;
@@ -34,20 +35,7 @@ function parseBrlAmountCents(text: string): number | null {
 }
 
 function parsePayerName(text: string): string | null {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const labelRe =
-    /^(?:de|pagador|origem|quem\s+enviou|nome\s+do\s+pagador|remetente)\s*[:\-]?\s*(.+)$/i;
-  for (const line of lines) {
-    const m = line.match(labelRe);
-    if (m?.[1] && m[1].length >= 4 && m[1].length <= 120) {
-      return m[1].replace(/\s+/g, " ").trim();
-    }
-  }
-  const inline = text.match(
-    /(?:pagador|de|origem|remetente)\s*[:\-]\s*([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ\s.'-]{3,80})/i,
-  );
-  if (inline?.[1]) return inline[1].replace(/\s+/g, " ").trim();
-  return null;
+  return parseReceiptPayerName(text);
 }
 
 function parseReceiptDate(text: string, timeZone: string): Date {

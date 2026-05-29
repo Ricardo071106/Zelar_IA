@@ -1056,13 +1056,19 @@ class WhatsAppBot {
         out.amountCents != null ?
           (out.amountCents / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
         : '';
+      const student =
+        out.contactStudentName ?
+          `\n👤 Aluno: *${out.contactStudentName}*`
+        : out.contactId != null ?
+          `\n👤 Cadastro #${out.contactId}`
+        : '';
       const lessons =
         out.markedLessons && out.markedLessons > 0 ?
           `\n✅ *${out.markedLessons}* aula(s) marcada(s) como paga(s).`
         : '\n💰 Crédito registrado no saldo (aguardando aulas pendentes).';
       await this.sendMessage(
         remoteJid,
-        `✅ *Comprovante aceito*${brl ? ` — ${brl}` : ''}${lessons}\n\n${out.message}`,
+        `✅ *Comprovante aceito*${brl ? ` — ${brl}` : ''}${student}${lessons}\n\n${out.message}`,
       );
       return;
     }
