@@ -1,6 +1,7 @@
 import type { UserGuestContactRow } from "../../storage";
 import { storage } from "../../storage";
 import { syncGuestFinancialState } from "../guestLessonFinancials";
+import { mergeLedgerIntoDbBalance } from "../guestLessonPaymentPool";
 import { reconcileGuestContactLessonPayments } from "../reconcileGuestLessonPayments";
 import {
   earliestPendingLessonCreatedAt,
@@ -65,7 +66,7 @@ async function settleCreditAndMarkLessons(
   amountCents: number,
   paymentSource: "pluggy" | "upload",
 ): Promise<number> {
-  await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: true });
+  await mergeLedgerIntoDbBalance(userId, contact.id);
   const r = await reconcileGuestContactLessonPayments(userId, contact.id, { paymentSource });
   let marked = r.markedCount;
   if (marked === 0 && amountCents > 0) {
@@ -172,6 +173,7 @@ export async function applyIncomingCreditToContact(opts: {
     if (!ledgerInserted) {
       return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key, reason: "conflito_insert" };
     }
+    await mergeLedgerIntoDbBalance(userId, contact.id);
     await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
     return { duplicate: false, applied: true, markedLessons: 0, ledgerTxKey: key };
   }
@@ -192,7 +194,8 @@ export async function applyIncomingCreditToContact(opts: {
     if (!ledgerInserted) {
       return { duplicate: true, applied: false, markedLessons: 0, ledgerTxKey: key };
     }
-    await syncGuestFinancialState(userId, contact.id);
+    await mergeLedgerIntoDbBalance(userId, contact.id);
+    await syncGuestFinancialState(userId, contact.id, { applyLedgerTopUp: false });
     return { duplicate: false, applied: true, markedLessons: 0, ledgerTxKey: key, reason: "sem_preco_aula" };
   }
 

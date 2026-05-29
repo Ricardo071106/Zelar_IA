@@ -15,6 +15,7 @@ import {
   pluggyCredentialsConfigured,
 } from '../services/pluggy/pluggyApi';
 import { computeGuestLessonFinancials, syncGuestFinancialState } from '../services/guestLessonFinancials';
+import { mergeLedgerIntoDbBalance } from '../services/guestLessonPaymentPool';
 import { reconcileGuestContactLessonPayments } from '../services/reconcileGuestLessonPayments';
 import { getLessonDebtUnitCents } from '../services/pluggy/lessonUnitPrice';
 import { runPluggyBuscarReconciliation } from '../services/pluggy/pluggyBuscarReconciliation';
@@ -423,8 +424,10 @@ router.get(
     const def = settings?.defaultLessonPriceCents ?? null;
     const guests = await Promise.all(
       rows.map(async (r) => {
-        const fin = await computeGuestLessonFinancials(ctx.user.id, r, def);
-        return guestPanelDto(r, {
+        await mergeLedgerIntoDbBalance(ctx.user.id, r.id);
+        const fresh = (await storage.getGuestContactByIdForUser(ctx.user.id, r.id)) ?? r;
+        const fin = await computeGuestLessonFinancials(ctx.user.id, fresh, def);
+        return guestPanelDto(fresh, {
           pendingDebtCents: fin.pendingDebtCents,
           lessonBalanceCents: fin.lessonBalanceCents,
           lessonNetBalanceCents: fin.lessonNetBalanceCents,

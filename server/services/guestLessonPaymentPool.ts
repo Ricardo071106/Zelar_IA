@@ -46,7 +46,7 @@ export function spendableDbBalanceCents(contact: UserGuestContactRow): number {
 }
 
 /**
- * Incorpora ledger → banco. Chamar apenas no /buscar (applyLedgerTopUp), nunca ao criar aula.
+ * Incorpora ledger → banco (comprovante, Pluggy /buscar, applyLedgerTopUp).
  */
 export async function mergeLedgerIntoDbBalance(
   userId: number,

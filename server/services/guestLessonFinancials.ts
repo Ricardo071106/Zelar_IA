@@ -5,7 +5,6 @@ import { capFairRetainedCents } from "./pluggy/pluggyCreditAttribution";
 import { ledgerSinceForPendingLessons } from "./pluggy/pluggyLessonDateRules";
 import { getLessonDebtUnitCents, getLessonUnitCentsFromEventSnapshot } from "./pluggy/lessonUnitPrice";
 import { computeFullLedgerCreditsRemaining } from "./guestLessonPaymentPool";
-import { isPluggyInMaintenance } from "./pluggy/pluggyMaintenance";
 
 export type GuestLessonFinancials = {
   pendingDebtCents: number;
@@ -126,7 +125,7 @@ export async function syncGuestFinancialState(
 
   const chain = await storage.listBillableLessonEventsForContactOrdered(userId, contactId);
   let targetBalance = db;
-  if (opts?.applyLedgerTopUp && !isPluggyInMaintenance()) {
+  if (opts?.applyLedgerTopUp) {
     // Sem aulas no sistema: saldo = ledger capado (corrige PIX de teste acumulados).
     if (chain.length === 0 && raw.pendingDebtCents <= 0) {
       targetBalance = ledgerRemaining;

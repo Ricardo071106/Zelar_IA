@@ -1,6 +1,6 @@
-/** Mensagem padrão quando Pluggy está desligado para manutenção. */
+/** Mensagem padrão quando Pluggy está desligado (custo / manutenção). */
 export const PLUGGY_MAINTENANCE_MESSAGE =
-  "Open Finance (Pluggy) em manutenção. Envie o comprovante PIX (foto ou PDF) no WhatsApp.";
+  "Leitura automática do extrato (Pluggy) está desativada. Para marcar aulas pagas, envie o comprovante PIX (foto ou PDF) no WhatsApp.";
 
 /**
  * Padrão: manutenção ativa. Para reativar Pluggy no servidor: PLUGGY_MAINTENANCE=false
