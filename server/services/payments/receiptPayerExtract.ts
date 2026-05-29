@@ -1,5 +1,6 @@
 import { extractPayerNameFromPluggyTransaction } from "../pluggy/pluggyPayerExtract";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
+import { nameMatchesOwnerKeys } from "./guestOwnerMatch";
 
 const RECEIVER_LINE =
   /^(?:para|recebedor|destinat[aá]rio|favorecido|benefici[aá]rio|nome\s+do\s+recebedor)\s*[:\-]/i;
@@ -7,8 +8,18 @@ const RECEIVER_LINE =
 const PAYER_LINE =
   /^(?:nome\s+do\s+pagador|pagador|de|origem|quem\s+enviou|remetente|nome\s+do\s+remetente)\s*[:\-]\s*(.+)$/i;
 
-/** Nome de quem enviou o PIX (pagador), não o recebedor/professor. */
-export function parseReceiptPayerName(text: string): string | null {
+function scrubOwnerNamesFromText(text: string, ownerKeys: string[]): string {
+  let out = text;
+  for (const ok of ownerKeys) {
+    for (const part of ok.split(/\s+/).filter((t) => t.length >= 4)) {
+      const esc = part.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      out = out.replace(new RegExp(esc, "gi"), " ");
+    }
+  }
+  return out;
+}
+
+function parsePayerFromLines(text: string): string | null {
   const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
 
   for (const line of lines) {
@@ -25,12 +36,40 @@ export function parseReceiptPayerName(text: string): string | null {
   if (inline?.[1] && !RECEIVER_LINE.test(inline[0])) {
     return inline[1].replace(/\s+/g, " ").trim();
   }
+  return null;
+}
 
-  return extractPayerNameFromPluggyTransaction({
-    descriptionRaw: text.slice(0, 800),
-    description: text.slice(0, 400),
+/** Nome de quem enviou o PIX (pagador), não o recebedor/professor. */
+export function parseReceiptPayerName(text: string, ownerKeys: string[] = []): string | null {
+  const receiver = parseReceiptReceiverName(text);
+  const keys = [...ownerKeys];
+  if (receiver) keys.push(normalizeAliasKey(receiver));
+
+  const fromLines = parsePayerFromLines(text);
+  if (fromLines && !nameMatchesOwnerKeys(fromLines, keys)) {
+    return fromLines;
+  }
+
+  let scrubbed = scrubOwnerNamesFromText(text, keys);
+  if (receiver) {
+    scrubbed = scrubOwnerNamesFromText(scrubbed, [normalizeAliasKey(receiver)]);
+  }
+
+  const fromScrubbedLines = parsePayerFromLines(scrubbed);
+  if (fromScrubbedLines && !nameMatchesOwnerKeys(fromScrubbedLines, keys)) {
+    return fromScrubbedLines;
+  }
+
+  const fallback = extractPayerNameFromPluggyTransaction({
+    descriptionRaw: scrubbed.slice(0, 800),
+    description: scrubbed.slice(0, 400),
     paymentData: {},
   });
+  if (fallback && !nameMatchesOwnerKeys(fallback, keys)) {
+    return fallback;
+  }
+
+  return fromLines && !nameMatchesOwnerKeys(fromLines, keys) ? fromLines : null;
 }
 
 /** Nome do recebedor (professor) — usado para não confundir com pagador. */
@@ -46,9 +85,15 @@ export function parseReceiptReceiverName(text: string): string | null {
 }
 
 /** Texto enxuto para casar com cadastro de alunos (só pagador, sem OCR completo). */
-export function buildReceiptPayerMemoBlob(rawText: string, payerName: string | null): string {
+export function buildReceiptPayerMemoBlob(
+  rawText: string,
+  payerName: string | null,
+  ownerKeys: string[] = [],
+): string {
   const parts: string[] = [];
-  if (payerName?.trim()) parts.push(payerName.trim());
+  if (payerName?.trim() && !nameMatchesOwnerKeys(payerName, ownerKeys)) {
+    parts.push(payerName.trim());
+  }
   for (const line of rawText.split(/\r?\n/)) {
     if (RECEIVER_LINE.test(line.trim())) continue;
     if (/pagador|remetente|origem|quem\s+enviou/i.test(line)) parts.push(line);

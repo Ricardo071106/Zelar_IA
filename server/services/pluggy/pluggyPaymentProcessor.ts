@@ -7,6 +7,8 @@ import { buildLessonCalendarTitle } from "./lessonTitle";
 import { extractPayerNameFromPluggyTransaction, extractReceiverNameFromPluggyTransaction } from "./pluggyPayerExtract";
 import { displayNameFromGuestContact, resolveLessonUnitCentsForAllocation } from "./lessonUnitPrice";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
+import { contactMatchesOwnerKeys, rejectOwnerContact } from "../payments/guestOwnerMatch";
+import { findGuestContactInReceiptText } from "../payments/receiptGuestMatch";
 import { patchLessonTitleOnGoogleCalendar } from "../lessonGoogleCalendarSync";
 import { patchMicrosoftCalendarEventSubject } from "../../telegram/microsoftCalendarIntegration";
 import { coercePluggyAmountToNumber, pluggyTransactionAmountToCents } from "./pluggyAmountToCents";
@@ -286,25 +288,11 @@ function collectTaxDocsFromTxAndLlm(tx: PluggyTx, llmHints: PluggyExtractHints |
 export type ResolvePluggyCreditOpts = {
   /** Nome do titular da conta (professor) — evita casar comprovante pelo recebedor. */
   accountOwnerNameKeys?: string[];
+  /** Comprovante: nunca creditar o titular cadastrado como aluno. */
+  neverMatchAccountOwner?: boolean;
+  /** OCR do comprovante — busca nomes de alunos excluindo titular. */
+  receiptRawText?: string;
 };
-
-function contactMatchesOwnerKeys(row: UserGuestContactRow, ownerKeys: string[]): boolean {
-  if (!ownerKeys.length) return false;
-  for (const alias of row.aliasNames ?? []) {
-    const ak = normalizeAliasKey(alias);
-    if (!ak) continue;
-    for (const ok of ownerKeys) {
-      if (!ok) continue;
-      if (ak === ok) return true;
-      if (ak.length >= 5 && ok.length >= 5 && (ak.includes(ok) || ok.includes(ak))) return true;
-      const tokA = ak.split(/\s+/).filter((t) => t.length >= 3);
-      const tokO = ok.split(/\s+/).filter((t) => t.length >= 3);
-      if (tokA.length >= 2 && tokO.length >= 2 && tokA.every((t) => ok.includes(t))) return true;
-      if (tokO.length >= 2 && tokA.length >= 2 && tokO.every((t) => ak.includes(t))) return true;
-    }
-  }
-  return false;
-}
 
 async function accountOwnerNameKeys(userId: number): Promise<string[]> {
   const user = await storage.getUser(userId);
@@ -317,6 +305,7 @@ async function accountOwnerNameKeys(userId: number): Promise<string[]> {
 type MemoMatchOpts = {
   ownerKeys?: string[];
   payerKey?: string | null;
+  skipOwnerContacts?: boolean;
 };
 
 async function findGuestContactByMemoBlob(
@@ -336,6 +325,7 @@ async function findGuestContactByMemoBlob(
   let best: { row: UserGuestContactRow; score: number } | null = null;
 
   for (const row of contacts) {
+    if (opts?.skipOwnerContacts && contactMatchesOwnerKeys(row, opts.ownerKeys ?? [])) continue;
     for (const alias of row.aliasNames ?? []) {
       const ak = normalizeAliasKey(alias);
       if (!ak || ak.length < 2) continue;
@@ -357,6 +347,10 @@ async function findGuestContactByMemoBlob(
 
   const ownerKeys = opts?.ownerKeys ?? [];
   const payerKey = opts?.payerKey?.trim() ? normalizeAliasKey(opts.payerKey) : null;
+
+  if (opts?.skipOwnerContacts && contactMatchesOwnerKeys(best.row, ownerKeys)) {
+    return null;
+  }
 
   if (ownerKeys.length && payerKey && contactMatchesOwnerKeys(best.row, ownerKeys)) {
     const byPayer = await storage.findGuestContactByLooseName(userId, payerKey);
@@ -435,11 +429,14 @@ async function tryResolveContactByAmountOnly(
   amountCents: number,
   settings: UserSettings | undefined,
   payerHint?: string | null,
+  ownerKeys?: string[],
+  neverMatchAccountOwner?: boolean,
 ): Promise<UserGuestContactRow | null> {
   const contacts = await storage.listUserGuestContacts(userId);
   const exactHits: { contact: UserGuestContactRow; pendingCount: number }[] = [];
 
   for (const c of contacts) {
+    if (neverMatchAccountOwner && contactMatchesOwnerKeys(c, ownerKeys ?? [])) continue;
     const pending = await storage.listPendingLessonEventsForContact(userId, c.id);
     if (pending.length === 0) continue;
 
@@ -795,72 +792,91 @@ export async function resolvePluggyCreditContact(
     opts?.accountOwnerNameKeys?.length ?
       opts.accountOwnerNameKeys
     : await accountOwnerNameKeys(userId);
+  const neverOwner = Boolean(opts?.neverMatchAccountOwner);
 
-  const byAmount = await tryResolveContactByAmountOnly(userId, amountCents, settings, payerHint);
-  if (byAmount) {
-    console.log("[Pluggy] Match por valor × aulas pendentes → contato", byAmount.id, {
+  if (neverOwner && opts?.receiptRawText?.trim()) {
+    const byOcr = await findGuestContactInReceiptText(userId, opts.receiptRawText, ownerKeys);
+    const ok = rejectOwnerContact(byOcr, ownerKeys, true);
+    if (ok) {
+      return { contact: ok, matchKind: "name" };
+    }
+  }
+
+  const byAmount = await tryResolveContactByAmountOnly(
+    userId,
+    amountCents,
+    settings,
+    payerHint,
+    ownerKeys,
+    neverOwner,
+  );
+  const byAmountOk = rejectOwnerContact(byAmount, ownerKeys, neverOwner);
+  if (byAmountOk) {
+    console.log("[Pluggy] Match por valor × aulas pendentes → contato", byAmountOk.id, {
       amountCents,
       brl: (amountCents / 100).toFixed(2),
     });
-    return { contact: byAmount, matchKind: "amount_exact" };
+    return { contact: byAmountOk, matchKind: "amount_exact" };
   }
 
   const byCpf = await findGuestContactByTaxIdDocs(userId, collectTaxDocsFromTxAndLlm(tx, llmHints));
-  if (byCpf) {
-    const pending = await storage.listPendingLessonEventsForContact(userId, byCpf.id);
+  const byCpfOk = rejectOwnerContact(byCpf, ownerKeys, neverOwner);
+  if (byCpfOk) {
+    const pending = await storage.listPendingLessonEventsForContact(userId, byCpfOk.id);
     const kind: PluggyCreditMatchKind = pluggyCreditAllowedForContact(
       "cpf_only",
       amountCents,
-      byCpf,
+      byCpfOk,
       pending,
       settings,
     )
       ? "cpf_with_amount"
       : "cpf_only";
-    console.log("[Pluggy] Match CPF/CNPJ hash → contato", byCpf.id, {
+    console.log("[Pluggy] Match CPF/CNPJ hash → contato", byCpfOk.id, {
       kind,
       viaLlm: Boolean(llmHints?.cpf || llmHints?.cnpj),
     });
-    return { contact: byCpf, matchKind: kind };
+    return { contact: byCpfOk, matchKind: kind };
   }
 
   if (payerHint) {
     const byName = await storage.findGuestContactByLooseName(userId, payerHint);
-    if (byName && !contactMatchesOwnerKeys(byName, ownerKeys)) {
-      console.log("[Pluggy] Match nome pagador → contato", byName.id, {
+    const byNameOk = rejectOwnerContact(byName, ownerKeys, neverOwner);
+    if (byNameOk) {
+      console.log("[Pluggy] Match nome pagador → contato", byNameOk.id, {
         payerHint,
         viaLlm: payerHint !== extractPayerNameFromPluggyTransaction(tx),
       });
-      return { contact: byName, matchKind: "name" };
+      return { contact: byNameOk, matchKind: "name" };
     }
     const byTitle = await tryResolveContactFromPendingLessonTitles(userId, payerHint);
-    if (byTitle) {
-      console.log("[Pluggy] Match título de aula pendente → contato", byTitle.id, { payerHint });
-      return { contact: byTitle, matchKind: "lesson_title" };
-    }
-    if (byName) {
-      console.log("[Pluggy] Match nome pagador (titular) → contato", byName.id, { payerHint });
-      return { contact: byName, matchKind: "name" };
+    const byTitleOk = rejectOwnerContact(byTitle, ownerKeys, neverOwner);
+    if (byTitleOk) {
+      console.log("[Pluggy] Match título de aula pendente → contato", byTitleOk.id, { payerHint });
+      return { contact: byTitleOk, matchKind: "lesson_title" };
     }
   }
 
   const byMemo = await findGuestContactByMemoBlob(userId, memoBlob, {
     ownerKeys,
     payerKey: payerHint,
+    skipOwnerContacts: neverOwner,
   });
-  if (byMemo) {
-    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemo.id, {
+  const byMemoOk = rejectOwnerContact(byMemo, ownerKeys, neverOwner);
+  if (byMemoOk) {
+    console.log("[Pluggy] Match extrato ↔ planilha → contato", byMemoOk.id, {
       viaLlm: Boolean(llmHints?.payerName),
       payerHint: payerHint ?? null,
     });
-    return { contact: byMemo, matchKind: "memo" };
+    return { contact: byMemoOk, matchKind: "memo" };
   }
 
   if (memoBlob.length >= 5) {
     const byLessonMemo = await tryResolveContactFromPendingLessonMemo(userId, memoBlob);
-    if (byLessonMemo) {
-      console.log("[Pluggy] Match memo ↔ aula pendente → contato", byLessonMemo.id);
-      return { contact: byLessonMemo, matchKind: "lesson_title" };
+    const byLessonMemoOk = rejectOwnerContact(byLessonMemo, ownerKeys, neverOwner);
+    if (byLessonMemoOk) {
+      console.log("[Pluggy] Match memo ↔ aula pendente → contato", byLessonMemoOk.id);
+      return { contact: byLessonMemoOk, matchKind: "lesson_title" };
     }
   }
 

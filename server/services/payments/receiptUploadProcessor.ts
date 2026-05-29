@@ -12,8 +12,7 @@ import type { PluggyTx } from "../pluggy/pluggyPaymentProcessor";
 import {
   resolvePluggyCreditContact,
 } from "../pluggy/pluggyPaymentProcessor";
-import { extractPayerNameFromPluggyTransaction } from "../pluggy/pluggyPayerExtract";
-import { buildReceiptPayerMemoBlob, parseReceiptPayerName } from "./receiptPayerExtract";
+import { buildReceiptPayerMemoBlob, parseReceiptPayerName, parseReceiptReceiverName } from "./receiptPayerExtract";
 import { displayNameFromGuestContact } from "../pluggy/lessonUnitPrice";
 import { normalizeAliasKey } from "../../utils/normalizeGuestAlias";
 
@@ -154,16 +153,23 @@ export async function processReceiptUpload(opts: {
 
   const tx = syntheticTxFromReceipt(parsed);
   const amountCents = parsed.amountCents;
-  const payerHint =
-    parsed.payerName ??
-    parseReceiptPayerName(parsed.rawText) ??
-    extractPayerNameFromPluggyTransaction(tx);
-  const memoBlob = buildReceiptPayerMemoBlob(parsed.rawText, payerHint);
 
   const user = await storage.getUser(userId);
   const accountOwnerNameKeys = [user?.name, user?.username]
     .map((n) => (typeof n === "string" ? normalizeAliasKey(n.trim()) : ""))
     .filter((k) => k.length >= 3);
+
+  const receiverName = parseReceiptReceiverName(parsed.rawText);
+  if (receiverName) accountOwnerNameKeys.push(normalizeAliasKey(receiverName));
+
+  const payerHint = parseReceiptPayerName(parsed.rawText, accountOwnerNameKeys);
+  const memoBlob = buildReceiptPayerMemoBlob(parsed.rawText, payerHint, accountOwnerNameKeys);
+
+  console.log("[comprovante] Identificação", {
+    payerHint: payerHint ?? null,
+    receiverName: receiverName ?? null,
+    memoBlob: memoBlob.slice(0, 80),
+  });
 
   const resolved = await resolvePluggyCreditContact(
     userId,
@@ -173,7 +179,11 @@ export async function processReceiptUpload(opts: {
     memoBlob,
     payerHint,
     null,
-    { accountOwnerNameKeys },
+    {
+      accountOwnerNameKeys,
+      neverMatchAccountOwner: true,
+      receiptRawText: parsed.rawText,
+    },
   );
 
   if (!resolved?.contact) {
@@ -193,7 +203,9 @@ export async function processReceiptUpload(opts: {
       amountCents,
       payerName: parsed.payerName,
       message:
-        "Valor e pagador lidos, mas nenhum aluno bateu. Confira nome/CPF no cadastro ou envie comprovante com nome completo.",
+        payerHint ?
+          `Pagador lido: *${payerHint}*. Nenhum aluno cadastrado com esse nome (titular da conta é ignorado). Cadastre o aluno no painel com o nome do comprovante.`
+        : "Valor lido, mas não identificamos o pagador. Envie comprovante com nome do pagador visível ou cadastre o aluno no painel.",
     };
   }
 
